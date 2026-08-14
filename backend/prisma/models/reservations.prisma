@@ -51,6 +51,8 @@ model ReservationItem {
   @@unique([reservationId, assetId])
   @@index([assetId, status])
   @@index([reservationId, status])
+  @@index([preparedBy])
+  @@index([checkedOutBy])
   @@map("reservation_items")
 }
 
@@ -64,6 +66,7 @@ model ReservationParticipant {
   user        User        @relation(fields: [userId], references: [id])
 
   @@id([reservationId, userId])
+  @@index([userId])
   @@map("reservation_participants")
 }
 
@@ -81,6 +84,7 @@ model ReservationItemApproval {
   reservationItem ReservationItem @relation(fields: [reservationItemId], references: [id])
   approver        User            @relation(fields: [approverId], references: [id])
 
+  @@index([approverId])
   @@map("reservation_item_approvals")
 }
 
@@ -102,5 +106,7 @@ model ReservationChangeRequest {
   reviewer    User?       @relation("ReservationChangeReviewedBy", fields: [reviewedBy], references: [id])
 
   @@index([reservationId, status])
+  @@index([requestedBy])
+  @@index([reviewedBy])
   @@map("reservation_change_requests")
 }

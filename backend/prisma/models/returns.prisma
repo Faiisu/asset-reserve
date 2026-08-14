@@ -16,6 +16,7 @@ model Return {
 
   @@index([reservationId])
   @@index([status])
+  @@index([returnedBy])
   @@map("returns")
 }
 
@@ -35,6 +36,7 @@ model ReturnItem {
 
   // Database CHECKs required by the source specification: all quantities >= 0.
   @@unique([returnId, reservationItemId])
+  @@index([reservationItemId])
   @@map("return_items")
 }
 
@@ -52,5 +54,6 @@ model ReturnApproval {
   return   Return @relation(fields: [returnId], references: [id])
   approver User   @relation(fields: [approverId], references: [id])
 
+  @@index([approverId])
   @@map("return_approvals")
 }

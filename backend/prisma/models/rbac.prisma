@@ -32,5 +32,8 @@ model UserRole {
   // two partial indexes below enforce scoped and global role uniqueness separately.
   @@unique([userId, roleId, managementAreaId], map: "user_roles_scoped_key", where: { managementAreaId: { not: null } })
   @@unique([userId, roleId], map: "user_roles_global_key", where: { managementAreaId: null })
+  @@index([roleId])
+  @@index([managementAreaId])
+  @@index([assignedBy])
   @@map("user_roles")
 }

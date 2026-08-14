@@ -31,6 +31,7 @@ model Asset {
 
   // Database CHECK required by the source specification: total_quantity >= 0.
   @@unique([managementAreaId, name])
+  @@index([assetTemplateId])
   @@map("assets")
 }
 
@@ -44,6 +45,7 @@ model AssetTransactionBatch {
   performer    User               @relation(fields: [performedBy], references: [id])
   transactions AssetTransaction[]
 
+  @@index([performedBy])
   @@map("asset_transaction_batches")
 }
 

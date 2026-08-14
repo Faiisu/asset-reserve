@@ -1,0 +1,63 @@
+name: asset-reservation-backend
+
+x-backend-environment: &backend-environment
+  DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in backend/.env}
+  DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+  DATABASE_CONNECTION_TIMEOUT_MS: ${DATABASE_CONNECTION_TIMEOUT_MS:-5000}
+
+services:
+  schema:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+      target: schema
+    environment:
+      <<: *backend-environment
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Set BOOTSTRAP_ADMIN_PASSWORD in backend/.env}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-System Admin}
+      LOAD_MOCK_DATA: ${LOAD_MOCK_DATA:-true}
+      MOCK_USER_PASSWORD: ${MOCK_USER_PASSWORD:-}
+    networks:
+      - app-network
+    restart: "no"
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+      target: runtime
+    environment:
+      <<: *backend-environment
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in backend/.env}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+    depends_on:
+      schema:
+        condition: service_completed_successfully
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/v1/auth/me').then(r=>process.exit(r.status < 500 ? 0 : 1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true
+    name: ${DOCKER_NETWORK_NAME:-asset-reservation-network}

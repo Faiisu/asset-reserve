@@ -1,0 +1,39 @@
+name: asset-reservation-database
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-asset_reservation}
+      POSTGRES_USER: ${POSTGRES_USER:-asset_reservation}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in database/.env}
+    command:
+      - postgres
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    shm_size: ${POSTGRES_SHM_SIZE:-256mb}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    stop_grace_period: 30s
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  postgres-data:
+    name: ${POSTGRES_VOLUME_NAME:-asset-reservation-postgres-data}
+
+networks:
+  app-network:
+    name: ${DOCKER_NETWORK_NAME:-asset-reservation-network}
+
