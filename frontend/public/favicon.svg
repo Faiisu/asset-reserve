@@ -1,5 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" fill="#14243a"/>
-  <path d="M4 4h56v56H4z" fill="none" stroke="#7894ee" stroke-width="4"/>
-  <text x="32" y="39" fill="#fff" font-family="monospace" font-size="22" text-anchor="middle">AR</text>
-</svg>
