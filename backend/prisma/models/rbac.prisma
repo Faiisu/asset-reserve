@@ -1,0 +1,36 @@
+model Role {
+  id          String  @id @db.Uuid
+  /// Supported values from the source specification: ADMIN, MANAGER, USER.
+  name        String  @unique @db.VarChar(50)
+  description String?
+  permissions Json    @default("[]") @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id               String  @id @db.Uuid
+  userId           String  @map("user_id") @db.Uuid
+  roleId           String  @map("role_id") @db.Uuid
+  /// NULL means the role applies globally.
+  managementAreaId String? @map("management_area_id") @db.Uuid
+  assignedBy       String? @map("assigned_by") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user           User            @relation("UserRoleUser", fields: [userId], references: [id])
+  role           Role            @relation(fields: [roleId], references: [id])
+  managementArea ManagementArea? @relation(fields: [managementAreaId], references: [id])
+  assignedByUser User?           @relation("UserRoleAssignedBy", fields: [assignedBy], references: [id])
+
+  // PostgreSQL allows duplicate NULL values in a regular unique constraint, so the
+  // two partial indexes below enforce scoped and global role uniqueness separately.
+  @@unique([userId, roleId, managementAreaId], map: "user_roles_scoped_key", where: { managementAreaId: { not: null } })
+  @@unique([userId, roleId], map: "user_roles_global_key", where: { managementAreaId: null })
+  @@map("user_roles")
+}

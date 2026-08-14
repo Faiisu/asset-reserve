@@ -1,0 +1,13 @@
+model ManagementArea {
+  id          String  @id @db.Uuid
+  name        String  @unique @db.VarChar(150)
+  description String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  userRoles UserRole[]
+  assets    Asset[]
+
+  @@map("management_areas")
+}

@@ -1,0 +1,106 @@
+model Reservation {
+  id          String   @id @db.Uuid
+  requesterId String   @map("requester_id") @db.Uuid
+  eventName   String   @map("event_name") @db.VarChar(200)
+  description String?
+  startAt     DateTime @map("start_at") @db.Timestamptz(6)
+  endAt       DateTime @map("end_at") @db.Timestamptz(6)
+  /// Supported values: DRAFT, PENDING_APPROVAL, PARTIALLY_APPROVED, APPROVED,
+  /// REJECTED, CANCELLED, ACTIVE, COMPLETED.
+  status      String   @default("DRAFT") @db.VarChar(30)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  requester      User                       @relation("ReservationRequester", fields: [requesterId], references: [id])
+  items          ReservationItem[]
+  participants   ReservationParticipant[]
+  changeRequests ReservationChangeRequest[]
+  returns        Return[]
+
+  // Database CHECK required by the source specification: end_at > start_at.
+  @@index([requesterId, createdAt])
+  @@index([startAt, endAt])
+  @@index([status])
+  @@map("reservations")
+}
+
+model ReservationItem {
+  id            String    @id @db.Uuid
+  reservationId String    @map("reservation_id") @db.Uuid
+  assetId       String    @map("asset_id") @db.Uuid
+  quantity      Int
+  /// Supported values: PENDING, APPROVED, REJECTED, PREPARED, CHECKED_OUT, RETURNED.
+  status        String    @default("PENDING") @db.VarChar(30)
+  preparedBy    String?   @map("prepared_by") @db.Uuid
+  preparedAt    DateTime? @map("prepared_at") @db.Timestamptz(6)
+  checkedOutBy  String?   @map("checked_out_by") @db.Uuid
+  checkedOutAt  DateTime? @map("checked_out_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  reservation      Reservation              @relation(fields: [reservationId], references: [id])
+  asset            Asset                    @relation(fields: [assetId], references: [id])
+  preparer         User?                    @relation("ReservationItemPreparedBy", fields: [preparedBy], references: [id])
+  checkedOutByUser User?                    @relation("ReservationItemCheckedOutBy", fields: [checkedOutBy], references: [id])
+  approval         ReservationItemApproval?
+  returnItems      ReturnItem[]
+
+  // Database CHECK required by the source specification: quantity > 0.
+  @@unique([reservationId, assetId])
+  @@index([assetId, status])
+  @@index([reservationId, status])
+  @@map("reservation_items")
+}
+
+model ReservationParticipant {
+  reservationId String @map("reservation_id") @db.Uuid
+  userId        String @map("user_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  user        User        @relation(fields: [userId], references: [id])
+
+  @@id([reservationId, userId])
+  @@map("reservation_participants")
+}
+
+model ReservationItemApproval {
+  id                String    @id @db.Uuid
+  reservationItemId String    @unique @map("reservation_item_id") @db.Uuid
+  approverId        String    @map("approver_id") @db.Uuid
+  /// Supported values: PENDING, APPROVED, REJECTED.
+  status            String    @default("PENDING") @db.VarChar(20)
+  comment           String?
+  decidedAt         DateTime? @map("decided_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  reservationItem ReservationItem @relation(fields: [reservationItemId], references: [id])
+  approver        User            @relation(fields: [approverId], references: [id])
+
+  @@map("reservation_item_approvals")
+}
+
+model ReservationChangeRequest {
+  id            String    @id @db.Uuid
+  reservationId String    @map("reservation_id") @db.Uuid
+  requestedBy   String    @map("requested_by") @db.Uuid
+  changeData    Json      @map("change_data") @db.JsonB
+  reason        String?
+  /// Supported values: PENDING, APPROVED, REJECTED, CANCELLED.
+  status        String    @default("PENDING") @db.VarChar(20)
+  reviewedBy    String?   @map("reviewed_by") @db.Uuid
+  reviewedAt    DateTime? @map("reviewed_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  requester   User        @relation("ReservationChangeRequestedBy", fields: [requestedBy], references: [id])
+  reviewer    User?       @relation("ReservationChangeReviewedBy", fields: [reviewedBy], references: [id])
+
+  @@index([reservationId, status])
+  @@map("reservation_change_requests")
+}

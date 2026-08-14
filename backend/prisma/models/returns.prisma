@@ -1,0 +1,56 @@
+model Return {
+  id            String    @id @db.Uuid
+  reservationId String    @map("reservation_id") @db.Uuid
+  returnedBy    String    @map("returned_by") @db.Uuid
+  /// Supported values: PENDING, APPROVED, REJECTED, COMPLETED.
+  status        String    @default("PENDING") @db.VarChar(20)
+  returnedAt    DateTime? @map("returned_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  reservation Reservation     @relation(fields: [reservationId], references: [id])
+  returner    User            @relation("ReturnReturnedBy", fields: [returnedBy], references: [id])
+  items       ReturnItem[]
+  approval    ReturnApproval?
+
+  @@index([reservationId])
+  @@index([status])
+  @@map("returns")
+}
+
+model ReturnItem {
+  id                String  @id @db.Uuid
+  returnId          String  @map("return_id") @db.Uuid
+  reservationItemId String  @map("reservation_item_id") @db.Uuid
+  quantityReturned  Int     @default(0) @map("quantity_returned")
+  quantityBroken    Int     @default(0) @map("quantity_broken")
+  quantityLost      Int     @default(0) @map("quantity_lost")
+  description       String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  return          Return          @relation(fields: [returnId], references: [id])
+  reservationItem ReservationItem @relation(fields: [reservationItemId], references: [id])
+
+  // Database CHECKs required by the source specification: all quantities >= 0.
+  @@unique([returnId, reservationItemId])
+  @@map("return_items")
+}
+
+model ReturnApproval {
+  id          String    @id @db.Uuid
+  returnId    String    @unique @map("return_id") @db.Uuid
+  approverId  String    @map("approver_id") @db.Uuid
+  /// Supported values: PENDING, APPROVED, REJECTED.
+  status      String    @default("PENDING") @db.VarChar(20)
+  description String?
+  decidedAt   DateTime? @map("decided_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  return   Return @relation(fields: [returnId], references: [id])
+  approver User   @relation(fields: [approverId], references: [id])
+
+  @@map("return_approvals")
+}

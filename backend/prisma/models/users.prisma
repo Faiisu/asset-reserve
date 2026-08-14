@@ -1,0 +1,56 @@
+model User {
+  id           String  @id @db.Uuid
+  email        String  @unique @db.VarChar(255)
+  passwordHash String? @map("password_hash")
+  isActive     Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  profile                  UserProfile?
+  authIdentities           UserAuthIdentity[]
+  userRoles                UserRole[]                 @relation("UserRoleUser")
+  assignedUserRoles        UserRole[]                 @relation("UserRoleAssignedBy")
+  assetTransactionBatches  AssetTransactionBatch[]
+  requestedReservations    Reservation[]              @relation("ReservationRequester")
+  preparedReservationItems ReservationItem[]          @relation("ReservationItemPreparedBy")
+  checkedOutItems          ReservationItem[]          @relation("ReservationItemCheckedOutBy")
+  reservationParticipants  ReservationParticipant[]
+  reservationApprovals     ReservationItemApproval[]
+  requestedChanges         ReservationChangeRequest[] @relation("ReservationChangeRequestedBy")
+  reviewedChanges          ReservationChangeRequest[] @relation("ReservationChangeReviewedBy")
+  returns                  Return[]                   @relation("ReturnReturnedBy")
+  returnApprovals          ReturnApproval[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  userId            String  @id @map("user_id") @db.Uuid
+  name              String  @db.VarChar(150)
+  phoneNumber       String? @map("phone_number") @db.VarChar(30)
+  profilePictureUrl String? @map("profile_picture_url")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("user_profiles")
+}
+
+model UserAuthIdentity {
+  id             String @id @db.Uuid
+  userId         String @map("user_id") @db.Uuid
+  /// External authentication provider, for example: google or microsoft.
+  provider       String @db.VarChar(30)
+  providerUserId String @map("provider_user_id") @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerUserId])
+  @@unique([userId, provider])
+  @@map("user_auth_identities")
+}
