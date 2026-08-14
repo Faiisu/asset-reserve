@@ -5,6 +5,7 @@
 เอกสารที่เกี่ยวข้อง:
 
 - [Software architecture](../software_spec/README.md)
+- [File and schema structure conventions](../software_spec/file-and-schema-structure.md)
 - [Frontend specification](../frontend_spec/README.md)
 - [Database specification](../database.txt)
 - [Prisma schema](../../backend/prisma/schema.prisma)

@@ -81,7 +81,7 @@ Dependency ต้องชี้เข้าหา application/domain ห้า�
 
 ## Repository structure
 
-โครงสร้างเป้าหมาย:
+โครงสร้างเป้าหมายด้านล่างเป็นภาพย่อ รายละเอียดการจัดไฟล์ กฎ dependency และ Prisma migration อยู่ที่ [File and schema structure conventions](../../software_spec/file-and-schema-structure.md)
 
 ```text
 asset-reservation/

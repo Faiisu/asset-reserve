@@ -4,12 +4,13 @@
 
 ## เอกสารหลัก
 
-| เอกสาร                                               | Source of truth                                                        |
-| ---------------------------------------------------- | ---------------------------------------------------------------------- |
-| [Frontend specification](../frontend_spec/README.md) | หน้าจอ, interaction, frontend contracts และ frontend testing           |
-| [Backend specification](../backend_spec/README.md)   | Backend modules, Hybrid BFF, API, database, concurrency และ deployment |
-| [Database specification](../database.txt)            | ตาราง, field, constraint และ relation ต้นฉบับ                          |
-| [Prisma schema](../../backend/prisma/schema.prisma)  | Data model ที่ backend ใช้งาน                                          |
+| เอกสาร                                                    | Source of truth                                                        |
+| --------------------------------------------------------- | ---------------------------------------------------------------------- |
+| [Frontend specification](../frontend_spec/README.md)      | หน้าจอ, interaction, frontend contracts และ frontend testing           |
+| [Backend specification](../backend_spec/README.md)        | Backend modules, Hybrid BFF, API, database, concurrency และ deployment |
+| [Database specification](../database.txt)                 | ตาราง, field, constraint และ relation ต้นฉบับ                          |
+| [Prisma schema](../../backend/prisma/schema.prisma)       | Data model ที่ backend ใช้งาน                                          |
+| [File and schema structure](file-and-schema-structure.md) | มาตรฐานโครงสร้าง frontend, backend, Prisma และ dependency boundary     |
 
 ## เป้าหมายการออกแบบ
 
