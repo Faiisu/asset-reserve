@@ -15,6 +15,7 @@
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | [Hybrid BFF architecture](architecture/hybrid-bff.md)                                 | Layers, API surfaces, modules และ repository structure       |
 | [API and authentication](detail/api-and-authentication.md)                            | REST/OpenAPI, DTO, idempotency, auth และ authorization       |
+| [Auth and permission API contract](detail/authentication-and-permission-api.md)       | Endpoint, input/output, RBAC scope และ OpenAPI สำหรับ mock   |
 | [Database and concurrency](detail/database-and-concurrency.md)                        | Connection pool, transaction, retry, constraints และ indexes |
 | [Performance, deployment and operations](detail/performance-deployment-operations.md) | Server load, Docker Compose, config, logging และ backup      |
 | [Testing and acceptance](detail/testing-and-acceptance.md)                            | Test strategy, NFR, acceptance และ implementation sequence   |

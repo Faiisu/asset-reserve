@@ -45,3 +45,5 @@ UserRole.managementAreaId มีความหมายดังนี้:
 - คู่ userId + roleId ต้องไม่ซ้ำภายใน scope เดียวกัน
 
 API session ควรส่ง permissions และ managementAreaIds ที่ backend คำนวณแล้ว Frontend ใช้ข้อมูลนี้เพื่อแสดง navigation และ action แต่ backend ต้องตรวจซ้ำเสมอ
+
+รูปแบบ `SessionContext`, effective permission และ authorization ของ endpoint ให้ยึด [Auth and permission API contract](../../backend_spec/detail/authentication-and-permission-api.md)

@@ -1,0 +1,826 @@
+openapi: 3.1.0
+info:
+  title: Asset Reservation Authentication and Permission API
+  version: 1.0.0
+  description: Contract-first API for authentication, users, roles, permissions, and role assignments.
+servers:
+  - url: /api/v1
+tags:
+  - name: Authentication
+    description: Password login and current session context.
+  - name: Permissions
+    description: Immutable application permission catalog.
+  - name: Roles
+    description: Role definitions and permission sets.
+  - name: Users
+    description: User administration and role assignments.
+  - name: Management Areas
+    description: Management-area lookup for scoped assignments.
+paths:
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Sign in with email and password
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authenticated successfully.
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get the current session context
+      operationId: getCurrentSession
+      responses:
+        "200":
+          description: Current session context.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [session]
+                properties:
+                  session:
+                    $ref: "#/components/schemas/SessionContext"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: End the client session
+      operationId: logout
+      responses:
+        "204":
+          description: Client may discard the access token. No response body.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /permissions:
+    get:
+      tags: [Permissions]
+      summary: List the permission catalog
+      operationId: listPermissions
+      responses:
+        "200":
+          description: Permission catalog.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PermissionDefinition"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /roles:
+    get:
+      tags: [Roles]
+      summary: List role definitions
+      operationId: listRoles
+      responses:
+        "200":
+          description: All supported roles.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Role"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /roles/{roleId}:
+    patch:
+      tags: [Roles]
+      summary: Update a role permission set
+      operationId: updateRole
+      parameters:
+        - $ref: "#/components/parameters/RoleId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleRequest"
+      responses:
+        "200":
+          description: Updated role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /users:
+    get:
+      tags: [Users]
+      summary: List users
+      operationId: listUsers
+      parameters:
+        - $ref: "#/components/parameters/Search"
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: roleId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: areaId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Paginated users.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Users]
+      summary: Create a password user
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: Created user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /users/{userId}:
+    get:
+      tags: [Users]
+      summary: Get a user and role assignments
+      operationId: getUser
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: User detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /users/{userId}/status:
+    patch:
+      tags: [Users]
+      summary: Activate or deactivate a user
+      operationId: updateUserStatus
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserStatusRequest"
+      responses:
+        "200":
+          description: Updated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /users/{userId}/role-assignments:
+    post:
+      tags: [Users, Roles]
+      summary: Assign a role to a user
+      operationId: assignRole
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignRoleRequest"
+      responses:
+        "201":
+          description: Created role assignment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleAssignment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /users/{userId}/role-assignments/{assignmentId}:
+    delete:
+      tags: [Users, Roles]
+      summary: Remove a role assignment from a user
+      operationId: removeRoleAssignment
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+        - name: assignmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Role assignment removed. No response body.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /management-areas:
+    get:
+      tags: [Management Areas]
+      summary: List management areas for scoped assignments
+      operationId: listManagementAreas
+      parameters:
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Paginated management areas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagementAreaListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  headers:
+    RequestId:
+      description: Request correlation identifier.
+      schema:
+        type: string
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RoleId:
+      name: roleId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Search:
+      name: search
+      in: query
+      schema:
+        type: string
+        maxLength: 100
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque cursor returned by the previous response.
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+  responses:
+    Unauthorized:
+      description: Missing, invalid, or expired credentials.
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+            example: Bearer
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Account inactive or permission denied.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found or not visible to the caller.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: State, uniqueness, or concurrency conflict.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ValidationError:
+      description: Request validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    RateLimited:
+      description: Too many requests.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    PermissionKey:
+      type: string
+      enum:
+        - asset:create
+        - asset:view
+        - asset:update
+        - asset:delete
+        - reservation:create
+        - reservation:update
+        - reservation:approve
+        - reservation:reject
+        - return:approve
+        - user:create
+        - user:disable
+        - role:assign
+    RoleName:
+      type: string
+      enum: [ADMIN, MANAGER, USER]
+    Profile:
+      type: object
+      required: [name, phoneNumber, profilePictureUrl]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        phoneNumber:
+          type: [string, "null"]
+          maxLength: 30
+        profilePictureUrl:
+          type: [string, "null"]
+          format: uri
+          maxLength: 2048
+    UserIdentity:
+      type: object
+      required: [id, email, isActive, profile]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        isActive:
+          type: boolean
+        profile:
+          oneOf:
+            - $ref: "#/components/schemas/Profile"
+            - type: "null"
+    ManagementAreaRef:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 150
+    SessionRole:
+      type: object
+      required: [assignmentId, id, name, permissions, managementArea]
+      properties:
+        assignmentId:
+          type: string
+          format: uuid
+        id:
+          type: string
+          format: uuid
+        name:
+          $ref: "#/components/schemas/RoleName"
+        permissions:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/PermissionKey"
+        managementArea:
+          oneOf:
+            - $ref: "#/components/schemas/ManagementAreaRef"
+            - type: "null"
+    AreaPermissions:
+      type: object
+      required: [managementAreaId, permissions]
+      properties:
+        managementAreaId:
+          type: string
+          format: uuid
+        permissions:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/PermissionKey"
+    EffectivePermissions:
+      type: object
+      required: [global, byManagementArea]
+      properties:
+        global:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/PermissionKey"
+        byManagementArea:
+          type: array
+          items:
+            $ref: "#/components/schemas/AreaPermissions"
+    SessionContext:
+      type: object
+      required: [user, roles, effectivePermissions]
+      properties:
+        user:
+          $ref: "#/components/schemas/UserIdentity"
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionRole"
+        effectivePermissions:
+          $ref: "#/components/schemas/EffectivePermissions"
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          writeOnly: true
+    LoginResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn, session]
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          const: Bearer
+        expiresIn:
+          type: integer
+          minimum: 1
+          example: 900
+        session:
+          $ref: "#/components/schemas/SessionContext"
+    PermissionDefinition:
+      type: object
+      required: [key, resource, action, description]
+      properties:
+        key:
+          $ref: "#/components/schemas/PermissionKey"
+        resource:
+          type: string
+        action:
+          type: string
+        description:
+          type: string
+    Role:
+      type: object
+      required: [id, name, description, permissions, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          $ref: "#/components/schemas/RoleName"
+        description:
+          type: [string, "null"]
+        permissions:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/PermissionKey"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    UpdateRoleRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 2
+      required: [expectedUpdatedAt]
+      properties:
+        description:
+          type: [string, "null"]
+        permissions:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/PermissionKey"
+        expectedUpdatedAt:
+          type: string
+          format: date-time
+    UserListItem:
+      type: object
+      required: [id, email, name, isActive, roleCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: [string, "null"]
+        isActive:
+          type: boolean
+        roleCount:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PageInfo:
+      type: object
+      required: [nextCursor, hasNextPage]
+      properties:
+        nextCursor:
+          type: [string, "null"]
+        hasNextPage:
+          type: boolean
+    UserListResponse:
+      type: object
+      required: [data, pageInfo]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserListItem"
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+    ActorRef:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: [string, "null"]
+    RoleRef:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          $ref: "#/components/schemas/RoleName"
+    RoleAssignment:
+      type: object
+      required: [id, userId, role, managementArea, assignedBy, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        role:
+          $ref: "#/components/schemas/RoleRef"
+        managementArea:
+          oneOf:
+            - $ref: "#/components/schemas/ManagementAreaRef"
+            - type: "null"
+        assignedBy:
+          oneOf:
+            - $ref: "#/components/schemas/ActorRef"
+            - type: "null"
+        createdAt:
+          type: string
+          format: date-time
+    UserDetail:
+      allOf:
+        - $ref: "#/components/schemas/UserIdentity"
+        - type: object
+          required: [authProviders, roleAssignments, createdAt, updatedAt]
+          properties:
+            authProviders:
+              type: array
+              uniqueItems: true
+              items:
+                type: string
+            roleAssignments:
+              type: array
+              items:
+                $ref: "#/components/schemas/RoleAssignment"
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    CreateProfileInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        phoneNumber:
+          type: [string, "null"]
+          maxLength: 30
+        profilePictureUrl:
+          type: [string, "null"]
+          format: uri
+          maxLength: 2048
+    CreateUserRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, profile]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+          writeOnly: true
+        profile:
+          $ref: "#/components/schemas/CreateProfileInput"
+    UpdateUserStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [isActive, expectedUpdatedAt]
+      properties:
+        isActive:
+          type: boolean
+        expectedUpdatedAt:
+          type: string
+          format: date-time
+    AssignRoleRequest:
+      type: object
+      additionalProperties: false
+      required: [roleId, managementAreaId]
+      properties:
+        roleId:
+          type: string
+          format: uuid
+        managementAreaId:
+          type: [string, "null"]
+          format: uuid
+    ManagementArea:
+      allOf:
+        - $ref: "#/components/schemas/ManagementAreaRef"
+        - type: object
+          required: [description, createdAt, updatedAt]
+          properties:
+            description:
+              type: [string, "null"]
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    ManagementAreaListResponse:
+      type: object
+      required: [data, pageInfo]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManagementArea"
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+    ErrorDetail:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+        requestId:
+          type: string
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+security:
+  - bearerAuth: []
