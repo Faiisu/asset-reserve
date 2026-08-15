@@ -504,6 +504,73 @@ describe("reservation change requests", () => {
     );
   });
 
+  it("forbids non-requester from creating a change request on another user's reservation", async () => {
+    const nonRequesterActor: AuthenticatedActor = {
+      user: {
+        id: "other-user-id",
+        email: "other@example.com",
+        isActive: true,
+        profile: null,
+      },
+      roles: [],
+      effectivePermissions: {
+        global: ["reservation:create", "reservation:update"],
+        byManagementArea: [],
+      },
+    };
+    const reservation = detailRecord("PENDING_APPROVAL");
+    const prisma = {
+      reservation: {
+        findUnique: vi.fn().mockResolvedValue(reservation),
+      },
+    } as unknown as PrismaService;
+    const service = new ReservationsService(prisma);
+
+    await expect(
+      service.requestChange(nonRequesterActor, reservationId, {
+        changeData: { eventName: "New Event Name" },
+      }),
+    ).rejects.toThrow(
+      "You do not have permission to perform this reservation action.",
+    );
+  });
+
+  it("disables canRequestChange capability when non-requester views reservation detail", async () => {
+    const nonRequesterManagerActor: AuthenticatedActor = {
+      user: {
+        id: "manager-user-id",
+        email: "manager@example.com",
+        isActive: true,
+        profile: null,
+      },
+      roles: [],
+      effectivePermissions: {
+        global: [
+          "reservation:view",
+          "reservation:update",
+          "reservation:approve",
+        ],
+        byManagementArea: [],
+      },
+    };
+    const reservation = detailRecord("PENDING_APPROVAL");
+    const prisma = {
+      reservation: {
+        findUnique: vi.fn().mockResolvedValue(reservation),
+      },
+      asset: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]),
+      },
+      reservationItem: { findMany: vi.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService;
+    const service = new ReservationsService(prisma);
+
+    const result = await service.get(nonRequesterManagerActor, reservationId);
+    expect(result.capabilities.canRequestChange).toBe(false);
+  });
+
   it("creates an event without items and automatically sets status to APPROVED", async () => {
     const reservationCreate = vi.fn().mockResolvedValue({ id: reservationId });
     const userFindFirst = vi

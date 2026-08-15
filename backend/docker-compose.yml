@@ -1,7 +1,7 @@
 name: asset-reservation-backend
 
 x-backend-environment: &backend-environment
-  DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in backend/.env}
+  DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://asset_reservation:change-this-database-password@postgres:5432/asset_reservation?schema=public}
   DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
   DATABASE_CONNECTION_TIMEOUT_MS: ${DATABASE_CONNECTION_TIMEOUT_MS:-5000}
 
@@ -42,6 +42,8 @@ services:
       # Direct development access for Swagger UI and API diagnostics.
       # Production can omit this mapping and expose only the Nginx entrypoint.
       - "${BACKEND_HOST_PORT:-3000}:3000"
+    volumes:
+      - uploads-data:/app/uploads
     healthcheck:
       test:
         [
@@ -58,6 +60,10 @@ services:
     restart: unless-stopped
     networks:
       - app-network
+
+volumes:
+  uploads-data:
+    name: ${UPLOADS_VOLUME_NAME:-asset-reservation-uploads-data}
 
 networks:
   app-network:

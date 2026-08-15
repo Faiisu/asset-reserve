@@ -159,7 +159,7 @@ Error กลางที่พบบ่อย:
 | POST   | `/reservations/:reservationId/submit`                                    | Requester หรือ scoped `reservation:update`     | ส่ง draft ขออนุมัติ        |
 | POST   | `/reservations/:reservationId/items/:itemId/decision`                    | Scoped `reservation:approve/reject`            | ตัดสิน item                |
 | POST   | `/reservations/:reservationId/items/decision`                            | Scoped `reservation:approve/reject`            | ตัดสินหลาย item แบบ atomic |
-| POST   | `/reservations/:reservationId/change-requests`                           | Requester หรือ scoped `reservation:update`     | ขอแก้ reservation          |
+| POST   | `/reservations/:reservationId/change-requests`                           | Requester เท่านั้น                             | ขอแก้ reservation          |
 | POST   | `/reservations/:reservationId/change-requests/:changeRequestId/decision` | Scoped `reservation:approve/reject`            | ตัดสินคำขอแก้ไข            |
 | POST   | `/reservations/:reservationId/cancel`                                    | Requester หรือ scoped `reservation:update`     | ยกเลิกและคืน allocation    |
 | POST   | `/uploads/image`                                                         | Active user                                    | Upload image สูงสุด 10 MiB |

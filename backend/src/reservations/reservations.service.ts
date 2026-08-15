@@ -496,6 +496,9 @@ export class ReservationsService {
     input: CreateReservationChangeRequestDto,
   ) {
     const reservation = await this.findDetail(reservationId);
+    if (reservation.requesterId !== actor.user.id) {
+      this.permissionDenied();
+    }
     this.assertCanManage(actor, reservation);
     if (!editableReservationStatuses.includes(reservation.status)) {
       throw this.invalidStatus(
@@ -974,6 +977,7 @@ export class ReservationsService {
       capabilities: {
         canSubmit: canManage && reservation.status === "DRAFT",
         canRequestChange:
+          reservation.requesterId === actor.user.id &&
           canManage &&
           editableReservationStatuses.includes(reservation.status) &&
           reservation.changeRequests.length === 0,
@@ -1178,7 +1182,9 @@ export class ReservationsService {
       capabilities: {
         canSubmit: canManage && reservation.status === "DRAFT",
         canRequestChange:
-          canManage && editableReservationStatuses.includes(reservation.status),
+          reservation.requesterId === actor.user.id &&
+          canManage &&
+          editableReservationStatuses.includes(reservation.status),
         canCancel:
           canManage &&
           [

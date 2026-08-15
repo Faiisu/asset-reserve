@@ -1,8 +1,11 @@
-import "dotenv/config";
+import { config } from "dotenv";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "argon2";
 import { randomUUID } from "node:crypto";
+import { join } from "node:path";
 import { PrismaClient } from "../generated/prisma/client.js";
+
+config({ path: join(import.meta.dirname, "../.env") });
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required.");
@@ -135,9 +138,9 @@ async function seedBootstrapAdmin(): Promise<void> {
     console.log("Bootstrap admin credentials not set; admin creation skipped.");
     return;
   }
-  if (password.length < 12) {
+  if (password.length < 8) {
     throw new Error(
-      "BOOTSTRAP_ADMIN_PASSWORD must contain at least 12 characters.",
+      "BOOTSTRAP_ADMIN_PASSWORD must contain at least 8 characters.",
     );
   }
 
@@ -265,7 +268,7 @@ async function seedMockData(): Promise<void> {
   });
 
   const mediaArea = await prisma.managementArea.upsert({
-    where: { name: "Media Lab" },
+    where: { id: ids.areas.media },
     update: {},
     create: {
       id: ids.areas.media,
@@ -274,7 +277,7 @@ async function seedMockData(): Promise<void> {
     },
   });
   const eventsArea = await prisma.managementArea.upsert({
-    where: { name: "Event Support" },
+    where: { id: ids.areas.events },
     update: {},
     create: {
       id: ids.areas.events,
@@ -318,7 +321,7 @@ async function seedMockData(): Promise<void> {
 
   const templates = await Promise.all([
     prisma.assetTemplate.upsert({
-      where: { name: "Projector" },
+      where: { id: ids.templates.projector },
       update: {},
       create: {
         id: ids.templates.projector,
@@ -327,7 +330,7 @@ async function seedMockData(): Promise<void> {
       },
     }),
     prisma.assetTemplate.upsert({
-      where: { name: "Camera" },
+      where: { id: ids.templates.camera },
       update: {},
       create: {
         id: ids.templates.camera,
@@ -336,7 +339,7 @@ async function seedMockData(): Promise<void> {
       },
     }),
     prisma.assetTemplate.upsert({
-      where: { name: "Audio Equipment" },
+      where: { id: ids.templates.audio },
       update: {},
       create: {
         id: ids.templates.audio,
@@ -387,12 +390,7 @@ async function seedMockData(): Promise<void> {
   ] as const;
   for (const asset of assetInputs) {
     await prisma.asset.upsert({
-      where: {
-        managementAreaId_name: {
-          managementAreaId: asset.managementAreaId,
-          name: asset.name,
-        },
-      },
+      where: { id: asset.id },
       update: { createdById: asset.createdById },
       create: asset,
     });

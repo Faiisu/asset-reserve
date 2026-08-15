@@ -18,7 +18,8 @@
     "prisma:validate": "prisma validate",
     "db:push": "prisma db push",
     "db:deploy": "prisma migrate deploy",
-    "seed": "prisma generate && tsx scripts/seed.ts"
+    "seed": "prisma generate && tsx scripts/seed.ts",
+    "reset:admin": "prisma generate && tsx scripts/reset-and-seed-admin-only.ts"
   },
   "dependencies": {
     "@fastify/helmet": "13.1.0",

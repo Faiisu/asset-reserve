@@ -18,6 +18,7 @@ import {
 } from "react";
 import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
+import { PermissionItem } from "../components/PermissionItem";
 import {
   Button,
   Dialog,
@@ -273,32 +274,13 @@ export function AccessPage() {
                           permission.key,
                         );
                       return (
-                        <label
-                          className={cx(
-                            "permission-item",
-                            checked && "permission-item--checked",
-                            locked && "permission-item--locked",
-                          )}
+                        <PermissionItem
                           key={permission.key}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={locked}
-                            onChange={() => togglePermission(permission.key)}
-                          />
-                          <span className="permission-item__check">
-                            {checked && <Check size={14} />}
-                          </span>
-                          <span>
-                            <strong>{permission.action}</strong>
-                            <code>{permission.key}</code>
-                            <small>{permission.description}</small>
-                          </span>
-                          {locked && (
-                            <LockKeyhole size={14} aria-label="Required permission" />
-                          )}
-                        </label>
+                          permission={permission}
+                          checked={checked}
+                          locked={locked}
+                          onChange={togglePermission}
+                        />
                       );
                     })}
                   </div>
@@ -463,27 +445,12 @@ function CreateRoleDialog({
                   {items?.map((permission) => {
                     const checked = selectedPermissions.includes(permission.key);
                     return (
-                      <label
-                        className={cx(
-                          "permission-item",
-                          checked && "permission-item--checked",
-                        )}
+                      <PermissionItem
                         key={permission.key}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => togglePermission(permission.key)}
-                        />
-                        <span className="permission-item__check">
-                          {checked && <Check size={14} />}
-                        </span>
-                        <span>
-                          <strong>{permission.action}</strong>
-                          <code>{permission.key}</code>
-                          <small>{permission.description}</small>
-                        </span>
-                      </label>
+                        permission={permission}
+                        checked={checked}
+                        onChange={togglePermission}
+                      />
                     );
                   })}
                 </div>

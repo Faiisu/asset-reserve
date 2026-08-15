@@ -80,4 +80,27 @@ describe("AccessPage", () => {
       );
     });
   });
+
+  it("displays detailed description, capabilities and practical scenario in permission mini-panel", async () => {
+    render(
+      <MemoryRouter>
+        <AccessPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Role registry")).toBeInTheDocument();
+    expect(screen.getAllByText("Create Assets").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("View Assets").length).toBeGreaterThan(0);
+
+    const tooltips = screen.getAllByRole("tooltip");
+    expect(tooltips.length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/A Media Lab officer adds two new Sony Alpha 7 IV camera kits/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText(/What this permission allows:/i).length,
+    ).toBeGreaterThan(0);
+  });
 });
+
+
