@@ -83,6 +83,8 @@ paths:
     $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1submit
   /reservations/{reservationId}/items/{itemId}/decision:
     $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1items~1{itemId}~1decision
+  /reservations/{reservationId}/items/decision:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1items~1decision
   /reservations/{reservationId}/change-requests:
     $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1change-requests
   /reservations/{reservationId}/change-requests/{changeRequestId}/decision:
@@ -261,6 +263,8 @@ components:
       $ref: ./components/schemas/reservations.yaml#/SubmitReservationRequest
     ReservationItemDecisionRequest:
       $ref: ./components/schemas/reservations.yaml#/ReservationItemDecisionRequest
+    ReservationItemsDecisionRequest:
+      $ref: ./components/schemas/reservations.yaml#/ReservationItemsDecisionRequest
     ReservationChangeData:
       $ref: ./components/schemas/reservations.yaml#/ReservationChangeData
     CreateReservationChangeRequest:

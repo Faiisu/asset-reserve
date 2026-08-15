@@ -159,6 +159,38 @@
         $ref: "#/components/responses/Conflict"
       "422":
         $ref: "#/components/responses/ValidationError"
+/reservations/{reservationId}/items/decision:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+  post:
+    tags:
+      - Reservations
+    summary: Approve or reject selected reservation items together
+    description: The batch is atomic. Approval locks assets in stable order and rechecks approved overlapping quantities before recording any decision.
+    operationId: decideReservationItems
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ReservationItemsDecisionRequest"
+    responses:
+      "201":
+        description: Updated reservation detail.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationDetail"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+      "409":
+        $ref: "#/components/responses/Conflict"
+      "422":
+        $ref: "#/components/responses/ValidationError"
 /reservations/{reservationId}/change-requests:
   parameters:
     - $ref: "#/components/parameters/ReservationId"

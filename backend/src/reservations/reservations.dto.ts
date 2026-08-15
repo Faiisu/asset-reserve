@@ -2,6 +2,7 @@ import { Transform, Type } from "class-transformer";
 import {
   ArrayMaxSize,
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsIn,
   IsInt,
@@ -114,6 +115,15 @@ export class ReservationItemDecisionDto {
   @IsString()
   @MaxLength(2_000)
   comment?: string;
+}
+
+export class ReservationItemsDecisionDto extends ReservationItemDecisionDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  itemIds!: string[];
 }
 
 export class ReservationChangeDataDto {

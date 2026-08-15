@@ -3768,6 +3768,66 @@ code {
 .reservation-section__header h2 {
   font-size: 19px;
 }
+.reservation-manifest-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.approval-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.approval-select-all input,
+.reservation-item-select {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--teal);
+  cursor: pointer;
+}
+.approval-selection-bar {
+  padding: 13px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #304863;
+  background: #10213a;
+  color: #fff;
+}
+.approval-selection-bar__count,
+.approval-selection-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.approval-selection-bar__count > span {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #1f766f;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.approval-selection-bar__count strong,
+.approval-selection-bar__count small {
+  display: block;
+}
+.approval-selection-bar__count strong {
+  font-size: 11px;
+}
+.approval-selection-bar__count small {
+  margin-top: 2px;
+  color: #93a7bc;
+  font-size: 9px;
+}
 .reservation-item-list {
   display: grid;
 }
@@ -3775,10 +3835,19 @@ code {
   min-height: 87px;
   padding: 14px 18px;
   display: grid;
-  grid-template-columns: 44px minmax(160px, 1fr) 72px 72px auto;
+  grid-template-columns: 20px 44px minmax(160px, 1fr) 72px 72px auto;
   align-items: center;
   gap: 13px;
   border-bottom: 1px solid var(--line);
+}
+.reservation-item-card--selected {
+  background: color-mix(in srgb, var(--teal-soft) 52%, var(--surface));
+}
+.reservation-item-select {
+  justify-self: center;
+}
+.reservation-item-select-spacer {
+  width: 17px;
 }
 .reservation-item-card:last-child {
   border-bottom: 0;
@@ -3849,7 +3918,7 @@ code {
 .item-overlap-warning,
 .reservation-item-card__comment,
 .reservation-item-card__actions {
-  grid-column: 2 / -1;
+  grid-column: 3 / -1;
 }
 .item-overlap-warning {
   padding: 8px 10px;
@@ -4000,6 +4069,27 @@ code {
   display: grid;
   gap: 17px;
 }
+.decision-asset-summary {
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+.decision-asset-summary span,
+.decision-asset-summary strong {
+  display: block;
+}
+.decision-asset-summary span {
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+.decision-asset-summary strong {
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.5;
+}
 .edit-manifest {
   display: grid;
   border: 1px solid var(--line);
@@ -4133,7 +4223,7 @@ code {
     grid-template-columns: minmax(0, 1fr) 290px;
   }
   .reservation-item-card {
-    grid-template-columns: 44px minmax(130px, 1fr) 62px 62px auto;
+    grid-template-columns: 20px 44px minmax(130px, 1fr) 62px 62px auto;
   }
   .reservation-list-toolbar {
     align-items: stretch;
@@ -4695,26 +4785,36 @@ code {
     align-items: stretch;
     flex-direction: column-reverse;
   }
+  .approval-selection-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .approval-selection-bar__actions {
+    width: 100%;
+  }
+  .approval-selection-bar__actions .button {
+    flex: 1;
+  }
   .reservation-item-card {
-    grid-template-columns: 44px minmax(0, 1fr) auto;
+    grid-template-columns: 20px 44px minmax(0, 1fr) auto;
   }
   .reservation-item-card__quantity {
     grid-row: 2;
   }
-  .reservation-item-card__quantity:nth-of-type(2) {
-    grid-column: 2;
-  }
-  .reservation-item-card__quantity:nth-of-type(3) {
+  .reservation-item-card__quantity--requested {
     grid-column: 3;
+  }
+  .reservation-item-card__quantity--available {
+    grid-column: 4;
   }
   .reservation-item-card > .item-status {
-    grid-column: 3;
+    grid-column: 4;
     grid-row: 1;
   }
   .item-overlap-warning,
   .reservation-item-card__comment,
   .reservation-item-card__actions {
-    grid-column: 1 / -1;
+    grid-column: 2 / -1;
   }
   .reservation-item-card__actions .button {
     flex: 1;

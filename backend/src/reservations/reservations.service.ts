@@ -13,6 +13,7 @@ import type {
   ReservationChangeDataDto,
   ReservationChangeRequestDecisionDto,
   ReservationItemDecisionDto,
+  ReservationItemsDecisionDto,
   ReservationItemInputDto,
   ReservationListQueryDto,
   SubmitReservationDto,
@@ -319,41 +320,60 @@ export class ReservationsService {
     itemId: string,
     input: ReservationItemDecisionDto,
   ) {
-    const current = await this.prisma.reservationItem.findFirst({
-      where: { id: itemId, reservationId },
-      include: { asset: true, reservation: true },
+    return this.decideItems(actor, reservationId, {
+      itemIds: [itemId],
+      ...input,
     });
-    if (!current) {
+  }
+
+  async decideItems(
+    actor: AuthenticatedActor,
+    reservationId: string,
+    input: ReservationItemsDecisionDto,
+  ) {
+    const itemIds = [...input.itemIds].sort();
+    const current = await this.prisma.reservationItem.findMany({
+      where: { id: { in: itemIds }, reservationId },
+      include: { asset: true, reservation: true },
+      orderBy: { id: "asc" },
+    });
+    if (current.length !== itemIds.length) {
       throw new ApiException(
         404,
         "RESERVATION_ITEM_NOT_FOUND",
-        "The reservation item was not found.",
+        "One or more reservation items were not found.",
       );
     }
-    this.assertArea(
-      actor,
-      input.decision === "APPROVE"
-        ? "reservation:approve"
-        : "reservation:reject",
-      current.asset.managementAreaId,
-    );
+    for (const item of current) {
+      this.assertArea(
+        actor,
+        input.decision === "APPROVE"
+          ? "reservation:approve"
+          : "reservation:reject",
+        item.asset.managementAreaId,
+      );
+    }
 
     await this.runSerializable(async (tx) => {
       await this.assertActiveActor(tx, actor.user.id);
-      const item = await tx.reservationItem.findFirst({
-        where: { id: itemId, reservationId },
+      const items = await tx.reservationItem.findMany({
+        where: { id: { in: itemIds }, reservationId },
         include: { asset: true, reservation: true },
+        orderBy: { id: "asc" },
       });
-      if (!item) {
+      if (items.length !== itemIds.length) {
         throw new ApiException(
           404,
           "RESERVATION_ITEM_NOT_FOUND",
-          "The reservation item was not found.",
+          "One or more reservation items were not found.",
         );
       }
       if (
-        item.status !== "PENDING" ||
-        item.reservation.status !== "PENDING_APPROVAL"
+        items.some(
+          (item) =>
+            item.status !== "PENDING" ||
+            item.reservation.status !== "PENDING_APPROVAL",
+        )
       ) {
         throw this.invalidStatus(
           "Only pending items in a pending reservation can be decided.",
@@ -361,39 +381,55 @@ export class ReservationsService {
       }
 
       if (input.decision === "APPROVE") {
-        await this.lockAssets(tx, [item.assetId]);
+        const reservation = items[0]!.reservation;
+        await this.lockAssets(
+          tx,
+          items.map((item) => item.assetId),
+        );
         await this.assertAvailability(
           tx,
-          [item],
-          [item.asset],
-          item.reservation.startAt,
-          item.reservation.endAt,
+          items,
+          items.map((item) => item.asset),
+          reservation.startAt,
+          reservation.endAt,
           reservationId,
         );
       }
 
       const decidedAt = new Date();
       const status = input.decision === "APPROVE" ? "APPROVED" : "REJECTED";
-      await tx.reservationItemApproval.upsert({
-        where: { reservationItemId: itemId },
-        create: {
-          id: randomUUID(),
-          reservationItemId: itemId,
-          approverId: actor.user.id,
-          status,
-          comment: input.comment ?? null,
-          decidedAt,
+      const updated = await tx.reservationItem.updateMany({
+        where: {
+          id: { in: itemIds },
+          reservationId,
+          status: "PENDING",
         },
-        update: {
-          approverId: actor.user.id,
-          status,
-          comment: input.comment ?? null,
-          decidedAt,
-        },
-      });
-      await tx.reservationItem.update({
-        where: { id: itemId },
         data: { status, updatedAt: decidedAt },
+      });
+      if (updated.count !== itemIds.length) {
+        throw this.invalidStatus(
+          "One or more selected items were already decided. Reload and try again.",
+        );
+      }
+      await tx.reservationItemApproval.createMany({
+        data: itemIds.map((reservationItemId) => ({
+          id: randomUUID(),
+          reservationItemId,
+          approverId: actor.user.id,
+          status,
+          comment: input.comment ?? null,
+          decidedAt,
+        })),
+        skipDuplicates: true,
+      });
+      await tx.reservationItemApproval.updateMany({
+        where: { reservationItemId: { in: itemIds } },
+        data: {
+          approverId: actor.user.id,
+          status,
+          comment: input.comment ?? null,
+          decidedAt,
+        },
       });
       const statuses = await tx.reservationItem.findMany({
         where: { reservationId },

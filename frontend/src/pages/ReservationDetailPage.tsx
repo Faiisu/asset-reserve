@@ -55,8 +55,8 @@ import type {
 } from "../types";
 
 type DecisionTarget = {
-  itemId: string;
-  assetName: string;
+  itemIds: string[];
+  assetNames: string[];
   decision: "APPROVE" | "REJECT";
 } | null;
 
@@ -72,6 +72,7 @@ export function ReservationDetailPage() {
   const [actionError, setActionError] = useState<unknown>(null);
   const [submitting, setSubmitting] = useState(false);
   const [decisionTarget, setDecisionTarget] = useState<DecisionTarget>(null);
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [editOpen, setEditOpen] = useState(false);
   const [reviewingChange, setReviewingChange] = useState<string | null>(null);
   const notice = (location.state as { notice?: string } | null)?.notice;
@@ -82,6 +83,7 @@ export function ReservationDetailPage() {
     try {
       const result = await api.reservation(reservationId);
       setReservation(result);
+      setSelectedItemIds([]);
       rememberReservation(result);
     } catch (caught) {
       setError(caught);
@@ -152,6 +154,36 @@ export function ReservationDetailPage() {
     hasAreaPermission("reservation:reject", item.asset.managementArea.id),
   );
   const canReviewChanges = canApproveChange || canRejectChange;
+  const decidableItems = reservation.items.filter(
+    (item) => item.capabilities.canApprove || item.capabilities.canReject,
+  );
+  const selectedItems = decidableItems.filter((item) =>
+    selectedItemIds.includes(item.id),
+  );
+  const allDecidableSelected =
+    decidableItems.length > 0 && selectedItems.length === decidableItems.length;
+  const canApproveSelected =
+    selectedItems.length > 0 &&
+    selectedItems.every((item) => item.capabilities.canApprove);
+  const canRejectSelected =
+    selectedItems.length > 0 &&
+    selectedItems.every((item) => item.capabilities.canReject);
+
+  function toggleItemSelection(itemId: string) {
+    setSelectedItemIds((current) =>
+      current.includes(itemId)
+        ? current.filter((id) => id !== itemId)
+        : [...current, itemId],
+    );
+  }
+
+  function openDecision(decision: "APPROVE" | "REJECT") {
+    setDecisionTarget({
+      itemIds: selectedItems.map((item) => item.id),
+      assetNames: selectedItems.map((item) => item.asset.name),
+      decision,
+    });
+  }
 
   return (
     <div className="page-stack reservation-detail-page">
@@ -247,17 +279,99 @@ export function ReservationDetailPage() {
                 <p className="eyebrow">Asset manifest</p>
                 <h2>{reservation.items.length} asset types</h2>
               </div>
-              <span className="manifest-total">
-                {reservation.items.reduce(
-                  (sum, item) => sum + item.quantity,
-                  0,
-                )}{" "}
-                units
-              </span>
+              <div className="reservation-manifest-tools">
+                {decidableItems.length > 0 && (
+                  <label className="approval-select-all">
+                    <input
+                      type="checkbox"
+                      checked={allDecidableSelected}
+                      onChange={() =>
+                        setSelectedItemIds(
+                          allDecidableSelected
+                            ? []
+                            : decidableItems.map((item) => item.id),
+                        )
+                      }
+                    />
+                    Select all pending
+                  </label>
+                )}
+                <span className="manifest-total">
+                  {reservation.items.reduce(
+                    (sum, item) => sum + item.quantity,
+                    0,
+                  )}{" "}
+                  units
+                </span>
+              </div>
             </header>
+            {selectedItems.length > 0 && (
+              <div
+                className="approval-selection-bar"
+                role="region"
+                aria-live="polite"
+              >
+                <div className="approval-selection-bar__count">
+                  <span>{selectedItems.length}</span>
+                  <div>
+                    <strong>assets selected</strong>
+                    <small>One decision and note will apply to all</small>
+                  </div>
+                </div>
+                <div className="approval-selection-bar__actions">
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={!canRejectSelected}
+                    title={
+                      canRejectSelected
+                        ? undefined
+                        : "You do not have reject permission for every selected asset"
+                    }
+                    onClick={() => openDecision("REJECT")}
+                  >
+                    <X size={15} /> Reject selected
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={!canApproveSelected}
+                    title={
+                      canApproveSelected
+                        ? undefined
+                        : "You do not have approve permission for every selected asset"
+                    }
+                    onClick={() => openDecision("APPROVE")}
+                  >
+                    <Check size={15} /> Approve selected
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="reservation-item-list">
               {reservation.items.map((item) => (
-                <article className="reservation-item-card" key={item.id}>
+                <article
+                  className={cx(
+                    "reservation-item-card",
+                    selectedItemIds.includes(item.id) &&
+                      "reservation-item-card--selected",
+                  )}
+                  key={item.id}
+                >
+                  {item.capabilities.canApprove ||
+                  item.capabilities.canReject ? (
+                    <input
+                      className="reservation-item-select"
+                      type="checkbox"
+                      aria-label={`Select ${item.asset.name}`}
+                      checked={selectedItemIds.includes(item.id)}
+                      onChange={() => toggleItemSelection(item.id)}
+                    />
+                  ) : (
+                    <span
+                      className="reservation-item-select-spacer"
+                      aria-hidden="true"
+                    />
+                  )}
                   <AssetPicture
                     src={item.asset.pictureUrl}
                     name={item.asset.name}
@@ -273,11 +387,11 @@ export function ReservationDetailPage() {
                         : ""}
                     </span>
                   </div>
-                  <div className="reservation-item-card__quantity">
+                  <div className="reservation-item-card__quantity reservation-item-card__quantity--requested">
                     <small>Requested</small>
                     <strong>{item.quantity}</strong>
                   </div>
-                  <div className="reservation-item-card__quantity">
+                  <div className="reservation-item-card__quantity reservation-item-card__quantity--available">
                     <small>Available</small>
                     <strong
                       className={cx(
@@ -307,40 +421,6 @@ export function ReservationDetailPage() {
                       {item.approval.approver.name ??
                         item.approval.approver.email}
                     </p>
-                  )}
-                  {(item.capabilities.canApprove ||
-                    item.capabilities.canReject) && (
-                    <div className="reservation-item-card__actions">
-                      {item.capabilities.canReject && (
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() =>
-                            setDecisionTarget({
-                              itemId: item.id,
-                              assetName: item.asset.name,
-                              decision: "REJECT",
-                            })
-                          }
-                        >
-                          <X size={15} /> Reject
-                        </Button>
-                      )}
-                      {item.capabilities.canApprove && (
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            setDecisionTarget({
-                              itemId: item.id,
-                              assetName: item.asset.name,
-                              decision: "APPROVE",
-                            })
-                          }
-                        >
-                          <Check size={15} /> Approve
-                        </Button>
-                      )}
-                    </div>
                   )}
                 </article>
               ))}
@@ -492,6 +572,7 @@ export function ReservationDetailPage() {
           setReservation(result);
           rememberReservation(result);
           setDecisionTarget(null);
+          setSelectedItemIds([]);
         }}
       />
       <ReservationEditDialog
@@ -613,9 +694,9 @@ function ItemDecisionDialog({
     setError("");
     try {
       onDecided(
-        await api.decideReservationItem(
+        await api.decideReservationItems(
           reservationId,
-          target.itemId,
+          target.itemIds,
           target.decision,
           comment.trim() || undefined,
         ),
@@ -634,11 +715,11 @@ function ItemDecisionDialog({
   return (
     <Dialog
       open={Boolean(target)}
-      title={`${target?.decision === "APPROVE" ? "Approve" : "Reject"} ${target?.assetName ?? "asset"}`}
+      title={`${target?.decision === "APPROVE" ? "Approve" : "Reject"} ${target?.itemIds.length ?? 0} selected ${(target?.itemIds.length ?? 0) === 1 ? "asset" : "assets"}`}
       description={
         target?.decision === "APPROVE"
-          ? "Availability will be checked again before approval is recorded."
-          : "The requester will see this asset as rejected."
+          ? "Availability will be checked for every selected asset before the batch is approved."
+          : "Every selected asset will be rejected together."
       }
       onClose={onClose}
     >
@@ -646,6 +727,12 @@ function ItemDecisionDialog({
         {error && (
           <div className="form-alert" role="alert">
             {error}
+          </div>
+        )}
+        {target && (
+          <div className="decision-asset-summary">
+            <span>Selected manifest</span>
+            <strong>{target.assetNames.join(" · ")}</strong>
           </div>
         )}
         <Field
@@ -673,7 +760,9 @@ function ItemDecisionDialog({
             ) : (
               <X size={17} />
             )}
-            {target?.decision === "APPROVE" ? "Approve asset" : "Reject asset"}
+            {target?.decision === "APPROVE"
+              ? "Approve selected"
+              : "Reject selected"}
           </Button>
         </div>
       </form>

@@ -14,6 +14,7 @@ import {
   CreateReservationDto,
   ReservationChangeRequestDecisionDto,
   ReservationItemDecisionDto,
+  ReservationItemsDecisionDto,
   SubmitReservationDto,
   ReservationListQueryDto,
 } from "./reservations.dto.js";
@@ -64,6 +65,15 @@ export class ReservationsController {
     @Body() input: ReservationItemDecisionDto,
   ) {
     return this.reservations.decideItem(actor, reservationId, itemId, input);
+  }
+
+  @Post(":reservationId/items/decision")
+  decideItems(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Param("reservationId", new ParseUUIDPipe()) reservationId: string,
+    @Body() input: ReservationItemsDecisionDto,
+  ) {
+    return this.reservations.decideItems(actor, reservationId, input);
   }
 
   @Post(":reservationId/change-requests")

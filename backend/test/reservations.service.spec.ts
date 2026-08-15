@@ -253,31 +253,33 @@ describe("reservation availability", () => {
         totalQuantity: 1,
       },
     };
-    const approvalUpsert = vi.fn();
+    const approvalCreateMany = vi.fn();
     const tx = {
       user: { findFirst: vi.fn().mockResolvedValue({ id: actorId }) },
       reservationItem: {
-        findFirst: vi.fn().mockResolvedValue(item),
-        findMany: vi.fn().mockResolvedValue([
-          {
-            assetId,
-            quantity: 1,
-            status: "APPROVED",
-            reservationId: "00000000-0000-4000-8000-000000000998",
-            reservation: { status: "APPROVED" },
-          },
-        ]),
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([item])
+          .mockResolvedValueOnce([
+            {
+              assetId,
+              quantity: 1,
+              status: "APPROVED",
+              reservationId: "00000000-0000-4000-8000-000000000998",
+              reservation: { status: "APPROVED" },
+            },
+          ]),
       },
       asset: {
         findMany: vi
           .fn()
           .mockResolvedValue([{ id: assetId, totalQuantity: 1 }]),
       },
-      reservationItemApproval: { upsert: approvalUpsert },
+      reservationItemApproval: { createMany: approvalCreateMany },
       $queryRaw: vi.fn().mockResolvedValue([{ id: assetId }]),
     };
     const prisma = {
-      reservationItem: { findFirst: vi.fn().mockResolvedValue(item) },
+      reservationItem: { findMany: vi.fn().mockResolvedValue([item]) },
       $transaction: vi.fn(
         async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
       ),
@@ -290,7 +292,117 @@ describe("reservation availability", () => {
       }),
     ).rejects.toMatchObject({ code: "RESERVATION_CONFLICT" });
     expect(tx.$queryRaw).toHaveBeenCalledOnce();
-    expect(approvalUpsert).not.toHaveBeenCalled();
+    expect(approvalCreateMany).not.toHaveBeenCalled();
+  });
+
+  it("approves selected items together and records one shared decision", async () => {
+    const secondItemId = "00000000-0000-4000-8000-000000000202";
+    const secondAssetId = "00000000-0000-4000-8000-000000000302";
+    const reservation = {
+      id: reservationId,
+      status: "PENDING_APPROVAL",
+      startAt: new Date("2026-09-01T09:00:00.000Z"),
+      endAt: new Date("2026-09-01T11:00:00.000Z"),
+    };
+    const items = [
+      {
+        id: itemId,
+        reservationId,
+        assetId,
+        quantity: 1,
+        status: "PENDING",
+        reservation,
+        asset: {
+          id: assetId,
+          managementAreaId: areaId,
+          totalQuantity: 2,
+        },
+      },
+      {
+        id: secondItemId,
+        reservationId,
+        assetId: secondAssetId,
+        quantity: 1,
+        status: "PENDING",
+        reservation,
+        asset: {
+          id: secondAssetId,
+          managementAreaId: areaId,
+          totalQuantity: 3,
+        },
+      },
+    ];
+    const itemUpdateMany = vi.fn().mockResolvedValue({ count: 2 });
+    const approvalCreateMany = vi.fn().mockResolvedValue({ count: 2 });
+    const approvalUpdateMany = vi.fn().mockResolvedValue({ count: 2 });
+    const reservationUpdate = vi.fn().mockResolvedValue({});
+    const tx = {
+      user: { findFirst: vi.fn().mockResolvedValue({ id: actorId }) },
+      reservationItem: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce(items)
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([
+            { status: "APPROVED" },
+            { status: "APPROVED" },
+          ]),
+        updateMany: itemUpdateMany,
+      },
+      asset: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: assetId, totalQuantity: 2 },
+          { id: secondAssetId, totalQuantity: 3 },
+        ]),
+      },
+      reservationItemApproval: {
+        createMany: approvalCreateMany,
+        updateMany: approvalUpdateMany,
+      },
+      reservation: { update: reservationUpdate },
+      $queryRaw: vi.fn().mockResolvedValue([]),
+    };
+    const prisma = {
+      reservationItem: { findMany: vi.fn().mockResolvedValue(items) },
+      $transaction: vi.fn(
+        async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
+      ),
+    } as unknown as PrismaService;
+    const service = new ReservationsService(prisma);
+    const detail = { id: reservationId } as never;
+    vi.spyOn(service, "get").mockResolvedValue(detail);
+
+    await expect(
+      service.decideItems(actor, reservationId, {
+        itemIds: [secondItemId, itemId],
+        decision: "APPROVE",
+        comment: "Ready together",
+      }),
+    ).resolves.toBe(detail);
+
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(itemUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: { in: [itemId, secondItemId] } }),
+        data: expect.objectContaining({ status: "APPROVED" }),
+      }),
+    );
+    expect(approvalCreateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            reservationItemId: itemId,
+            comment: "Ready together",
+          }),
+          expect.objectContaining({ reservationItemId: secondItemId }),
+        ]),
+      }),
+    );
+    expect(reservationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "APPROVED" }),
+      }),
+    );
   });
 });
 

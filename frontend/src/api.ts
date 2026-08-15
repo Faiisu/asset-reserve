@@ -283,6 +283,19 @@ export const api = {
         body: json({ decision, ...(comment ? { comment } : {}) }),
       },
     ),
+  decideReservationItems: (
+    reservationId: string,
+    itemIds: string[],
+    decision: "APPROVE" | "REJECT",
+    comment?: string,
+  ) =>
+    request<ReservationDetail>(
+      `/reservations/${reservationId}/items/decision`,
+      {
+        method: "POST",
+        body: json({ itemIds, decision, ...(comment ? { comment } : {}) }),
+      },
+    ),
   requestReservationChange: (
     reservationId: string,
     changeData: ReservationChangeData,

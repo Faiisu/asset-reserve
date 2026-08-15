@@ -80,9 +80,9 @@ describe("API client", () => {
       status: "PENDING_APPROVAL",
       items: [{ assetId: "asset-1", quantity: 2 }],
     });
-    await api.decideReservationItem(
+    await api.decideReservationItems(
       "reservation-1",
-      "item-1",
+      ["item-1", "item-2"],
       "APPROVE",
       "Ready",
     );
@@ -93,11 +93,15 @@ describe("API client", () => {
       body: expect.stringContaining('"status":"PENDING_APPROVAL"'),
     });
     expect(fetchMock.mock.calls[1][0]).toBe(
-      "/api/v1/reservations/reservation-1/items/item-1/decision",
+      "/api/v1/reservations/reservation-1/items/decision",
     );
     expect(fetchMock.mock.calls[1][1]).toMatchObject({
       method: "POST",
-      body: JSON.stringify({ decision: "APPROVE", comment: "Ready" }),
+      body: JSON.stringify({
+        itemIds: ["item-1", "item-2"],
+        decision: "APPROVE",
+        comment: "Ready",
+      }),
     });
   });
 
