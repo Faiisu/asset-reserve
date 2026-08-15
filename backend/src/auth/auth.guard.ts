@@ -11,11 +11,15 @@ type AccessClaims = { sub?: string };
 
 @Injectable()
 export class AuthenticationGuard implements CanActivate {
+  private readonly reflector: Reflector;
+
   constructor(
-    private readonly reflector: Reflector,
+    reflector: Reflector,
     private readonly jwt: JwtService,
     private readonly sessions: SessionService,
-  ) {}
+  ) {
+    this.reflector = reflector ?? new Reflector();
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [

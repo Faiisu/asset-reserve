@@ -58,6 +58,8 @@ export function AssetFormPage() {
   const [fields, setFields] = useState<Record<string, string>>({});
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [error, setError] = useState<unknown>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   async function handleImageUpload(file: File) {
     setUploadingImage(true);
@@ -83,10 +85,11 @@ export function AssetFormPage() {
         .map((area) => area.managementAreaId),
     );
   }, [session]);
-  const visibleAreas =
-    permittedAreaIds === null
-      ? areas
-      : areas.filter((area) => permittedAreaIds.has(area.id));
+
+  const visibleAreas = useMemo(() => {
+    if (permittedAreaIds === null) return areas;
+    return areas.filter((area) => permittedAreaIds.has(area.id));
+  }, [areas, permittedAreaIds]);
 
   useEffect(() => {
     let active = true;
@@ -117,13 +120,9 @@ export function AssetFormPage() {
             isActive: detail.isActive,
           });
         } else if (areaResponse.data.length) {
-          const first =
-            permittedAreaIds === null
-              ? areaResponse.data[0]
-              : areaResponse.data.find((area) => permittedAreaIds.has(area.id));
           setForm((current) => ({
             ...current,
-            managementAreaId: first?.id ?? "",
+            managementAreaId: current.managementAreaId || areaResponse.data[0].id,
           }));
         }
       })
@@ -132,7 +131,13 @@ export function AssetFormPage() {
     return () => {
       active = false;
     };
-  }, [assetId, permittedAreaIds]);
+  }, [assetId]);
+
+  useEffect(() => {
+    if (!editing && !form.managementAreaId && visibleAreas.length > 0) {
+      setForm((prev) => ({ ...prev, managementAreaId: visibleAreas[0].id }));
+    }
+  }, [editing, form.managementAreaId, visibleAreas]);
 
   if (loading)
     return (
@@ -147,7 +152,7 @@ export function AssetFormPage() {
   ) {
     return (
       <EmptyState
-        title="You cannot edit this asset"
+        title={editing ? "You cannot edit this asset" : "You cannot create assets"}
         description="This account does not have permission in the asset's management area."
         action={
           <Link className="button button--secondary button--md" to="/assets">
@@ -160,16 +165,37 @@ export function AssetFormPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setSubmitting(true);
     setError(null);
     setFields({});
+
+    const trimmedName = form.name.trim();
+    const areaId = form.managementAreaId;
+    const quantityNum = Number(form.totalQuantity);
+
+    const validationErrors: Record<string, string> = {};
+    if (!trimmedName) {
+      validationErrors.name = "Asset name is required.";
+    }
+    if (!areaId) {
+      validationErrors.managementAreaId = "Please select a management area.";
+    }
+    if (!editing && (form.totalQuantity === "" || Number.isNaN(quantityNum) || quantityNum < 0)) {
+      validationErrors.totalQuantity = "Initial quantity must be 0 or more.";
+    }
+
+    if (Object.keys(validationErrors).length > 0) {
+      setFields(validationErrors);
+      return;
+    }
+
+    setSubmitting(true);
     const input: AssetInput = {
-      name: form.name.trim(),
-      managementAreaId: form.managementAreaId,
+      name: trimmedName,
+      managementAreaId: areaId,
       assetTemplateId: form.assetTemplateId || null,
       description: form.description.trim() || null,
       pictureUrl: form.pictureUrl.trim() || null,
-      totalQuantity: Number(form.totalQuantity),
+      totalQuantity: quantityNum,
       isActive: form.isActive,
     };
     try {
@@ -335,9 +361,16 @@ export function AssetFormPage() {
                 <Field label="Asset template">
                   <Select
                     value={form.assetTemplateId}
-                    onChange={(event) =>
-                      setForm({ ...form, assetTemplateId: event.target.value })
-                    }
+                    onChange={(event) => {
+                      const selectedTemplateId = event.target.value;
+                      const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
+                      setForm((prev) => ({
+                        ...prev,
+                        assetTemplateId: selectedTemplateId,
+                        name: prev.name ? prev.name : (selectedTemplate?.name ?? prev.name),
+                        description: prev.description ? prev.description : (selectedTemplate?.description ?? prev.description),
+                      }));
+                    }}
                   >
                     <option value="">No template</option>
                     {templates.map((template) => (
@@ -491,6 +524,12 @@ function BatchAssetForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    if (!areaId && areas.length > 0) {
+      setAreaId(areas[0].id);
+    }
+  }, [areas, areaId]);
+
   function update(key: number, values: Partial<BatchRow>) {
     setRows((current) =>
       current.map((row) => (row.key === key ? { ...row, ...values } : row)),
@@ -499,6 +538,16 @@ function BatchAssetForm({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (!areaId) {
+      setError("Please select a management area.");
+      return;
+    }
+    const emptyNameIndex = rows.findIndex((row) => !row.name.trim());
+    if (emptyNameIndex !== -1) {
+      setError(`Row ${emptyNameIndex + 1} requires an asset name.`);
+      return;
+    }
+
     setSubmitting(true);
     setError("");
     try {
@@ -509,7 +558,7 @@ function BatchAssetForm({
           assetTemplateId: templateId || null,
           description: row.description.trim() || null,
           pictureUrl: row.pictureUrl.trim() || null,
-          totalQuantity: Number(row.quantity),
+          totalQuantity: Number(row.quantity) || 0,
           isActive: true,
         })),
         description.trim() || undefined,

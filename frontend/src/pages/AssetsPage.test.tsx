@@ -8,16 +8,37 @@ vi.mock("../auth", () => ({
   useAuth: () => ({ hasPermission: () => true }),
 }));
 
+const mockArea = {
+  id: "area-1",
+  name: "Main Stage",
+  description: null,
+  createdAt: "2026-08-15T00:00:00.000Z",
+  updatedAt: "2026-08-15T00:00:00.000Z",
+};
+
+const mockTemplate = {
+  id: "template-1",
+  name: "AV Equipment",
+  description: null,
+  createdAt: "2026-08-15T00:00:00.000Z",
+  updatedAt: "2026-08-15T00:00:00.000Z",
+};
+
 const mockAsset: AssetSummary = {
   id: "asset-1",
   name: "HD Projector",
   description: "1080p projector",
   pictureUrl: null,
   totalQuantity: 5,
+  allocatedQuantity: 0,
+  availableQuantity: 5,
   isActive: true,
-  managementArea: { id: "area-1", name: "Main Stage" },
-  assetTemplate: { id: "template-1", name: "AV Equipment" },
+  status: "ACTIVE",
+  managementArea: mockArea,
+  assetTemplate: mockTemplate,
+  owner: null,
   capabilities: {
+    canEdit: true,
     canAdjustQuantity: true,
     canDeactivate: true,
   },
@@ -28,11 +49,11 @@ const mockAsset: AssetSummary = {
 describe("AssetsPage", () => {
   it("renders asset list and allows row click to toggle checkbox selection", async () => {
     vi.spyOn(api, "areas").mockResolvedValue({
-      data: [{ id: "area-1", name: "Main Stage" }],
+      data: [mockArea],
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
     vi.spyOn(api, "templates").mockResolvedValue({
-      data: [{ id: "template-1", name: "AV Equipment" }],
+      data: [mockTemplate],
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
     vi.spyOn(api, "assets").mockResolvedValue({

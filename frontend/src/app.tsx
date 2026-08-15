@@ -42,6 +42,7 @@ export function App() {
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="assets" element={<AssetsPage />} />
         <Route path="assets/new" element={<AssetFormPage />} />
+        <Route path="asset/new" element={<Navigate to="/assets/new" replace />} />
         <Route path="assets/:assetId" element={<AssetDetailPage />} />
         <Route path="assets/:assetId/edit" element={<AssetFormPage />} />
         <Route path="reservations" element={<ReservationsPage />} />

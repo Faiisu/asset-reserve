@@ -121,12 +121,21 @@
   gap: 20px;
 }
 .form-alert {
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--red) 25%, transparent);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
+  border-left: 3px solid var(--red);
   border-radius: 8px;
   background: var(--red-soft);
   color: var(--red);
   font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.form-alert svg {
+  flex-shrink: 0;
 }
 .login-submit {
   width: 100%;

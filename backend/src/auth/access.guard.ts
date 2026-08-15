@@ -9,7 +9,11 @@ import {
 
 @Injectable()
 export class AccessGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  private readonly reflector: Reflector;
+
+  constructor(reflector?: Reflector) {
+    this.reflector = reflector ?? new Reflector();
+  }
 
   canActivate(context: ExecutionContext): boolean {
     const requirement = this.reflector.getAllAndOverride<AccessRequirement>(

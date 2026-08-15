@@ -19,6 +19,7 @@ import {
   ValidateNested,
 } from "class-validator";
 import {
+  IsUrlOrPath,
   SearchPaginationQueryDto,
   parseOptionalBoolean,
 } from "../common/dto.js";
@@ -72,7 +73,7 @@ export class CreateAssetDto {
 
   @IsOptional()
   @ValidateIf((_object, value) => value !== null)
-  @IsUrl({ require_tld: false })
+  @IsUrlOrPath()
   @MaxLength(2048)
   pictureUrl?: string | null;
 
@@ -125,7 +126,7 @@ export class UpdateAssetDto {
 
   @IsOptional()
   @ValidateIf((_object, value) => value !== null)
-  @IsUrl({ require_tld: false })
+  @IsUrlOrPath()
   @MaxLength(2048)
   pictureUrl?: string | null;
 

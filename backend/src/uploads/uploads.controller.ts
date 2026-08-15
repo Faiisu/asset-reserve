@@ -33,16 +33,27 @@ export class UploadsController {
 
     const allowedMimeTypes = [
       "image/jpeg",
+      "image/jpg",
+      "image/pjpeg",
       "image/png",
+      "image/x-png",
       "image/webp",
       "image/gif",
       "image/svg+xml",
+      "image/avif",
+      "image/bmp",
+      "image/x-ms-bmp",
+      "image/x-icon",
+      "image/vnd.microsoft.icon",
+      "image/heic",
+      "image/heif",
     ];
-    if (!allowedMimeTypes.includes(data.mimetype.toLowerCase())) {
+    const mime = data.mimetype.toLowerCase();
+    if (!allowedMimeTypes.includes(mime) && !mime.startsWith("image/")) {
       throw new ApiException(
         422,
         "INVALID_FILE_TYPE",
-        "Only JPEG, PNG, WEBP, GIF, and SVG images are allowed.",
+        "Only JPEG, PNG, WEBP, GIF, SVG, and other image formats are allowed.",
       );
     }
 

@@ -1,4 +1,5 @@
 import {
+  AlertCircle,
   ArrowRight,
   KeyRound,
 } from "lucide-react";
@@ -63,11 +64,6 @@ export function LoginPage() {
           <h2>Sign in to your workspace</h2>
           <p className="login-form__intro">Use the account created for you by an administrator.</p>
           <form onSubmit={submit} noValidate>
-            {error && (
-              <div className="form-alert" role="alert">
-                {error}
-              </div>
-            )}
             <Field label="Email" required>
               <Input
                 type="email"
@@ -90,6 +86,12 @@ export function LoginPage() {
                 required
               />
             </Field>
+            {error && (
+              <div className="form-alert" role="alert">
+                <AlertCircle size={16} aria-hidden />
+                <span>{error}</span>
+              </div>
+            )}
             <Button
               className="login-submit"
               type="submit"

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { api } from "../api";
 import type {
@@ -430,6 +430,52 @@ describe("CalendarPage", () => {
         "Cancelled from calendar",
       ),
     );
+  });
+
+  it("navigates across continuous months using mini calendar date picker and Today button", async () => {
+    vi.spyOn(api, "reservations").mockResolvedValue({
+      data: [],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <CalendarPage />
+      </MemoryRouter>,
+    );
+
+    // Initial visible month is August 2026
+    expect(screen.getByRole("heading", { level: 2, name: "August 2026" })).toBeInTheDocument();
+    expect(screen.getByText("Aug")).toBeInTheDocument();
+
+    // Open Mini Calendar Date Picker
+    fireEvent.click(screen.getByRole("button", { name: "Select date from mini calendar" }));
+    expect(screen.getByRole("dialog", { name: "Choose date" })).toBeInTheDocument();
+
+    // Navigate to next month in mini calendar
+    fireEvent.click(screen.getByRole("button", { name: "Next month in picker" }));
+    expect(screen.getByText("September 2026")).toBeInTheDocument();
+
+    // Pick September 15, 2026
+    const sep15Btn = screen.getByRole("button", { name: "Tuesday, September 15, 2026" });
+    fireEvent.click(sep15Btn);
+
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 2, name: "September 2026" })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("dialog", { name: "Choose date" })).toBeNull();
+
+    // Click Today button to return to current month
+    fireEvent.click(screen.getByRole("button", { name: "Today" }));
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 2, name: "August 2026" })).toBeInTheDocument(),
+    );
+
+    // Selecting a box in September updates header month label
+    const sepBox = screen.getByRole("button", { name: /Tuesday, September 1, 2026/i });
+    fireEvent.pointerDown(sepBox, { button: 0 });
+    fireEvent.pointerUp(sepBox);
+    expect(screen.getByRole("heading", { level: 2, name: "September 2026" })).toBeInTheDocument();
   });
 });
 

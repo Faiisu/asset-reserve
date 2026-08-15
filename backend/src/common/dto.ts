@@ -45,3 +45,41 @@ export class ActiveFilterDto {
   @IsBoolean()
   isActive?: boolean;
 }
+
+import {
+  registerDecorator,
+  type ValidationOptions,
+  type ValidationArguments,
+  isURL,
+} from "class-validator";
+
+export function IsUrlOrPath(validationOptions?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      name: "isUrlOrPath",
+      target: object.constructor,
+      propertyName: propertyName,
+      options: validationOptions,
+      validator: {
+        validate(value: unknown, _args: ValidationArguments) {
+          if (value === null || value === undefined) return true;
+          if (typeof value !== "string") return false;
+          const trimmed = value.trim();
+          if (!trimmed) return true;
+          if (
+            trimmed.startsWith("/") ||
+            trimmed.startsWith("data:image/") ||
+            trimmed.startsWith("./") ||
+            trimmed.startsWith("../")
+          ) {
+            return true;
+          }
+          return isURL(trimmed, { require_tld: false });
+        },
+        defaultMessage(_args: ValidationArguments) {
+          return "$property must be a valid URL or path.";
+        },
+      },
+    });
+  };
+}

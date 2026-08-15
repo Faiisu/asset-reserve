@@ -14,6 +14,7 @@ import {
   ValidateNested,
 } from "class-validator";
 import {
+  IsUrlOrPath,
   SearchPaginationQueryDto,
   parseOptionalBoolean,
 } from "../common/dto.js";
@@ -45,7 +46,7 @@ export class CreateProfileDto {
   phoneNumber?: string | null;
 
   @IsOptional()
-  @IsUrl({ require_tld: false })
+  @IsUrlOrPath()
   @MaxLength(2048)
   profilePictureUrl?: string | null;
 }
