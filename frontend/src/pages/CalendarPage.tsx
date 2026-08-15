@@ -1,10 +1,13 @@
 import {
   CalendarDays,
+  Check,
   ChevronLeft,
   ChevronRight,
   Filter,
   LoaderCircle,
+  PackageSearch,
   Plus,
+  Search,
   X,
 } from "lucide-react";
 import {
@@ -17,12 +20,20 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
-import { Button, ErrorState, PageHeader, Select, cx } from "../components/ui";
+import {
+  AssetPicture,
+  Button,
+  ErrorState,
+  PageHeader,
+  Select,
+  cx,
+} from "../components/ui";
 import { reservationStatusLabel } from "../reservations";
 import type {
+  AssetSummary,
   ManagementArea,
   ReservationStatus,
   ReservationSummary,
@@ -53,19 +64,24 @@ type CalendarSegment = {
 };
 
 export function CalendarPage() {
-  const navigate = useNavigate();
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasAreaPermission } = useAuth();
   const canCreate = hasPermission("reservation:create");
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [status, setStatus] = useState("");
   const [areaId, setAreaId] = useState("");
   const [areas, setAreas] = useState<ManagementArea[]>([]);
   const [reservations, setReservations] = useState<ReservationSummary[]>([]);
+  const [assets, setAssets] = useState<AssetSummary[]>([]);
+  const [assetSearch, setAssetSearch] = useState("");
+  const [selectedAssets, setSelectedAssets] = useState<AssetSummary[]>([]);
+  const [loadingAssets, setLoadingAssets] = useState(false);
+  const [assetError, setAssetError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
   const [selection, setSelection] = useState<DateSelection | null>(null);
   const dragging = useRef(false);
   const selectionAnchor = useRef<Date | null>(null);
+  const reservePanel = useRef<HTMLElement>(null);
   const requestSequence = useRef(0);
 
   const gridStart = useMemo(() => startOfCalendarGrid(month), [month]);
@@ -82,6 +98,29 @@ export function CalendarPage() {
       .then((response) => setAreas(response.data))
       .catch(() => setAreas([]));
   }, []);
+
+  useEffect(() => {
+    if (!canCreate) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setLoadingAssets(true);
+      setAssetError(null);
+      void api
+        .assets({
+          search: assetSearch.trim() || undefined,
+          areaId: areaId || undefined,
+          isActive: true,
+          limit: 100,
+        })
+        .then((response) => active && setAssets(response.data))
+        .catch((caught) => active && setAssetError(caught))
+        .finally(() => active && setLoadingAssets(false));
+    }, 180);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [areaId, assetSearch, canCreate]);
 
   const load = useCallback(async () => {
     const requestId = ++requestSequence.current;
@@ -130,8 +169,16 @@ export function CalendarPage() {
   }, []);
 
   const selectedRange = selection ? orderedSelection(selection) : null;
+  const selectedAssetIds = new Set(selectedAssets.map((asset) => asset.id));
+  const reservableAssets = assets.filter((asset) =>
+    hasAreaPermission("reservation:create", asset.managementArea.id),
+  );
   const createUrl = selectedRange
-    ? reservationCreateUrl(selectedRange.start, selectedRange.end)
+    ? reservationCreateUrl(
+        selectedRange.start,
+        selectedRange.end,
+        selectedAssets.map((asset) => asset.id),
+      )
     : "/reservations/new";
 
   function beginSelection(date: Date, event: PointerEvent<HTMLDivElement>) {
@@ -156,7 +203,23 @@ export function CalendarPage() {
       anchor: selectionAnchor.current,
       focus: date,
     });
-    navigate(reservationCreateUrl(range.start, range.end));
+    setSelection({ anchor: range.start, focus: range.end });
+    window.requestAnimationFrame(() => {
+      if (
+        typeof window.matchMedia !== "function" ||
+        !window.matchMedia("(max-width: 1120px)").matches ||
+        typeof reservePanel.current?.scrollIntoView !== "function"
+      ) {
+        return;
+      }
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      reservePanel.current.scrollIntoView({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "start",
+      });
+    });
   }
 
   function selectWithKeyboard(
@@ -173,12 +236,20 @@ export function CalendarPage() {
     setSelection(null);
   }
 
+  function toggleAsset(asset: AssetSummary) {
+    setSelectedAssets((current) =>
+      current.some((item) => item.id === asset.id)
+        ? current.filter((item) => item.id !== asset.id)
+        : [...current, asset],
+    );
+  }
+
   return (
     <div className="page-stack calendar-page">
       <PageHeader
         eyebrow="Calendar / reservation rail"
         title="See every reservation in motion."
-        description="This calendar shows only reservations the backend allows you to see. Drag across dates to prepare a new reservation window."
+        description="Choose a date range, build the asset list beside the calendar, then continue to complete the reservation details."
         actions={
           canCreate ? (
             <Link
@@ -230,7 +301,7 @@ export function CalendarPage() {
 
         <div className="calendar-filters">
           <span>
-            <Filter size={14} /> Filter visible reservations
+            <Filter size={14} /> Filter workspace
           </span>
           <Select
             value={areaId}
@@ -258,77 +329,205 @@ export function CalendarPage() {
         </div>
       </section>
 
-      {selectedRange && (
-        <section className="calendar-selection" aria-live="polite">
-          <span className="calendar-selection__mark" aria-hidden />
-          <div>
-            <small>New reservation window</small>
-            <strong>{formatSelection(selectedRange)}</strong>
-            <span>Starts at 09:00 and ends at 17:00 in your local time.</span>
-          </div>
-          <div className="calendar-selection__actions">
-            <button
-              type="button"
-              className="icon-button"
-              aria-label="Clear selected dates"
-              onClick={() => setSelection(null)}
-            >
-              <X size={17} />
-            </button>
-            <Link className="button button--primary button--sm" to={createUrl}>
-              Create in this window <ChevronRight size={16} />
-            </Link>
-          </div>
-        </section>
-      )}
+      <div
+        className={cx(
+          "calendar-workspace",
+          !canCreate && "calendar-workspace--calendar-only",
+        )}
+      >
+        <div className="calendar-workspace__rail">
+          {error ? (
+            <ErrorState error={error} onRetry={() => void load()} />
+          ) : (
+            <div className="calendar-frame">
+              <div className="calendar-scroll" tabIndex={0}>
+                <div className="calendar-board" aria-busy={loading}>
+                  <div className="calendar-weekdays" aria-hidden>
+                    {DAY_NAMES.map((day) => (
+                      <span key={day}>{day}</span>
+                    ))}
+                  </div>
+                  <div className="calendar-weeks">
+                    {weeks.map((weekStart) => (
+                      <CalendarWeek
+                        key={dateKey(weekStart)}
+                        weekStart={weekStart}
+                        month={month}
+                        reservations={reservations}
+                        selectedRange={selectedRange}
+                        canCreate={canCreate}
+                        onPointerDown={beginSelection}
+                        onPointerEnter={extendSelection}
+                        onPointerUp={finishSelection}
+                        onKeyDown={selectWithKeyboard}
+                      />
+                    ))}
+                  </div>
+                  {loading && (
+                    <div className="calendar-loading" role="status">
+                      <LoaderCircle className="spin" size={22} />
+                      Loading visible reservations
+                    </div>
+                  )}
+                  {!loading && reservations.length === 0 && (
+                    <div className="calendar-empty">
+                      <CalendarDays size={20} />
+                      <span>
+                        <strong>No reservations in this range</strong>
+                        Drag across the calendar to start one.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <CalendarLegend />
+            </div>
+          )}
+        </div>
 
-      {error ? (
-        <ErrorState error={error} onRetry={() => void load()} />
-      ) : (
-        <div className="calendar-frame">
-          <div className="calendar-scroll" tabIndex={0}>
-            <div className="calendar-board" aria-busy={loading}>
-              <div className="calendar-weekdays" aria-hidden>
-                {DAY_NAMES.map((day) => (
-                  <span key={day}>{day}</span>
-                ))}
+        {canCreate && (
+          <aside
+            ref={reservePanel}
+            className="calendar-reserve-panel"
+            aria-label="Asset picker"
+          >
+            <header className="calendar-reserve-panel__header">
+              <span className="calendar-reserve-panel__icon" aria-hidden>
+                <PackageSearch size={19} />
+              </span>
+              <div>
+                <p className="eyebrow">Reservation manifest</p>
+                <h2>Choose assets</h2>
               </div>
-              <div className="calendar-weeks">
-                {weeks.map((weekStart) => (
-                  <CalendarWeek
-                    key={dateKey(weekStart)}
-                    weekStart={weekStart}
-                    month={month}
-                    reservations={reservations}
-                    selectedRange={selectedRange}
-                    canCreate={canCreate}
-                    onPointerDown={beginSelection}
-                    onPointerEnter={extendSelection}
-                    onPointerUp={finishSelection}
-                    onKeyDown={selectWithKeyboard}
-                  />
-                ))}
-              </div>
-              {loading && (
-                <div className="calendar-loading" role="status">
-                  <LoaderCircle className="spin" size={22} />
-                  Loading visible reservations
-                </div>
+              <span className="calendar-reserve-panel__count">
+                {selectedAssets.length}
+              </span>
+            </header>
+
+            <div
+              className={cx(
+                "calendar-reserve-window",
+                selectedRange && "calendar-reserve-window--ready",
               )}
-              {!loading && reservations.length === 0 && (
-                <div className="calendar-empty">
-                  <CalendarDays size={20} />
-                  <span>
-                    <strong>No reservations in this range</strong>
-                    Try another filter or drag across the calendar to start one.
-                  </span>
-                </div>
+            >
+              <CalendarDays size={16} />
+              <span>
+                <small>01 / Schedule</small>
+                <strong>
+                  {selectedRange
+                    ? formatSelection(selectedRange)
+                    : "Select dates on the calendar"}
+                </strong>
+              </span>
+              {selectedRange && (
+                <button
+                  type="button"
+                  aria-label="Clear selected dates"
+                  onClick={() => setSelection(null)}
+                >
+                  <X size={14} />
+                </button>
               )}
             </div>
-          </div>
-          <CalendarLegend />
-        </div>
-      )}
+
+            <div className="calendar-asset-search">
+              <Search size={16} />
+              <input
+                value={assetSearch}
+                onChange={(event) => setAssetSearch(event.target.value)}
+                placeholder="Search available assets"
+                aria-label="Search assets for reservation"
+                disabled={!selectedRange}
+              />
+            </div>
+
+            <div
+              className={cx(
+                "calendar-asset-list",
+                !selectedRange && "calendar-asset-list--locked",
+              )}
+              aria-live="polite"
+            >
+              {!selectedRange ? (
+                <div className="calendar-asset-list__message">
+                  <span>01</span>
+                  <strong>Choose the schedule first</strong>
+                  <p>Drag across one or more dates to unlock the asset list.</p>
+                </div>
+              ) : loadingAssets ? (
+                <div className="calendar-asset-list__message">
+                  <LoaderCircle className="spin" size={19} />
+                  <strong>Loading assets</strong>
+                </div>
+              ) : assetError ? (
+                <div className="calendar-asset-list__message calendar-asset-list__message--error">
+                  <strong>Unable to load assets</strong>
+                  <p>Change the search or refresh the page to try again.</p>
+                </div>
+              ) : reservableAssets.length === 0 ? (
+                <div className="calendar-asset-list__message">
+                  <strong>No assets match this search</strong>
+                  <p>Try another name or management area.</p>
+                </div>
+              ) : (
+                reservableAssets.map((asset) => {
+                  const selected = selectedAssetIds.has(asset.id);
+                  return (
+                    <button
+                      type="button"
+                      className={cx(
+                        "calendar-asset-option",
+                        selected && "calendar-asset-option--selected",
+                      )}
+                      key={asset.id}
+                      aria-pressed={selected}
+                      onClick={() => toggleAsset(asset)}
+                    >
+                      <AssetPicture src={asset.pictureUrl} name={asset.name} />
+                      <span>
+                        <strong>{asset.name}</strong>
+                        <small>{asset.managementArea.name}</small>
+                        <em>
+                          {asset.availableQuantity} of {asset.totalQuantity}{" "}
+                          currently available
+                        </em>
+                      </span>
+                      <i aria-hidden>{selected ? <Check size={14} /> : null}</i>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            <footer className="calendar-reserve-panel__footer">
+              <div>
+                <span>
+                  <strong>{selectedAssets.length}</strong> asset types selected
+                </span>
+                <small>Availability is checked again before approval.</small>
+              </div>
+              <Link
+                className={cx(
+                  "button button--primary button--md",
+                  (!selectedRange || selectedAssets.length === 0) &&
+                    "button--disabled",
+                )}
+                to={createUrl}
+                aria-disabled={!selectedRange || selectedAssets.length === 0}
+                onClick={(event) => {
+                  if (!selectedRange || selectedAssets.length === 0)
+                    event.preventDefault();
+                }}
+              >
+                {selectedAssets.length
+                  ? `Reserve ${selectedAssets.length} asset${selectedAssets.length === 1 ? "" : "s"}`
+                  : "Select assets to reserve"}
+                <ChevronRight size={16} />
+              </Link>
+            </footer>
+          </aside>
+        )}
+      </div>
     </div>
   );
 }
@@ -559,7 +758,11 @@ function orderedSelection(selection: DateSelection) {
     : { start: selection.focus, end: selection.anchor };
 }
 
-function reservationCreateUrl(startDay: Date, endDay: Date) {
+function reservationCreateUrl(
+  startDay: Date,
+  endDay: Date,
+  assetIds: string[] = [],
+) {
   const startAt = new Date(startDay);
   startAt.setHours(9, 0, 0, 0);
   const endAt = new Date(endDay);
@@ -568,6 +771,7 @@ function reservationCreateUrl(startDay: Date, endDay: Date) {
     startAt: startAt.toISOString(),
     endAt: endAt.toISOString(),
   });
+  assetIds.forEach((assetId) => query.append("assetId", assetId));
   return `/reservations/new?${query.toString()}`;
 }
 

@@ -1,8 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { StrictMode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { api } from "../api";
 import { toLocalDateTime } from "../reservations";
-import type { AssetSummary } from "../types";
+import type { AssetDetail, AssetSummary } from "../types";
 import { ReservationCreatePage } from "./ReservationCreatePage";
 
 vi.mock("../auth", () => ({
@@ -32,6 +33,13 @@ const asset: AssetSummary = {
   },
   createdAt: "2026-08-01T00:00:00.000Z",
   updatedAt: "2026-08-01T00:00:00.000Z",
+};
+
+const assetDetail: AssetDetail = {
+  ...asset,
+  editPolicy: { permission: "asset:update", roles: ["ADMIN", "MANAGER"] },
+  activeReservationItems: [],
+  inventoryLedger: [],
 };
 
 describe("ReservationCreatePage", () => {
@@ -64,21 +72,24 @@ describe("ReservationCreatePage", () => {
     expect(createSpy).not.toHaveBeenCalled();
   });
 
-  it("uses a valid calendar window as the initial local schedule", () => {
+  it("uses the calendar schedule and assets as the initial manifest", async () => {
     vi.spyOn(api, "assets").mockResolvedValue({
       data: [],
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
+    const assetSpy = vi.spyOn(api, "asset").mockResolvedValue(assetDetail);
     const startAt = "2026-08-18T02:00:00.000Z";
     const endAt = "2026-08-18T10:00:00.000Z";
 
     render(
       <MemoryRouter
         initialEntries={[
-          `/reservations/new?startAt=${encodeURIComponent(startAt)}&endAt=${encodeURIComponent(endAt)}`,
+          `/reservations/new?startAt=${encodeURIComponent(startAt)}&endAt=${encodeURIComponent(endAt)}&assetId=${asset.id}`,
         ]}
       >
-        <ReservationCreatePage />
+        <StrictMode>
+          <ReservationCreatePage />
+        </StrictMode>
       </MemoryRouter>,
     );
 
@@ -86,5 +97,10 @@ describe("ReservationCreatePage", () => {
       toLocalDateTime(startAt),
     );
     expect(screen.getByLabelText(/^Ends/)).toHaveValue(toLocalDateTime(endAt));
+    expect(await screen.findByText("1 selected")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Remove Stage camera/i }),
+    ).toBeInTheDocument();
+    expect(assetSpy).toHaveBeenCalledWith(asset.id);
   });
 });

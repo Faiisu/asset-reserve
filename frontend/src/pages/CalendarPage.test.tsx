@@ -1,12 +1,37 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { api } from "../api";
-import type { ReservationSummary } from "../types";
+import type { AssetSummary, ReservationSummary } from "../types";
 import { CalendarPage } from "./CalendarPage";
 
 vi.mock("../auth", () => ({
-  useAuth: () => ({ hasPermission: () => true }),
+  useAuth: () => ({
+    hasPermission: () => true,
+    hasAreaPermission: () => true,
+  }),
 }));
+
+const asset: AssetSummary = {
+  id: "0f358aa7-1e27-4603-8b07-916bb3b75340",
+  name: "Stage camera",
+  description: null,
+  pictureUrl: null,
+  totalQuantity: 4,
+  allocatedQuantity: 1,
+  availableQuantity: 3,
+  isActive: true,
+  status: "ACTIVE",
+  assetTemplate: null,
+  managementArea: { id: "area-1", name: "Production" },
+  owner: null,
+  capabilities: {
+    canEdit: false,
+    canDeactivate: false,
+    canAdjustQuantity: false,
+  },
+  createdAt: "2026-08-01T00:00:00.000Z",
+  updatedAt: "2026-08-01T00:00:00.000Z",
+};
 
 const reservation: ReservationSummary = {
   id: "00000000-0000-4000-8000-000000000101",
@@ -46,6 +71,10 @@ describe("CalendarPage", () => {
       data: [],
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
+    vi.spyOn(api, "assets").mockResolvedValue({
+      data: [asset],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
   });
 
   afterEach(() => {
@@ -83,7 +112,7 @@ describe("CalendarPage", () => {
     );
   });
 
-  it("passes a selected local day to the reservation form as a valid ISO range", async () => {
+  it("passes the selected schedule and assets to the reservation form", async () => {
     vi.spyOn(api, "reservations").mockResolvedValue({
       data: [],
       pageInfo: { nextCursor: null, hasNextPage: false },
@@ -105,6 +134,13 @@ describe("CalendarPage", () => {
     fireEvent.pointerDown(day, { button: 0 });
     fireEvent.pointerUp(day);
 
+    expect(screen.getByTestId("location")).toHaveTextContent("/");
+    const assetOption = await screen.findByRole("button", {
+      name: /Stage camera/i,
+    });
+    fireEvent.click(assetOption);
+    fireEvent.click(screen.getByRole("link", { name: /Reserve 1 asset/i }));
+
     const target = new URL(
       screen.getByTestId("location").textContent ?? "",
       "https://asset-rail.test",
@@ -115,6 +151,7 @@ describe("CalendarPage", () => {
     expect(start.getHours()).toBe(9);
     expect(end.getHours()).toBe(17);
     expect(end.getTime()).toBeGreaterThan(start.getTime());
+    expect(target.searchParams.getAll("assetId")).toEqual([asset.id]);
   });
 });
 

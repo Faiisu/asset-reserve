@@ -33,6 +33,8 @@ import {
 import type { AssetSummary } from "../types";
 
 type SelectedAsset = { asset: AssetSummary; quantity: number };
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function ReservationCreatePage() {
   const navigate = useNavigate();
@@ -40,6 +42,18 @@ export function ReservationCreatePage() {
   const { hasPermission, hasAreaPermission } = useAuth();
   const requestedStartAt = searchParams.get("startAt");
   const requestedEndAt = searchParams.get("endAt");
+  const requestedAssetKey = searchParams.getAll("assetId").join(",");
+  const requestedAssetIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          requestedAssetKey
+            .split(",")
+            .filter((assetId) => UUID_PATTERN.test(assetId)),
+        ),
+      ).slice(0, 100),
+    [requestedAssetKey],
+  );
   const defaults = useMemo(() => {
     const fallback = defaultReservationWindow();
     if (!requestedStartAt || !requestedEndAt) return fallback;
@@ -88,6 +102,36 @@ export function ReservationCreatePage() {
       window.clearTimeout(timer);
     };
   }, [search]);
+
+  useEffect(() => {
+    if (!hasPermission("reservation:create")) return;
+    if (!requestedAssetIds.length) return;
+    let active = true;
+    void Promise.allSettled(
+      requestedAssetIds.map((assetId) => api.asset(assetId)),
+    ).then((results) => {
+      if (!active) return;
+      const imported = results.flatMap((result) =>
+        result.status === "fulfilled" &&
+        result.value.isActive &&
+        hasAreaPermission("reservation:create", result.value.managementArea.id)
+          ? [result.value]
+          : [],
+      );
+      setSelected((current) => {
+        const currentIds = new Set(current.map((item) => item.asset.id));
+        return [
+          ...current,
+          ...imported
+            .filter((asset) => !currentIds.has(asset.id))
+            .map((asset) => ({ asset, quantity: 1 })),
+        ];
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, [requestedAssetKey]);
 
   const selectedIds = new Set(selected.map((item) => item.asset.id));
   const reservableAssets = assets.filter((asset) =>
