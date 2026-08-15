@@ -4,6 +4,7 @@ import { Prisma } from "../../generated/prisma/client.js";
 import type { PermissionKey } from "../access-control/permissions.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import { ApiException } from "../common/api-exception.js";
+import { decodeCursor, pageInfo } from "../common/pagination.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { hasAreaPermission } from "../assets/asset-access.js";
 import type {
@@ -13,6 +14,7 @@ import type {
   ReservationChangeRequestDecisionDto,
   ReservationItemDecisionDto,
   ReservationItemInputDto,
+  ReservationListQueryDto,
   SubmitReservationDto,
 } from "./reservations.dto.js";
 
@@ -58,6 +60,18 @@ const reservationInclude = {
   },
 } satisfies Prisma.ReservationInclude;
 
+const reservationListInclude = {
+  requester: { include: { profile: true } },
+  items: {
+    include: { asset: { include: { managementArea: true } } },
+    orderBy: { createdAt: "asc" },
+  },
+  changeRequests: {
+    where: { status: "PENDING" },
+    select: { id: true },
+  },
+} satisfies Prisma.ReservationInclude;
+
 type ReservationDetailRecord = Prisma.ReservationGetPayload<{
   include: typeof reservationInclude;
 }>;
@@ -88,6 +102,117 @@ type Availability = {
 @Injectable()
 export class ReservationsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async list(actor: AuthenticatedActor, query: ReservationListQueryDto) {
+    const cursor = decodeCursor(query.cursor);
+    const from = query.from ? new Date(query.from) : undefined;
+    const to = query.to ? new Date(query.to) : undefined;
+    if (from && to && to <= from) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        "The reservation list end time must be after its start time.",
+        { to: "to must be later than from." },
+      );
+    }
+
+    const updateAreaIds = this.permissionAreaIds(actor, ["reservation:update"]);
+    const approveAreaIds = this.permissionAreaIds(actor, [
+      "reservation:approve",
+    ]);
+    const rejectAreaIds = this.permissionAreaIds(actor, ["reservation:reject"]);
+    const operationalAreaIds = this.permissionAreaIds(actor, [
+      "reservation:update",
+      "reservation:approve",
+      "reservation:reject",
+    ]);
+    const conditions: Prisma.ReservationWhereInput[] = [];
+
+    if (query.view === "MINE") {
+      conditions.push({
+        OR: [
+          { requesterId: actor.user.id },
+          { participants: { some: { userId: actor.user.id } } },
+        ],
+      });
+    } else if (query.view === "APPROVALS") {
+      const approvalConditions = this.approvalListConditions(
+        approveAreaIds,
+        rejectAreaIds,
+      );
+      if (!approvalConditions.length) {
+        return {
+          data: [],
+          pageInfo: { nextCursor: null, hasNextPage: false },
+        };
+      }
+      conditions.push({ OR: approvalConditions });
+    } else {
+      const visibility: Prisma.ReservationWhereInput[] = [
+        { requesterId: actor.user.id },
+        { participants: { some: { userId: actor.user.id } } },
+      ];
+      if (operationalAreaIds === null) {
+        visibility.push({ items: { some: {} } });
+      } else if (operationalAreaIds.length) {
+        visibility.push({
+          items: {
+            some: {
+              asset: { managementAreaId: { in: operationalAreaIds } },
+            },
+          },
+        });
+      }
+      conditions.push({ OR: visibility });
+    }
+
+    if (query.status) conditions.push({ status: query.status });
+    if (query.areaId) {
+      conditions.push({
+        items: {
+          some: { asset: { managementAreaId: query.areaId } },
+        },
+      });
+    }
+    if (query.search) {
+      conditions.push({
+        OR: [
+          { eventName: { contains: query.search, mode: "insensitive" } },
+          { description: { contains: query.search, mode: "insensitive" } },
+        ],
+      });
+    }
+    if (from) conditions.push({ endAt: { gt: from } });
+    if (to) conditions.push({ startAt: { lt: to } });
+    if (cursor) {
+      conditions.push({
+        OR: [
+          { createdAt: { lt: new Date(cursor.createdAt) } },
+          { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } },
+        ],
+      });
+    }
+
+    const rows = await this.prisma.reservation.findMany({
+      where: { AND: conditions },
+      include: reservationListInclude,
+      take: query.limit + 1,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    const page = pageInfo(rows, query.limit);
+    return {
+      data: page.data.map((reservation) =>
+        this.toListItem(
+          actor,
+          reservation,
+          updateAreaIds,
+          approveAreaIds,
+          rejectAreaIds,
+        ),
+      ),
+      pageInfo: page.pageInfo,
+    };
+  }
 
   async create(actor: AuthenticatedActor, input: CreateReservationDto) {
     const startAt = new Date(input.startAt);
@@ -638,6 +763,168 @@ export class ReservationsService {
       );
     }
     return reservation;
+  }
+
+  private toListItem(
+    actor: AuthenticatedActor,
+    reservation: Prisma.ReservationGetPayload<{
+      include: typeof reservationListInclude;
+    }>,
+    updateAreaIds: string[] | null,
+    approveAreaIds: string[] | null,
+    rejectAreaIds: string[] | null,
+  ) {
+    const managementAreas = [
+      ...new Map(
+        reservation.items.map((item) => [
+          item.asset.managementArea.id,
+          item.asset.managementArea,
+        ]),
+      ).values(),
+    ];
+    const canManage = reservation.items.every((item) =>
+      reservation.requesterId === actor.user.id
+        ? hasAreaPermission(
+            actor,
+            "reservation:create",
+            item.asset.managementAreaId,
+          ) ||
+          hasAreaPermission(
+            actor,
+            "reservation:update",
+            item.asset.managementAreaId,
+          )
+        : this.areaIsPermitted(updateAreaIds, item.asset.managementAreaId),
+    );
+    const actionableItems = reservation.items.filter(
+      (item) =>
+        item.status === "PENDING" &&
+        reservation.status === "PENDING_APPROVAL" &&
+        (this.areaIsPermitted(approveAreaIds, item.asset.managementAreaId) ||
+          this.areaIsPermitted(rejectAreaIds, item.asset.managementAreaId)),
+    ).length;
+    const canReviewChange =
+      reservation.changeRequests.length > 0 &&
+      (reservation.items.every((item) =>
+        this.areaIsPermitted(approveAreaIds, item.asset.managementAreaId),
+      ) ||
+        reservation.items.every((item) =>
+          this.areaIsPermitted(rejectAreaIds, item.asset.managementAreaId),
+        ));
+    const statusCounts = reservation.items.reduce<Record<string, number>>(
+      (counts, item) => ({
+        ...counts,
+        [item.status]: (counts[item.status] ?? 0) + 1,
+      }),
+      {},
+    );
+    return {
+      id: reservation.id,
+      eventName: reservation.eventName,
+      description: reservation.description,
+      startAt: reservation.startAt.toISOString(),
+      endAt: reservation.endAt.toISOString(),
+      status: reservation.status,
+      requester: this.userDto(reservation.requester),
+      managementAreas: managementAreas.map((area) => ({
+        id: area.id,
+        name: area.name,
+      })),
+      itemCount: reservation.items.length,
+      totalQuantity: reservation.items.reduce(
+        (sum, item) => sum + item.quantity,
+        0,
+      ),
+      pendingItemCount: statusCounts.PENDING ?? 0,
+      approvedItemCount:
+        (statusCounts.APPROVED ?? 0) +
+        (statusCounts.PREPARED ?? 0) +
+        (statusCounts.CHECKED_OUT ?? 0) +
+        (statusCounts.RETURNED ?? 0),
+      rejectedItemCount: statusCounts.REJECTED ?? 0,
+      hasPendingChangeRequest: reservation.changeRequests.length > 0,
+      pendingDecisionCount: actionableItems + (canReviewChange ? 1 : 0),
+      capabilities: {
+        canSubmit: canManage && reservation.status === "DRAFT",
+        canRequestChange:
+          canManage &&
+          editableReservationStatuses.includes(reservation.status) &&
+          reservation.changeRequests.length === 0,
+        canReview: actionableItems > 0 || canReviewChange,
+      },
+      createdAt: reservation.createdAt.toISOString(),
+      updatedAt: reservation.updatedAt.toISOString(),
+    };
+  }
+
+  private approvalListConditions(
+    approveAreaIds: string[] | null,
+    rejectAreaIds: string[] | null,
+  ): Prisma.ReservationWhereInput[] {
+    const conditions: Prisma.ReservationWhereInput[] = [];
+    const decisionAreaIds =
+      approveAreaIds === null || rejectAreaIds === null
+        ? null
+        : [...new Set([...approveAreaIds, ...rejectAreaIds])];
+    if (decisionAreaIds === null || decisionAreaIds.length) {
+      conditions.push({
+        status: "PENDING_APPROVAL",
+        items: {
+          some: {
+            status: "PENDING",
+            ...(decisionAreaIds === null
+              ? {}
+              : {
+                  asset: { managementAreaId: { in: decisionAreaIds } },
+                }),
+          },
+        },
+      });
+    }
+    for (const areaIds of [approveAreaIds, rejectAreaIds]) {
+      if (areaIds !== null && !areaIds.length) continue;
+      conditions.push({
+        changeRequests: { some: { status: "PENDING" } },
+        ...(areaIds === null
+          ? {}
+          : {
+              items: {
+                every: {
+                  asset: { managementAreaId: { in: areaIds } },
+                },
+              },
+            }),
+      });
+    }
+    return conditions;
+  }
+
+  private permissionAreaIds(
+    actor: AuthenticatedActor,
+    permissions: PermissionKey[],
+  ): string[] | null {
+    if (
+      permissions.some((permission) =>
+        actor.effectivePermissions.global.includes(permission),
+      )
+    ) {
+      return null;
+    }
+    return [
+      ...new Set(
+        actor.effectivePermissions.byManagementArea
+          .filter((area) =>
+            permissions.some((permission) =>
+              area.permissions.includes(permission),
+            ),
+          )
+          .map((area) => area.managementAreaId),
+      ),
+    ];
+  }
+
+  private areaIsPermitted(areaIds: string[] | null, areaId: string) {
+    return areaIds === null || areaIds.includes(areaId);
   }
 
   private async toDetail(

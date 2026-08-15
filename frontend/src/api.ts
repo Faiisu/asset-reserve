@@ -4,12 +4,16 @@ import type {
   AssetInput,
   AssetSummary,
   AssetTemplate,
+  CreateReservationInput,
   InventoryResult,
   ListResponse,
   ManagementArea,
   PermissionDefinition,
   PermissionKey,
   Role,
+  ReservationChangeData,
+  ReservationDetail,
+  ReservationSummary,
   SessionContext,
   UserDetail,
   UserListItem,
@@ -240,4 +244,64 @@ export const api = {
       method: "PATCH",
       body: json(input),
     }),
+
+  createReservation: (input: CreateReservationInput) =>
+    request<ReservationDetail>("/reservations", {
+      method: "POST",
+      body: json(input),
+    }),
+  reservations: (filters: {
+    view?: "MINE" | "APPROVALS" | "ALL";
+    status?: string;
+    areaId?: string;
+    search?: string;
+    from?: string;
+    to?: string;
+    cursor?: string;
+    limit?: number;
+  }) =>
+    request<ListResponse<ReservationSummary>>(
+      `/reservations${queryString(filters)}`,
+    ),
+  reservation: (reservationId: string) =>
+    request<ReservationDetail>(`/reservations/${reservationId}`),
+  submitReservation: (reservationId: string, expectedUpdatedAt: string) =>
+    request<ReservationDetail>(`/reservations/${reservationId}/submit`, {
+      method: "POST",
+      body: json({ expectedUpdatedAt }),
+    }),
+  decideReservationItem: (
+    reservationId: string,
+    itemId: string,
+    decision: "APPROVE" | "REJECT",
+    comment?: string,
+  ) =>
+    request<ReservationDetail>(
+      `/reservations/${reservationId}/items/${itemId}/decision`,
+      {
+        method: "POST",
+        body: json({ decision, ...(comment ? { comment } : {}) }),
+      },
+    ),
+  requestReservationChange: (
+    reservationId: string,
+    changeData: ReservationChangeData,
+    reason?: string,
+  ) =>
+    request<ReservationDetail>(
+      `/reservations/${reservationId}/change-requests`,
+      {
+        method: "POST",
+        body: json({ changeData, ...(reason ? { reason } : {}) }),
+      },
+    ),
+  decideReservationChange: (
+    reservationId: string,
+    changeRequestId: string,
+    decision: "APPROVE" | "REJECT",
+  ) =>
+    request<ReservationDetail>(
+      `/reservations/${reservationId}/change-requests/${changeRequestId}/decision`,
+      { method: "POST", body: json({ decision }) },
+    ),
 };

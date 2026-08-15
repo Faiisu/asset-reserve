@@ -7,6 +7,9 @@ import { AssetDetailPage } from "./pages/AssetDetailPage";
 import { AssetFormPage } from "./pages/AssetFormPage";
 import { AssetsPage } from "./pages/AssetsPage";
 import { LoginPage } from "./pages/LoginPage";
+import { ReservationCreatePage } from "./pages/ReservationCreatePage";
+import { ReservationDetailPage } from "./pages/ReservationDetailPage";
+import { ReservationsPage } from "./pages/ReservationsPage";
 import { TemplatesPage } from "./pages/TemplatesPage";
 import { UsersPage } from "./pages/UsersPage";
 
@@ -28,6 +31,15 @@ function ProtectedApp() {
 function HomeRedirect() {
   const { hasPermission, isGlobalAdmin, hasGlobalPermission } = useAuth();
   if (hasPermission("asset:view")) return <Navigate to="/assets" replace />;
+  if (
+    [
+      "reservation:create",
+      "reservation:update",
+      "reservation:approve",
+      "reservation:reject",
+    ].some((permission) => hasPermission(permission as "reservation:create"))
+  )
+    return <Navigate to="/reservations" replace />;
   if (isGlobalAdmin) return <Navigate to="/admin/access" replace />;
   if (
     ["user:create", "user:disable", "role:assign"].some((value) =>
@@ -49,6 +61,12 @@ export function App() {
         <Route path="assets/new" element={<AssetFormPage />} />
         <Route path="assets/:assetId" element={<AssetDetailPage />} />
         <Route path="assets/:assetId/edit" element={<AssetFormPage />} />
+        <Route path="reservations" element={<ReservationsPage />} />
+        <Route path="reservations/new" element={<ReservationCreatePage />} />
+        <Route
+          path="reservations/:reservationId"
+          element={<ReservationDetailPage />}
+        />
         <Route path="admin/access" element={<AccessPage />} />
         <Route path="admin/users" element={<UsersPage />} />
         <Route path="admin/templates" element={<TemplatesPage />} />

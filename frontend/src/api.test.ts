@@ -64,4 +64,64 @@ describe("API client", () => {
     expect(headers.has("Authorization")).toBe(false);
     expect(fetchMock.mock.calls[0][1]?.method).toBe("POST");
   });
+
+  it("sends reservation creation and approval decisions to their domain endpoints", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "reservation-1" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await api.createReservation({
+      eventName: "Town hall",
+      startAt: "2026-08-16T02:00:00.000Z",
+      endAt: "2026-08-16T04:00:00.000Z",
+      status: "PENDING_APPROVAL",
+      items: [{ assetId: "asset-1", quantity: 2 }],
+    });
+    await api.decideReservationItem(
+      "reservation-1",
+      "item-1",
+      "APPROVE",
+      "Ready",
+    );
+
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/reservations");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: "POST",
+      body: expect.stringContaining('"status":"PENDING_APPROVAL"'),
+    });
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      "/api/v1/reservations/reservation-1/items/item-1/decision",
+    );
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({ decision: "APPROVE", comment: "Ready" }),
+    });
+  });
+
+  it("encodes reservation list filters for the approval queue", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [],
+          pageInfo: { nextCursor: null, hasNextPage: false },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    await api.reservations({
+      view: "APPROVALS",
+      status: "PENDING_APPROVAL",
+      search: "town hall",
+      limit: 20,
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "/api/v1/reservations?view=APPROVALS&status=PENDING_APPROVAL&search=town+hall&limit=20",
+    );
+    expect(fetchMock.mock.calls[0][1]?.method).toBeUndefined();
+  });
 });

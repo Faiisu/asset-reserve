@@ -4,6 +4,7 @@ import {
   LogOut,
   Moon,
   PackagePlus,
+  CalendarRange,
   ShieldCheck,
   Sun,
   Users,
@@ -14,6 +15,8 @@ import { useAuth } from "../auth";
 import { Avatar, cx } from "./ui";
 
 const titles: Array<[string, string]> = [
+  ["/reservations/new", "New reservation"],
+  ["/reservations", "Reservations"],
   ["/assets/new", "Add asset"],
   ["/assets", "Asset registry"],
   ["/admin/access", "Access and roles"],
@@ -32,8 +35,7 @@ export function AppShell() {
   const title =
     titles.find(([path]) => location.pathname.startsWith(path))?.[1] ??
     "Asset Rail";
-  const name =
-    session?.user.profile?.name ?? session?.user.email ?? "User";
+  const name = session?.user.profile?.name ?? session?.user.email ?? "User";
   const canAdminUsers = ["user:create", "user:disable", "role:assign"].some(
     (permission) =>
       hasGlobalPermission(
@@ -52,6 +54,17 @@ export function AppShell() {
       label: "Assets",
       icon: Boxes,
       show: hasPermission("asset:view"),
+    },
+    {
+      to: "/reservations",
+      label: "Reservations",
+      icon: CalendarRange,
+      show: [
+        "reservation:create",
+        "reservation:update",
+        "reservation:approve",
+        "reservation:reject",
+      ].some((permission) => hasPermission(permission as "reservation:create")),
     },
     {
       to: "/admin/templates",
@@ -89,33 +102,37 @@ export function AppShell() {
         </div>
         <nav className="sidebar__nav" aria-label="Main navigation">
           <p className="nav-label">Workspace</p>
-          {nav.slice(0, 2).map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                cx("nav-item", isActive && "nav-item--active")
-              }
-            >
-              <Icon size={19} />
-              <span>{label}</span>
-            </NavLink>
-          ))}
-          {nav.length > 2 && (
+          {nav
+            .filter((item) => !item.to.startsWith("/admin"))
+            .map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  cx("nav-item", isActive && "nav-item--active")
+                }
+              >
+                <Icon size={19} />
+                <span>{label}</span>
+              </NavLink>
+            ))}
+          {nav.some((item) => item.to.startsWith("/admin")) && (
             <p className="nav-label nav-label--section">Administration</p>
           )}
-          {nav.slice(2).map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                cx("nav-item", isActive && "nav-item--active")
-              }
-            >
-              <Icon size={19} />
-              <span>{label}</span>
-            </NavLink>
-          ))}
+          {nav
+            .filter((item) => item.to.startsWith("/admin"))
+            .map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  cx("nav-item", isActive && "nav-item--active")
+                }
+              >
+                <Icon size={19} />
+                <span>{label}</span>
+              </NavLink>
+            ))}
         </nav>
         <div className="sidebar__scope">
           <span className="scope-pulse" aria-hidden />
@@ -139,7 +156,9 @@ export function AppShell() {
           <div className="topbar__actions">
             <button
               className="icon-button"
-              aria-label={theme === "light" ? "Use dark theme" : "Use light theme"}
+              aria-label={
+                theme === "light" ? "Use dark theme" : "Use light theme"
+              }
               onClick={() => setTheme(theme === "light" ? "dark" : "light")}
             >
               {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}

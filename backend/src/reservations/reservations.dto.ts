@@ -16,9 +16,43 @@ import {
   ValidateIf,
   ValidateNested,
 } from "class-validator";
+import { SearchPaginationQueryDto } from "../common/dto.js";
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === "string" ? value.trim() : value;
+
+const reservationStatuses = [
+  "DRAFT",
+  "PENDING_APPROVAL",
+  "PARTIALLY_APPROVED",
+  "APPROVED",
+  "REJECTED",
+  "CANCELLED",
+  "ACTIVE",
+  "COMPLETED",
+] as const;
+
+export class ReservationListQueryDto extends SearchPaginationQueryDto {
+  @IsOptional()
+  @IsIn(["MINE", "APPROVALS", "ALL"])
+  view: "MINE" | "APPROVALS" | "ALL" = "MINE";
+
+  @IsOptional()
+  @IsIn(reservationStatuses)
+  status?: (typeof reservationStatuses)[number];
+
+  @IsOptional()
+  @IsUUID()
+  areaId?: string;
+
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  from?: string;
+
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  to?: string;
+}
 
 export class ReservationItemInputDto {
   @IsUUID()

@@ -20,8 +20,9 @@ model Reservation {
 
   // Database CHECK required by the source specification: end_at > start_at.
   @@index([requesterId, createdAt])
+  @@index([createdAt, id])
+  @@index([status, createdAt, id])
   @@index([startAt, endAt])
-  @@index([status])
   @@index([status, startAt, endAt])
   @@map("reservations")
 }

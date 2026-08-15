@@ -32,6 +32,95 @@ ReservationItemInput:
       type: integer
       minimum: 1
       maximum: 2147483647
+ReservationSummary:
+  type: object
+  required:
+    - id
+    - eventName
+    - description
+    - startAt
+    - endAt
+    - status
+    - requester
+    - managementAreas
+    - itemCount
+    - totalQuantity
+    - pendingItemCount
+    - approvedItemCount
+    - rejectedItemCount
+    - hasPendingChangeRequest
+    - pendingDecisionCount
+    - capabilities
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    eventName:
+      type: string
+    description:
+      type: [string, "null"]
+    startAt:
+      type: string
+      format: date-time
+    endAt:
+      type: string
+      format: date-time
+    status:
+      $ref: "#/components/schemas/ReservationStatus"
+    requester:
+      $ref: "#/components/schemas/ReservationUser"
+    managementAreas:
+      type: array
+      items:
+        $ref: "#/components/schemas/ManagementAreaRef"
+    itemCount:
+      type: integer
+      minimum: 1
+    totalQuantity:
+      type: integer
+      minimum: 1
+    pendingItemCount:
+      type: integer
+      minimum: 0
+    approvedItemCount:
+      type: integer
+      minimum: 0
+    rejectedItemCount:
+      type: integer
+      minimum: 0
+    hasPendingChangeRequest:
+      type: boolean
+    pendingDecisionCount:
+      type: integer
+      minimum: 0
+    capabilities:
+      type: object
+      required: [canSubmit, canRequestChange, canReview]
+      properties:
+        canSubmit:
+          type: boolean
+        canRequestChange:
+          type: boolean
+        canReview:
+          type: boolean
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+ReservationListResponse:
+  type: object
+  required: [data, pageInfo]
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/components/schemas/ReservationSummary"
+    pageInfo:
+      $ref: "#/components/schemas/PageInfo"
 CreateReservationRequest:
   type: object
   additionalProperties: false

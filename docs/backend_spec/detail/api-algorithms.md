@@ -2,7 +2,7 @@
 
 [← Backend specification](../README.md) · [Auth and permission contract](authentication-and-permission-api.md) · [Database and concurrency](database-and-concurrency.md)
 
-เอกสารนี้อธิบาย algorithm ของ endpoint ทุกเส้นที่มี implementation อยู่ใน `backend/src` ปัจจุบัน โดยยึด controller, service, guard และ DTO ใน source code เป็นหลัก ครอบคลุม application endpoint 34 เส้นภายใต้ base path `/api/v1` และ documentation route แบบมีเงื่อนไขอีก 2 เส้น
+เอกสารนี้อธิบาย algorithm ของ endpoint ทุกเส้นที่มี implementation อยู่ใน `backend/src` ปัจจุบัน โดยยึด controller, service, guard และ DTO ใน source code เป็นหลัก ครอบคลุม application endpoint 35 เส้นภายใต้ base path `/api/v1` และ documentation route แบบมีเงื่อนไขอีก 2 เส้น
 
 ## 1. กติกากลางของทุก request
 
@@ -149,6 +149,7 @@ Error กลางที่พบบ่อย:
 | POST   | `/asset-templates`                                                       | `asset:create` ในอย่างน้อยหนึ่ง scope          | สร้าง template             |
 | PATCH  | `/asset-templates/:templateId`                                           | `asset:update` ในอย่างน้อยหนึ่ง scope          | แก้ template               |
 | POST   | `/reservations`                                                          | Scoped `reservation:create` ทุก asset area     | สร้าง reservation          |
+| GET    | `/reservations`                                                          | Requester/participant หรือ scoped operator     | ค้นหาและ list reservations |
 | GET    | `/reservations/:reservationId`                                           | Requester/participant หรือ scoped operator     | อ่าน reservation detail    |
 | POST   | `/reservations/:reservationId/submit`                                    | Requester หรือ scoped `reservation:update`     | ส่ง draft ขออนุมัติ        |
 | POST   | `/reservations/:reservationId/items/:itemId/decision`                    | Scoped `reservation:approve/reject`            | ตัดสิน item                |
@@ -166,7 +167,7 @@ Error กลางที่พบบ่อย:
 | GET    | `/api/docs`              | เปิดเมื่อพบไฟล์ OpenAPI ตอน startup | Render Swagger UI จาก static OpenAPI contract |
 | GET    | `/api/docs/openapi.json` | เปิดเมื่อพบไฟล์ OpenAPI ตอน startup | คืน contract เดียวกันในรูป JSON               |
 
-OpenAPI source แยกตาม domain โดยมี `docs/backend_spec/contracts/openapi.yaml` เป็น root document และสร้าง runtime bundle ผ่าน `npm run openapi:bundle` ตอน startup ระบบ resolve contract จาก `OPENAPI_CONTRACT_PATH` หรือใช้ค่าเริ่มต้น `docs/backend_spec/contracts/dist/openapi.bundle.yaml` ถ้าพบไฟล์จึง register สอง route นี้ หากไม่พบจะ log warning และไม่เปิด Swagger UI contract เวอร์ชัน 1.2.0 ครอบคลุม application endpoint ปัจจุบันครบ 34 operations
+OpenAPI source แยกตาม domain โดยมี `docs/backend_spec/contracts/openapi.yaml` เป็น root document และสร้าง runtime bundle ผ่าน `npm run openapi:bundle` ตอน startup ระบบ resolve contract จาก `OPENAPI_CONTRACT_PATH` หรือใช้ค่าเริ่มต้น `docs/backend_spec/contracts/dist/openapi.bundle.yaml` ถ้าพบไฟล์จึง register สอง route นี้ หากไม่พบจะ log warning และไม่เปิด Swagger UI contract เวอร์ชัน 1.3.0 ครอบคลุม application endpoint ปัจจุบันครบ 35 operations
 
 สำหรับ Docker development ให้เปิด `http://localhost:${BACKEND_HOST_PORT}/api/docs` โดยค่าเริ่มต้น `BACKEND_HOST_PORT=3000` หากเข้าผ่าน Nginx ต้องให้ API location มี precedence เหนือ static-file regex เช่น `location ^~ /api/`; มิฉะนั้นไฟล์ `swagger-ui.css` และ `swagger-ui-*.js` อาจถูก Nginx หาใน frontend static directory แล้วตอบ 404 จน Swagger UI เป็นหน้าว่าง ส่วน `/api/docs/openapi.json` เป็น raw JSON จึงแสดงเป็นข้อความบนพื้นขาวตามปกติ
 
@@ -642,23 +643,27 @@ Availability ใช้ช่วงเวลาแบบ half-open: overlap เ�
 
 สร้าง `DRAFT` หรือ `PENDING_APPROVAL` พร้อม event details, assets และ participants ตรวจ asset active, permission ทุก area, duplicate asset และ approved overlap ก่อนบันทึก
 
-### 9.2 `GET /reservations/:reservationId`
+### 9.2 `GET /reservations`
+
+รับ `view=MINE|APPROVALS|ALL`, `status`, `areaId`, `search`, ช่วงเวลา และ opaque cursor แล้วบังคับ visibility จาก requester/participant หรือ permission ของ asset area โดยตรง ใช้ keyset pagination ตาม `(createdAt,id)` และคืน summary, item status counts, pending change flag และจำนวน decision ที่ actor ทำได้โดยไม่เกิด N+1 query
+
+### 9.3 `GET /reservations/:reservationId`
 
 คืน requester, participants, item/asset/approval, availability, overlap warnings, change requests, returns, timestamps และ capabilities สำหรับ actor
 
-### 9.3 `POST /reservations/:reservationId/submit`
+### 9.4 `POST /reservations/:reservationId/submit`
 
 เปลี่ยน `DRAFT` เป็น `PENDING_APPROVAL` ด้วย `expectedUpdatedAt` และตรวจ approved overlap ซ้ำ หากข้อมูล stale ตอบ `409 STALE_WRITE`
 
-### 9.4 `POST /reservations/:reservationId/items/:itemId/decision`
+### 9.5 `POST /reservations/:reservationId/items/:itemId/decision`
 
 Approve/reject เป็นราย item ตาม area permission เมื่อ approve ต้องมี quantity พอหลังหัก approved overlap อื่น แล้วคำนวณ reservation status ใหม่เป็น `PENDING_APPROVAL`, `PARTIALLY_APPROVED`, `APPROVED` หรือ `REJECTED`
 
-### 9.5 `POST /reservations/:reservationId/change-requests`
+### 9.6 `POST /reservations/:reservationId/change-requests`
 
 สร้างคำขอแก้ไขหลัง submit โดย allowlist เฉพาะ `eventName`, `description`, `startAt`, `endAt`, `items`, `participantIds` และอนุญาต pending request ได้หนึ่งรายการต่อ reservation
 
-### 9.6 `POST /reservations/:reservationId/change-requests/:changeRequestId/decision`
+### 9.7 `POST /reservations/:reservationId/change-requests/:changeRequestId/decision`
 
 เมื่อ approve ระบบ apply event/time/item/participant changes และบันทึก reviewer ใน transaction เดียว ถ้า reservation เดิม approved รายการใหม่ถือว่า approved โดย reviewer นี้และต้องผ่าน conflict check ก่อน commit
 

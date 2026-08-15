@@ -90,6 +90,113 @@ function detailRecord(status = "PENDING_APPROVAL") {
   };
 }
 
+describe("reservation listing", () => {
+  it("lists reservations involving the actor with cursor pagination", async () => {
+    const reservation = detailRecord();
+    const findMany = vi.fn().mockResolvedValue([reservation]);
+    const service = new ReservationsService({
+      reservation: { findMany },
+    } as unknown as PrismaService);
+
+    const result = await service.list(actor, {
+      view: "MINE",
+      search: "town",
+      limit: 20,
+    });
+
+    expect(result.data).toEqual([
+      expect.objectContaining({
+        id: reservationId,
+        eventName: "Town hall",
+        itemCount: 1,
+        totalQuantity: 1,
+        pendingItemCount: 1,
+      }),
+    ]);
+    expect(result.pageInfo).toEqual({
+      nextCursor: null,
+      hasNextPage: false,
+    });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        take: 21,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        where: {
+          AND: expect.arrayContaining([
+            {
+              OR: [
+                { requesterId: actorId },
+                { participants: { some: { userId: actorId } } },
+              ],
+            },
+            {
+              OR: [
+                { eventName: { contains: "town", mode: "insensitive" } },
+                { description: { contains: "town", mode: "insensitive" } },
+              ],
+            },
+          ]),
+        },
+      }),
+    );
+  });
+
+  it("returns only actionable area-scoped approval work", async () => {
+    const scopedActor: AuthenticatedActor = {
+      ...actor,
+      effectivePermissions: {
+        global: [],
+        byManagementArea: [
+          {
+            managementAreaId: areaId,
+            permissions: ["reservation:approve"],
+          },
+        ],
+      },
+    };
+    const reservation = detailRecord();
+    const findMany = vi.fn().mockResolvedValue([reservation]);
+    const service = new ReservationsService({
+      reservation: { findMany },
+    } as unknown as PrismaService);
+
+    const result = await service.list(scopedActor, {
+      view: "APPROVALS",
+      limit: 20,
+    });
+
+    expect(result.data[0]).toMatchObject({
+      pendingDecisionCount: 1,
+      capabilities: { canReview: true },
+    });
+    expect(JSON.stringify(findMany.mock.calls[0]?.[0])).toContain(areaId);
+    expect(JSON.stringify(findMany.mock.calls[0]?.[0])).toContain(
+      "PENDING_APPROVAL",
+    );
+  });
+
+  it("returns an empty approval queue without decision permissions", async () => {
+    const findMany = vi.fn();
+    const service = new ReservationsService({
+      reservation: { findMany },
+    } as unknown as PrismaService);
+
+    const result = await service.list(
+      {
+        ...actor,
+        effectivePermissions: { global: [], byManagementArea: [] },
+      },
+      { view: "APPROVALS", limit: 20 },
+    );
+
+    expect(result).toEqual({
+      data: [],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+    expect(findMany).not.toHaveBeenCalled();
+  });
+});
+
 describe("reservation availability", () => {
   it("returns a soft warning for overlapping unapproved requests", async () => {
     const prisma = {

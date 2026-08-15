@@ -199,6 +199,142 @@ export type InventoryResult = {
   createdAt: string;
 };
 
+export type ReservationStatus =
+  | "DRAFT"
+  | "PENDING_APPROVAL"
+  | "PARTIALLY_APPROVED"
+  | "APPROVED"
+  | "REJECTED"
+  | "CANCELLED"
+  | "ACTIVE"
+  | "COMPLETED";
+
+export type ReservationItemStatus =
+  "PENDING" | "APPROVED" | "REJECTED" | "PREPARED" | "CHECKED_OUT" | "RETURNED";
+
+export type ReservationUser = {
+  id: string;
+  email: string;
+  name: string | null;
+  profilePictureUrl: string | null;
+};
+
+export type ReservationItemInput = {
+  assetId: string;
+  quantity: number;
+};
+
+export type ReservationChangeData = {
+  eventName?: string;
+  description?: string | null;
+  startAt?: string;
+  endAt?: string;
+  items?: ReservationItemInput[];
+  participantIds?: string[];
+};
+
+export type ReservationDetail = {
+  id: string;
+  eventName: string;
+  description: string | null;
+  startAt: string;
+  endAt: string;
+  status: ReservationStatus;
+  requester: ReservationUser;
+  participants: ReservationUser[];
+  items: Array<{
+    id: string;
+    quantity: number;
+    status: ReservationItemStatus;
+    asset: {
+      id: string;
+      name: string;
+      description: string | null;
+      pictureUrl: string | null;
+      isActive: boolean;
+      managementArea: ManagementAreaRef;
+      template: { id: string; name: string } | null;
+    };
+    approval: {
+      id: string;
+      status: "PENDING" | "APPROVED" | "REJECTED";
+      comment: string | null;
+      decidedAt: string | null;
+      approver: ReservationUser;
+    } | null;
+    availability: {
+      assetId: string;
+      totalQuantity: number;
+      approvedQuantity: number;
+      pendingQuantity: number;
+      availableQuantity: number;
+      pendingReservationCount: number;
+    };
+    warnings: Array<{
+      code: "PENDING_RESERVATION_OVERLAP";
+      message: string;
+      pendingQuantity: number;
+      pendingReservationCount: number;
+    }>;
+    capabilities: {
+      canApprove: boolean;
+      canReject: boolean;
+    };
+  }>;
+  changeRequests: Array<{
+    id: string;
+    changeData: ReservationChangeData;
+    reason: string | null;
+    status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+    requestedBy: ReservationUser;
+    reviewedBy: ReservationUser | null;
+    reviewedAt: string | null;
+    createdAt: string;
+  }>;
+  returns: Array<Record<string, unknown>>;
+  capabilities: {
+    canSubmit: boolean;
+    canRequestChange: boolean;
+  };
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateReservationInput = {
+  eventName: string;
+  description?: string | null;
+  startAt: string;
+  endAt: string;
+  status?: "DRAFT" | "PENDING_APPROVAL";
+  items: ReservationItemInput[];
+  participantIds?: string[];
+};
+
+export type ReservationSummary = {
+  id: string;
+  eventName: string;
+  description: string | null;
+  startAt: string;
+  endAt: string;
+  status: ReservationStatus;
+  requester: ReservationUser;
+  managementAreas: ManagementAreaRef[];
+  itemCount: number;
+  totalQuantity: number;
+  pendingItemCount: number;
+  approvedItemCount: number;
+  rejectedItemCount: number;
+  hasPendingChangeRequest: boolean;
+  pendingDecisionCount: number;
+  capabilities: {
+    canSubmit: boolean;
+    canRequestChange: boolean;
+    canReview: boolean;
+  };
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ApiErrorBody = {
   error: {
     code: string;

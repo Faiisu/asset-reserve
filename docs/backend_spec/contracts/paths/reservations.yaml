@@ -1,4 +1,53 @@
 /reservations:
+  get:
+    tags:
+      - Reservations
+    summary: List reservations visible or actionable to the current user
+    operationId: listReservations
+    parameters:
+      - name: view
+        in: query
+        schema:
+          type: string
+          enum: [MINE, APPROVALS, ALL]
+          default: MINE
+      - name: status
+        in: query
+        schema:
+          $ref: "#/components/schemas/ReservationStatus"
+      - name: areaId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        description: Include reservations ending after this instant.
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: Include reservations starting before this instant.
+        schema:
+          type: string
+          format: date-time
+      - $ref: "#/components/parameters/Search"
+      - $ref: "#/components/parameters/Cursor"
+      - $ref: "#/components/parameters/Limit"
+    responses:
+      "200":
+        description: Cursor-paginated reservation summaries scoped to the actor.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationListResponse"
+      "400":
+        $ref: "#/components/responses/BadRequest"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "422":
+        $ref: "#/components/responses/ValidationError"
   post:
     tags:
       - Reservations

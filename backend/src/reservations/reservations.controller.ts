@@ -5,6 +5,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
 } from "@nestjs/common";
 import { CurrentActor } from "../auth/auth.decorators.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
@@ -14,12 +15,21 @@ import {
   ReservationChangeRequestDecisionDto,
   ReservationItemDecisionDto,
   SubmitReservationDto,
+  ReservationListQueryDto,
 } from "./reservations.dto.js";
 import { ReservationsService } from "./reservations.service.js";
 
 @Controller("reservations")
 export class ReservationsController {
   constructor(private readonly reservations: ReservationsService) {}
+
+  @Get()
+  list(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Query() query: ReservationListQueryDto,
+  ) {
+    return this.reservations.list(actor, query);
+  }
 
   @Post()
   create(
