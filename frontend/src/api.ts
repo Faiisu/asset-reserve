@@ -60,7 +60,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   headers.set("Accept", "application/json");
   const token = getAccessToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  if (init.body && !headers.has("Content-Type")) {
+  if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -162,6 +162,8 @@ export const api = {
     areaId?: string;
     templateId?: string;
     isActive?: boolean;
+    from?: string;
+    to?: string;
     cursor?: string;
     limit?: number;
   }) => request<ListResponse<AssetSummary>>(`/assets${queryString(filters)}`),
@@ -317,4 +319,17 @@ export const api = {
       `/reservations/${reservationId}/change-requests/${changeRequestId}/decision`,
       { method: "POST", body: json({ decision }) },
     ),
+  cancelReservation: (reservationId: string, reason?: string) =>
+    request<ReservationDetail>(`/reservations/${reservationId}/cancel`, {
+      method: "POST",
+      body: json({ ...(reason ? { reason } : {}) }),
+    }),
+  uploadImage: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request<{ url: string }>("/uploads/image", {
+      method: "POST",
+      body: formData,
+    });
+  },
 };

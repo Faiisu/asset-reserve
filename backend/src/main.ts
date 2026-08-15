@@ -8,7 +8,9 @@ import {
 } from "@nestjs/platform-fastify";
 import { SwaggerModule, type OpenAPIObject } from "@nestjs/swagger";
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import fastifyMultipart from "@fastify/multipart";
+import fastifyStatic from "@fastify/static";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 import { AppModule } from "./app.module.js";
@@ -58,6 +60,28 @@ async function bootstrap(): Promise<void> {
   app.setGlobalPrefix("api/v1");
   app.enableCors({ origin: appConfig.corsOrigins, credentials: false });
   await app.register(helmet);
+
+  await app.register(fastifyMultipart, {
+    limits: {
+      fileSize: 10 * 1024 * 1024,
+      files: 1,
+    },
+  });
+
+  const uploadsDir = resolve(process.cwd(), "uploads");
+  if (!existsSync(uploadsDir)) {
+    try {
+      mkdirSync(uploadsDir, { recursive: true });
+    } catch (err) {
+      Logger.warn(`Could not create uploads directory: ${err}`, "Bootstrap");
+    }
+  }
+
+  await app.register(fastifyStatic, {
+    root: uploadsDir,
+    prefix: "/uploads/",
+    decorateReply: false,
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,

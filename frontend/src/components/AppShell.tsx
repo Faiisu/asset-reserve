@@ -36,7 +36,7 @@ export function AppShell() {
   );
   const title =
     titles.find(([path]) => location.pathname.startsWith(path))?.[1] ??
-    "Asset Rail";
+    "Advantech Asset Reservation";
   const name = session?.user.profile?.name ?? session?.user.email ?? "User";
   const canAdminUsers = ["user:create", "user:disable", "role:assign"].some(
     (permission) =>
@@ -104,8 +104,8 @@ export function AppShell() {
             <i />
           </span>
           <div>
-            <strong>Asset Rail</strong>
-            <small>operations ledger</small>
+            <strong>Advantech</strong>
+            <small>Asset Reservation</small>
           </div>
         </div>
         <nav className="sidebar__nav" aria-label="Main navigation">
@@ -158,7 +158,7 @@ export function AppShell() {
       <div className="app-main">
         <header className="topbar">
           <div>
-            <span className="topbar__context">Asset Reservation /</span>
+            <span className="topbar__context">Advantech Asset Reservation /</span>
             <strong>{title}</strong>
           </div>
           <div className="topbar__actions">

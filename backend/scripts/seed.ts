@@ -80,6 +80,16 @@ const ids = {
     "00000000-0000-4000-8000-000000000513",
     "00000000-0000-4000-8000-000000000514",
   ],
+  mockAssets: Array.from(
+    { length: 20 },
+    (_, index) =>
+      `00000000-0000-4000-8000-${String(421 + index).padStart(12, "0")}`,
+  ),
+  mockTransactions: Array.from(
+    { length: 20 },
+    (_, index) =>
+      `00000000-0000-4000-8000-${String(521 + index).padStart(12, "0")}`,
+  ),
   reservations: {
     completed: "00000000-0000-4000-8000-000000000601",
     approved: "00000000-0000-4000-8000-000000000602",
@@ -388,6 +398,153 @@ async function seedMockData(): Promise<void> {
     });
   }
 
+  const mockAssetInputs = [
+    {
+      name: "Canon EOS R6 Camera Kit",
+      description: "Full-frame camera kit for event photography.",
+      totalQuantity: 3,
+      managementAreaId: mediaArea.id,
+      assetTemplateId: cameraTemplate.id,
+    },
+    {
+      name: "Blackmagic Pocket Cinema Camera",
+      description: "Compact cinema camera for production shoots.",
+      totalQuantity: 1,
+      managementAreaId: mediaArea.id,
+      assetTemplateId: cameraTemplate.id,
+    },
+    {
+      name: "DJI Ronin Camera Gimbal",
+      description: "Three-axis stabilizer for handheld video.",
+      totalQuantity: 2,
+      managementAreaId: mediaArea.id,
+      assetTemplateId: cameraTemplate.id,
+    },
+    {
+      name: "Manfrotto Video Tripod",
+      description: "Fluid-head tripod for cameras and recorders.",
+      totalQuantity: 2,
+      managementAreaId: mediaArea.id,
+      assetTemplateId: cameraTemplate.id,
+    },
+    {
+      name: "Aputure LED Light Panel",
+      description: "Bi-color light panel with stand and power adapter.",
+      totalQuantity: 1,
+      managementAreaId: mediaArea.id,
+      assetTemplateId: null,
+    },
+    {
+      name: "Elgato Capture Card",
+      description: "HDMI capture interface for streaming and recording.",
+      totalQuantity: 3,
+      managementAreaId: mediaArea.id,
+      assetTemplateId: null,
+    },
+    {
+      name: "BenQ Conference Projector",
+      description: "Portable projector for meeting rooms and events.",
+      totalQuantity: 5,
+      managementAreaId: mediaArea.id,
+      assetTemplateId: projectorTemplate.id,
+    },
+    {
+      name: "Portable Green Screen",
+      description: "Collapsible chroma-key backdrop with support frame.",
+      totalQuantity: 4,
+      managementAreaId: mediaArea.id,
+      assetTemplateId: null,
+    },
+    {
+      name: "Wireless HDMI Transmitter",
+      description: "Low-latency wireless video transmitter and receiver.",
+      totalQuantity: 4,
+      managementAreaId: mediaArea.id,
+      assetTemplateId: null,
+    },
+    {
+      name: "Camera Teleprompter",
+      description: "Tablet teleprompter for studio and field recording.",
+      totalQuantity: 2,
+      managementAreaId: mediaArea.id,
+      assetTemplateId: cameraTemplate.id,
+    },
+    {
+      name: "Shure Wireless Lavalier Set",
+      description: "Wireless lapel microphone set for presenters.",
+      totalQuantity: 2,
+      managementAreaId: eventsArea.id,
+      assetTemplateId: audioTemplate.id,
+    },
+    {
+      name: "Rode Shotgun Microphone",
+      description: "Directional microphone with shock mount and windscreen.",
+      totalQuantity: 1,
+      managementAreaId: eventsArea.id,
+      assetTemplateId: audioTemplate.id,
+    },
+    {
+      name: "Zoom H6 Audio Recorder",
+      description: "Portable multitrack field recorder with capsules.",
+      totalQuantity: 4,
+      managementAreaId: eventsArea.id,
+      assetTemplateId: audioTemplate.id,
+    },
+    {
+      name: "Yamaha Compact Audio Mixer",
+      description: "Compact mixer for small live productions.",
+      totalQuantity: 5,
+      managementAreaId: eventsArea.id,
+      assetTemplateId: audioTemplate.id,
+    },
+    {
+      name: "JBL Powered Speaker",
+      description: "Powered speaker for event sound reinforcement.",
+      totalQuantity: 3,
+      managementAreaId: eventsArea.id,
+      assetTemplateId: audioTemplate.id,
+    },
+    {
+      name: "Stage Monitor Speaker",
+      description: "Floor monitor for performers and presenters.",
+      totalQuantity: 1,
+      managementAreaId: eventsArea.id,
+      assetTemplateId: audioTemplate.id,
+    },
+    {
+      name: "Event Lighting Bar",
+      description: "Portable LED lighting bar with controller.",
+      totalQuantity: 3,
+      managementAreaId: eventsArea.id,
+      assetTemplateId: null,
+    },
+    {
+      name: "Heavy Duty Microphone Stand",
+      description: "Adjustable boom stand for stage microphones.",
+      totalQuantity: 5,
+      managementAreaId: eventsArea.id,
+      assetTemplateId: audioTemplate.id,
+    },
+    {
+      name: "Extension Cable Reel",
+      description: "Heavy-duty power extension reel for event setups.",
+      totalQuantity: 2,
+      managementAreaId: eventsArea.id,
+      assetTemplateId: null,
+    },
+    {
+      name: "Presentation Clicker",
+      description: "Wireless slide controller with laser pointer.",
+      totalQuantity: 3,
+      managementAreaId: eventsArea.id,
+      assetTemplateId: null,
+    },
+  ].map((asset, index) => ({
+    ...asset,
+    id: ids.mockAssets[index]!,
+    createdById: ids.users.manager,
+  }));
+
   await prisma.assetTransactionBatch.upsert({
     where: { id: ids.batch },
     update: {},
@@ -399,10 +556,10 @@ async function seedMockData(): Promise<void> {
   });
   for (const [index, asset] of assetInputs.entries()) {
     await prisma.assetTransaction.upsert({
-      where: { id: ids.transactions[index] },
+      where: { id: ids.transactions[index]! },
       update: {},
       create: {
-        id: ids.transactions[index],
+        id: ids.transactions[index]!,
         batchId: ids.batch,
         assetId: asset.id,
         transactionType: "ADD",
@@ -411,6 +568,23 @@ async function seedMockData(): Promise<void> {
       },
     });
   }
+  await prisma.$transaction(async (tx) => {
+    await tx.asset.createMany({
+      data: mockAssetInputs,
+      skipDuplicates: true,
+    });
+    await tx.assetTransaction.createMany({
+      data: mockAssetInputs.map((asset, index) => ({
+        id: ids.mockTransactions[index]!,
+        batchId: ids.batch,
+        assetId: asset.id,
+        transactionType: "ADD",
+        quantityDelta: asset.totalQuantity,
+        reason: "Opening balance for extended mock inventory",
+      })),
+      skipDuplicates: true,
+    });
+  });
 
   const reservations = [
     {
@@ -578,10 +752,10 @@ async function seedMockData(): Promise<void> {
     ids.items.completedMicrophone,
   ].entries()) {
     await prisma.returnItem.upsert({
-      where: { id: ids.returnItems[index] },
+      where: { id: ids.returnItems[index]! },
       update: {},
       create: {
-        id: ids.returnItems[index],
+        id: ids.returnItems[index]!,
         returnId: ids.return,
         reservationItemId,
         quantityReturned: index === 0 ? 1 : 2,

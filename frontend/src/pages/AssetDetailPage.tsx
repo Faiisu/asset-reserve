@@ -74,11 +74,6 @@ export function AssetDetailPage() {
       />
     );
 
-  const availablePercent =
-    asset.totalQuantity === 0
-      ? 0
-      : Math.round((asset.availableQuantity / asset.totalQuantity) * 100);
-
   async function toggleStatus() {
     if (!asset) return;
     setMutating(true);
@@ -88,9 +83,7 @@ export function AssetDetailPage() {
         asset.isActive ? "INACTIVE" : "ACTIVE",
         asset.updatedAt,
       );
-      setNotice(
-        asset.isActive ? "Asset disabled" : "Asset enabled",
-      );
+      setNotice(asset.isActive ? "Asset disabled" : "Asset enabled");
       setStatusOpen(false);
       await load();
     } catch (caught) {
@@ -160,18 +153,16 @@ export function AssetDetailPage() {
 
       <section className="quantity-board">
         <div className="quantity-board__primary">
-          <small>Available</small>
-          <strong>{asset.availableQuantity}</strong>
-          <span>of {asset.totalQuantity} units</span>
+          <small>Total inventory</small>
+          <strong>{asset.totalQuantity}</strong>
+          <span>recorded units</span>
         </div>
-        <div className="quantity-board__rail">
-          <div>
-            <span style={{ width: `${availablePercent}%` }} />
-          </div>
-          <p>
-            <span>{availablePercent}% available</span>
-            <span>{asset.allocatedQuantity} allocated</span>
-          </p>
+        <div className="quantity-board__context">
+          <CalendarClock size={19} />
+          <span>
+            <strong>Reservation quantities are schedule-based</strong>
+            <small>Choose dates in Calendar to see reservable units.</small>
+          </span>
         </div>
         {asset.capabilities.canAdjustQuantity && (
           <div className="quantity-board__actions">
@@ -250,7 +241,7 @@ export function AssetDetailPage() {
               <PackageCheck size={22} />
               <span>
                 <strong>No active allocations</strong>
-                All unallocated units are available.
+                No approved reservation allocations are listed.
               </span>
             </div>
           ) : (
@@ -366,7 +357,7 @@ export function AssetDetailPage() {
         description={
           asset.isActive
             ? "The asset will remain in the ledger but should not be selected for new work."
-            : "The asset will become available again based on its remaining quantity."
+            : "The asset can be scheduled again according to reservation dates and remaining inventory."
         }
         onClose={() => setStatusOpen(false)}
       >

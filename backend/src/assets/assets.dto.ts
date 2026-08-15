@@ -39,6 +39,14 @@ export class AssetListQueryDto extends SearchPaginationQueryDto {
   @Transform(({ value }: { value: unknown }) => parseOptionalBoolean(value))
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  from?: string;
+
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  to?: string;
 }
 
 export class CreateAssetDto {

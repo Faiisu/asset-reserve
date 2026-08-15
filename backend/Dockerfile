@@ -36,6 +36,8 @@ COPY backend/package.json ./package.json
 COPY --from=build /app/dist ./dist
 COPY --from=build /docs/backend_spec/contracts/dist/openapi.bundle.yaml /docs/openapi.bundle.yaml
 
+RUN mkdir -p /app/uploads/assets && chown -R node:node /app/uploads
+
 USER node
 EXPOSE 3000
 CMD ["node", "dist/src/main.js"]

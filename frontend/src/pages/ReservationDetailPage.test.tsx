@@ -71,7 +71,12 @@ describe("ReservationDetailPage", () => {
     );
 
     await screen.findByRole("heading", { name: "Quarterly town hall" });
-    fireEvent.click(screen.getByLabelText("Select Stage camera"));
+    const stageCameraCheckbox = screen.getByLabelText("Select Stage camera");
+    fireEvent.click(screen.getByText("Stage camera"));
+    expect(stageCameraCheckbox).toBeChecked();
+    expect(
+      screen.getByRole("link", { name: "View Stage camera" }),
+    ).toHaveAttribute("href", `/assets/${reservation.items[0].asset.id}`);
     fireEvent.click(screen.getByLabelText("Select Wireless microphone"));
     fireEvent.click(screen.getByRole("button", { name: "Approve selected" }));
 
@@ -95,6 +100,48 @@ describe("ReservationDetailPage", () => {
         "APPROVE",
         "Ready together",
       ),
+    );
+  });
+
+  it("cancels an approved reservation when confirmed in dialog", async () => {
+    const approvedReservation: ReservationDetail = {
+      ...reservation,
+      status: "APPROVED",
+      capabilities: { canSubmit: false, canRequestChange: true, canCancel: true },
+    };
+    vi.spyOn(api, "reservation").mockResolvedValue(approvedReservation);
+    const cancelSpy = vi
+      .spyOn(api, "cancelReservation")
+      .mockResolvedValue({ ...approvedReservation, status: "CANCELLED" });
+
+    render(
+      <MemoryRouter initialEntries={[`/reservations/${approvedReservation.id}`]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("heading", { name: "Quarterly town hall" });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel reservation" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByRole("heading", { name: "Cancel reservation" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByRole("textbox"), {
+      target: { value: "Event postponed" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Confirm cancellation" }),
+    );
+
+    await waitFor(() =>
+      expect(cancelSpy).toHaveBeenCalledWith(approvedReservation.id, "Event postponed"),
     );
   });
 });

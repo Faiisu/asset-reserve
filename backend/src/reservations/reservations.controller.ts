@@ -10,6 +10,7 @@ import {
 import { CurrentActor } from "../auth/auth.decorators.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import {
+  CancelReservationDto,
   CreateReservationChangeRequestDto,
   CreateReservationDto,
   ReservationChangeRequestDecisionDto,
@@ -98,5 +99,14 @@ export class ReservationsController {
       changeRequestId,
       input,
     );
+  }
+
+  @Post(":reservationId/cancel")
+  cancel(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Param("reservationId", new ParseUUIDPipe()) reservationId: string,
+    @Body() input?: CancelReservationDto,
+  ) {
+    return this.reservations.cancel(actor, reservationId, input);
   }
 }

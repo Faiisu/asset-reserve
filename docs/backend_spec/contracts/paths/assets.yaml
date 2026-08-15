@@ -20,6 +20,18 @@
         in: query
         schema:
           type: boolean
+      - name: from
+        in: query
+        description: Availability window start. Must be supplied together with `to`.
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: Availability window end. Assets allocated by approved overlapping reservations are deducted from availability.
+        schema:
+          type: string
+          format: date-time
       - $ref: "#/components/parameters/Cursor"
       - $ref: "#/components/parameters/Limit"
     responses:

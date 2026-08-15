@@ -38,6 +38,7 @@ export class AssetsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(actor: AuthenticatedActor, query: AssetListQueryDto) {
+    const availabilityRange = this.availabilityRange(query.from, query.to);
     const allowedAreaIds = permittedAreaIds(actor, "asset:view");
     if (allowedAreaIds !== null && allowedAreaIds.length === 0) {
       throw new ApiException(
@@ -94,6 +95,7 @@ export class AssetsService {
     const page = pageInfo(rows, query.limit);
     const allocated = await this.allocatedQuantities(
       page.data.map((asset) => asset.id),
+      availabilityRange,
     );
     return {
       data: page.data.map((asset) =>
@@ -367,20 +369,57 @@ export class AssetsService {
     return { data: ids.map((id) => ({ id, status: "INACTIVE" as const })) };
   }
 
-  private async allocatedQuantities(assetIds: string[]) {
+  private async allocatedQuantities(
+    assetIds: string[],
+    range?: { startAt: Date; endAt: Date },
+  ) {
     if (!assetIds.length) return new Map<string, number>();
     const rows = await this.prisma.reservationItem.groupBy({
       by: ["assetId"],
       where: {
         assetId: { in: assetIds },
         status: { in: allocatedItemStatuses },
-        reservation: { status: { in: allocatedReservationStatuses } },
+        reservation: {
+          status: { in: allocatedReservationStatuses },
+          ...(range
+            ? {
+                startAt: { lt: range.endAt },
+                endAt: { gt: range.startAt },
+              }
+            : {}),
+        },
       },
       _sum: { quantity: true },
     });
     return new Map(
       rows.map((row) => [row.assetId, row._sum.quantity ?? 0] as const),
     );
+  }
+
+  private availabilityRange(from?: string, to?: string) {
+    if (Boolean(from) !== Boolean(to)) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        "Both from and to are required for time-based availability.",
+        {
+          from: "Set both ends of the availability range.",
+          to: "Set both ends of the availability range.",
+        },
+      );
+    }
+    if (!from || !to) return undefined;
+    const startAt = new Date(from);
+    const endAt = new Date(to);
+    if (endAt <= startAt) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        "The availability end time must be later than the start time.",
+        { to: "Choose a time later than from." },
+      );
+    }
+    return { startAt, endAt };
   }
 
   private async getSummary(actor: AuthenticatedActor, assetId: string) {

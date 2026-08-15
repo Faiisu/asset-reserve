@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock3,
   Edit3,
+  Eye,
   PackageCheck,
   Plus,
   RefreshCw,
@@ -14,6 +15,7 @@ import {
   Trash2,
   Users,
   X,
+  XCircle,
 } from "lucide-react";
 import {
   useCallback,
@@ -74,8 +76,19 @@ export function ReservationDetailPage() {
   const [decisionTarget, setDecisionTarget] = useState<DecisionTarget>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [editOpen, setEditOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [reviewingChange, setReviewingChange] = useState<string | null>(null);
-  const notice = (location.state as { notice?: string } | null)?.notice;
+  const [noticeState, setNoticeState] = useState<string>("");
+  const notice = (location.state as { notice?: string } | null)?.notice || noticeState;
+
+  async function confirmCancel(reason?: string) {
+    if (!reservation) return;
+    setActionError(null);
+    const result = await api.cancelReservation(reservation.id, reason);
+    setReservation(result);
+    rememberReservation(result);
+    setNoticeState("Reservation cancelled");
+  }
 
   const load = useCallback(async () => {
     if (!reservationId) return;
@@ -251,6 +264,12 @@ export function ReservationDetailPage() {
               Send for approval
             </Button>
           )}
+          {reservation.capabilities.canCancel && (
+            <Button variant="danger" onClick={() => setCancelOpen(true)}>
+              <XCircle size={17} />
+              Cancel reservation
+            </Button>
+          )}
         </div>
       </section>
 
@@ -348,82 +367,102 @@ export function ReservationDetailPage() {
               </div>
             )}
             <div className="reservation-item-list">
-              {reservation.items.map((item) => (
-                <article
-                  className={cx(
-                    "reservation-item-card",
-                    selectedItemIds.includes(item.id) &&
-                      "reservation-item-card--selected",
-                  )}
-                  key={item.id}
-                >
-                  {item.capabilities.canApprove ||
-                  item.capabilities.canReject ? (
-                    <input
-                      className="reservation-item-select"
-                      type="checkbox"
-                      aria-label={`Select ${item.asset.name}`}
-                      checked={selectedItemIds.includes(item.id)}
-                      onChange={() => toggleItemSelection(item.id)}
+              {reservation.items.map((item) => {
+                const selectable =
+                  item.capabilities.canApprove || item.capabilities.canReject;
+                const selected = selectedItemIds.includes(item.id);
+                return (
+                  <article
+                    className={cx(
+                      "reservation-item-card",
+                      selectable && "reservation-item-card--selectable",
+                      selected && "reservation-item-card--selected",
+                    )}
+                    key={item.id}
+                    onClick={(event) => {
+                      if (
+                        !selectable ||
+                        (event.target as Element).closest("a, button, input")
+                      ) {
+                        return;
+                      }
+                      toggleItemSelection(item.id);
+                    }}
+                  >
+                    {selectable ? (
+                      <input
+                        className="reservation-item-select"
+                        type="checkbox"
+                        aria-label={`Select ${item.asset.name}`}
+                        checked={selected}
+                        onChange={() => toggleItemSelection(item.id)}
+                      />
+                    ) : (
+                      <span
+                        className="reservation-item-select-spacer"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <AssetPicture
+                      src={item.asset.pictureUrl}
+                      name={item.asset.name}
                     />
-                  ) : (
-                    <span
-                      className="reservation-item-select-spacer"
-                      aria-hidden="true"
-                    />
-                  )}
-                  <AssetPicture
-                    src={item.asset.pictureUrl}
-                    name={item.asset.name}
-                  />
-                  <div className="reservation-item-card__identity">
-                    <Link to={`/assets/${item.asset.id}`}>
-                      {item.asset.name}
-                    </Link>
-                    <span>
-                      {item.asset.managementArea.name}
-                      {item.asset.template
-                        ? ` · ${item.asset.template.name}`
-                        : ""}
-                    </span>
-                  </div>
-                  <div className="reservation-item-card__quantity reservation-item-card__quantity--requested">
-                    <small>Requested</small>
-                    <strong>{item.quantity}</strong>
-                  </div>
-                  <div className="reservation-item-card__quantity reservation-item-card__quantity--available">
-                    <small>Available</small>
-                    <strong
-                      className={cx(
-                        item.quantity > item.availability.availableQuantity &&
-                          "is-short",
-                      )}
-                    >
-                      {item.availability.availableQuantity}
-                    </strong>
-                  </div>
-                  <ItemStatusBadge status={item.status} />
-                  {item.warnings.map((warning) => (
-                    <div className="item-overlap-warning" key={warning.code}>
-                      <AlertTriangle size={15} />
+                    <div className="reservation-item-card__identity">
+                      <strong>{item.asset.name}</strong>
                       <span>
-                        <strong>{warning.pendingQuantity} units pending</strong>{" "}
-                        across {warning.pendingReservationCount} other{" "}
-                        {warning.pendingReservationCount === 1
-                          ? "request"
-                          : "requests"}
+                        {item.asset.managementArea.name}
+                        {item.asset.template
+                          ? ` · ${item.asset.template.name}`
+                          : ""}
                       </span>
                     </div>
-                  ))}
-                  {item.approval?.comment && (
-                    <p className="reservation-item-card__comment">
-                      “{item.approval.comment}” —{" "}
-                      {item.approval.approver.name ??
-                        item.approval.approver.email}
-                    </p>
-                  )}
-                </article>
-              ))}
+                    <div className="reservation-item-card__quantity reservation-item-card__quantity--requested">
+                      <small>Requested</small>
+                      <strong>{item.quantity}</strong>
+                    </div>
+                    <div className="reservation-item-card__quantity reservation-item-card__quantity--available">
+                      <small>Available</small>
+                      <strong
+                        className={cx(
+                          item.quantity > item.availability.availableQuantity &&
+                            "is-short",
+                        )}
+                      >
+                        {item.availability.availableQuantity}
+                      </strong>
+                    </div>
+                    <ItemStatusBadge status={item.status} />
+                    <Link
+                      className="reservation-item-card__view"
+                      to={`/assets/${item.asset.id}`}
+                      aria-label={`View ${item.asset.name}`}
+                    >
+                      <Eye size={14} /> View
+                    </Link>
+                    {item.warnings.map((warning) => (
+                      <div className="item-overlap-warning" key={warning.code}>
+                        <AlertTriangle size={15} />
+                        <span>
+                          <strong>
+                            {warning.pendingQuantity} units pending
+                          </strong>{" "}
+                          across {warning.pendingReservationCount} other{" "}
+                          {warning.pendingReservationCount === 1
+                            ? "request"
+                            : "requests"}
+                        </span>
+                      </div>
+                    ))}
+                    {item.approval?.comment && (
+                      <p className="reservation-item-card__comment">
+                        “{item.approval.comment}” —{" "}
+                        {item.approval.approver.name ??
+                          item.approval.approver.email}
+                      </p>
+                    )}
+                  </article>
+                );
+              })}
             </div>
           </section>
 
@@ -585,7 +624,77 @@ export function ReservationDetailPage() {
           setEditOpen(false);
         }}
       />
+      <CancelReservationDialog
+        open={cancelOpen}
+        eventName={reservation.eventName}
+        onClose={() => setCancelOpen(false)}
+        onConfirm={confirmCancel}
+      />
     </div>
+  );
+}
+
+function CancelReservationDialog({
+  open,
+  eventName,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  eventName: string;
+  onClose: () => void;
+  onConfirm: (reason?: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await onConfirm(reason.trim() || undefined);
+      onClose();
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      title="Cancel reservation"
+      description={`Are you sure you want to cancel "${eventName}"? All allocated assets will be released back into available inventory.`}
+      onClose={onClose}
+    >
+      <form className="dialog-form" onSubmit={(event) => void submit(event)}>
+        {Boolean(error) && <ErrorState error={error} />}
+        <Field
+          label="Reason for cancellation"
+          hint="Optional — provide context for managers and requesters"
+        >
+          <Textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            maxLength={2000}
+            rows={3}
+            placeholder="e.g. Event cancelled, date changed, or assets no longer needed"
+          />
+        </Field>
+        <div className="dialog-actions">
+          <Button type="button" variant="quiet" onClick={onClose}>
+            Keep reservation
+          </Button>
+          <Button type="submit" variant="danger" loading={loading}>
+            <XCircle size={17} />
+            Confirm cancellation
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 

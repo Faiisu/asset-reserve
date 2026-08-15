@@ -94,6 +94,8 @@ PENDING -> APPROVED -> PREPARED -> CHECKED_OUT -> RETURNED
 - checkedOutBy และ checkedOutAt บันทึกผู้ยืนยันการนำออก
 - ไม่มี Checkout model แยก; หน้า UI ต้องใช้ ReservationItem fields เหล่านี้
 - Action แบบ batch เลือกหลาย item ได้ แต่ backend ต้องอัปเดตแบบ atomic ตาม policy
+- ในหน้า Reservation Detail การคลิกพื้นที่ของ Asset ที่ตัดสินใจได้ต้อง toggle checkbox
+- การเปิด Asset Detail ต้องใช้ปุ่ม View แยก ไม่ใช้ชื่อ Asset เป็นลิงก์
 
 ## Reservation approval
 

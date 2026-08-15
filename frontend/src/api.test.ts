@@ -128,4 +128,27 @@ describe("API client", () => {
     );
     expect(fetchMock.mock.calls[0][1]?.method).toBeUndefined();
   });
+
+  it("encodes the selected availability window for asset listing", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [],
+          pageInfo: { nextCursor: null, hasNextPage: false },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    await api.assets({
+      isActive: true,
+      from: "2026-08-18T02:00:00.000Z",
+      to: "2026-08-18T10:00:00.000Z",
+      limit: 100,
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "/api/v1/assets?isActive=true&from=2026-08-18T02%3A00%3A00.000Z&to=2026-08-18T10%3A00%3A00.000Z&limit=100",
+    );
+  });
 });

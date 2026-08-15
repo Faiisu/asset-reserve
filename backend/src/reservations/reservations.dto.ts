@@ -178,3 +178,10 @@ export class ReservationChangeRequestDecisionDto {
   @IsIn(["APPROVE", "REJECT"])
   decision!: "APPROVE" | "REJECT";
 }
+
+export class CancelReservationDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000)
+  reason?: string;
+}

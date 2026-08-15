@@ -98,9 +98,11 @@ AssetSummary:
     allocatedQuantity:
       type: integer
       minimum: 0
+      description: Quantity allocated by approved reservations. When `from` and `to` are supplied to the list endpoint, only overlapping reservations are counted.
     availableQuantity:
       type: integer
       minimum: 0
+      description: Total quantity minus the allocated quantity for the requested availability window.
     isActive:
       type: boolean
     status:

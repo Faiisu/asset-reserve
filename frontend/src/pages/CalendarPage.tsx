@@ -1,14 +1,20 @@
 import {
   CalendarDays,
   Check,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Eye,
   Filter,
+  LayoutGrid,
+  List,
   LoaderCircle,
+  Maximize2,
   PackageSearch,
   Plus,
   Search,
   X,
+  XCircle,
 } from "lucide-react";
 import {
   useCallback,
@@ -17,8 +23,10 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type FormEvent,
   type KeyboardEvent,
   type PointerEvent,
+  type RefObject,
 } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
@@ -26,9 +34,12 @@ import { useAuth } from "../auth";
 import {
   AssetPicture,
   Button,
+  Dialog,
   ErrorState,
+  Field,
   PageHeader,
   Select,
+  Textarea,
   cx,
 } from "../components/ui";
 import { reservationStatusLabel } from "../reservations";
@@ -63,6 +74,12 @@ type CalendarSegment = {
   continuesAfter: boolean;
 };
 
+type EventMenu = {
+  reservation: ReservationSummary;
+  top: number;
+  left: number;
+} | null;
+
 export function CalendarPage() {
   const { hasPermission, hasAreaPermission } = useAuth();
   const canCreate = hasPermission("reservation:create");
@@ -76,13 +93,35 @@ export function CalendarPage() {
   const [selectedAssets, setSelectedAssets] = useState<AssetSummary[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
   const [assetError, setAssetError] = useState<unknown>(null);
+  const [assetBrowserOpen, setAssetBrowserOpen] = useState(false);
+  const [assetBrowserView, setAssetBrowserView] = useState<"list" | "grid">(
+    "grid",
+  );
+  const [calendarHeight, setCalendarHeight] = useState<number | null>(null);
+  const [eventMenu, setEventMenu] = useState<EventMenu>(null);
+  const [cancelTarget, setCancelTarget] = useState<ReservationSummary | null>(
+    null,
+  );
+  const [eventAction, setEventAction] = useState<
+    "APPROVE" | "REJECT" | "CANCEL" | null
+  >(null);
+  const [eventActionError, setEventActionError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
   const [selection, setSelection] = useState<DateSelection | null>(null);
   const dragging = useRef(false);
   const selectionAnchor = useRef<Date | null>(null);
   const reservePanel = useRef<HTMLElement>(null);
+  const calendarFrame = useRef<HTMLDivElement>(null);
+  const eventMenuRef = useRef<HTMLElement>(null);
   const requestSequence = useRef(0);
+  const selectedRange = selection ? orderedSelection(selection) : null;
+  const selectedSchedule = selectedRange
+    ? reservationSchedule(selectedRange.start, selectedRange.end)
+    : null;
+  const selectedStartAt = selectedSchedule?.startAt.toISOString();
+  const selectedEndAt = selectedSchedule?.endAt.toISOString();
+  const hasSelectedSchedule = Boolean(selectedStartAt && selectedEndAt);
 
   const gridStart = useMemo(() => startOfCalendarGrid(month), [month]);
   const gridEnd = useMemo(() => addDays(gridStart, 42), [gridStart]);
@@ -91,6 +130,7 @@ export function CalendarPage() {
       Array.from({ length: 6 }, (_, index) => addDays(gridStart, index * 7)),
     [gridStart],
   );
+  const closeAssetBrowser = useCallback(() => setAssetBrowserOpen(false), []);
 
   useEffect(() => {
     void api
@@ -100,27 +140,98 @@ export function CalendarPage() {
   }, []);
 
   useEffect(() => {
+    if (!eventMenu) return;
+    const close = () => setEventMenu(null);
+    const onPointerDown = (event: globalThis.PointerEvent) => {
+      if (!eventMenuRef.current?.contains(event.target as Node)) close();
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [eventMenu]);
+
+  useEffect(() => {
+    if (!canCreate || typeof ResizeObserver === "undefined") return;
+    const frame = calendarFrame.current;
+    if (!frame) return;
+    const updateHeight = () => {
+      const nextHeight = Math.round(frame.getBoundingClientRect().height);
+      if (nextHeight > 0) setCalendarHeight(nextHeight);
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [canCreate, error]);
+
+  useEffect(() => {
     if (!canCreate) return;
     let active = true;
     const timer = window.setTimeout(() => {
       setLoadingAssets(true);
       setAssetError(null);
-      void api
-        .assets({
-          search: assetSearch.trim() || undefined,
-          areaId: areaId || undefined,
-          isActive: true,
-          limit: 100,
-        })
-        .then((response) => active && setAssets(response.data))
-        .catch((caught) => active && setAssetError(caught))
-        .finally(() => active && setLoadingAssets(false));
+      void (async () => {
+        try {
+          const visible: AssetSummary[] = [];
+          let cursor: string | undefined;
+          do {
+            const response = await api.assets({
+              search: assetSearch.trim() || undefined,
+              areaId: areaId || undefined,
+              isActive: true,
+              from: selectedStartAt,
+              to: selectedEndAt,
+              cursor,
+              limit: 100,
+            });
+            visible.push(...response.data);
+            cursor = response.pageInfo.hasNextPage
+              ? (response.pageInfo.nextCursor ?? undefined)
+              : undefined;
+          } while (active && cursor);
+          if (!active) return;
+          setAssets(visible);
+          const byId = new Map(
+            visible.map((asset) => [asset.id, asset] as const),
+          );
+          setSelectedAssets((current) =>
+            current.flatMap((asset) => {
+              const updated = byId.get(asset.id);
+              if (!updated) return [asset];
+              return !hasSelectedSchedule || updated.availableQuantity > 0
+                ? [updated]
+                : [];
+            }),
+          );
+        } catch (caught) {
+          if (active) setAssetError(caught);
+        } finally {
+          if (active) setLoadingAssets(false);
+        }
+      })();
     }, 180);
     return () => {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [areaId, assetSearch, canCreate]);
+  }, [
+    areaId,
+    assetSearch,
+    canCreate,
+    hasSelectedSchedule,
+    selectedEndAt,
+    selectedStartAt,
+  ]);
 
   const load = useCallback(async () => {
     const requestId = ++requestSequence.current;
@@ -168,11 +279,18 @@ export function CalendarPage() {
     };
   }, []);
 
-  const selectedRange = selection ? orderedSelection(selection) : null;
   const selectedAssetIds = new Set(selectedAssets.map((asset) => asset.id));
-  const reservableAssets = assets.filter((asset) =>
-    hasAreaPermission("reservation:create", asset.managementArea.id),
-  );
+  const reservableAssets = assets
+    .filter((asset) =>
+      hasAreaPermission("reservation:create", asset.managementArea.id),
+    )
+    .sort((left, right) => {
+      if (!selectedRange) return 0;
+      return (
+        Number(left.availableQuantity <= 0) -
+        Number(right.availableQuantity <= 0)
+      );
+    });
   const createUrl = selectedRange
     ? reservationCreateUrl(
         selectedRange.start,
@@ -236,7 +354,83 @@ export function CalendarPage() {
     setSelection(null);
   }
 
+  function openEventMenu(reservation: ReservationSummary, anchor: DOMRect) {
+    const menuWidth = 330;
+    const menuHeight = 218;
+    const gap = 8;
+    const left = Math.max(
+      12,
+      Math.min(anchor.left, window.innerWidth - menuWidth - 12),
+    );
+    const top =
+      anchor.bottom + menuHeight + gap <= window.innerHeight
+        ? anchor.bottom + gap
+        : Math.max(12, anchor.top - menuHeight - gap);
+    setEventAction(null);
+    setEventActionError("");
+    setEventMenu({ reservation, top, left });
+  }
+
+  async function decideEvent(decision: "APPROVE" | "REJECT") {
+    if (!eventMenu) return;
+    setEventAction(decision);
+    setEventActionError("");
+    try {
+      const detail = await api.reservation(eventMenu.reservation.id);
+      const itemIds = detail.items
+        .filter(
+          (item) =>
+            item.status === "PENDING" &&
+            (decision === "APPROVE"
+              ? item.capabilities.canApprove
+              : item.capabilities.canReject),
+        )
+        .map((item) => item.id);
+      if (itemIds.length === 0) {
+        setEventActionError(
+          `No pending assets are available to ${decision.toLowerCase()}.`,
+        );
+        return;
+      }
+      await api.decideReservationItems(
+        eventMenu.reservation.id,
+        itemIds,
+        decision,
+      );
+      setEventMenu(null);
+      await load();
+    } catch (caught) {
+      setEventActionError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to record this decision.",
+      );
+    } finally {
+      setEventAction(null);
+    }
+  }
+
+  async function cancelEvent(reservationId: string, reason?: string) {
+    setEventAction("CANCEL");
+    setEventActionError("");
+    try {
+      await api.cancelReservation(reservationId, reason);
+      setEventMenu(null);
+      setCancelTarget(null);
+      await load();
+    } catch (caught) {
+      setEventActionError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to cancel this reservation.",
+      );
+    } finally {
+      setEventAction(null);
+    }
+  }
+
   function toggleAsset(asset: AssetSummary) {
+    if (selectedRange && asset.availableQuantity <= 0) return;
     setSelectedAssets((current) =>
       current.some((item) => item.id === asset.id)
         ? current.filter((item) => item.id !== asset.id)
@@ -339,7 +533,7 @@ export function CalendarPage() {
           {error ? (
             <ErrorState error={error} onRetry={() => void load()} />
           ) : (
-            <div className="calendar-frame">
+            <div className="calendar-frame" ref={calendarFrame}>
               <div className="calendar-scroll" tabIndex={0}>
                 <div className="calendar-board" aria-busy={loading}>
                   <div className="calendar-weekdays" aria-hidden>
@@ -360,6 +554,7 @@ export function CalendarPage() {
                         onPointerEnter={extendSelection}
                         onPointerUp={finishSelection}
                         onKeyDown={selectWithKeyboard}
+                        onOpenEvent={openEventMenu}
                       />
                     ))}
                   </div>
@@ -390,6 +585,7 @@ export function CalendarPage() {
             ref={reservePanel}
             className="calendar-reserve-panel"
             aria-label="Asset picker"
+            style={calendarHeight ? { height: calendarHeight } : undefined}
           >
             <header className="calendar-reserve-panel__header">
               <span className="calendar-reserve-panel__icon" aria-hidden>
@@ -435,26 +631,26 @@ export function CalendarPage() {
               <input
                 value={assetSearch}
                 onChange={(event) => setAssetSearch(event.target.value)}
-                placeholder="Search available assets"
+                placeholder="Search assets"
                 aria-label="Search assets for reservation"
-                disabled={!selectedRange}
               />
             </div>
 
-            <div
-              className={cx(
-                "calendar-asset-list",
-                !selectedRange && "calendar-asset-list--locked",
-              )}
-              aria-live="polite"
-            >
-              {!selectedRange ? (
-                <div className="calendar-asset-list__message">
-                  <span>01</span>
-                  <strong>Choose the schedule first</strong>
-                  <p>Drag across one or more dates to unlock the asset list.</p>
-                </div>
-              ) : loadingAssets ? (
+            <div className="calendar-asset-list-toolbar">
+              <span>{reservableAssets.length} assets</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setAssetSearch("");
+                  setAssetBrowserOpen(true);
+                }}
+              >
+                <Maximize2 size={13} /> Show all
+              </button>
+            </div>
+
+            <div className="calendar-asset-list" aria-live="polite">
+              {loadingAssets ? (
                 <div className="calendar-asset-list__message">
                   <LoaderCircle className="spin" size={19} />
                   <strong>Loading assets</strong>
@@ -470,32 +666,15 @@ export function CalendarPage() {
                   <p>Try another name or management area.</p>
                 </div>
               ) : (
-                reservableAssets.map((asset) => {
-                  const selected = selectedAssetIds.has(asset.id);
-                  return (
-                    <button
-                      type="button"
-                      className={cx(
-                        "calendar-asset-option",
-                        selected && "calendar-asset-option--selected",
-                      )}
-                      key={asset.id}
-                      aria-pressed={selected}
-                      onClick={() => toggleAsset(asset)}
-                    >
-                      <AssetPicture src={asset.pictureUrl} name={asset.name} />
-                      <span>
-                        <strong>{asset.name}</strong>
-                        <small>{asset.managementArea.name}</small>
-                        <em>
-                          {asset.availableQuantity} of {asset.totalQuantity}{" "}
-                          currently available
-                        </em>
-                      </span>
-                      <i aria-hidden>{selected ? <Check size={14} /> : null}</i>
-                    </button>
-                  );
-                })
+                reservableAssets.map((asset) => (
+                  <CalendarAssetOption
+                    key={asset.id}
+                    asset={asset}
+                    selected={selectedAssetIds.has(asset.id)}
+                    scheduleSelected={Boolean(selectedRange)}
+                    onToggle={toggleAsset}
+                  />
+                ))
               )}
             </div>
 
@@ -504,7 +683,11 @@ export function CalendarPage() {
                 <span>
                   <strong>{selectedAssets.length}</strong> asset types selected
                 </span>
-                <small>Availability is checked again before approval.</small>
+                <small>
+                  {selectedRange
+                    ? "Availability matches the selected schedule."
+                    : "Choose dates to check availability and continue."}
+                </small>
               </div>
               <Link
                 className={cx(
@@ -528,6 +711,117 @@ export function CalendarPage() {
           </aside>
         )}
       </div>
+
+      {eventMenu && (
+        <EventActionMenu
+          menuRef={eventMenuRef}
+          menu={eventMenu}
+          canApprove={
+            eventMenu.reservation.capabilities.canReview &&
+            eventMenu.reservation.pendingItemCount > 0 &&
+            hasPermission("reservation:approve")
+          }
+          canReject={
+            eventMenu.reservation.capabilities.canReview &&
+            eventMenu.reservation.pendingItemCount > 0 &&
+            hasPermission("reservation:reject")
+          }
+          canCancel={Boolean(eventMenu.reservation.capabilities?.canCancel)}
+          action={eventAction}
+          error={eventActionError}
+          onDecision={(decision) => void decideEvent(decision)}
+          onCancelRequest={() => setCancelTarget(eventMenu.reservation)}
+          onClose={() => setEventMenu(null)}
+        />
+      )}
+
+      {cancelTarget && (
+        <CancelReservationDialog
+          open={Boolean(cancelTarget)}
+          eventName={cancelTarget.eventName}
+          onClose={() => setCancelTarget(null)}
+          onConfirm={(reason) => void cancelEvent(cancelTarget.id, reason)}
+        />
+      )}
+
+      <Dialog
+        open={assetBrowserOpen}
+        title="All reservation assets"
+        description="Search the full inventory, then select the assets to add to this reservation."
+        onClose={closeAssetBrowser}
+        wide
+      >
+        <div className="calendar-asset-browser">
+          <div className="calendar-asset-browser__toolbar">
+            <label className="calendar-asset-browser__search">
+              <Search size={17} />
+              <input
+                value={assetSearch}
+                onChange={(event) => setAssetSearch(event.target.value)}
+                placeholder="Search asset name"
+                aria-label="Search all reservation assets"
+              />
+            </label>
+            <div
+              className="calendar-asset-browser__view-toggle"
+              role="group"
+              aria-label="Asset display"
+            >
+              <button
+                type="button"
+                aria-label="Show assets as a list"
+                aria-pressed={assetBrowserView === "list"}
+                onClick={() => setAssetBrowserView("list")}
+              >
+                <List size={16} /> List
+              </button>
+              <button
+                type="button"
+                aria-label="Show assets as a grid"
+                aria-pressed={assetBrowserView === "grid"}
+                onClick={() => setAssetBrowserView("grid")}
+              >
+                <LayoutGrid size={16} /> Grid
+              </button>
+            </div>
+          </div>
+          <div className="calendar-asset-browser__summary">
+            <span>{reservableAssets.length} assets shown</span>
+            <strong>{selectedAssets.length} selected</strong>
+          </div>
+          <div
+            className={cx(
+              "calendar-asset-browser__results",
+              `calendar-asset-browser__results--${assetBrowserView}`,
+            )}
+            aria-live="polite"
+          >
+            {loadingAssets ? (
+              <div className="calendar-asset-browser__message">
+                <LoaderCircle className="spin" size={20} /> Loading assets
+              </div>
+            ) : assetError ? (
+              <div className="calendar-asset-browser__message calendar-asset-browser__message--error">
+                Unable to load assets. Change the search or try again.
+              </div>
+            ) : reservableAssets.length === 0 ? (
+              <div className="calendar-asset-browser__message">
+                No assets match this search.
+              </div>
+            ) : (
+              reservableAssets.map((asset) => (
+                <CalendarAssetOption
+                  key={asset.id}
+                  asset={asset}
+                  selected={selectedAssetIds.has(asset.id)}
+                  scheduleSelected={Boolean(selectedRange)}
+                  onToggle={toggleAsset}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }
@@ -542,6 +836,7 @@ function CalendarWeek({
   onPointerEnter,
   onPointerUp,
   onKeyDown,
+  onOpenEvent,
 }: {
   weekStart: Date;
   month: Date;
@@ -552,6 +847,7 @@ function CalendarWeek({
   onPointerEnter: (date: Date) => void;
   onPointerUp: (date: Date) => void;
   onKeyDown: (date: Date, event: KeyboardEvent<HTMLButtonElement>) => void;
+  onOpenEvent: (reservation: ReservationSummary, anchor: DOMRect) => void;
 }) {
   const days = Array.from({ length: 7 }, (_, index) =>
     addDays(weekStart, index),
@@ -603,6 +899,7 @@ function CalendarWeek({
           <ReservationBar
             key={`${segment.reservation.id}-${dateKey(weekStart)}`}
             segment={segment}
+            onOpen={onOpenEvent}
           />
         ))}
       </div>
@@ -610,7 +907,13 @@ function CalendarWeek({
   );
 }
 
-function ReservationBar({ segment }: { segment: CalendarSegment }) {
+function ReservationBar({
+  segment,
+  onOpen,
+}: {
+  segment: CalendarSegment;
+  onOpen: (reservation: ReservationSummary, anchor: DOMRect) => void;
+}) {
   const { reservation } = segment;
   const style = {
     gridColumn: `${segment.startColumn + 1} / ${segment.endColumn + 2}`,
@@ -619,8 +922,8 @@ function ReservationBar({ segment }: { segment: CalendarSegment }) {
   const time = formatTime(new Date(reservation.startAt));
   const label = `${reservation.eventName}, ${reservationStatusLabel[reservation.status]}, ${formatDateTimeRange(reservation.startAt, reservation.endAt)}`;
   return (
-    <Link
-      to={`/reservations/${reservation.id}`}
+    <button
+      type="button"
       className={cx(
         "calendar-event",
         `calendar-event--${reservation.status.toLowerCase()}`,
@@ -632,13 +935,243 @@ function ReservationBar({ segment }: { segment: CalendarSegment }) {
       title={label}
       draggable={false}
       onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) =>
+        onOpen(reservation, event.currentTarget.getBoundingClientRect())
+      }
     >
       {!segment.continuesBefore && <time>{time}</time>}
       {segment.continuesBefore && <span aria-hidden>‹</span>}
       <strong>{reservation.eventName}</strong>
       <small>{reservationStatusLabel[reservation.status]}</small>
       {segment.continuesAfter && <span aria-hidden>›</span>}
-    </Link>
+    </button>
+  );
+}
+
+function CalendarAssetOption({
+  asset,
+  selected,
+  scheduleSelected,
+  onToggle,
+}: {
+  asset: AssetSummary;
+  selected: boolean;
+  scheduleSelected: boolean;
+  onToggle: (asset: AssetSummary) => void;
+}) {
+  const fullyBooked = scheduleSelected && asset.availableQuantity <= 0;
+  return (
+    <button
+      type="button"
+      className={cx(
+        "calendar-asset-option",
+        selected && "calendar-asset-option--selected",
+        fullyBooked && "calendar-asset-option--unavailable",
+      )}
+      aria-pressed={selected}
+      disabled={fullyBooked}
+      onClick={() => onToggle(asset)}
+    >
+      <AssetPicture src={asset.pictureUrl} name={asset.name} />
+      <span>
+        <strong>{asset.name}</strong>
+        <small>
+          {asset.managementArea.name} ·{" "}
+          <em
+            className={cx(
+              fullyBooked && "calendar-asset-option__availability--none",
+            )}
+          >
+            {!scheduleSelected
+              ? `${asset.totalQuantity} total`
+              : fullyBooked
+                ? "Fully booked"
+                : `${asset.availableQuantity} of ${asset.totalQuantity}`}
+          </em>
+        </small>
+      </span>
+      <i aria-hidden>{selected ? <Check size={14} /> : null}</i>
+    </button>
+  );
+}
+
+function EventActionMenu({
+  menuRef,
+  menu,
+  canApprove,
+  canReject,
+  canCancel,
+  action,
+  error,
+  onDecision,
+  onCancelRequest,
+  onClose,
+}: {
+  menuRef: RefObject<HTMLElement | null>;
+  menu: Exclude<EventMenu, null>;
+  canApprove: boolean;
+  canReject: boolean;
+  canCancel: boolean;
+  action: "APPROVE" | "REJECT" | "CANCEL" | null;
+  error: string;
+  onDecision: (decision: "APPROVE" | "REJECT") => void;
+  onCancelRequest: () => void;
+  onClose: () => void;
+}) {
+  const { reservation } = menu;
+  const requester = reservation.requester.name ?? reservation.requester.email;
+  return (
+    <aside
+      ref={menuRef}
+      className={cx(
+        "calendar-event-menu",
+        `calendar-event-menu--${reservation.status.toLowerCase()}`,
+      )}
+      style={{ top: menu.top, left: menu.left }}
+      role="dialog"
+      aria-label={`Actions for ${reservation.eventName}`}
+    >
+      <header>
+        <div>
+          <span>{reservationStatusLabel[reservation.status]}</span>
+          <strong>{reservation.eventName}</strong>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close event actions"
+        >
+          <X size={14} />
+        </button>
+      </header>
+      <dl>
+        <div>
+          <dt>Schedule</dt>
+          <dd>{formatDateTimeRange(reservation.startAt, reservation.endAt)}</dd>
+        </div>
+        <div>
+          <dt>Requester</dt>
+          <dd>{requester}</dd>
+        </div>
+        <div>
+          <dt>Manifest</dt>
+          <dd>
+            {reservation.itemCount} asset types · {reservation.totalQuantity}{" "}
+            units
+          </dd>
+        </div>
+      </dl>
+      {error && (
+        <p className="calendar-event-menu__error" role="alert">
+          {error}
+        </p>
+      )}
+      <footer>
+        <Link
+          className="calendar-event-menu__view"
+          to={`/reservations/${reservation.id}`}
+        >
+          <Eye size={14} /> View
+        </Link>
+        {(canApprove || canReject || canCancel) && <span aria-hidden />}
+        {canCancel && (
+          <Button
+            variant="danger"
+            size="sm"
+            loading={action === "CANCEL"}
+            disabled={Boolean(action)}
+            onClick={onCancelRequest}
+          >
+            <XCircle size={14} /> Cancel
+          </Button>
+        )}
+        {canReject && (
+          <Button
+            variant="danger"
+            size="sm"
+            loading={action === "REJECT"}
+            disabled={Boolean(action)}
+            onClick={() => onDecision("REJECT")}
+          >
+            <X size={14} /> Reject
+          </Button>
+        )}
+        {canApprove && (
+          <Button
+            size="sm"
+            loading={action === "APPROVE"}
+            disabled={Boolean(action)}
+            onClick={() => onDecision("APPROVE")}
+          >
+            <CheckCircle2 size={14} /> Approve
+          </Button>
+        )}
+      </footer>
+    </aside>
+  );
+}
+
+function CancelReservationDialog({
+  open,
+  eventName,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  eventName: string;
+  onClose: () => void;
+  onConfirm: (reason?: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await onConfirm(reason.trim() || undefined);
+      onClose();
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      title="Cancel reservation"
+      description={`Are you sure you want to cancel "${eventName}"? All allocated assets will be released back into available inventory.`}
+      onClose={onClose}
+    >
+      <form className="dialog-form" onSubmit={(event) => void submit(event)}>
+        {Boolean(error) && <ErrorState error={error} />}
+        <Field
+          label="Reason for cancellation"
+          hint="Optional — provide context for managers and requesters"
+        >
+          <Textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            maxLength={2000}
+            rows={3}
+            placeholder="e.g. Event cancelled, date changed, or assets no longer needed"
+          />
+        </Field>
+        <div className="dialog-actions">
+          <Button type="button" variant="quiet" onClick={onClose}>
+            Keep reservation
+          </Button>
+          <Button type="submit" variant="danger" loading={loading}>
+            <XCircle size={17} />
+            Confirm cancellation
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 
@@ -763,16 +1296,21 @@ function reservationCreateUrl(
   endDay: Date,
   assetIds: string[] = [],
 ) {
-  const startAt = new Date(startDay);
-  startAt.setHours(9, 0, 0, 0);
-  const endAt = new Date(endDay);
-  endAt.setHours(17, 0, 0, 0);
+  const { startAt, endAt } = reservationSchedule(startDay, endDay);
   const query = new URLSearchParams({
     startAt: startAt.toISOString(),
     endAt: endAt.toISOString(),
   });
   assetIds.forEach((assetId) => query.append("assetId", assetId));
   return `/reservations/new?${query.toString()}`;
+}
+
+function reservationSchedule(startDay: Date, endDay: Date) {
+  const startAt = new Date(startDay);
+  startAt.setHours(9, 0, 0, 0);
+  const endAt = new Date(endDay);
+  endAt.setHours(17, 0, 0, 0);
+  return { startAt, endAt };
 }
 
 function formatMonth(value: Date) {

@@ -295,6 +295,7 @@ export type ReservationDetail = {
   capabilities: {
     canSubmit: boolean;
     canRequestChange: boolean;
+    canCancel?: boolean;
   };
   createdAt: string;
   updatedAt: string;
@@ -330,6 +331,7 @@ export type ReservationSummary = {
     canSubmit: boolean;
     canRequestChange: boolean;
     canReview: boolean;
+    canCancel?: boolean;
   };
   createdAt: string;
   updatedAt: string;

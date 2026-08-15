@@ -1,4 +1,4 @@
-import { Archive, ArrowLeft, CopyPlus, Plus, Save, Trash2 } from "lucide-react";
+import { Archive, ArrowLeft, CopyPlus, Plus, Save, Trash2, Upload } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiClientError } from "../api";
@@ -55,9 +55,24 @@ export function AssetFormPage() {
   const [templates, setTemplates] = useState<AssetTemplate[]>([]);
   const [mode, setMode] = useState<"single" | "batch">("single");
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<unknown>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  async function handleImageUpload(file: File) {
+    setUploadingImage(true);
+    setUploadError("");
+    try {
+      const res = await api.uploadImage(file);
+      setForm((prev) => ({ ...prev, pictureUrl: res.url }));
+    } catch (caught) {
+      setUploadError(
+        caught instanceof Error ? caught.message : "Image upload failed",
+      );
+    } finally {
+      setUploadingImage(false);
+    }
+  }
 
   const permittedAreaIds = useMemo(() => {
     if (session?.effectivePermissions.global.includes("asset:create"))
@@ -367,19 +382,38 @@ export function AssetFormPage() {
                 <span>03</span>
                 <div>
                   <h2>Image</h2>
-                  <p>Use an image URL from external storage.</p>
+                  <p>Upload a local image file or enter an image URL.</p>
                 </div>
               </div>
-              <Field label="Picture URL" error={fields.pictureUrl}>
-                <Input
-                  type="url"
-                  value={form.pictureUrl}
-                  onChange={(event) =>
-                    setForm({ ...form, pictureUrl: event.target.value })
-                  }
-                  placeholder="https://…"
-                  maxLength={2048}
-                />
+              <Field label="Picture URL" error={fields.pictureUrl || uploadError}>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <Input
+                    type="text"
+                    value={form.pictureUrl}
+                    onChange={(event) =>
+                      setForm({ ...form, pictureUrl: event.target.value })
+                    }
+                    placeholder="https://... or /uploads/assets/..."
+                    maxLength={2048}
+                  />
+                  <label
+                    className="button button--secondary button--md"
+                    style={{ cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+                  >
+                    <Upload size={17} />
+                    {uploadingImage ? "Uploading..." : "Upload file"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      disabled={uploadingImage}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void handleImageUpload(file);
+                      }}
+                    />
+                  </label>
+                </div>
               </Field>
             </section>
             <div className="form-submit">

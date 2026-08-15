@@ -2,6 +2,7 @@ import {
   ArchiveX,
   ArrowDownToLine,
   ArrowUpFromLine,
+  Eye,
   Filter,
   Plus,
   Search,
@@ -31,6 +32,7 @@ import {
   StatusBadge,
   Textarea,
   apiError,
+  cx,
   formatDate,
 } from "../components/ui";
 import type { AssetSummary, AssetTemplate, ManagementArea } from "../types";
@@ -326,104 +328,155 @@ export function AssetsPage() {
                     <input
                       type="checkbox"
                       checked={allSelected}
+                      disabled={selectable.length === 0}
                       onChange={toggleAll}
                       aria-label="Select all"
                     />
                   </th>
                   <th>Asset</th>
                   <th>Area / Template</th>
-                  <th className="cell-number">Available</th>
                   <th className="cell-number">Total</th>
                   <th>Status</th>
                   <th>Updated</th>
+                  <th className="cell-action">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {assets.map((asset) => (
-                  <tr key={asset.id}>
-                    <td className="cell-check">
-                      <input
-                        type="checkbox"
-                        checked={selected.includes(asset.id)}
-                        disabled={
-                          !asset.capabilities.canAdjustQuantity &&
-                          !asset.capabilities.canDeactivate
+                {assets.map((asset) => {
+                  const isSelectable =
+                    asset.capabilities.canAdjustQuantity ||
+                    asset.capabilities.canDeactivate;
+                  const isSelected = selected.includes(asset.id);
+                  return (
+                    <tr
+                      key={asset.id}
+                      className={cx(
+                        isSelectable && "asset-table-row--selectable",
+                        isSelected && "asset-table-row--selected",
+                      )}
+                      onClick={(event) => {
+                        if (
+                          !isSelectable ||
+                          (event.target as Element).closest("a, button, input")
+                        ) {
+                          return;
                         }
-                        onChange={() => toggleOne(asset.id)}
-                        aria-label={`Select ${asset.name}`}
-                      />
-                    </td>
-                    <td>
-                      <Link
-                        className="asset-name-cell"
-                        to={`/assets/${asset.id}`}
-                      >
-                        <AssetPicture
-                          src={asset.pictureUrl}
-                          name={asset.name}
+                        toggleOne(asset.id);
+                      }}
+                    >
+                      <td className="cell-check">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={!isSelectable}
+                          onChange={() => toggleOne(asset.id)}
+                          aria-label={`Select ${asset.name}`}
                         />
-                        <span>
-                          <strong>{asset.name}</strong>
-                          <small>
-                            {asset.description || "No description"}
-                          </small>
-                        </span>
-                      </Link>
-                    </td>
-                    <td>
-                      <strong className="table-primary">
-                        {asset.managementArea.name}
-                      </strong>
-                      <small className="table-secondary">
-                        {asset.assetTemplate?.name ?? "No template"}
-                      </small>
-                    </td>
-                    <td className="cell-number">
-                      <strong className="quantity quantity--available">
-                        {asset.availableQuantity}
-                      </strong>
-                      <small>units</small>
-                    </td>
-                    <td className="cell-number">
-                      <strong className="quantity">
-                        {asset.totalQuantity}
-                      </strong>
-                      <small>units</small>
-                    </td>
-                    <td>
-                      <StatusBadge active={asset.isActive} />
-                    </td>
-                    <td className="mono table-date">
-                      {formatDate(asset.updatedAt)}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        <div className="asset-name-cell">
+                          <AssetPicture
+                            src={asset.pictureUrl}
+                            name={asset.name}
+                          />
+                          <span>
+                            <strong>{asset.name}</strong>
+                            <small>
+                              {asset.description || "No description"}
+                            </small>
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <strong className="table-primary">
+                          {asset.managementArea.name}
+                        </strong>
+                        <small className="table-secondary">
+                          {asset.assetTemplate?.name ?? "No template"}
+                        </small>
+                      </td>
+                      <td className="cell-number">
+                        <strong className="quantity">
+                          {asset.totalQuantity}
+                        </strong>
+                        <small>units</small>
+                      </td>
+                      <td>
+                        <StatusBadge active={asset.isActive} />
+                      </td>
+                      <td className="mono table-date">
+                        {formatDate(asset.updatedAt)}
+                      </td>
+                      <td className="cell-action">
+                        <Link
+                          className="button button--secondary button--sm"
+                          to={`/assets/${asset.id}`}
+                        >
+                          <Eye size={15} /> View
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <div className="asset-card-list">
-            {assets.map((asset) => (
-              <article className="asset-card" key={asset.id}>
-                <Link to={`/assets/${asset.id}`}>
-                  <AssetPicture src={asset.pictureUrl} name={asset.name} />
-                  <div>
-                    <strong>{asset.name}</strong>
-                    <span>{asset.managementArea.name}</span>
+            {assets.map((asset) => {
+              const isSelectable =
+                asset.capabilities.canAdjustQuantity ||
+                asset.capabilities.canDeactivate;
+              const isSelected = selected.includes(asset.id);
+              return (
+                <article
+                  className={cx(
+                    "asset-card",
+                    isSelectable && "asset-card--selectable",
+                    isSelected && "asset-card--selected",
+                  )}
+                  key={asset.id}
+                  onClick={(event) => {
+                    if (
+                      !isSelectable ||
+                      (event.target as Element).closest("a, button, input")
+                    ) {
+                      return;
+                    }
+                    toggleOne(asset.id);
+                  }}
+                >
+                  <div className="asset-card__body">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      disabled={!isSelectable}
+                      onChange={() => toggleOne(asset.id)}
+                      aria-label={`Select ${asset.name}`}
+                    />
+                    <AssetPicture src={asset.pictureUrl} name={asset.name} />
+                    <div className="asset-card__info">
+                      <strong>{asset.name}</strong>
+                      <span>{asset.managementArea.name}</span>
+                    </div>
                   </div>
-                </Link>
-                <div className="asset-card__numbers">
-                  <span>
-                    <small>Available</small>
-                    <strong>{asset.availableQuantity}</strong>
-                  </span>
-                  <span>
-                    <small>Total</small>
-                    <strong>{asset.totalQuantity}</strong>
-                  </span>
-                  <StatusBadge active={asset.isActive} />
-                </div>
-              </article>
-            ))}
+                  <div className="asset-card__footer">
+                    <div className="asset-card__numbers">
+                      <span>
+                        <small>Total</small>
+                        <strong>{asset.totalQuantity}</strong>
+                      </span>
+                      <StatusBadge active={asset.isActive} />
+                    </div>
+                    <Link
+                      className="button button--secondary button--sm"
+                      to={`/assets/${asset.id}`}
+                    >
+                      <Eye size={15} /> View
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
           </div>
           {nextCursor && (
             <div className="load-more">

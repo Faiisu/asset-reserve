@@ -62,7 +62,7 @@ describe("ReservationCreatePage", () => {
     fireEvent.click(result);
 
     expect(screen.getByText("1 selected")).toBeInTheDocument();
-    expect(screen.getByText(/3 currently available/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 available for this time/i)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /remove stage camera/i }),
     ).toBeInTheDocument();
@@ -102,5 +102,69 @@ describe("ReservationCreatePage", () => {
       screen.getByRole("button", { name: /Remove Stage camera/i }),
     ).toBeInTheDocument();
     expect(assetSpy).toHaveBeenCalledWith(asset.id);
+  });
+
+  it("does not allow a fully booked asset to be added", async () => {
+    vi.spyOn(api, "assets").mockResolvedValue({
+      data: [
+        {
+          ...asset,
+          allocatedQuantity: asset.totalQuantity,
+          availableQuantity: 0,
+        },
+      ],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <ReservationCreatePage />
+      </MemoryRouter>,
+    );
+
+    const result = await screen.findByRole("button", {
+      name: /stage camera/i,
+    });
+    expect(result).toBeDisabled();
+    expect(screen.getByText(/Fully booked for this time/i)).toBeInTheDocument();
+    expect(api.assets).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: expect.any(String),
+        to: expect.any(String),
+      }),
+    );
+  });
+
+  it("sorts fully booked assets to the bottom of the picker list", async () => {
+    const availableAsset: AssetSummary = {
+      ...asset,
+      id: "asset-available",
+      name: "Available Mic",
+      availableQuantity: 2,
+    };
+    const bookedAsset: AssetSummary = {
+      ...asset,
+      id: "asset-booked",
+      name: "Booked Camera",
+      availableQuantity: 0,
+    };
+
+    // Return booked asset first from API
+    vi.spyOn(api, "assets").mockResolvedValue({
+      data: [bookedAsset, availableAsset],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <ReservationCreatePage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("button", { name: /available mic/i });
+
+    const items = screen.getAllByRole("button", { name: /(available mic|booked camera)/i });
+    expect(items[0]).toHaveTextContent("Available Mic");
+    expect(items[1]).toHaveTextContent("Booked Camera");
   });
 });

@@ -8,6 +8,7 @@ import { decodeCursor, pageInfo } from "../common/pagination.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { hasAreaPermission } from "../assets/asset-access.js";
 import type {
+  CancelReservationDto,
   CreateReservationChangeRequestDto,
   CreateReservationDto,
   ReservationChangeDataDto,
@@ -786,6 +787,55 @@ export class ReservationsService {
     return this.get(actor, reservationId);
   }
 
+  async cancel(
+    actor: AuthenticatedActor,
+    reservationId: string,
+    input?: CancelReservationDto,
+  ) {
+    const reservation = await this.findDetail(reservationId);
+    this.assertCanManage(actor, reservation);
+    const cancellableStatuses = [
+      "DRAFT",
+      "PENDING_APPROVAL",
+      "PARTIALLY_APPROVED",
+      "APPROVED",
+    ];
+    if (!cancellableStatuses.includes(reservation.status)) {
+      throw this.invalidStatus(
+        "Only draft, pending, or approved reservations before check-out can be cancelled.",
+      );
+    }
+    const cancelledAt = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.reservation.update({
+        where: { id: reservationId },
+        data: {
+          status: "CANCELLED",
+          updatedAt: cancelledAt,
+        },
+      });
+      await tx.reservationItem.updateMany({
+        where: {
+          reservationId,
+          status: { in: ["PENDING", "APPROVED"] },
+        },
+        data: {
+          status: "REJECTED",
+          updatedAt: cancelledAt,
+        },
+      });
+      await tx.reservationChangeRequest.updateMany({
+        where: { reservationId, status: "PENDING" },
+        data: {
+          status: "CANCELLED",
+          reviewedBy: actor.user.id,
+          reviewedAt: cancelledAt,
+        },
+      });
+    });
+    return this.get(actor, reservationId);
+  }
+
   private async findDetail(reservationId: string) {
     const reservation = await this.prisma.reservation.findUnique({
       where: { id: reservationId },
@@ -887,6 +937,11 @@ export class ReservationsService {
           editableReservationStatuses.includes(reservation.status) &&
           reservation.changeRequests.length === 0,
         canReview: actionableItems > 0 || canReviewChange,
+        canCancel:
+          canManage &&
+          ["DRAFT", "PENDING_APPROVAL", "PARTIALLY_APPROVED", "APPROVED"].includes(
+            reservation.status,
+          ),
       },
       createdAt: reservation.createdAt.toISOString(),
       updatedAt: reservation.updatedAt.toISOString(),
@@ -1080,6 +1135,11 @@ export class ReservationsService {
         canSubmit: canManage && reservation.status === "DRAFT",
         canRequestChange:
           canManage && editableReservationStatuses.includes(reservation.status),
+        canCancel:
+          canManage &&
+          ["DRAFT", "PENDING_APPROVAL", "PARTIALLY_APPROVED", "APPROVED"].includes(
+            reservation.status,
+          ),
       },
       createdAt: reservation.createdAt.toISOString(),
       updatedAt: reservation.updatedAt.toISOString(),

@@ -10,6 +10,7 @@ import {
   Search,
   Send,
   Trash2,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -22,6 +23,7 @@ import {
   Input,
   PageHeader,
   Textarea,
+  cx,
 } from "../components/ui";
 import {
   defaultReservationWindow,
@@ -86,13 +88,33 @@ export function ReservationCreatePage() {
   const [fields, setFields] = useState<Record<string, string>>({});
   const [reservationReference, setReservationReference] = useState("");
   const recent = useMemo(readRecentReservations, []);
+  const availabilityWindow = useMemo(() => {
+    const start = new Date(startAt);
+    const end = new Date(endAt);
+    if (
+      !startAt ||
+      !endAt ||
+      Number.isNaN(start.getTime()) ||
+      Number.isNaN(end.getTime()) ||
+      end <= start
+    ) {
+      return null;
+    }
+    return { from: start.toISOString(), to: end.toISOString() };
+  }, [endAt, startAt]);
 
   useEffect(() => {
     let active = true;
     const timer = window.setTimeout(() => {
       setLoadingAssets(true);
       void api
-        .assets({ search: search.trim(), isActive: true, limit: 100 })
+        .assets({
+          search: search.trim(),
+          isActive: true,
+          from: availabilityWindow?.from,
+          to: availabilityWindow?.to,
+          limit: 100,
+        })
         .then((response) => active && setAssets(response.data))
         .catch((caught) => active && setError(caught))
         .finally(() => active && setLoadingAssets(false));
@@ -101,23 +123,62 @@ export function ReservationCreatePage() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [search]);
+  }, [availabilityWindow?.from, availabilityWindow?.to, search]);
+
+  useEffect(() => {
+    if (!assets.length) return;
+    const byId = new Map(assets.map((asset) => [asset.id, asset] as const));
+    setSelected((current) =>
+      current.flatMap((item) => {
+        const updated = byId.get(item.asset.id);
+        if (!updated) return [item];
+        if (updated.availableQuantity <= 0) return [];
+        return [
+          {
+            asset: updated,
+            quantity: Math.min(item.quantity, updated.availableQuantity),
+          },
+        ];
+      }),
+    );
+  }, [assets]);
 
   useEffect(() => {
     if (!hasPermission("reservation:create")) return;
-    if (!requestedAssetIds.length) return;
+    if (!requestedAssetIds.length || loadingAssets) return;
     let active = true;
+    const listedById = new Map(
+      assets.map((asset) => [asset.id, asset] as const),
+    );
+    const listed = requestedAssetIds.flatMap((assetId) => {
+      const asset = listedById.get(assetId);
+      return asset !== undefined &&
+        asset.availableQuantity > 0 &&
+        hasAreaPermission("reservation:create", asset.managementArea.id)
+        ? [asset]
+        : [];
+    });
+    const missingIds = requestedAssetIds.filter(
+      (assetId) => !listedById.has(assetId),
+    );
     void Promise.allSettled(
-      requestedAssetIds.map((assetId) => api.asset(assetId)),
+      missingIds.map((assetId) => api.asset(assetId)),
     ).then((results) => {
       if (!active) return;
-      const imported = results.flatMap((result) =>
-        result.status === "fulfilled" &&
-        result.value.isActive &&
-        hasAreaPermission("reservation:create", result.value.managementArea.id)
-          ? [result.value]
-          : [],
-      );
+      const imported = [
+        ...listed,
+        ...results.flatMap((result) =>
+          result.status === "fulfilled" &&
+          result.value.isActive &&
+          result.value.availableQuantity > 0 &&
+          hasAreaPermission(
+            "reservation:create",
+            result.value.managementArea.id,
+          )
+            ? [result.value]
+            : [],
+        ),
+      ];
       setSelected((current) => {
         const currentIds = new Set(current.map((item) => item.asset.id));
         return [
@@ -131,15 +192,21 @@ export function ReservationCreatePage() {
     return () => {
       active = false;
     };
-  }, [requestedAssetKey]);
+  }, [assets, loadingAssets, requestedAssetKey]);
 
   const selectedIds = new Set(selected.map((item) => item.asset.id));
-  const reservableAssets = assets.filter((asset) =>
-    hasAreaPermission("reservation:create", asset.managementArea.id),
-  );
+  const reservableAssets = assets
+    .filter((asset) =>
+      hasAreaPermission("reservation:create", asset.managementArea.id),
+    )
+    .sort(
+      (left, right) =>
+        Number(left.availableQuantity <= 0) -
+        Number(right.availableQuantity <= 0),
+    );
 
   function addAsset(asset: AssetSummary) {
-    if (selectedIds.has(asset.id)) return;
+    if (selectedIds.has(asset.id) || asset.availableQuantity <= 0) return;
     setSelected((current) => [...current, { asset, quantity: 1 }]);
   }
 
@@ -171,11 +238,12 @@ export function ReservationCreatePage() {
         (item) =>
           !Number.isInteger(item.quantity) ||
           item.quantity < 1 ||
-          item.quantity > item.asset.totalQuantity,
+          item.quantity > item.asset.availableQuantity,
       )
     ) {
       setFields({
-        items: "Each quantity must be a whole number within the asset total.",
+        items:
+          "Each quantity must be a whole number within the available amount for this time.",
       });
       return;
     }
@@ -376,7 +444,7 @@ export function ReservationCreatePage() {
                       <strong>{asset.name}</strong>
                       <span>
                         {asset.managementArea.name} · {asset.availableQuantity}{" "}
-                        currently available
+                        available for this time
                       </span>
                     </div>
                     <Field label="Quantity">
@@ -384,7 +452,7 @@ export function ReservationCreatePage() {
                         className="manifest-row__quantity"
                         type="number"
                         min={1}
-                        max={asset.totalQuantity}
+                        max={asset.availableQuantity}
                         value={quantity}
                         onChange={(event) =>
                           updateQuantity(asset.id, Number(event.target.value))
@@ -427,29 +495,43 @@ export function ReservationCreatePage() {
                     No reservable assets match this search.
                   </p>
                 ) : (
-                  reservableAssets.map((asset) => (
-                    <button
-                      type="button"
-                      className="asset-picker__item"
-                      key={asset.id}
-                      disabled={selectedIds.has(asset.id)}
-                      onClick={() => addAsset(asset)}
-                    >
-                      <AssetPicture src={asset.pictureUrl} name={asset.name} />
-                      <span>
-                        <strong>{asset.name}</strong>
-                        <small>
-                          {asset.managementArea.name} · {asset.totalQuantity}{" "}
-                          total
-                        </small>
-                      </span>
-                      {selectedIds.has(asset.id) ? (
-                        <Check size={17} />
-                      ) : (
-                        <Plus size={17} />
-                      )}
-                    </button>
-                  ))
+                  reservableAssets.map((asset) => {
+                    const selected = selectedIds.has(asset.id);
+                    const fullyBooked = asset.availableQuantity <= 0;
+                    return (
+                      <button
+                        type="button"
+                        className={cx(
+                          "asset-picker__item",
+                          fullyBooked && "asset-picker__item--unavailable",
+                        )}
+                        key={asset.id}
+                        disabled={selected || fullyBooked}
+                        onClick={() => addAsset(asset)}
+                      >
+                        <AssetPicture
+                          src={asset.pictureUrl}
+                          name={asset.name}
+                        />
+                        <span>
+                          <strong>{asset.name}</strong>
+                          <small>
+                            {asset.managementArea.name} ·{" "}
+                            {fullyBooked
+                              ? "Fully booked for this time"
+                              : `${asset.availableQuantity} of ${asset.totalQuantity} available for this time`}
+                          </small>
+                        </span>
+                        {selected ? (
+                          <Check size={17} />
+                        ) : fullyBooked ? (
+                          <X size={16} />
+                        ) : (
+                          <Plus size={17} />
+                        )}
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </div>

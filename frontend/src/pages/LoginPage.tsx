@@ -1,9 +1,6 @@
 import {
   ArrowRight,
-  Boxes,
-  CheckCircle2,
   KeyRound,
-  ShieldCheck,
 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
@@ -44,57 +41,16 @@ export function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-story">
-        <div className="login-brand">
-          <span className="brand__rail" aria-hidden>
-            <i />
-            <i />
-            <i />
-          </span>
-          <div>
-            <strong>Asset Rail</strong>
-            <small>operations ledger</small>
-          </div>
-        </div>
         <div className="login-story__content">
-          <p className="eyebrow eyebrow--light">
-            Inventory, clearly accounted for
-          </p>
-          <h1>
-            Know where every asset is
-            <br />
-            and who manages it <em>at a glance</em>
+          <span className="advantech-badge">ADVANTECH</span>
+          <h1 className="login-title">
+            Advantech
+            <em>Asset Reservation</em>
           </h1>
-          <p>
-            One workspace to control access, check inventory,
-            and review every asset change.
-          </p>
-          <ul>
-            <li>
-              <Boxes size={19} />
-              <span>
-                <strong>Reliable inventory</strong>See total, reserved, and
-                available quantities separately.
-              </span>
-            </li>
-            <li>
-              <ShieldCheck size={19} />
-              <span>
-                <strong>Area-based access</strong>Every action checks the role
-                and management area.
-              </span>
-            </li>
-            <li>
-              <CheckCircle2 size={19} />
-              <span>
-                <strong>Complete history</strong>Additions and removals stay in
-                one ledger.
-              </span>
-            </li>
-          </ul>
         </div>
         <div className="login-story__foot">
-          <span>AR / 01</span>
-          <span>secure workspace</span>
+          <span>Advantech</span>
+          <span>Asset Reservation</span>
         </div>
       </section>
 
