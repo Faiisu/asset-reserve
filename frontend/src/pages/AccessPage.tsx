@@ -22,7 +22,6 @@ import {
   ErrorState,
   LoadingState,
   Notice,
-  PageHeader,
   RoleBadge,
   Textarea,
   cx,
@@ -145,17 +144,6 @@ export function AccessPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader
-        eyebrow="Administration / policy matrix"
-        title="Access and roles"
-        description="Define what each role can do. These permissions are evaluated together with the management area."
-        actions={
-          <Button variant="secondary" onClick={() => void load()}>
-            <RefreshCw size={16} />
-            Refresh
-          </Button>
-        }
-      />
       {notice && <Notice>{notice}</Notice>}
       {Boolean(error) && <ErrorState error={error} />}
 

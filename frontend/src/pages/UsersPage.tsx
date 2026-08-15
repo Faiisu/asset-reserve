@@ -24,7 +24,6 @@ import {
   Input,
   LoadingState,
   Notice,
-  PageHeader,
   RoleBadge,
   Select,
   StatusBadge,
@@ -165,19 +164,6 @@ export function UsersPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader
-        eyebrow="Administration / people registry"
-        title="Users"
-        description="Create accounts, enable or disable access, and assign roles by area."
-        actions={
-          canCreate ? (
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus size={17} />
-              Create user
-            </Button>
-          ) : undefined
-        }
-      />
       {notice && <Notice>{notice}</Notice>}
       {Boolean(error) && (
         <ErrorState error={error} onRetry={() => void load()} />
@@ -222,6 +208,12 @@ export function UsersPage() {
             ))}
           </Select>
         </div>
+        {canCreate && (
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus size={17} />
+            Create user
+          </Button>
+        )}
       </section>
 
       {loading ? (

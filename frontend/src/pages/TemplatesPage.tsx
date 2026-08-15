@@ -11,7 +11,6 @@ import {
   Input,
   LoadingState,
   Notice,
-  PageHeader,
   Textarea,
   formatDate,
 } from "../components/ui";
@@ -52,19 +51,6 @@ export function TemplatesPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader
-        eyebrow="Inventory / reusable records"
-        title="Asset templates"
-        description="Reuse asset names and descriptions without images or inventory quantities."
-        actions={
-          hasPermission("asset:create") ? (
-            <Button onClick={() => setEditing("new")}>
-              <Plus size={17} />
-              Create template
-            </Button>
-          ) : undefined
-        }
-      />
       {notice && <Notice>{notice}</Notice>}
       <section className="toolbar">
         <form
@@ -83,6 +69,12 @@ export function TemplatesPage() {
           />
           <button>Search</button>
         </form>
+        {hasPermission("asset:create") && (
+          <Button onClick={() => setEditing("new")}>
+            <Plus size={17} />
+            Create template
+          </Button>
+        )}
       </section>
       {loading ? (
         <LoadingState label="Loading templates" />

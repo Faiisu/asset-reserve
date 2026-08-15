@@ -27,7 +27,6 @@ import {
   Field,
   Input,
   Notice,
-  PageHeader,
   Select,
   StatusBadge,
   Textarea,
@@ -165,22 +164,6 @@ export function AssetsPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader
-        eyebrow="Inventory / live register"
-        title="Asset registry"
-        description="View availability, manage details, and adjust quantities within your areas."
-        actions={
-          hasPermission("asset:create") ? (
-            <Link
-              className="button button--primary button--md"
-              to="/assets/new"
-            >
-              <Plus size={17} />
-              Add asset
-            </Link>
-          ) : undefined
-        }
-      />
       {notice && <Notice>{notice}</Notice>}
 
       <section className="toolbar" aria-label="Asset filters">
@@ -248,6 +231,15 @@ export function AssetsPage() {
             <option value="all">All statuses</option>
           </Select>
         </div>
+        {hasPermission("asset:create") && (
+          <Link
+            className="button button--primary button--md"
+            to="/assets/new"
+          >
+            <Plus size={17} />
+            Add asset
+          </Link>
+        )}
       </section>
 
       {selected.length > 0 && (

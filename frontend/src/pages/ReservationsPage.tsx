@@ -26,7 +26,8 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
-  PageHeader,
+  Notice,
+  PaginationControls,
   Select,
   cx,
   formatDate,
@@ -130,22 +131,6 @@ export function ReservationsPage() {
 
   return (
     <div className="page-stack reservations-index">
-      <PageHeader
-        eyebrow="Reservations / operations queue"
-        title="Plans moving through approval."
-        description="Follow every event from draft to return, and keep approval work in a separate lane."
-        actions={
-          canCreate ? (
-            <Link
-              className="button button--primary button--md"
-              to="/reservations/new"
-            >
-              <Plus size={17} /> New reservation
-            </Link>
-          ) : undefined
-        }
-      />
-
       <div
         className="reservation-view-tabs"
         role="tablist"
@@ -177,6 +162,15 @@ export function ReservationsPage() {
         >
           <Layers3 size={16} /> All visible
         </button>
+        {canCreate && (
+          <Link
+            style={{ marginLeft: "auto" }}
+            className="button button--primary button--sm"
+            to="/reservations/new"
+          >
+            <Plus size={16} /> New reservation
+          </Link>
+        )}
       </div>
 
       {view === "APPROVALS" && (

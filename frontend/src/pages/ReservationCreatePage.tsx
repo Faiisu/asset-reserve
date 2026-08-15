@@ -21,7 +21,6 @@ import {
   Button,
   Field,
   Input,
-  PageHeader,
   Textarea,
   cx,
 } from "../components/ui";
@@ -294,11 +293,6 @@ export function ReservationCreatePage() {
   if (!hasPermission("reservation:create")) {
     return (
       <div className="page-stack reservation-page">
-        <PageHeader
-          eyebrow="Reservation / review desk"
-          title="Open a reservation"
-          description="Use a reservation reference from the requester or return to an item you recently reviewed on this device."
-        />
         <div className="reservation-review-landing">
           <section className="reservation-panel">
             <div className="reservation-panel__heading">
@@ -341,17 +335,6 @@ export function ReservationCreatePage() {
 
   return (
     <div className="page-stack reservation-page">
-      <PageHeader
-        eyebrow="Reservation / plan assets"
-        title="Reserve the right kit, at the right time."
-        description="Set the event window, assemble the asset list, then save a draft or send it directly to area approvers."
-        actions={
-          <Link className="button button--quiet button--md" to="/reservations">
-            <ArrowLeft size={17} /> Back to reservations
-          </Link>
-        }
-      />
-
       <form
         className="reservation-compose"
         onSubmit={(event) => void submit(event, "PENDING_APPROVAL")}

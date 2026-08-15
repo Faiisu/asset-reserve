@@ -12,7 +12,6 @@ import {
   Field,
   Input,
   LoadingState,
-  PageHeader,
   Select,
   Textarea,
   cx,
@@ -229,24 +228,6 @@ export function AssetFormPage() {
           { label: "Asset registry", to: "/assets" },
           { label: editing ? (asset?.name ?? "Edit") : "Add asset" },
         ]}
-      />
-      <PageHeader
-        eyebrow={editing ? "Asset / edit record" : "Asset / new record"}
-        title={editing ? "Edit asset" : "Add asset"}
-        description={
-          editing
-            ? "Adjust total quantity through the inventory ledger to preserve a complete history."
-            : "Create one asset or add multiple assets to the ledger at once."
-        }
-        actions={
-          <Link
-            className="button button--quiet button--md"
-            to={editing ? `/assets/${assetId}` : "/assets"}
-          >
-            <ArrowLeft size={17} />
-            Cancel
-          </Link>
-        }
       />
 
       {!editing && (

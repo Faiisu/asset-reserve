@@ -37,7 +37,6 @@ import {
   Dialog,
   ErrorState,
   Field,
-  PageHeader,
   Select,
   Textarea,
   cx,
@@ -632,22 +631,6 @@ export function CalendarPage() {
 
   return (
     <div className="page-stack calendar-page">
-      <PageHeader
-        eyebrow="Calendar / reservation rail"
-        title="See every reservation in motion."
-        description="Choose a date range, build the asset list beside the calendar, then continue to complete the reservation details."
-        actions={
-          canCreate ? (
-            <Link
-              className="button button--primary button--md"
-              to="/reservations/new"
-            >
-              <Plus size={17} /> New reservation
-            </Link>
-          ) : undefined
-        }
-      />
-
       <section className="calendar-controls" aria-label="Calendar controls">
         <div className="calendar-month-control">
           <div className="calendar-month-control__buttons">
