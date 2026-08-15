@@ -6,7 +6,7 @@ import type { AuthenticatedActor } from "../auth/auth.types.js";
 import { ApiException } from "../common/api-exception.js";
 import { decodeCursor, pageInfo } from "../common/pagination.js";
 import { PrismaService } from "../database/prisma.service.js";
-import { hasAreaPermission } from "../assets/asset-access.js";
+import { hasAnyPermission, hasAreaPermission } from "../assets/asset-access.js";
 import type {
   CancelReservationDto,
   CreateReservationChangeRequestDto,
@@ -154,18 +154,18 @@ export class ReservationsService {
         { requesterId: actor.user.id },
         { participants: { some: { userId: actor.user.id } } },
       ];
-      if (operationalAreaIds === null) {
-        visibility.push({ items: { some: {} } });
-      } else if (operationalAreaIds.length) {
-        visibility.push({
-          items: {
-            some: {
-              asset: { managementAreaId: { in: operationalAreaIds } },
+      if (operationalAreaIds !== null) {
+        if (operationalAreaIds.length) {
+          visibility.push({
+            items: {
+              some: {
+                asset: { managementAreaId: { in: operationalAreaIds } },
+              },
             },
-          },
-        });
+          });
+        }
+        conditions.push({ OR: visibility });
       }
-      conditions.push({ OR: visibility });
     }
 
     if (query.status) conditions.push({ status: query.status });
@@ -220,25 +220,36 @@ export class ReservationsService {
     const startAt = new Date(input.startAt);
     const endAt = new Date(input.endAt);
     this.assertDateRange(startAt, endAt);
-    this.assertUniqueItems(input.items);
+    const items = input.items ?? [];
+    this.assertUniqueItems(items);
     const participantIds = this.normalizeParticipantIds(
       input.participantIds,
       actor.user.id,
     );
     await this.assertParticipants(participantIds);
-    const assets = await this.findAssets(
-      input.items.map((item) => item.assetId),
-    );
-    for (const asset of assets) {
-      this.assertArea(actor, "reservation:create", asset.managementAreaId);
+    const assets = items.length
+      ? await this.findAssets(items.map((item) => item.assetId))
+      : [];
+    if (assets.length) {
+      for (const asset of assets) {
+        this.assertArea(actor, "reservation:create", asset.managementAreaId);
+      }
+      await this.assertAvailability(
+        this.prisma,
+        items,
+        assets,
+        startAt,
+        endAt,
+      );
+    } else {
+      this.assertAnyArea(actor, "reservation:create");
     }
-    await this.assertAvailability(
-      this.prisma,
-      input.items,
-      assets,
-      startAt,
-      endAt,
-    );
+
+    let status: "DRAFT" | "PENDING_APPROVAL" | "APPROVED" =
+      input.status ?? "DRAFT";
+    if (items.length === 0 && status === "PENDING_APPROVAL") {
+      status = "APPROVED";
+    }
 
     const reservationId = randomUUID();
     await this.prisma.$transaction(async (tx) => {
@@ -251,18 +262,20 @@ export class ReservationsService {
           description: input.description ?? null,
           startAt,
           endAt,
-          status: input.status ?? "DRAFT",
+          status,
         },
       });
-      await tx.reservationItem.createMany({
-        data: input.items.map((item) => ({
-          id: randomUUID(),
-          reservationId,
-          assetId: item.assetId,
-          quantity: item.quantity,
-          status: "PENDING",
-        })),
-      });
+      if (items.length) {
+        await tx.reservationItem.createMany({
+          data: items.map((item) => ({
+            id: randomUUID(),
+            reservationId,
+            assetId: item.assetId,
+            quantity: item.quantity,
+            status: "PENDING",
+          })),
+        });
+      }
       if (participantIds.length) {
         await tx.reservationParticipant.createMany({
           data: participantIds.map((userId) => ({ reservationId, userId })),
@@ -289,21 +302,25 @@ export class ReservationsService {
       throw this.invalidStatus("Only draft reservations can be submitted.");
     }
     const assets = reservation.items.map((item) => item.asset);
-    await this.assertAvailability(
-      this.prisma,
-      reservation.items,
-      assets,
-      reservation.startAt,
-      reservation.endAt,
-      reservation.id,
-    );
+    if (assets.length) {
+      await this.assertAvailability(
+        this.prisma,
+        reservation.items,
+        assets,
+        reservation.startAt,
+        reservation.endAt,
+        reservation.id,
+      );
+    }
+    const nextStatus =
+      reservation.items.length === 0 ? "APPROVED" : "PENDING_APPROVAL";
     const result = await this.prisma.reservation.updateMany({
       where: {
         id: reservationId,
         status: "DRAFT",
         updatedAt: new Date(input.expectedUpdatedAt),
       },
-      data: { status: "PENDING_APPROVAL", updatedAt: new Date() },
+      data: { status: nextStatus, updatedAt: new Date() },
     });
     if (!result.count) {
       throw new ApiException(
@@ -1391,17 +1408,28 @@ export class ReservationsService {
       reservation.participants.some(
         (participant) => participant.userId === actor.user.id,
       );
-    const operationalAccess = reservation.items.some((item) =>
-      (
-        [
-          "reservation:update",
-          "reservation:approve",
-          "reservation:reject",
-        ] as PermissionKey[]
-      ).some((permission) =>
-        hasAreaPermission(actor, permission, item.asset.managementAreaId),
-      ),
-    );
+    const globalView = (
+      [
+        "reservation:create",
+        "reservation:update",
+        "reservation:approve",
+        "reservation:reject",
+      ] as PermissionKey[]
+    ).some((permission) => hasAnyPermission(actor, permission));
+    const operationalAccess =
+      reservation.items.length === 0
+        ? globalView
+        : reservation.items.some((item) =>
+            (
+              [
+                "reservation:update",
+                "reservation:approve",
+                "reservation:reject",
+              ] as PermissionKey[]
+            ).some((permission) =>
+              hasAreaPermission(actor, permission, item.asset.managementAreaId),
+            ),
+          );
     if (!involved && !operationalAccess) this.permissionDenied();
   }
 
@@ -1409,6 +1437,13 @@ export class ReservationsService {
     actor: AuthenticatedActor,
     reservation: ReservationDetailRecord,
   ) {
+    if (reservation.items.length === 0) {
+      return (
+        reservation.requesterId === actor.user.id ||
+        hasAnyPermission(actor, "reservation:create") ||
+        hasAnyPermission(actor, "reservation:update")
+      );
+    }
     return reservation.items.every((item) =>
       reservation.requesterId === actor.user.id
         ? hasAreaPermission(
@@ -1442,6 +1477,12 @@ export class ReservationsService {
     managementAreaId: string,
   ) {
     if (!hasAreaPermission(actor, permission, managementAreaId)) {
+      this.permissionDenied();
+    }
+  }
+
+  private assertAnyArea(actor: AuthenticatedActor, permission: PermissionKey) {
+    if (!hasAnyPermission(actor, permission)) {
       this.permissionDenied();
     }
   }

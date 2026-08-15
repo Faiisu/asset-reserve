@@ -51,13 +51,14 @@
   padding: 11px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
 }
 .search-box {
-  min-width: 290px;
+  min-width: 320px;
   display: flex;
   align-items: center;
   gap: 9px;

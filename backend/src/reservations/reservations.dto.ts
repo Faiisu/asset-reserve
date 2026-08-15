@@ -88,12 +88,12 @@ export class CreateReservationDto {
   @IsIn(["DRAFT", "PENDING_APPROVAL"])
   status?: "DRAFT" | "PENDING_APPROVAL";
 
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
   @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => ReservationItemInputDto)
-  items!: ReservationItemInputDto[];
+  items?: ReservationItemInputDto[];
 
   @IsOptional()
   @IsArray()

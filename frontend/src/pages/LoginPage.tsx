@@ -86,12 +86,14 @@ export function LoginPage() {
                 required
               />
             </Field>
-            {error && (
-              <div className="form-alert" role="alert">
-                <AlertCircle size={16} aria-hidden />
-                <span>{error}</span>
-              </div>
-            )}
+            <div className="login-alert-slot" aria-live="polite">
+              {error && (
+                <div className="form-alert" role="alert">
+                  <AlertCircle size={16} aria-hidden />
+                  <span>{error}</span>
+                </div>
+              )}
+            </div>
             <Button
               className="login-submit"
               type="submit"

@@ -203,6 +203,7 @@ describe("CalendarPage", () => {
       name: /Regional production week, Pending approval/i,
     });
     fireEvent.click(eventButtons[0]);
+    expect(screen.queryByRole("button", { name: /Cancel/i })).toBeNull();
     expect(screen.getByRole("button", { name: /Reject/i })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: /Approve/i }));
 
@@ -292,12 +293,12 @@ describe("CalendarPage", () => {
     });
     expect(assetOption).toBeEnabled();
     expect(
-      screen.getByText(/4 total/),
+      screen.getByText(/3 of 4/),
     ).toBeInTheDocument();
     fireEvent.click(assetOption);
     expect(
       screen.getByRole("link", { name: /Reserve 1 asset/i }),
-    ).toHaveAttribute("aria-disabled", "true");
+    ).not.toHaveAttribute("aria-disabled", "true");
 
     const day = screen.getByRole("button", {
       name: /Tuesday, August 18, 2026, select reservation date/i,
@@ -341,9 +342,17 @@ describe("CalendarPage", () => {
       id: "0f358aa7-1e27-4603-8b07-916bb3b75341",
       name: "Backup microphone",
     };
-    vi.mocked(api.assets).mockResolvedValue({
-      data: [fullyBooked, availableAsset],
-      pageInfo: { nextCursor: null, hasNextPage: false },
+    vi.mocked(api.assets).mockImplementation(async (params) => {
+      if (params?.from && params.from.includes("2026-08-18")) {
+        return {
+          data: [fullyBooked, availableAsset],
+          pageInfo: { nextCursor: null, hasNextPage: false },
+        };
+      }
+      return {
+        data: [asset, availableAsset],
+        pageInfo: { nextCursor: null, hasNextPage: false },
+      };
     });
     vi.spyOn(api, "reservations").mockResolvedValue({
       data: [],
@@ -364,7 +373,7 @@ describe("CalendarPage", () => {
     });
     expect(assetOption).toBeEnabled();
     expect(
-      screen.getAllByText(/4 total/),
+      screen.getAllByText(/3 of 4/),
     ).toHaveLength(2);
 
     const day = screen.getByRole("button", {
@@ -383,8 +392,8 @@ describe("CalendarPage", () => {
       screen.getByText("Fully booked"),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Select assets to reserve/i }),
-    ).toHaveAttribute("aria-disabled", "true");
+      screen.getByRole("link", { name: /Create event/i }),
+    ).toHaveAttribute("aria-disabled", "false");
   });
 
   it("cancels a reservation from the calendar mini popover after confirmation", async () => {

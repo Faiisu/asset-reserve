@@ -439,23 +439,36 @@ code {
   position: sticky;
   z-index: 15;
   top: 0;
-  height: 70px;
+  height: 72px;
   padding: 0 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
   backdrop-filter: blur(12px);
 }
-.topbar > div:first-child {
+.topbar__heading {
   display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
 }
 .topbar__context {
   color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.topbar__title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
 }
 .topbar__actions {
   display: flex;

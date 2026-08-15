@@ -503,4 +503,38 @@ describe("reservation change requests", () => {
       }),
     );
   });
+
+  it("creates an event without items and automatically sets status to APPROVED", async () => {
+    const reservationCreate = vi.fn().mockResolvedValue({ id: reservationId });
+    const userFindFirst = vi.fn().mockResolvedValue({ id: actorId, isActive: true });
+    const tx = {
+      user: { findFirst: userFindFirst },
+      reservation: { create: reservationCreate },
+      reservationItem: { createMany: vi.fn() },
+      reservationParticipant: { createMany: vi.fn() },
+    };
+    const prisma = {
+      $transaction: vi.fn(
+        async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
+      ),
+    } as unknown as PrismaService;
+    const service = new ReservationsService(prisma);
+    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId, status: "APPROVED" } as never);
+
+    const result = await service.create(actor, {
+      eventName: "Company All-Hands Meeting",
+      startAt: "2026-09-01T09:00:00.000Z",
+      endAt: "2026-09-01T11:00:00.000Z",
+      status: "PENDING_APPROVAL",
+      items: [],
+    });
+
+    expect(reservationCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        eventName: "Company All-Hands Meeting",
+        status: "APPROVED",
+      }),
+    });
+    expect(result.status).toBe("APPROVED");
+  });
 });

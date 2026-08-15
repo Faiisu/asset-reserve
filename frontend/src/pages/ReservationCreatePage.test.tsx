@@ -167,4 +167,36 @@ describe("ReservationCreatePage", () => {
     expect(items[0]).toHaveTextContent("Available Mic");
     expect(items[1]).toHaveTextContent("Booked Camera");
   });
+
+  it("allows submitting an event without selecting any assets", async () => {
+    const createSpy = vi.spyOn(api, "createReservation").mockResolvedValue({
+      id: "new-res-id",
+    } as never);
+    vi.spyOn(api, "assets").mockResolvedValue({
+      data: [asset],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <ReservationCreatePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText(/^Event name/), {
+      target: { value: "Sprint Planning" },
+    });
+
+    const createBtn = screen.getByRole("button", { name: /create event/i });
+    expect(createBtn).toBeInTheDocument();
+    fireEvent.click(createBtn);
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "Sprint Planning",
+        status: "PENDING_APPROVAL",
+        items: [],
+      }),
+    );
+  });
 });

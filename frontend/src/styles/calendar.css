@@ -80,10 +80,10 @@
   text-align: center;
 }
 .mini-calendar__weekdays span {
-  color: var(--ink-faint);
+  color: var(--ink-soft);
   font-family: var(--mono);
-  font-size: 8px;
-  font-weight: 700;
+  font-size: 8.5px;
+  font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -170,7 +170,8 @@
   box-shadow: 0 10px 28px rgba(16, 33, 58, 0.045);
 }
 .calendar-scroll {
-  max-height: clamp(520px, calc(100vh - 210px), 820px);
+  height: clamp(560px, calc(100vh - 190px), 860px);
+  max-height: clamp(560px, calc(100vh - 190px), 860px);
   overflow-x: auto;
   overflow-y: auto;
   scroll-behavior: smooth;
@@ -205,10 +206,10 @@
   display: flex;
   align-items: center;
   border-right: 1px solid var(--line);
-  color: var(--ink-faint);
+  color: var(--ink-soft);
   font-family: var(--mono);
-  font-size: 9px;
-  font-weight: 650;
+  font-size: 9.5px;
+  font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -243,7 +244,10 @@
   background: color-mix(in srgb, var(--surface-raised) 78%, var(--surface));
 }
 .calendar-day--first-of-month {
-  border-left: 2px solid color-mix(in srgb, var(--blue) 60%, var(--line));
+  border-left: 2px solid color-mix(in srgb, var(--blue) 35%, var(--line));
+}
+.calendar-day--first-of-active-month {
+  border-left: 2px solid var(--blue);
 }
 .calendar-day--selected {
   background: color-mix(in srgb, var(--blue-soft) 74%, var(--surface));
@@ -274,14 +278,20 @@
   padding: 1px 5px;
   display: inline-block;
   border-radius: 4px;
-  background: var(--blue-soft);
-  color: var(--blue);
+  background: color-mix(in srgb, var(--surface-raised) 90%, var(--ink-faint));
+  color: var(--ink-soft);
   font-family: var(--mono);
   font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   line-height: 1.3;
+  transition: all 120ms ease;
+}
+.calendar-day__month-name--active {
+  background: var(--blue);
+  color: #ffffff;
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--blue) 40%, transparent);
 }
 .calendar-day__number {
   position: relative;

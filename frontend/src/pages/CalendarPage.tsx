@@ -84,7 +84,7 @@ export function CalendarPage() {
   const canCreate = hasPermission("reservation:create");
   const baseMonth = useMemo(() => startOfMonth(new Date()), []);
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
-  const [monthOffsets, setMonthOffsets] = useState({ before: 1, after: 3 });
+  const [monthOffsets, setMonthOffsets] = useState({ before: 0, after: 4 });
   const [status, setStatus] = useState("");
   const [areaId, setAreaId] = useState("");
   const [areas, setAreas] = useState<ManagementArea[]>([]);
@@ -109,7 +109,10 @@ export function CalendarPage() {
   const [eventActionError, setEventActionError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
-  const [selection, setSelection] = useState<DateSelection | null>(null);
+  const [selection, setSelection] = useState<DateSelection | null>(() => {
+    const today = new Date();
+    return { anchor: today, focus: today };
+  });
   const dragging = useRef(false);
   const selectionAnchor = useRef<Date | null>(null);
   const [miniCalendarOpen, setMiniCalendarOpen] = useState(false);
@@ -352,7 +355,7 @@ export function CalendarPage() {
       scrollContainer.querySelector<HTMLElement>(`[data-month-start="${targetKey}"]`) ||
       scrollContainer.querySelector<HTMLElement>(`[data-date-key="${targetKey}"]`);
     if (targetEl) {
-      scrollToElement(scrollContainer, targetEl, 40, false);
+      scrollToElement(scrollContainer, targetEl, 0, false);
     }
   }, [baseMonth]);
 
@@ -366,6 +369,22 @@ export function CalendarPage() {
     const weekElements = container.querySelectorAll<HTMLElement>(".calendar-week");
     for (const weekEl of weekElements) {
       if (weekEl.offsetTop + weekEl.offsetHeight >= targetOffset) {
+        const firstOfMonthEl =
+          weekEl.querySelector<HTMLElement>("[data-month-start]");
+        if (firstOfMonthEl) {
+          const startAttr = firstOfMonthEl.getAttribute("data-month-start");
+          if (startAttr) {
+            const [y, m, d] = startAttr.split("-").map(Number);
+            const mDate = new Date(y, m - 1, d);
+            if (
+              mDate.getMonth() !== visibleMonth.getMonth() ||
+              mDate.getFullYear() !== visibleMonth.getFullYear()
+            ) {
+              setVisibleMonth(mDate);
+            }
+            break;
+          }
+        }
         const weekDateAttr = weekEl.getAttribute("data-week-start");
         if (weekDateAttr) {
           const [y, m, d] = weekDateAttr.split("-").map(Number);
@@ -483,7 +502,7 @@ export function CalendarPage() {
         scrollContainer.querySelector<HTMLElement>(`[data-month-start="${targetKey}"]`) ||
         scrollContainer.querySelector<HTMLElement>(`[data-date-key="${targetKey}"]`);
       if (targetEl) {
-        scrollToElement(scrollContainer, targetEl, 40, true);
+        scrollToElement(scrollContainer, targetEl, 0, true);
       }
     });
   }
@@ -491,6 +510,7 @@ export function CalendarPage() {
   function handlePickDate(targetDate: Date) {
     const targetMonth = startOfMonth(targetDate);
     setVisibleMonth(targetMonth);
+    setSelection({ anchor: targetDate, focus: targetDate });
     setMiniCalendarOpen(false);
 
     const diffMonths = Math.round(
@@ -504,14 +524,15 @@ export function CalendarPage() {
     }
 
     requestAnimationFrame(() => {
-      const targetKey = dateKey(targetDate);
+      const monthStartKey = dateKey(targetMonth);
       const scrollContainer = calendarScrollRef.current;
       if (!scrollContainer) return;
       const targetEl =
-        scrollContainer.querySelector<HTMLElement>(`[data-date-key="${targetKey}"]`) ||
-        scrollContainer.querySelector<HTMLElement>(`[data-month-start="${dateKey(targetMonth)}"]`);
+        scrollContainer.querySelector<HTMLElement>(`[data-month-start="${monthStartKey}"]`) ||
+        scrollContainer.querySelector<HTMLElement>(`[data-date-key="${monthStartKey}"]`) ||
+        scrollContainer.querySelector<HTMLElement>(`[data-date-key="${dateKey(targetDate)}"]`);
       if (targetEl) {
-        scrollToElement(scrollContainer, targetEl, 40, true);
+        scrollToElement(scrollContainer, targetEl, 0, true);
       }
     });
   }
@@ -520,7 +541,7 @@ export function CalendarPage() {
     const today = new Date();
     const todayMonth = startOfMonth(today);
     setVisibleMonth(todayMonth);
-    setSelection(null);
+    setSelection({ anchor: today, focus: today });
 
     const diffMonths = Math.round(
       (todayMonth.getFullYear() - baseMonth.getFullYear()) * 12 +
@@ -533,14 +554,15 @@ export function CalendarPage() {
     }
 
     requestAnimationFrame(() => {
-      const todayKey = dateKey(today);
+      const monthStartKey = dateKey(todayMonth);
       const scrollContainer = calendarScrollRef.current;
       if (!scrollContainer) return;
-      const targetEl = scrollContainer.querySelector<HTMLElement>(
-        `[data-date-key="${todayKey}"]`,
-      );
+      const targetEl =
+        scrollContainer.querySelector<HTMLElement>(`[data-month-start="${monthStartKey}"]`) ||
+        scrollContainer.querySelector<HTMLElement>(`[data-date-key="${monthStartKey}"]`) ||
+        scrollContainer.querySelector<HTMLElement>(`[data-date-key="${dateKey(today)}"]`);
       if (targetEl) {
-        scrollToElement(scrollContainer, targetEl, 40, true);
+        scrollToElement(scrollContainer, targetEl, 0, true);
       }
     });
   }
@@ -727,7 +749,7 @@ export function CalendarPage() {
                       <CalendarWeek
                         key={dateKey(weekStart)}
                         weekStart={weekStart}
-                        visibleMonth={visibleMonth}
+                        visibleMonth={headerMonth}
                         reservations={reservations}
                         selectedRange={selectedRange}
                         canCreate={canCreate}
@@ -873,19 +895,17 @@ export function CalendarPage() {
               <Link
                 className={cx(
                   "button button--primary button--md",
-                  (!selectedRange || selectedAssets.length === 0) &&
-                    "button--disabled",
+                  !selectedRange && "button--disabled",
                 )}
                 to={createUrl}
-                aria-disabled={!selectedRange || selectedAssets.length === 0}
+                aria-disabled={!selectedRange}
                 onClick={(event) => {
-                  if (!selectedRange || selectedAssets.length === 0)
-                    event.preventDefault();
+                  if (!selectedRange) event.preventDefault();
                 }}
               >
                 {selectedAssets.length
                   ? `Reserve ${selectedAssets.length} asset${selectedAssets.length === 1 ? "" : "s"}`
-                  : "Select assets to reserve"}
+                  : "Create event"}
                 <ChevronRight size={16} />
               </Link>
             </footer>
@@ -907,7 +927,10 @@ export function CalendarPage() {
             eventMenu.reservation.pendingItemCount > 0 &&
             hasPermission("reservation:reject")
           }
-          canCancel={Boolean(eventMenu.reservation.capabilities?.canCancel)}
+          canCancel={
+            eventMenu.reservation.status !== "PENDING_APPROVAL" &&
+            Boolean(eventMenu.reservation.capabilities?.canCancel)
+          }
           action={eventAction}
           error={eventActionError}
           onDecision={(decision) => void decideEvent(decision)}
@@ -1048,11 +1071,14 @@ function CalendarWeek({
     >
       <div className="calendar-week__days">
         {days.map((date) => {
-          const isOutsideMonth = date.getMonth() !== visibleMonth.getMonth();
+          const isOutsideMonth =
+            date.getMonth() !== visibleMonth.getMonth() ||
+            date.getFullYear() !== visibleMonth.getFullYear();
           const isSelected = selectedRange
             ? date >= selectedRange.start && date <= selectedRange.end
             : false;
           const isFirstOfMonth = date.getDate() === 1;
+          const isFirstOfActiveMonth = isFirstOfMonth && !isOutsideMonth;
           return (
             <div
               key={dateKey(date)}
@@ -1063,6 +1089,7 @@ function CalendarWeek({
                 isSelected && "calendar-day--selected",
                 canCreate && "calendar-day--selectable",
                 isFirstOfMonth && "calendar-day--first-of-month",
+                isFirstOfActiveMonth && "calendar-day--first-of-active-month",
               )}
               data-date-key={dateKey(date)}
               {...(isFirstOfMonth ? { "data-month-start": dateKey(date) } : {})}
@@ -1072,7 +1099,12 @@ function CalendarWeek({
             >
               <div className="calendar-day__header">
                 {isFirstOfMonth && (
-                  <span className="calendar-day__month-name">
+                  <span
+                    className={cx(
+                      "calendar-day__month-name",
+                      isFirstOfActiveMonth && "calendar-day__month-name--active",
+                    )}
+                  >
                     {formatShortMonth(date)}
                   </span>
                 )}
@@ -1630,19 +1662,24 @@ function formatDateTimeRange(startAt: string, endAt: string) {
 function scrollToElement(
   scrollContainer: HTMLElement,
   targetEl: HTMLElement,
-  offset = 40,
+  offset = 0,
   smooth = true,
 ) {
   const weekEl = targetEl.closest<HTMLElement>(".calendar-week") || targetEl;
+  const weekdaysHeader =
+    scrollContainer.querySelector<HTMLElement>(".calendar-weekdays");
+  const stickyHeaderHeight = weekdaysHeader ? weekdaysHeader.offsetHeight : 39;
+
   const containerRect = scrollContainer.getBoundingClientRect();
   const targetRect = weekEl.getBoundingClientRect();
 
   let targetScrollTop = 0;
   if (containerRect.height > 0 && targetRect.height > 0) {
-    targetScrollTop =
-      scrollContainer.scrollTop + targetRect.top - containerRect.top - offset;
+    const currentDiff =
+      targetRect.top - (containerRect.top + stickyHeaderHeight);
+    targetScrollTop = scrollContainer.scrollTop + currentDiff - offset;
   } else if (typeof weekEl.offsetTop === "number") {
-    targetScrollTop = weekEl.offsetTop - offset;
+    targetScrollTop = weekEl.offsetTop - stickyHeaderHeight - offset;
   }
 
   const finalTop = Math.max(0, Math.round(targetScrollTop));

@@ -18,8 +18,10 @@ import { Avatar, cx } from "./ui";
 const titles: Array<[string, string]> = [
   ["/calendar", "Calendar"],
   ["/reservations/new", "New reservation"],
+  ["/reservations/", "Reservation details"],
   ["/reservations", "Reservations"],
   ["/assets/new", "Add asset"],
+  ["/assets/", "Asset details"],
   ["/assets", "Asset registry"],
   ["/admin/access", "Access and roles"],
   ["/admin/users", "Users"],
@@ -157,9 +159,9 @@ export function AppShell() {
 
       <div className="app-main">
         <header className="topbar">
-          <div>
-            <span className="topbar__context">Advantech Asset Reservation /</span>
-            <strong>{title}</strong>
+          <div className="topbar__heading">
+            <span className="topbar__context">Advantech Asset Reservation</span>
+            <h1 className="topbar__title">{title}</h1>
           </div>
           <div className="topbar__actions">
             <button
