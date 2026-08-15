@@ -22,6 +22,7 @@ model Reservation {
   @@index([requesterId, createdAt])
   @@index([startAt, endAt])
   @@index([status])
+  @@index([status, startAt, endAt])
   @@map("reservations")
 }
 
@@ -50,6 +51,7 @@ model ReservationItem {
   // Database CHECK required by the source specification: quantity > 0.
   @@unique([reservationId, assetId])
   @@index([assetId, status])
+  @@index([assetId, status, reservationId])
   @@index([reservationId, status])
   @@index([preparedBy])
   @@index([checkedOutBy])
@@ -108,5 +110,6 @@ model ReservationChangeRequest {
   @@index([reservationId, status])
   @@index([requestedBy])
   @@index([reviewedBy])
+  @@unique([reservationId], map: "reservation_change_requests_one_pending", where: { status: "PENDING" })
   @@map("reservation_change_requests")
 }

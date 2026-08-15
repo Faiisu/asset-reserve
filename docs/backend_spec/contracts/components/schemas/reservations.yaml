@@ -1,0 +1,424 @@
+ReservationStatus:
+  type: string
+  enum:
+    - DRAFT
+    - PENDING_APPROVAL
+    - PARTIALLY_APPROVED
+    - APPROVED
+    - REJECTED
+    - CANCELLED
+    - ACTIVE
+    - COMPLETED
+ReservationItemStatus:
+  type: string
+  enum:
+    - PENDING
+    - APPROVED
+    - REJECTED
+    - PREPARED
+    - CHECKED_OUT
+    - RETURNED
+ReservationItemInput:
+  type: object
+  additionalProperties: false
+  required:
+    - assetId
+    - quantity
+  properties:
+    assetId:
+      type: string
+      format: uuid
+    quantity:
+      type: integer
+      minimum: 1
+      maximum: 2147483647
+CreateReservationRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - eventName
+    - startAt
+    - endAt
+    - items
+  properties:
+    eventName:
+      type: string
+      minLength: 1
+      maxLength: 200
+    description:
+      type:
+        - string
+        - "null"
+      maxLength: 10000
+    startAt:
+      type: string
+      format: date-time
+    endAt:
+      type: string
+      format: date-time
+    status:
+      type: string
+      enum:
+        - DRAFT
+        - PENDING_APPROVAL
+      default: DRAFT
+    items:
+      type: array
+      minItems: 1
+      maxItems: 100
+      items:
+        $ref: "#/components/schemas/ReservationItemInput"
+    participantIds:
+      type: array
+      maxItems: 100
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
+SubmitReservationRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - expectedUpdatedAt
+  properties:
+    expectedUpdatedAt:
+      type: string
+      format: date-time
+ReservationItemDecisionRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - decision
+  properties:
+    decision:
+      type: string
+      enum:
+        - APPROVE
+        - REJECT
+    comment:
+      type: string
+      maxLength: 2000
+ReservationChangeData:
+  type: object
+  additionalProperties: false
+  minProperties: 1
+  properties:
+    eventName:
+      type: string
+      minLength: 1
+      maxLength: 200
+    description:
+      type:
+        - string
+        - "null"
+      maxLength: 10000
+    startAt:
+      type: string
+      format: date-time
+    endAt:
+      type: string
+      format: date-time
+    items:
+      type: array
+      minItems: 1
+      maxItems: 100
+      items:
+        $ref: "#/components/schemas/ReservationItemInput"
+    participantIds:
+      type: array
+      maxItems: 100
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
+CreateReservationChangeRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - changeData
+  properties:
+    changeData:
+      $ref: "#/components/schemas/ReservationChangeData"
+    reason:
+      type: string
+      maxLength: 2000
+ReservationChangeRequestDecisionRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - decision
+  properties:
+    decision:
+      type: string
+      enum:
+        - APPROVE
+        - REJECT
+ReservationUser:
+  type: object
+  required:
+    - id
+    - email
+    - name
+    - profilePictureUrl
+  properties:
+    id:
+      type: string
+      format: uuid
+    email:
+      type: string
+      format: email
+    name:
+      type:
+        - string
+        - "null"
+    profilePictureUrl:
+      type:
+        - string
+        - "null"
+      format: uri
+ReservationAsset:
+  type: object
+  required:
+    - id
+    - name
+    - isActive
+    - managementArea
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    description:
+      type:
+        - string
+        - "null"
+    pictureUrl:
+      type:
+        - string
+        - "null"
+      format: uri
+    isActive:
+      type: boolean
+    managementArea:
+      $ref: "#/components/schemas/ManagementAreaRef"
+    template:
+      oneOf:
+        - $ref: "#/components/schemas/AssetTemplateRef"
+        - type: "null"
+ReservationAvailability:
+  type: object
+  required:
+    - assetId
+    - totalQuantity
+    - approvedQuantity
+    - pendingQuantity
+    - availableQuantity
+    - pendingReservationCount
+  properties:
+    assetId:
+      type: string
+      format: uuid
+    totalQuantity:
+      type: integer
+    approvedQuantity:
+      type: integer
+      description: Quantity approved by other overlapping reservations.
+    pendingQuantity:
+      type: integer
+      description: Quantity requested by other overlapping unapproved reservations.
+    availableQuantity:
+      type: integer
+    pendingReservationCount:
+      type: integer
+ReservationWarning:
+  type: object
+  required:
+    - code
+    - message
+    - pendingQuantity
+    - pendingReservationCount
+  properties:
+    code:
+      type: string
+      const: PENDING_RESERVATION_OVERLAP
+    message:
+      type: string
+    pendingQuantity:
+      type: integer
+    pendingReservationCount:
+      type: integer
+ReservationApproval:
+  type:
+    - object
+    - "null"
+  properties:
+    id:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum:
+        - PENDING
+        - APPROVED
+        - REJECTED
+    comment:
+      type:
+        - string
+        - "null"
+    decidedAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    approver:
+      $ref: "#/components/schemas/ReservationUser"
+ReservationDetailItem:
+  type: object
+  required:
+    - id
+    - quantity
+    - status
+    - asset
+    - approval
+    - availability
+    - warnings
+    - capabilities
+  properties:
+    id:
+      type: string
+      format: uuid
+    quantity:
+      type: integer
+    status:
+      $ref: "#/components/schemas/ReservationItemStatus"
+    asset:
+      $ref: "#/components/schemas/ReservationAsset"
+    approval:
+      $ref: "#/components/schemas/ReservationApproval"
+    availability:
+      $ref: "#/components/schemas/ReservationAvailability"
+    warnings:
+      type: array
+      items:
+        $ref: "#/components/schemas/ReservationWarning"
+    capabilities:
+      type: object
+      required:
+        - canApprove
+        - canReject
+      properties:
+        canApprove:
+          type: boolean
+        canReject:
+          type: boolean
+ReservationChangeRequest:
+  type: object
+  required:
+    - id
+    - changeData
+    - status
+    - requestedBy
+    - reviewedBy
+    - reviewedAt
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    changeData:
+      $ref: "#/components/schemas/ReservationChangeData"
+    reason:
+      type:
+        - string
+        - "null"
+    status:
+      type: string
+      enum:
+        - PENDING
+        - APPROVED
+        - REJECTED
+        - CANCELLED
+    requestedBy:
+      $ref: "#/components/schemas/ReservationUser"
+    reviewedBy:
+      oneOf:
+        - $ref: "#/components/schemas/ReservationUser"
+        - type: "null"
+    reviewedAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+ReservationDetail:
+  type: object
+  required:
+    - id
+    - eventName
+    - startAt
+    - endAt
+    - status
+    - requester
+    - participants
+    - items
+    - changeRequests
+    - returns
+    - capabilities
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    eventName:
+      type: string
+    description:
+      type:
+        - string
+        - "null"
+    startAt:
+      type: string
+      format: date-time
+    endAt:
+      type: string
+      format: date-time
+    status:
+      $ref: "#/components/schemas/ReservationStatus"
+    requester:
+      $ref: "#/components/schemas/ReservationUser"
+    participants:
+      type: array
+      items:
+        $ref: "#/components/schemas/ReservationUser"
+    items:
+      type: array
+      items:
+        $ref: "#/components/schemas/ReservationDetailItem"
+    changeRequests:
+      type: array
+      items:
+        $ref: "#/components/schemas/ReservationChangeRequest"
+    returns:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+    capabilities:
+      type: object
+      required:
+        - canSubmit
+        - canRequestChange
+      properties:
+        canSubmit:
+          type: boolean
+        canRequestChange:
+          type: boolean
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time

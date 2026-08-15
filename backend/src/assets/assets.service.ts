@@ -27,7 +27,11 @@ const assetInclude = {
 } satisfies Prisma.AssetInclude;
 
 const allocatedItemStatuses = ["APPROVED", "PREPARED", "CHECKED_OUT"];
-const allocatedReservationStatuses = ["APPROVED", "ACTIVE"];
+const allocatedReservationStatuses = [
+  "PARTIALLY_APPROVED",
+  "APPROVED",
+  "ACTIVE",
+];
 
 @Injectable()
 export class AssetsService {

@@ -44,6 +44,7 @@ npm run openapi:bundle
 | Assets          | `paths/assets.yaml`          | `components/schemas/assets.yaml`          |
 | Inventory       | `paths/inventory.yaml`       | `components/schemas/inventory.yaml`       |
 | Asset templates | `paths/asset-templates.yaml` | `components/schemas/asset-templates.yaml` |
+| Reservations    | `paths/reservations.yaml`    | `components/schemas/reservations.yaml`    |
 | Shared models   | —                            | `components/schemas/common.yaml`          |
 
 เมื่อเพิ่ม API ใหม่ ให้เพิ่ม Path Item ในไฟล์ domain, register `$ref` ใน `openapi.yaml`, เพิ่ม schema/component ที่เกี่ยวข้อง และรัน bundle เพื่อตรวจว่า reference ทุกตัว resolve ได้

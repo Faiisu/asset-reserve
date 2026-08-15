@@ -6,6 +6,7 @@ import { AuthModule } from "./auth/auth.module.js";
 import { AssetsModule } from "./assets/assets.module.js";
 import { DatabaseModule } from "./database/database.module.js";
 import { ManagementAreasModule } from "./management-areas/management-areas.module.js";
+import { ReservationsModule } from "./reservations/reservations.module.js";
 import { UsersModule } from "./users/users.module.js";
 
 @Module({
@@ -17,6 +18,7 @@ import { UsersModule } from "./users/users.module.js";
     AccessControlModule,
     UsersModule,
     ManagementAreasModule,
+    ReservationsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

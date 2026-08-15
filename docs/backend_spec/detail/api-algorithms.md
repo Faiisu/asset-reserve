@@ -2,7 +2,7 @@
 
 [← Backend specification](../README.md) · [Auth and permission contract](authentication-and-permission-api.md) · [Database and concurrency](database-and-concurrency.md)
 
-เอกสารนี้อธิบาย algorithm ของ endpoint ทุกเส้นที่มี implementation อยู่ใน `backend/src` ปัจจุบัน โดยยึด controller, service, guard และ DTO ใน source code เป็นหลัก ครอบคลุม application endpoint 28 เส้นภายใต้ base path `/api/v1` และ documentation route แบบมีเงื่อนไขอีก 2 เส้น
+เอกสารนี้อธิบาย algorithm ของ endpoint ทุกเส้นที่มี implementation อยู่ใน `backend/src` ปัจจุบัน โดยยึด controller, service, guard และ DTO ใน source code เป็นหลัก ครอบคลุม application endpoint 34 เส้นภายใต้ base path `/api/v1` และ documentation route แบบมีเงื่อนไขอีก 2 เส้น
 
 ## 1. กติกากลางของทุก request
 
@@ -118,36 +118,42 @@ Error กลางที่พบบ่อย:
 
 ## 2. Endpoint catalog
 
-| Method | Path                                            | Authorization                                  | หน้าที่                    |
-| ------ | ----------------------------------------------- | ---------------------------------------------- | -------------------------- |
-| POST   | `/auth/login`                                   | Public                                         | Login ด้วย email/password  |
-| GET    | `/auth/me`                                      | Active user                                    | อ่าน session context       |
-| POST   | `/auth/logout`                                  | Active user                                    | จบ session ฝั่ง client     |
-| GET    | `/bff/session`                                  | Active user                                    | อ่าน session สำหรับ BFF    |
-| GET    | `/permissions`                                  | Active user                                    | อ่าน permission catalog    |
-| GET    | `/roles`                                        | Active user                                    | อ่าน role definitions      |
-| PATCH  | `/roles/:roleId`                                | Global ADMIN                                   | แก้ role                   |
-| GET    | `/users`                                        | Global user-admin permission อย่างน้อยหนึ่งค่า | ค้นหา user                 |
-| POST   | `/users`                                        | Global `user:create`                           | สร้าง user                 |
-| GET    | `/users/:userId`                                | Global user-admin permission อย่างน้อยหนึ่งค่า | อ่าน user detail           |
-| PATCH  | `/users/:userId/status`                         | Global `user:disable`                          | เปิด/ปิด account           |
-| POST   | `/users/:userId/role-assignments`               | Global `role:assign`                           | เพิ่ม role assignment      |
-| DELETE | `/users/:userId/role-assignments/:assignmentId` | Global `role:assign`                           | ลบ role assignment         |
-| GET    | `/management-areas`                             | Active user                                    | ค้นหา management area      |
-| GET    | `/assets`                                       | Scoped `asset:view`                            | ค้นหา asset                |
-| POST   | `/assets`                                       | Scoped `asset:create`                          | สร้าง asset เดียว          |
-| POST   | `/assets/batch`                                 | Scoped `asset:create` ทุก area                 | สร้าง asset หลายรายการ     |
-| POST   | `/assets/batch-remove`                          | Scoped `asset:delete` ทุก asset                | ปิดใช้งาน asset หลายรายการ |
-| POST   | `/assets/inventory/batch-add`                   | Scoped `asset:update` ทุก asset                | เพิ่ม quantity หลาย asset  |
-| POST   | `/assets/inventory/batch-remove`                | Scoped `asset:update` ทุก asset                | ลด quantity หลาย asset     |
-| GET    | `/assets/:assetId`                              | Scoped `asset:view`                            | อ่าน asset detail          |
-| PATCH  | `/assets/:assetId`                              | Scoped `asset:update`                          | แก้ asset detail           |
-| PATCH  | `/assets/:assetId/status`                       | Scoped `asset:update` หรือ `asset:delete`      | เปลี่ยน status             |
-| DELETE | `/assets/:assetId`                              | Scoped `asset:delete`                          | Soft delete asset          |
-| POST   | `/assets/:assetId/template`                     | Scoped `asset:create`                          | บันทึก asset เป็น template |
-| GET    | `/asset-templates`                              | `asset:view` ในอย่างน้อยหนึ่ง scope            | ค้นหา template             |
-| POST   | `/asset-templates`                              | `asset:create` ในอย่างน้อยหนึ่ง scope          | สร้าง template             |
-| PATCH  | `/asset-templates/:templateId`                  | `asset:update` ในอย่างน้อยหนึ่ง scope          | แก้ template               |
+| Method | Path                                                                     | Authorization                                  | หน้าที่                    |
+| ------ | ------------------------------------------------------------------------ | ---------------------------------------------- | -------------------------- |
+| POST   | `/auth/login`                                                            | Public                                         | Login ด้วย email/password  |
+| GET    | `/auth/me`                                                               | Active user                                    | อ่าน session context       |
+| POST   | `/auth/logout`                                                           | Active user                                    | จบ session ฝั่ง client     |
+| GET    | `/bff/session`                                                           | Active user                                    | อ่าน session สำหรับ BFF    |
+| GET    | `/permissions`                                                           | Active user                                    | อ่าน permission catalog    |
+| GET    | `/roles`                                                                 | Active user                                    | อ่าน role definitions      |
+| PATCH  | `/roles/:roleId`                                                         | Global ADMIN                                   | แก้ role                   |
+| GET    | `/users`                                                                 | Global user-admin permission อย่างน้อยหนึ่งค่า | ค้นหา user                 |
+| POST   | `/users`                                                                 | Global `user:create`                           | สร้าง user                 |
+| GET    | `/users/:userId`                                                         | Global user-admin permission อย่างน้อยหนึ่งค่า | อ่าน user detail           |
+| PATCH  | `/users/:userId/status`                                                  | Global `user:disable`                          | เปิด/ปิด account           |
+| POST   | `/users/:userId/role-assignments`                                        | Global `role:assign`                           | เพิ่ม role assignment      |
+| DELETE | `/users/:userId/role-assignments/:assignmentId`                          | Global `role:assign`                           | ลบ role assignment         |
+| GET    | `/management-areas`                                                      | Active user                                    | ค้นหา management area      |
+| GET    | `/assets`                                                                | Scoped `asset:view`                            | ค้นหา asset                |
+| POST   | `/assets`                                                                | Scoped `asset:create`                          | สร้าง asset เดียว          |
+| POST   | `/assets/batch`                                                          | Scoped `asset:create` ทุก area                 | สร้าง asset หลายรายการ     |
+| POST   | `/assets/batch-remove`                                                   | Scoped `asset:delete` ทุก asset                | ปิดใช้งาน asset หลายรายการ |
+| POST   | `/assets/inventory/batch-add`                                            | Scoped `asset:update` ทุก asset                | เพิ่ม quantity หลาย asset  |
+| POST   | `/assets/inventory/batch-remove`                                         | Scoped `asset:update` ทุก asset                | ลด quantity หลาย asset     |
+| GET    | `/assets/:assetId`                                                       | Scoped `asset:view`                            | อ่าน asset detail          |
+| PATCH  | `/assets/:assetId`                                                       | Scoped `asset:update`                          | แก้ asset detail           |
+| PATCH  | `/assets/:assetId/status`                                                | Scoped `asset:update` หรือ `asset:delete`      | เปลี่ยน status             |
+| DELETE | `/assets/:assetId`                                                       | Scoped `asset:delete`                          | Soft delete asset          |
+| POST   | `/assets/:assetId/template`                                              | Scoped `asset:create`                          | บันทึก asset เป็น template |
+| GET    | `/asset-templates`                                                       | `asset:view` ในอย่างน้อยหนึ่ง scope            | ค้นหา template             |
+| POST   | `/asset-templates`                                                       | `asset:create` ในอย่างน้อยหนึ่ง scope          | สร้าง template             |
+| PATCH  | `/asset-templates/:templateId`                                           | `asset:update` ในอย่างน้อยหนึ่ง scope          | แก้ template               |
+| POST   | `/reservations`                                                          | Scoped `reservation:create` ทุก asset area     | สร้าง reservation          |
+| GET    | `/reservations/:reservationId`                                           | Requester/participant หรือ scoped operator     | อ่าน reservation detail    |
+| POST   | `/reservations/:reservationId/submit`                                    | Requester หรือ scoped `reservation:update`     | ส่ง draft ขออนุมัติ        |
+| POST   | `/reservations/:reservationId/items/:itemId/decision`                    | Scoped `reservation:approve/reject`            | ตัดสิน item                |
+| POST   | `/reservations/:reservationId/change-requests`                           | Requester หรือ scoped `reservation:update`     | ขอแก้ reservation          |
+| POST   | `/reservations/:reservationId/change-requests/:changeRequestId/decision` | Scoped `reservation:approve/reject`            | ตัดสินคำขอแก้ไข            |
 
 > ทุก path ในตารางต้องนำหน้าด้วย `/api/v1`
 
@@ -160,7 +166,7 @@ Error กลางที่พบบ่อย:
 | GET    | `/api/docs`              | เปิดเมื่อพบไฟล์ OpenAPI ตอน startup | Render Swagger UI จาก static OpenAPI contract |
 | GET    | `/api/docs/openapi.json` | เปิดเมื่อพบไฟล์ OpenAPI ตอน startup | คืน contract เดียวกันในรูป JSON               |
 
-OpenAPI source แยกตาม domain โดยมี `docs/backend_spec/contracts/openapi.yaml` เป็น root document และสร้าง runtime bundle ผ่าน `npm run openapi:bundle` ตอน startup ระบบ resolve contract จาก `OPENAPI_CONTRACT_PATH` หรือใช้ค่าเริ่มต้น `docs/backend_spec/contracts/dist/openapi.bundle.yaml` ถ้าพบไฟล์จึง register สอง route นี้ หากไม่พบจะ log warning และไม่เปิด Swagger UI contract เวอร์ชัน 1.1.0 ครอบคลุม application endpoint ปัจจุบันครบ 28 operations
+OpenAPI source แยกตาม domain โดยมี `docs/backend_spec/contracts/openapi.yaml` เป็น root document และสร้าง runtime bundle ผ่าน `npm run openapi:bundle` ตอน startup ระบบ resolve contract จาก `OPENAPI_CONTRACT_PATH` หรือใช้ค่าเริ่มต้น `docs/backend_spec/contracts/dist/openapi.bundle.yaml` ถ้าพบไฟล์จึง register สอง route นี้ หากไม่พบจะ log warning และไม่เปิด Swagger UI contract เวอร์ชัน 1.2.0 ครอบคลุม application endpoint ปัจจุบันครบ 34 operations
 
 สำหรับ Docker development ให้เปิด `http://localhost:${BACKEND_HOST_PORT}/api/docs` โดยค่าเริ่มต้น `BACKEND_HOST_PORT=3000` หากเข้าผ่าน Nginx ต้องให้ API location มี precedence เหนือ static-file regex เช่น `location ^~ /api/`; มิฉะนั้นไฟล์ `swagger-ui.css` และ `swagger-ui-*.js` อาจถูก Nginx หาใน frontend static directory แล้วตอบ 404 จน Swagger UI เป็นหน้าว่าง ส่วน `/api/docs/openapi.json` เป็น raw JSON จึงแสดงเป็นข้อความบนพื้นขาวตามปกติ
 
@@ -373,7 +379,7 @@ Algorithm:
 
 หลาย endpoint คืน asset summary โดยใช้กติกาเดียวกัน:
 
-1. `allocatedQuantity` คือผลรวม `ReservationItem.quantity` ที่ item status เป็น `APPROVED`, `PREPARED` หรือ `CHECKED_OUT` และ reservation status เป็น `APPROVED` หรือ `ACTIVE`
+1. `allocatedQuantity` คือผลรวม `ReservationItem.quantity` ที่ item status เป็น `APPROVED`, `PREPARED` หรือ `CHECKED_OUT` และ reservation status เป็น `PARTIALLY_APPROVED`, `APPROVED` หรือ `ACTIVE`
 2. `availableQuantity = max(totalQuantity - allocatedQuantity, 0)`
 3. `status` map จาก `isActive`: `true → ACTIVE`, `false → INACTIVE`
 4. `owner` มาจาก `Asset.createdBy`; asset เก่าก่อนมี creator tracking อาจเป็น `null`
@@ -623,9 +629,42 @@ Algorithm:
 5. ถ้า timestamp ไม่ตรงตอบ `409 STALE_WRITE`
 6. โหลดและคืน template ล่าสุด
 
-## 9. Response data ที่ควรรู้
+## 9. Reservation APIs
 
-### 9.1 Asset summary
+Availability ใช้ช่วงเวลาแบบ half-open: overlap เมื่อ `existing.startAt < requested.endAt` และ `existing.endAt > requested.startAt` ดังนั้นรายการที่จบตรงเวลาเริ่มของอีกรายการไม่ชนกัน
+
+- Hard allocation นับเฉพาะ item สถานะ `APPROVED`, `PREPARED`, `CHECKED_OUT` ใน reservation สถานะ `PARTIALLY_APPROVED`, `APPROVED`, `ACTIVE`
+- Soft warning นับ item สถานะ `PENDING` ใน reservation สถานะ `PENDING_APPROVAL`
+- Approval และการ approve change request lock asset row ตาม UUID, ตรวจ availability ซ้ำใน `SERIALIZABLE` transaction และ retry `P2034` สูงสุด 3 ครั้ง
+- Pending request ไม่กัน quantity แต่ detail จะคืน `PENDING_RESERVATION_OVERLAP`, `pendingQuantity` และ `pendingReservationCount`
+
+### 9.1 `POST /reservations`
+
+สร้าง `DRAFT` หรือ `PENDING_APPROVAL` พร้อม event details, assets และ participants ตรวจ asset active, permission ทุก area, duplicate asset และ approved overlap ก่อนบันทึก
+
+### 9.2 `GET /reservations/:reservationId`
+
+คืน requester, participants, item/asset/approval, availability, overlap warnings, change requests, returns, timestamps และ capabilities สำหรับ actor
+
+### 9.3 `POST /reservations/:reservationId/submit`
+
+เปลี่ยน `DRAFT` เป็น `PENDING_APPROVAL` ด้วย `expectedUpdatedAt` และตรวจ approved overlap ซ้ำ หากข้อมูล stale ตอบ `409 STALE_WRITE`
+
+### 9.4 `POST /reservations/:reservationId/items/:itemId/decision`
+
+Approve/reject เป็นราย item ตาม area permission เมื่อ approve ต้องมี quantity พอหลังหัก approved overlap อื่น แล้วคำนวณ reservation status ใหม่เป็น `PENDING_APPROVAL`, `PARTIALLY_APPROVED`, `APPROVED` หรือ `REJECTED`
+
+### 9.5 `POST /reservations/:reservationId/change-requests`
+
+สร้างคำขอแก้ไขหลัง submit โดย allowlist เฉพาะ `eventName`, `description`, `startAt`, `endAt`, `items`, `participantIds` และอนุญาต pending request ได้หนึ่งรายการต่อ reservation
+
+### 9.6 `POST /reservations/:reservationId/change-requests/:changeRequestId/decision`
+
+เมื่อ approve ระบบ apply event/time/item/participant changes และบันทึก reviewer ใน transaction เดียว ถ้า reservation เดิม approved รายการใหม่ถือว่า approved โดย reviewer นี้และต้องผ่าน conflict check ก่อน commit
+
+## 10. Response data ที่ควรรู้
+
+### 10.1 Asset summary
 
 ```ts
 type AssetSummary = {
@@ -660,7 +699,7 @@ type AssetSummary = {
 };
 ```
 
-### 9.2 List response
+### 10.2 List response
 
 ```ts
 type ListResponse<T> = {
@@ -672,7 +711,7 @@ type ListResponse<T> = {
 };
 ```
 
-## 10. Source-code map
+## 11. Source-code map
 
 | Domain                     | Controller                                                                                             | Algorithm/service                                                                                                                                                                                                                  |
 | -------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -681,5 +720,6 @@ type ListResponse<T> = {
 | Users/assignments          | [users.controller.ts](../../../backend/src/users/users.controller.ts)                                  | [users.service.ts](../../../backend/src/users/users.service.ts)                                                                                                                                                                    |
 | Management areas           | [management-areas.controller.ts](../../../backend/src/management-areas/management-areas.controller.ts) | [management-areas.service.ts](../../../backend/src/management-areas/management-areas.service.ts)                                                                                                                                   |
 | Assets/templates/inventory | [assets.controller.ts](../../../backend/src/assets/assets.controller.ts)                               | [assets.service.ts](../../../backend/src/assets/assets.service.ts), [asset-templates.service.ts](../../../backend/src/assets/asset-templates.service.ts), [inventory.service.ts](../../../backend/src/assets/inventory.service.ts) |
+| Reservations               | [reservations.controller.ts](../../../backend/src/reservations/reservations.controller.ts)             | [reservations.service.ts](../../../backend/src/reservations/reservations.service.ts)                                                                                                                                               |
 
 เมื่อเพิ่ม เปลี่ยน หรือลบ route ต้องอัปเดต endpoint catalog และหัวข้อ algorithm ในเอกสารนี้พร้อมกับ controller/service เพื่อไม่ให้เอกสารคลาดจาก implementation

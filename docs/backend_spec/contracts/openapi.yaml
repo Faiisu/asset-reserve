@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Asset Reservation API
-  version: 1.1.0
-  description: Contract-first API for authentication, access control, users, assets, inventory, and asset templates.
+  version: 1.2.0
+  description: Contract-first API for authentication, access control, users, assets, inventory, asset templates, and reservations.
 servers:
   - url: /api/v1
 tags:
@@ -24,6 +24,8 @@ tags:
     description: Atomic audited quantity adjustments.
   - name: Asset Templates
     description: Picture-free reusable asset metadata.
+  - name: Reservations
+    description: Reservation details, item approvals, availability conflicts, overlap warnings, and post-approval changes.
 security:
   - bearerAuth: []
 paths:
@@ -73,6 +75,18 @@ paths:
     $ref: ./paths/asset-templates.yaml#/~1asset-templates
   /asset-templates/{templateId}:
     $ref: ./paths/asset-templates.yaml#/~1asset-templates~1{templateId}
+  /reservations:
+    $ref: ./paths/reservations.yaml#/~1reservations
+  /reservations/{reservationId}:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}
+  /reservations/{reservationId}/submit:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1submit
+  /reservations/{reservationId}/items/{itemId}/decision:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1items~1{itemId}~1decision
+  /reservations/{reservationId}/change-requests:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1change-requests
+  /reservations/{reservationId}/change-requests/{changeRequestId}/decision:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1change-requests~1{changeRequestId}~1decision
 components:
   securitySchemes:
     bearerAuth:
@@ -89,6 +103,12 @@ components:
       $ref: ./components/parameters.yaml#/AssetId
     TemplateId:
       $ref: ./components/parameters.yaml#/TemplateId
+    ReservationId:
+      $ref: ./components/parameters.yaml#/ReservationId
+    ReservationItemId:
+      $ref: ./components/parameters.yaml#/ReservationItemId
+    ChangeRequestId:
+      $ref: ./components/parameters.yaml#/ChangeRequestId
     Search:
       $ref: ./components/parameters.yaml#/Search
     Cursor:
@@ -225,6 +245,40 @@ components:
       $ref: ./components/schemas/asset-templates.yaml#/UpdateAssetTemplateRequest
     SaveAssetAsTemplateRequest:
       $ref: ./components/schemas/asset-templates.yaml#/SaveAssetAsTemplateRequest
+    ReservationStatus:
+      $ref: ./components/schemas/reservations.yaml#/ReservationStatus
+    ReservationItemStatus:
+      $ref: ./components/schemas/reservations.yaml#/ReservationItemStatus
+    ReservationItemInput:
+      $ref: ./components/schemas/reservations.yaml#/ReservationItemInput
+    CreateReservationRequest:
+      $ref: ./components/schemas/reservations.yaml#/CreateReservationRequest
+    SubmitReservationRequest:
+      $ref: ./components/schemas/reservations.yaml#/SubmitReservationRequest
+    ReservationItemDecisionRequest:
+      $ref: ./components/schemas/reservations.yaml#/ReservationItemDecisionRequest
+    ReservationChangeData:
+      $ref: ./components/schemas/reservations.yaml#/ReservationChangeData
+    CreateReservationChangeRequest:
+      $ref: ./components/schemas/reservations.yaml#/CreateReservationChangeRequest
+    ReservationChangeRequestDecisionRequest:
+      $ref: ./components/schemas/reservations.yaml#/ReservationChangeRequestDecisionRequest
+    ReservationUser:
+      $ref: ./components/schemas/reservations.yaml#/ReservationUser
+    ReservationAsset:
+      $ref: ./components/schemas/reservations.yaml#/ReservationAsset
+    ReservationAvailability:
+      $ref: ./components/schemas/reservations.yaml#/ReservationAvailability
+    ReservationWarning:
+      $ref: ./components/schemas/reservations.yaml#/ReservationWarning
+    ReservationApproval:
+      $ref: ./components/schemas/reservations.yaml#/ReservationApproval
+    ReservationDetailItem:
+      $ref: ./components/schemas/reservations.yaml#/ReservationDetailItem
+    ReservationChangeRequest:
+      $ref: ./components/schemas/reservations.yaml#/ReservationChangeRequest
+    ReservationDetail:
+      $ref: ./components/schemas/reservations.yaml#/ReservationDetail
     PageInfo:
       $ref: ./components/schemas/common.yaml#/PageInfo
     ErrorDetail:

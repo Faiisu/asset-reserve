@@ -1,0 +1,136 @@
+import { Transform, Type } from "class-transformer";
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+  ValidateIf,
+  ValidateNested,
+} from "class-validator";
+
+const trim = ({ value }: { value: unknown }) =>
+  typeof value === "string" ? value.trim() : value;
+
+export class ReservationItemInputDto {
+  @IsUUID()
+  assetId!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(2_147_483_647)
+  quantity!: number;
+}
+
+export class CreateReservationDto {
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  eventName!: string;
+
+  @IsOptional()
+  @ValidateIf((_object, value) => value !== null)
+  @IsString()
+  @MaxLength(10_000)
+  description?: string | null;
+
+  @IsISO8601({ strict: true })
+  startAt!: string;
+
+  @IsISO8601({ strict: true })
+  endAt!: string;
+
+  @IsOptional()
+  @IsIn(["DRAFT", "PENDING_APPROVAL"])
+  status?: "DRAFT" | "PENDING_APPROVAL";
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => ReservationItemInputDto)
+  items!: ReservationItemInputDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUID(undefined, { each: true })
+  participantIds?: string[];
+}
+
+export class SubmitReservationDto {
+  @IsISO8601({ strict: true })
+  expectedUpdatedAt!: string;
+}
+
+export class ReservationItemDecisionDto {
+  @IsIn(["APPROVE", "REJECT"])
+  decision!: "APPROVE" | "REJECT";
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000)
+  comment?: string;
+}
+
+export class ReservationChangeDataDto {
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  eventName?: string;
+
+  @IsOptional()
+  @ValidateIf((_object, value) => value !== null)
+  @IsString()
+  @MaxLength(10_000)
+  description?: string | null;
+
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  startAt?: string;
+
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  endAt?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => ReservationItemInputDto)
+  items?: ReservationItemInputDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUID(undefined, { each: true })
+  participantIds?: string[];
+}
+
+export class CreateReservationChangeRequestDto {
+  @ValidateNested()
+  @Type(() => ReservationChangeDataDto)
+  changeData!: ReservationChangeDataDto;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000)
+  reason?: string;
+}
+
+export class ReservationChangeRequestDecisionDto {
+  @IsIn(["APPROVE", "REJECT"])
+  decision!: "APPROVE" | "REJECT";
+}
