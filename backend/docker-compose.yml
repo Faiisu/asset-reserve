@@ -38,8 +38,10 @@ services:
     depends_on:
       schema:
         condition: service_completed_successfully
-    expose:
-      - "3000"
+    ports:
+      # Direct development access for Swagger UI and API diagnostics.
+      # Production can omit this mapping and expose only the Nginx entrypoint.
+      - "${BACKEND_HOST_PORT:-3000}:3000"
     healthcheck:
       test:
         [

@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "openapi:bundle": "node scripts/bundle-openapi.mjs",
+    "prebuild": "npm run openapi:bundle",
     "build": "prisma generate && tsc -p tsconfig.build.json",
+    "predev": "npm run openapi:bundle",
     "dev": "prisma generate && tsx watch src/main.ts",
     "start": "node dist/src/main.js",
     "test": "vitest run",

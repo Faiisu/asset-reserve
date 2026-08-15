@@ -1,0 +1,22 @@
+/bff/session:
+  get:
+    tags:
+      - Session BFF
+    summary: Get the frontend session context
+    operationId: getBffSession
+    responses:
+      "200":
+        description: Current user, roles, and effective permissions.
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - session
+              properties:
+                session:
+                  $ref: "#/components/schemas/SessionContext"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"

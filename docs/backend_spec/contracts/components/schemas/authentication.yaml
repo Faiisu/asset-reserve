@@ -1,0 +1,148 @@
+Profile:
+  type: object
+  required:
+    - name
+    - phoneNumber
+    - profilePictureUrl
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 150
+    phoneNumber:
+      type:
+        - string
+        - "null"
+      maxLength: 30
+    profilePictureUrl:
+      type:
+        - string
+        - "null"
+      format: uri
+      maxLength: 2048
+UserIdentity:
+  type: object
+  required:
+    - id
+    - email
+    - isActive
+    - profile
+  properties:
+    id:
+      type: string
+      format: uuid
+    email:
+      type: string
+      format: email
+      maxLength: 255
+    isActive:
+      type: boolean
+    profile:
+      oneOf:
+        - $ref: "#/components/schemas/Profile"
+        - type: "null"
+SessionRole:
+  type: object
+  required:
+    - assignmentId
+    - id
+    - name
+    - permissions
+    - managementArea
+  properties:
+    assignmentId:
+      type: string
+      format: uuid
+    id:
+      type: string
+      format: uuid
+    name:
+      $ref: "#/components/schemas/RoleName"
+    permissions:
+      type: array
+      uniqueItems: true
+      items:
+        $ref: "#/components/schemas/PermissionKey"
+    managementArea:
+      oneOf:
+        - $ref: "#/components/schemas/ManagementAreaRef"
+        - type: "null"
+AreaPermissions:
+  type: object
+  required:
+    - managementAreaId
+    - permissions
+  properties:
+    managementAreaId:
+      type: string
+      format: uuid
+    permissions:
+      type: array
+      uniqueItems: true
+      items:
+        $ref: "#/components/schemas/PermissionKey"
+EffectivePermissions:
+  type: object
+  required:
+    - global
+    - byManagementArea
+  properties:
+    global:
+      type: array
+      uniqueItems: true
+      items:
+        $ref: "#/components/schemas/PermissionKey"
+    byManagementArea:
+      type: array
+      items:
+        $ref: "#/components/schemas/AreaPermissions"
+SessionContext:
+  type: object
+  required:
+    - user
+    - roles
+    - effectivePermissions
+  properties:
+    user:
+      $ref: "#/components/schemas/UserIdentity"
+    roles:
+      type: array
+      items:
+        $ref: "#/components/schemas/SessionRole"
+    effectivePermissions:
+      $ref: "#/components/schemas/EffectivePermissions"
+LoginRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - email
+    - password
+  properties:
+    email:
+      type: string
+      format: email
+      maxLength: 255
+    password:
+      type: string
+      minLength: 1
+      maxLength: 1024
+      writeOnly: true
+LoginResponse:
+  type: object
+  required:
+    - accessToken
+    - tokenType
+    - expiresIn
+    - session
+  properties:
+    accessToken:
+      type: string
+    tokenType:
+      type: string
+      const: Bearer
+    expiresIn:
+      type: integer
+      minimum: 1
+      example: 900
+    session:
+      $ref: "#/components/schemas/SessionContext"

@@ -2,7 +2,7 @@
 
 [← Backend specification](../README.md)
 
-ข้อกำหนด endpoint, input/output และ authorization matrix สำหรับงาน Authentication และ Permission Management อยู่ที่ [Authentication and permission API contract](authentication-and-permission-api.md) พร้อม [OpenAPI สำหรับสร้าง mock/client](../contracts/auth-permission.openapi.yaml)
+ข้อกำหนด endpoint, input/output และ authorization matrix สำหรับงาน Authentication และ Permission Management อยู่ที่ [Authentication and permission API contract](authentication-and-permission-api.md) พร้อม [OpenAPI สำหรับสร้าง mock/client](../contracts/openapi.yaml)
 
 ## API requirements
 

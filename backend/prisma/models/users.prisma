@@ -11,6 +11,7 @@ model User {
   authIdentities           UserAuthIdentity[]
   userRoles                UserRole[]                 @relation("UserRoleUser")
   assignedUserRoles        UserRole[]                 @relation("UserRoleAssignedBy")
+  createdAssets            Asset[]                    @relation("AssetCreatedBy")
   assetTransactionBatches  AssetTransactionBatch[]
   requestedReservations    Reservation[]              @relation("ReservationRequester")
   preparedReservationItems ReservationItem[]          @relation("ReservationItemPreparedBy")

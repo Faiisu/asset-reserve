@@ -1,0 +1,73 @@
+AssetTemplate:
+  allOf:
+    - $ref: "#/components/schemas/AssetTemplateRef"
+    - type: object
+      required:
+        - createdAt
+        - updatedAt
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+AssetTemplateListResponse:
+  type: object
+  required:
+    - data
+    - pageInfo
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/components/schemas/AssetTemplate"
+    pageInfo:
+      $ref: "#/components/schemas/PageInfo"
+CreateAssetTemplateRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - name
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 150
+    description:
+      type:
+        - string
+        - "null"
+      maxLength: 10000
+UpdateAssetTemplateRequest:
+  type: object
+  additionalProperties: false
+  minProperties: 2
+  required:
+    - expectedUpdatedAt
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 150
+    description:
+      type:
+        - string
+        - "null"
+      maxLength: 10000
+    expectedUpdatedAt:
+      type: string
+      format: date-time
+SaveAssetAsTemplateRequest:
+  type: object
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 150
+    description:
+      type:
+        - string
+        - "null"
+      maxLength: 10000

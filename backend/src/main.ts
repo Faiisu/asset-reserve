@@ -77,7 +77,7 @@ async function bootstrap(): Promise<void> {
   const contractPath = resolve(
     process.cwd(),
     process.env.OPENAPI_CONTRACT_PATH ??
-      "../docs/backend_spec/contracts/auth-permission.openapi.yaml",
+      "../docs/backend_spec/contracts/dist/openapi.bundle.yaml",
   );
   if (existsSync(contractPath)) {
     const contract = parse(readFileSync(contractPath, "utf8")) as OpenAPIObject;

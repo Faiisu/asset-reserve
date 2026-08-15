@@ -1,6 +1,6 @@
 # Authentication and permission API contract
 
-[← Backend specification](../README.md) · [OpenAPI contract](../contracts/auth-permission.openapi.yaml)
+[← Backend specification](../README.md) · [OpenAPI contract](../contracts/openapi.yaml)
 
 เอกสารนี้เป็น contract สำหรับ frontend, integration client และ backend ใช้พัฒนาแยกกันได้ โดยครอบคลุม password authentication, session context, user administration, role definition และ role assignment ใน MVP
 
@@ -16,7 +16,7 @@
 - Date/time: ISO 8601 พร้อม timezone
 - Authentication: `Authorization: Bearer <accessToken>`
 - Access token อายุเริ่มต้น 15 นาที
-- OpenAPI source: [`auth-permission.openapi.yaml`](../contracts/auth-permission.openapi.yaml)
+- OpenAPI source: [`openapi.yaml`](../contracts/openapi.yaml) และไฟล์ย่อยใน [`contracts/`](../contracts/README.md)
 
 ระหว่าง backend ยังไม่เสร็จ ผู้ใช้ API สามารถ import OpenAPI เข้า Prism, Mockoon, Postman หรือเครื่องมือ generate client ได้ โดย mock ต้องรักษา status code และ response shape ตาม contract นี้
 
@@ -521,10 +521,11 @@ Response `204` ไม่มี body ห้ามถอด assignment หาก�
 
 ## Consumer workflow while API is under development
 
-1. Import `docs/backend_spec/contracts/auth-permission.openapi.yaml` เข้า mock server หรือ API client generator
-2. ตั้ง mock base URL ให้แทน `/api/v1`
-3. ใช้ UUID และ timestamps ที่ valid ใน fixture
-4. ทดสอบทั้ง success, 401, 403, 409 และ 422
-5. เมื่อ backend endpoint พร้อม ให้เปลี่ยนเพียง base URL และรัน contract tests ชุดเดิม
+1. Bundle contract ด้วย `cd backend && npm run openapi:bundle`
+2. Import `docs/backend_spec/contracts/dist/openapi.bundle.yaml` เข้า mock server หรือ API client generator
+3. ตั้ง mock base URL ให้แทน `/api/v1`
+4. ใช้ UUID และ timestamps ที่ valid ใน fixture
+5. ทดสอบทั้ง success, 401, 403, 409 และ 422
+6. เมื่อ backend endpoint พร้อม ให้เปลี่ยนเพียง base URL และรัน contract tests ชุดเดิม
 
 Backend ถือว่า endpoint พร้อมให้ integration เมื่อ OpenAPI validation ผ่าน, response ไม่มี secret fields, authorization tests ผ่าน และตัวอย่าง request/response ในเอกสารยังใช้ได้

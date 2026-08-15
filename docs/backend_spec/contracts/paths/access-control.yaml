@@ -1,0 +1,94 @@
+/permissions:
+  get:
+    tags:
+      - Permissions
+    summary: List the permission catalog
+    operationId: listPermissions
+    responses:
+      "200":
+        description: Permission catalog.
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/PermissionDefinition"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+/roles:
+  get:
+    tags:
+      - Roles
+    summary: List role definitions
+    operationId: listRoles
+    responses:
+      "200":
+        description: All supported roles.
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Role"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+/roles/{roleId}:
+  patch:
+    tags:
+      - Roles
+    summary: Update a role permission set
+    operationId: updateRole
+    parameters:
+      - $ref: "#/components/parameters/RoleId"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpdateRoleRequest"
+    responses:
+      "200":
+        description: Updated role.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Role"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+      "409":
+        $ref: "#/components/responses/Conflict"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/management-areas:
+  get:
+    tags:
+      - Management Areas
+    summary: List management areas for scoped assignments
+    operationId: listManagementAreas
+    parameters:
+      - $ref: "#/components/parameters/Search"
+      - $ref: "#/components/parameters/Cursor"
+      - $ref: "#/components/parameters/Limit"
+    responses:
+      "200":
+        description: Paginated management areas.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManagementAreaListResponse"
+      "401":
+        $ref: "#/components/responses/Unauthorized"

@@ -1,0 +1,129 @@
+PermissionKey:
+  type: string
+  enum:
+    - asset:create
+    - asset:view
+    - asset:update
+    - asset:delete
+    - reservation:create
+    - reservation:update
+    - reservation:approve
+    - reservation:reject
+    - return:approve
+    - user:create
+    - user:disable
+    - role:assign
+RoleName:
+  type: string
+  enum:
+    - ADMIN
+    - MANAGER
+    - USER
+ManagementAreaRef:
+  type: object
+  required:
+    - id
+    - name
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+      maxLength: 150
+PermissionDefinition:
+  type: object
+  required:
+    - key
+    - resource
+    - action
+    - description
+  properties:
+    key:
+      $ref: "#/components/schemas/PermissionKey"
+    resource:
+      type: string
+    action:
+      type: string
+    description:
+      type: string
+Role:
+  type: object
+  required:
+    - id
+    - name
+    - description
+    - permissions
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      $ref: "#/components/schemas/RoleName"
+    description:
+      type:
+        - string
+        - "null"
+    permissions:
+      type: array
+      uniqueItems: true
+      items:
+        $ref: "#/components/schemas/PermissionKey"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+UpdateRoleRequest:
+  type: object
+  additionalProperties: false
+  minProperties: 2
+  required:
+    - expectedUpdatedAt
+  properties:
+    description:
+      type:
+        - string
+        - "null"
+    permissions:
+      type: array
+      uniqueItems: true
+      items:
+        $ref: "#/components/schemas/PermissionKey"
+    expectedUpdatedAt:
+      type: string
+      format: date-time
+ManagementArea:
+  allOf:
+    - $ref: "#/components/schemas/ManagementAreaRef"
+    - type: object
+      required:
+        - description
+        - createdAt
+        - updatedAt
+      properties:
+        description:
+          type:
+            - string
+            - "null"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+ManagementAreaListResponse:
+  type: object
+  required:
+    - data
+    - pageInfo
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/components/schemas/ManagementArea"
+    pageInfo:
+      $ref: "#/components/schemas/PageInfo"

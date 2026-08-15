@@ -345,6 +345,7 @@ async function seedMockData(): Promise<void> {
       name: "Epson EB-FH52 Projector",
       description: "Full HD portable projector with HDMI cable.",
       totalQuantity: 6,
+      createdById: ids.users.manager,
     },
     {
       id: ids.assets.camera,
@@ -353,6 +354,7 @@ async function seedMockData(): Promise<void> {
       name: "Sony Alpha Camera Kit",
       description: "Mirrorless camera, standard lens, battery, and case.",
       totalQuantity: 4,
+      createdById: ids.users.manager,
     },
     {
       id: ids.assets.speaker,
@@ -361,6 +363,7 @@ async function seedMockData(): Promise<void> {
       name: "Portable PA Speaker",
       description: "Battery-powered speaker for small and medium events.",
       totalQuantity: 8,
+      createdById: ids.users.manager,
     },
     {
       id: ids.assets.microphone,
@@ -369,6 +372,7 @@ async function seedMockData(): Promise<void> {
       name: "Wireless Microphone Set",
       description: "Dual handheld wireless microphone set.",
       totalQuantity: 12,
+      createdById: ids.users.manager,
     },
   ] as const;
   for (const asset of assetInputs) {
@@ -379,7 +383,7 @@ async function seedMockData(): Promise<void> {
           name: asset.name,
         },
       },
-      update: {},
+      update: { createdById: asset.createdById },
       create: asset,
     });
   }

@@ -1,0 +1,233 @@
+openapi: 3.1.0
+info:
+  title: Asset Reservation API
+  version: 1.1.0
+  description: Contract-first API for authentication, access control, users, assets, inventory, and asset templates.
+servers:
+  - url: /api/v1
+tags:
+  - name: Authentication
+    description: Password login and current session context.
+  - name: Session BFF
+    description: Session context for the frontend application shell.
+  - name: Permissions
+    description: Immutable application permission catalog.
+  - name: Roles
+    description: Role definitions and permission sets.
+  - name: Users
+    description: User administration and role assignments.
+  - name: Management Areas
+    description: Management-area lookup for scoped assignments.
+  - name: Assets
+    description: Scoped asset lookup, creation, editing, status, and soft removal.
+  - name: Inventory
+    description: Atomic audited quantity adjustments.
+  - name: Asset Templates
+    description: Picture-free reusable asset metadata.
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    $ref: ./paths/authentication.yaml#/~1auth~1login
+  /auth/me:
+    $ref: ./paths/authentication.yaml#/~1auth~1me
+  /auth/logout:
+    $ref: ./paths/authentication.yaml#/~1auth~1logout
+  /bff/session:
+    $ref: ./paths/session.yaml#/~1bff~1session
+  /permissions:
+    $ref: ./paths/access-control.yaml#/~1permissions
+  /roles:
+    $ref: ./paths/access-control.yaml#/~1roles
+  /roles/{roleId}:
+    $ref: ./paths/access-control.yaml#/~1roles~1{roleId}
+  /management-areas:
+    $ref: ./paths/access-control.yaml#/~1management-areas
+  /users:
+    $ref: ./paths/users.yaml#/~1users
+  /users/{userId}:
+    $ref: ./paths/users.yaml#/~1users~1{userId}
+  /users/{userId}/status:
+    $ref: ./paths/users.yaml#/~1users~1{userId}~1status
+  /users/{userId}/role-assignments:
+    $ref: ./paths/users.yaml#/~1users~1{userId}~1role-assignments
+  /users/{userId}/role-assignments/{assignmentId}:
+    $ref: ./paths/users.yaml#/~1users~1{userId}~1role-assignments~1{assignmentId}
+  /assets:
+    $ref: ./paths/assets.yaml#/~1assets
+  /assets/batch:
+    $ref: ./paths/assets.yaml#/~1assets~1batch
+  /assets/batch-remove:
+    $ref: ./paths/assets.yaml#/~1assets~1batch-remove
+  /assets/{assetId}:
+    $ref: ./paths/assets.yaml#/~1assets~1{assetId}
+  /assets/{assetId}/status:
+    $ref: ./paths/assets.yaml#/~1assets~1{assetId}~1status
+  /assets/{assetId}/template:
+    $ref: ./paths/assets.yaml#/~1assets~1{assetId}~1template
+  /assets/inventory/batch-add:
+    $ref: ./paths/inventory.yaml#/~1assets~1inventory~1batch-add
+  /assets/inventory/batch-remove:
+    $ref: ./paths/inventory.yaml#/~1assets~1inventory~1batch-remove
+  /asset-templates:
+    $ref: ./paths/asset-templates.yaml#/~1asset-templates
+  /asset-templates/{templateId}:
+    $ref: ./paths/asset-templates.yaml#/~1asset-templates~1{templateId}
+components:
+  securitySchemes:
+    bearerAuth:
+      $ref: ./components/security-schemes.yaml#/bearerAuth
+  headers:
+    RequestId:
+      $ref: ./components/headers.yaml#/RequestId
+  parameters:
+    UserId:
+      $ref: ./components/parameters.yaml#/UserId
+    RoleId:
+      $ref: ./components/parameters.yaml#/RoleId
+    AssetId:
+      $ref: ./components/parameters.yaml#/AssetId
+    TemplateId:
+      $ref: ./components/parameters.yaml#/TemplateId
+    Search:
+      $ref: ./components/parameters.yaml#/Search
+    Cursor:
+      $ref: ./components/parameters.yaml#/Cursor
+    Limit:
+      $ref: ./components/parameters.yaml#/Limit
+  responses:
+    BadRequest:
+      $ref: ./components/responses.yaml#/BadRequest
+    Unauthorized:
+      $ref: ./components/responses.yaml#/Unauthorized
+    Forbidden:
+      $ref: ./components/responses.yaml#/Forbidden
+    NotFound:
+      $ref: ./components/responses.yaml#/NotFound
+    Conflict:
+      $ref: ./components/responses.yaml#/Conflict
+    ValidationError:
+      $ref: ./components/responses.yaml#/ValidationError
+    RateLimited:
+      $ref: ./components/responses.yaml#/RateLimited
+  schemas:
+    Profile:
+      $ref: ./components/schemas/authentication.yaml#/Profile
+    UserIdentity:
+      $ref: ./components/schemas/authentication.yaml#/UserIdentity
+    SessionRole:
+      $ref: ./components/schemas/authentication.yaml#/SessionRole
+    AreaPermissions:
+      $ref: ./components/schemas/authentication.yaml#/AreaPermissions
+    EffectivePermissions:
+      $ref: ./components/schemas/authentication.yaml#/EffectivePermissions
+    SessionContext:
+      $ref: ./components/schemas/authentication.yaml#/SessionContext
+    LoginRequest:
+      $ref: ./components/schemas/authentication.yaml#/LoginRequest
+    LoginResponse:
+      $ref: ./components/schemas/authentication.yaml#/LoginResponse
+    PermissionKey:
+      $ref: ./components/schemas/access-control.yaml#/PermissionKey
+    RoleName:
+      $ref: ./components/schemas/access-control.yaml#/RoleName
+    ManagementAreaRef:
+      $ref: ./components/schemas/access-control.yaml#/ManagementAreaRef
+    PermissionDefinition:
+      $ref: ./components/schemas/access-control.yaml#/PermissionDefinition
+    Role:
+      $ref: ./components/schemas/access-control.yaml#/Role
+    UpdateRoleRequest:
+      $ref: ./components/schemas/access-control.yaml#/UpdateRoleRequest
+    ManagementArea:
+      $ref: ./components/schemas/access-control.yaml#/ManagementArea
+    ManagementAreaListResponse:
+      $ref: ./components/schemas/access-control.yaml#/ManagementAreaListResponse
+    UserListItem:
+      $ref: ./components/schemas/users.yaml#/UserListItem
+    UserListResponse:
+      $ref: ./components/schemas/users.yaml#/UserListResponse
+    ActorRef:
+      $ref: ./components/schemas/users.yaml#/ActorRef
+    RoleRef:
+      $ref: ./components/schemas/users.yaml#/RoleRef
+    RoleAssignment:
+      $ref: ./components/schemas/users.yaml#/RoleAssignment
+    UserDetail:
+      $ref: ./components/schemas/users.yaml#/UserDetail
+    CreateProfileInput:
+      $ref: ./components/schemas/users.yaml#/CreateProfileInput
+    CreateUserRequest:
+      $ref: ./components/schemas/users.yaml#/CreateUserRequest
+    UpdateUserStatusRequest:
+      $ref: ./components/schemas/users.yaml#/UpdateUserStatusRequest
+    AssignRoleRequest:
+      $ref: ./components/schemas/users.yaml#/AssignRoleRequest
+    AssetStatus:
+      $ref: ./components/schemas/assets.yaml#/AssetStatus
+    AssetTemplateRef:
+      $ref: ./components/schemas/assets.yaml#/AssetTemplateRef
+    AssetOwner:
+      $ref: ./components/schemas/assets.yaml#/AssetOwner
+    AssetCapabilities:
+      $ref: ./components/schemas/assets.yaml#/AssetCapabilities
+    AssetSummary:
+      $ref: ./components/schemas/assets.yaml#/AssetSummary
+    AssetListResponse:
+      $ref: ./components/schemas/assets.yaml#/AssetListResponse
+    ReservationRef:
+      $ref: ./components/schemas/assets.yaml#/ReservationRef
+    ActiveReservationItem:
+      $ref: ./components/schemas/assets.yaml#/ActiveReservationItem
+    InventoryLedgerItem:
+      $ref: ./components/schemas/assets.yaml#/InventoryLedgerItem
+    AssetEditPolicy:
+      $ref: ./components/schemas/assets.yaml#/AssetEditPolicy
+    AssetDetail:
+      $ref: ./components/schemas/assets.yaml#/AssetDetail
+    CreateAssetRequest:
+      $ref: ./components/schemas/assets.yaml#/CreateAssetRequest
+    BatchCreateAssetsRequest:
+      $ref: ./components/schemas/assets.yaml#/BatchCreateAssetsRequest
+    AssetBatchResponse:
+      $ref: ./components/schemas/assets.yaml#/AssetBatchResponse
+    UpdateAssetRequest:
+      $ref: ./components/schemas/assets.yaml#/UpdateAssetRequest
+    UpdateAssetStatusRequest:
+      $ref: ./components/schemas/assets.yaml#/UpdateAssetStatusRequest
+    BatchRemoveAssetItem:
+      $ref: ./components/schemas/assets.yaml#/BatchRemoveAssetItem
+    BatchRemoveAssetsRequest:
+      $ref: ./components/schemas/assets.yaml#/BatchRemoveAssetsRequest
+    RemovedAsset:
+      $ref: ./components/schemas/assets.yaml#/RemovedAsset
+    BatchRemoveAssetsResponse:
+      $ref: ./components/schemas/assets.yaml#/BatchRemoveAssetsResponse
+    InventoryLineRequest:
+      $ref: ./components/schemas/inventory.yaml#/InventoryLineRequest
+    InventoryBatchRequest:
+      $ref: ./components/schemas/inventory.yaml#/InventoryBatchRequest
+    InventoryOperation:
+      $ref: ./components/schemas/inventory.yaml#/InventoryOperation
+    InventoryPerformer:
+      $ref: ./components/schemas/inventory.yaml#/InventoryPerformer
+    InventoryResultItem:
+      $ref: ./components/schemas/inventory.yaml#/InventoryResultItem
+    InventoryBatchResponse:
+      $ref: ./components/schemas/inventory.yaml#/InventoryBatchResponse
+    AssetTemplate:
+      $ref: ./components/schemas/asset-templates.yaml#/AssetTemplate
+    AssetTemplateListResponse:
+      $ref: ./components/schemas/asset-templates.yaml#/AssetTemplateListResponse
+    CreateAssetTemplateRequest:
+      $ref: ./components/schemas/asset-templates.yaml#/CreateAssetTemplateRequest
+    UpdateAssetTemplateRequest:
+      $ref: ./components/schemas/asset-templates.yaml#/UpdateAssetTemplateRequest
+    SaveAssetAsTemplateRequest:
+      $ref: ./components/schemas/asset-templates.yaml#/SaveAssetAsTemplateRequest
+    PageInfo:
+      $ref: ./components/schemas/common.yaml#/PageInfo
+    ErrorDetail:
+      $ref: ./components/schemas/common.yaml#/ErrorDetail
+    ErrorResponse:
+      $ref: ./components/schemas/common.yaml#/ErrorResponse

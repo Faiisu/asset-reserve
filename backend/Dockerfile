@@ -13,6 +13,7 @@ COPY backend/prisma ./prisma
 COPY backend/prisma.config.ts backend/tsconfig.json backend/tsconfig.build.json ./
 COPY backend/src ./src
 COPY backend/scripts ./scripts
+COPY docs/backend_spec/contracts /docs/backend_spec/contracts
 RUN npm run build
 
 FROM build AS schema
@@ -27,13 +28,13 @@ FROM node:22-bookworm-slim AS runtime
 
 ENV NODE_ENV=production \
     PORT=3000 \
-    OPENAPI_CONTRACT_PATH=/docs/auth-permission.openapi.yaml
+    OPENAPI_CONTRACT_PATH=/docs/openapi.bundle.yaml
 WORKDIR /app
 
 COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY backend/package.json ./package.json
 COPY --from=build /app/dist ./dist
-COPY docs/backend_spec/contracts/auth-permission.openapi.yaml /docs/auth-permission.openapi.yaml
+COPY --from=build /docs/backend_spec/contracts/dist/openapi.bundle.yaml /docs/openapi.bundle.yaml
 
 USER node
 EXPOSE 3000

@@ -2,7 +2,7 @@
 
 [← กลับไปสารบัญ](../README.md)
 
-Authentication, session, user และ role management ต้องอ้างอิง [Auth and permission API contract](../../backend_spec/detail/authentication-and-permission-api.md) และ [OpenAPI](../../backend_spec/contracts/auth-permission.openapi.yaml) เพื่อให้ frontend ใช้ mock contract เดียวกับ backend
+Authentication, session, user และ role management ต้องอ้างอิง [Auth and permission API contract](../../backend_spec/detail/authentication-and-permission-api.md) และ [OpenAPI](../../backend_spec/contracts/openapi.yaml) เพื่อให้ frontend ใช้ mock contract เดียวกับ backend
 
 ## API behavior ที่ frontend ต้องพึ่งพา
 

@@ -1,0 +1,116 @@
+InventoryLineRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - assetId
+    - quantity
+  properties:
+    assetId:
+      type: string
+      format: uuid
+    quantity:
+      type: integer
+      minimum: 1
+      maximum: 2147483647
+    reason:
+      type: string
+      maxLength: 2000
+InventoryBatchRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      minItems: 1
+      maxItems: 100
+      uniqueItems: true
+      items:
+        $ref: "#/components/schemas/InventoryLineRequest"
+    description:
+      type: string
+      maxLength: 2000
+  example:
+    description: New equipment delivery
+    items:
+      - assetId: 00000000-0000-4000-8000-000000000401
+        quantity: 2
+        reason: Purchase order PO-2026-0815
+InventoryOperation:
+  type: string
+  enum:
+    - ADD
+    - REMOVE
+InventoryPerformer:
+  type: object
+  required:
+    - id
+    - email
+    - name
+  properties:
+    id:
+      type: string
+      format: uuid
+    email:
+      type: string
+      format: email
+    name:
+      type:
+        - string
+        - "null"
+InventoryResultItem:
+  type: object
+  required:
+    - transactionId
+    - assetId
+    - assetName
+    - quantityDelta
+    - totalQuantity
+    - reason
+  properties:
+    transactionId:
+      type: string
+      format: uuid
+    assetId:
+      type: string
+      format: uuid
+    assetName:
+      type: string
+    quantityDelta:
+      type: integer
+    totalQuantity:
+      type: integer
+      minimum: 0
+    reason:
+      type:
+        - string
+        - "null"
+InventoryBatchResponse:
+  type: object
+  required:
+    - id
+    - operation
+    - description
+    - performedBy
+    - items
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    operation:
+      $ref: "#/components/schemas/InventoryOperation"
+    description:
+      type:
+        - string
+        - "null"
+    performedBy:
+      $ref: "#/components/schemas/InventoryPerformer"
+    items:
+      type: array
+      items:
+        $ref: "#/components/schemas/InventoryResultItem"
+    createdAt:
+      type: string
+      format: date-time
