@@ -16,14 +16,6 @@ const mockArea = {
   updatedAt: "2026-08-15T00:00:00.000Z",
 };
 
-const mockTemplate = {
-  id: "template-1",
-  name: "AV Equipment",
-  description: null,
-  createdAt: "2026-08-15T00:00:00.000Z",
-  updatedAt: "2026-08-15T00:00:00.000Z",
-};
-
 const mockAsset: AssetSummary = {
   id: "asset-1",
   name: "HD Projector",
@@ -35,7 +27,7 @@ const mockAsset: AssetSummary = {
   isActive: true,
   status: "ACTIVE",
   managementArea: mockArea,
-  assetTemplate: mockTemplate,
+  assetTemplate: null,
   owner: null,
   capabilities: {
     canEdit: true,
@@ -50,10 +42,6 @@ describe("AssetsPage", () => {
   it("renders asset list and allows row click to toggle checkbox selection", async () => {
     vi.spyOn(api, "areas").mockResolvedValue({
       data: [mockArea],
-      pageInfo: { nextCursor: null, hasNextPage: false },
-    });
-    vi.spyOn(api, "templates").mockResolvedValue({
-      data: [mockTemplate],
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
     vi.spyOn(api, "assets").mockResolvedValue({
@@ -89,5 +77,24 @@ describe("AssetsPage", () => {
     fireEvent.click(row);
     expect(checkbox.checked).toBe(false);
     expect(row).not.toHaveClass("asset-table-row--selected");
+  });
+
+  it("renders empty state cleanly without crashing", async () => {
+    vi.spyOn(api, "areas").mockResolvedValue({
+      data: [mockArea],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+    vi.spyOn(api, "assets").mockResolvedValue({
+      data: [],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <AssetsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("No assets found")).toBeInTheDocument();
   });
 });

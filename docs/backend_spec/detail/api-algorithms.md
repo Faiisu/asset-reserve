@@ -126,6 +126,7 @@ Error กลางที่พบบ่อย:
 | GET    | `/bff/session`                                                           | Active user                                    | อ่าน session สำหรับ BFF    |
 | GET    | `/permissions`                                                           | Active user                                    | อ่าน permission catalog    |
 | GET    | `/roles`                                                                 | Active user                                    | อ่าน role definitions      |
+| POST   | `/roles`                                                                 | Global ADMIN                                   | สร้าง role                 |
 | PATCH  | `/roles/:roleId`                                                         | Global ADMIN                                   | แก้ role                   |
 | GET    | `/users`                                                                 | Global user-admin permission อย่างน้อยหนึ่งค่า | ค้นหา user                 |
 | POST   | `/users`                                                                 | Global `user:create`                           | สร้าง user                 |
@@ -134,6 +135,10 @@ Error กลางที่พบบ่อย:
 | POST   | `/users/:userId/role-assignments`                                        | Global `role:assign`                           | เพิ่ม role assignment      |
 | DELETE | `/users/:userId/role-assignments/:assignmentId`                          | Global `role:assign`                           | ลบ role assignment         |
 | GET    | `/management-areas`                                                      | Active user                                    | ค้นหา management area      |
+| GET    | `/management-areas/:id`                                                  | Global ADMIN                                   | อ่าน area และ relation counts |
+| POST   | `/management-areas`                                                      | Global ADMIN                                   | สร้าง management area      |
+| PATCH  | `/management-areas/:id`                                                  | Global ADMIN                                   | แก้ management area        |
+| DELETE | `/management-areas/:id`                                                  | Global ADMIN                                   | ลบ area ที่ไม่มี asset     |
 | GET    | `/assets`                                                                | Scoped `asset:view`                            | ค้นหา asset                |
 | POST   | `/assets`                                                                | Scoped `asset:create`                          | สร้าง asset เดียว          |
 | POST   | `/assets/batch`                                                          | Scoped `asset:create` ทุก area                 | สร้าง asset หลายรายการ     |
@@ -153,8 +158,11 @@ Error กลางที่พบบ่อย:
 | GET    | `/reservations/:reservationId`                                           | Requester/participant หรือ scoped operator     | อ่าน reservation detail    |
 | POST   | `/reservations/:reservationId/submit`                                    | Requester หรือ scoped `reservation:update`     | ส่ง draft ขออนุมัติ        |
 | POST   | `/reservations/:reservationId/items/:itemId/decision`                    | Scoped `reservation:approve/reject`            | ตัดสิน item                |
+| POST   | `/reservations/:reservationId/items/decision`                            | Scoped `reservation:approve/reject`            | ตัดสินหลาย item แบบ atomic |
 | POST   | `/reservations/:reservationId/change-requests`                           | Requester หรือ scoped `reservation:update`     | ขอแก้ reservation          |
 | POST   | `/reservations/:reservationId/change-requests/:changeRequestId/decision` | Scoped `reservation:approve/reject`            | ตัดสินคำขอแก้ไข            |
+| POST   | `/reservations/:reservationId/cancel`                                    | Requester หรือ scoped `reservation:update`     | ยกเลิกและคืน allocation    |
+| POST   | `/uploads/image`                                                         | Active user                                    | Upload image สูงสุด 10 MiB |
 
 > ทุก path ในตารางต้องนำหน้าด้วย `/api/v1`
 
@@ -167,7 +175,7 @@ Error กลางที่พบบ่อย:
 | GET    | `/api/docs`              | เปิดเมื่อพบไฟล์ OpenAPI ตอน startup | Render Swagger UI จาก static OpenAPI contract |
 | GET    | `/api/docs/openapi.json` | เปิดเมื่อพบไฟล์ OpenAPI ตอน startup | คืน contract เดียวกันในรูป JSON               |
 
-OpenAPI source แยกตาม domain โดยมี `docs/backend_spec/contracts/openapi.yaml` เป็น root document และสร้าง runtime bundle ผ่าน `npm run openapi:bundle` ตอน startup ระบบ resolve contract จาก `OPENAPI_CONTRACT_PATH` หรือใช้ค่าเริ่มต้น `docs/backend_spec/contracts/dist/openapi.bundle.yaml` ถ้าพบไฟล์จึง register สอง route นี้ หากไม่พบจะ log warning และไม่เปิด Swagger UI contract เวอร์ชัน 1.3.0 ครอบคลุม application endpoint ปัจจุบันครบ 35 operations
+OpenAPI source แยกตาม domain โดยมี `docs/backend_spec/contracts/openapi.yaml` เป็น root document และสร้าง runtime bundle ผ่าน `npm run openapi:bundle` ตอน startup ระบบ resolve contract จาก `OPENAPI_CONTRACT_PATH` หรือใช้ค่าเริ่มต้น `docs/backend_spec/contracts/dist/openapi.bundle.yaml` ถ้าพบไฟล์จึง register สอง route นี้ หากไม่พบจะ log warning และไม่เปิด Swagger UI contract เวอร์ชัน 1.4.0 ครอบคลุม application endpoint ปัจจุบันครบ 43 operations
 
 สำหรับ Docker development ให้เปิด `http://localhost:${BACKEND_HOST_PORT}/api/docs` โดยค่าเริ่มต้น `BACKEND_HOST_PORT=3000` หากเข้าผ่าน Nginx ต้องให้ API location มี precedence เหนือ static-file regex เช่น `location ^~ /api/`; มิฉะนั้นไฟล์ `swagger-ui.css` และ `swagger-ui-*.js` อาจถูก Nginx หาใน frontend static directory แล้วตอบ 404 จน Swagger UI เป็นหน้าว่าง ส่วน `/api/docs/openapi.json` เป็น raw JSON จึงแสดงเป็นข้อความบนพื้นขาวตามปกติ
 
@@ -246,7 +254,11 @@ Algorithm:
 3. แปลงวันที่เป็น ISO 8601
 4. คืน `{ data: Role[] }`
 
-### 4.3 `PATCH /roles/:roleId`
+### 4.3 `POST /roles`
+
+Global ADMIN ส่ง name, description และ permission set ระบบ trim ชื่อ ตรวจ unique แบบ case-insensitive, normalize permission dependencies และบันทึกชื่อเป็น uppercase ถ้าชื่อซ้ำตอบ 409
+
+### 4.4 `PATCH /roles/:roleId`
 
 สถานะสำเร็จ: `200 OK`  
 Authorization: ต้องมี global role ชื่อ `ADMIN`; area-scoped ADMIN ไม่เพียงพอ  
@@ -279,9 +291,9 @@ Algorithm:
 2. Search แบบ case-insensitive จาก email หรือ profile name
 3. ถ้ามี `roleId`/`areaId` ใช้ relation filter หา user ที่มี role assignment ตรงเงื่อนไข
 4. Query `limit + 1` เรียง `createdAt DESC, id DESC`
-5. Include profile และนับจำนวน role assignments โดยไม่โหลด relation ทั้งหมด
+5. Include profile, distinct role references และนับจำนวน role assignments เพื่อรองรับ multi-role filter ใน frontend
 6. สร้าง `pageInfo` ตาม cursor algorithm
-7. คืน user summary พร้อม `roleCount`
+7. คืน user summary พร้อม `roleCount` และ `roles`
 
 ### 5.2 `POST /users`
 
@@ -291,7 +303,7 @@ Input: `email`, `password`, `profile`
 
 Algorithm:
 
-1. Normalize email; validate password 12–128 ตัวอักษร
+1. Normalize email; validate password 8–128 ตัวอักษร
 2. Validate profile name, phone number และ profile picture URL
 3. Hash password ด้วย Argon2
 4. สร้าง UUID และ insert `User` พร้อม nested `UserProfile`
@@ -373,6 +385,22 @@ Algorithm:
 4. สร้าง cursor ของหน้าถัดไปและคืน `{ data, pageInfo }`
 
 หมายเหตุ: endpoint ปัจจุบันเป็น lookup list และไม่ได้กรองตาม management-area assignments ของ actor
+
+### 6.2 `GET /management-areas/:id`
+
+Global ADMIN เท่านั้น คืน metadata พร้อม `assetCount` และ `userRoleCount`; UUID ไม่ถูกต้องตอบ 400 และไม่พบตอบ 404
+
+### 6.3 `POST /management-areas`
+
+Global ADMIN เท่านั้น รับ name ที่ trim แล้วและ description optional ตรวจชื่อ unique ก่อนสร้าง UUID/timestamps ชื่อซ้ำตอบ 409
+
+### 6.4 `PATCH /management-areas/:id`
+
+Global ADMIN เท่านั้น แก้เฉพาะ field ที่ส่งมา ตรวจชื่อซ้ำและอัปเดต `updatedAt`
+
+### 6.5 `DELETE /management-areas/:id`
+
+Global ADMIN เท่านั้น ปฏิเสธเมื่อ area ยังมี asset แล้วลบ record; relation constraint อื่นยังเป็น database safety net
 
 ## 7. Asset APIs
 
@@ -642,6 +670,7 @@ Availability ใช้ช่วงเวลาแบบ half-open: overlap เ�
 ### 9.1 `POST /reservations`
 
 สร้าง `DRAFT` หรือ `PENDING_APPROVAL` พร้อม event details, assets และ participants ตรวจ asset active, permission ทุก area, duplicate asset และ approved overlap ก่อนบันทึก
+เมื่อสร้างหรือ submit ด้วยรายการ items ว่างเปล่า (zero items) สถานะจะถูกปรับเป็น `APPROVED` อัตโนมัติ โดยไม่ต้องผ่าน approval workflow สำหรับ event ที่ไม่มีการจอง asset
 
 ### 9.2 `GET /reservations`
 
@@ -659,17 +688,31 @@ Availability ใช้ช่วงเวลาแบบ half-open: overlap เ�
 
 Approve/reject เป็นราย item ตาม area permission เมื่อ approve ต้องมี quantity พอหลังหัก approved overlap อื่น แล้วคำนวณ reservation status ใหม่เป็น `PENDING_APPROVAL`, `PARTIALLY_APPROVED`, `APPROVED` หรือ `REJECTED`
 
-### 9.6 `POST /reservations/:reservationId/change-requests`
+### 9.6 `POST /reservations/:reservationId/items/decision`
+
+รับ itemIds สูงสุด 100 รายการ ตัดสินทั้งหมดใน transaction เดียว ล็อก asset ตาม UUID และ rollback ทั้งชุดเมื่อ item ใดไม่ผ่าน permission/state/availability
+
+### 9.7 `POST /reservations/:reservationId/change-requests`
 
 สร้างคำขอแก้ไขหลัง submit โดย allowlist เฉพาะ `eventName`, `description`, `startAt`, `endAt`, `items`, `participantIds` และอนุญาต pending request ได้หนึ่งรายการต่อ reservation
 
-### 9.7 `POST /reservations/:reservationId/change-requests/:changeRequestId/decision`
+### 9.8 `POST /reservations/:reservationId/change-requests/:changeRequestId/decision`
 
 เมื่อ approve ระบบ apply event/time/item/participant changes และบันทึก reviewer ใน transaction เดียว ถ้า reservation เดิม approved รายการใหม่ถือว่า approved โดย reviewer นี้และต้องผ่าน conflict check ก่อน commit
 
-## 10. Response data ที่ควรรู้
+### 9.9 `POST /reservations/:reservationId/cancel`
 
-### 10.1 Asset summary
+Requester หรือ actor ที่ manage reservation ได้ยกเลิกสถานะ `DRAFT`, `PENDING_APPROVAL`, `PARTIALLY_APPROVED`, `APPROVED` พร้อม reason optional แล้วเปลี่ยน reservation/item/approval ที่เกี่ยวข้องเป็น cancelled/rejected ตาม domain rule เพื่อคืน allocation
+
+## 10. Upload API
+
+### 10.1 `POST /uploads/image`
+
+รับ `multipart/form-data` field `file` หนึ่งไฟล์ Fastify จำกัด 10 MiB ตรวจ MIME เป็น image, stream ไป `uploads/assets/{timestamp}-{uuid}.{ext}` และคืน public URL ใต้ `/uploads/assets/` ไฟล์ static ไม่ใช้ `/api/v1`
+
+## 11. Response data ที่ควรรู้
+
+### 11.1 Asset summary
 
 ```ts
 type AssetSummary = {
@@ -704,7 +747,7 @@ type AssetSummary = {
 };
 ```
 
-### 10.2 List response
+### 11.2 List response
 
 ```ts
 type ListResponse<T> = {
@@ -716,7 +759,7 @@ type ListResponse<T> = {
 };
 ```
 
-## 11. Source-code map
+## 12. Source-code map
 
 | Domain                     | Controller                                                                                             | Algorithm/service                                                                                                                                                                                                                  |
 | -------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

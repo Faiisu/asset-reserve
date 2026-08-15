@@ -96,7 +96,8 @@
   align-items: center;
   gap: 8px;
 }
-.toolbar__filters .control {
+.toolbar__filters .control,
+.toolbar__filters .select-wrap {
   width: auto;
   min-width: 140px;
 }
@@ -569,14 +570,14 @@
   width: fit-content;
   padding: 4px;
   display: flex;
-  gap: 3px;
+  gap: 4px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface);
 }
 .segmented button {
   min-height: 35px;
-  padding: 0 13px;
+  padding: 0 14px;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -584,10 +585,203 @@
   border-radius: 7px;
   background: transparent;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
 }
-.segmented .segmented--active {
+.segmented button:hover:not(.segmented--active) {
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+.segmented .segmented--active,
+.segmented button.segmented--active {
   background: var(--ink);
   color: var(--surface);
+  font-weight: 600;
+}
+
+/* Camera Capture Modal */
+.camera-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.camera-viewfinder {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera-viewfinder video,
+.camera-viewfinder img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.camera-viewfinder__overlay {
+  position: absolute;
+  inset: 20px;
+  border: 2px dashed rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera-viewfinder__crosshair {
+  width: 24px;
+  height: 24px;
+  position: relative;
+}
+
+.camera-viewfinder__crosshair::before,
+.camera-viewfinder__crosshair::after {
+  content: "";
+  position: absolute;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.camera-viewfinder__crosshair::before {
+  top: 11px;
+  left: 0;
+  width: 24px;
+  height: 2px;
+}
+
+.camera-viewfinder__crosshair::after {
+  top: 0;
+  left: 11px;
+  width: 2px;
+  height: 24px;
+}
+
+.camera-viewfinder__badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.camera-viewfinder__pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff4d4f;
+  animation: cameraPulse 1.5s infinite;
+}
+
+@keyframes cameraPulse {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+.camera-error-box {
+  padding: 32px 24px;
+  text-align: center;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: #111;
+  border-radius: 12px;
+}
+
+.camera-error-box p {
+  margin: 0;
+  max-width: 360px;
+  color: #d1d5db;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.camera-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.camera-shutter-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.camera-shutter-btn {
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  border-radius: 50%;
+  border: 4px solid var(--surface);
+  background: var(--blue);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--blue) 45%, transparent);
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.camera-shutter-btn:hover {
+  transform: scale(1.06);
+}
+
+.camera-shutter-btn:active {
+  transform: scale(0.94);
+}
+
+.camera-viewfinder video.is-mirrored,
+.camera-viewfinder img.is-mirrored {
+  transform: scaleX(-1);
+}
+
+.camera-viewfinder__actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+.camera-viewfinder__action-btn {
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.camera-viewfinder__action-btn:hover {
+  background: rgba(0, 0, 0, 0.85);
+  border-color: rgba(255, 255, 255, 0.4);
 }

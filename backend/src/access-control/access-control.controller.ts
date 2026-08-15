@@ -5,9 +5,10 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Post,
 } from "@nestjs/common";
 import { RequireGlobalAdmin } from "../auth/auth.decorators.js";
-import { UpdateRoleDto } from "./access-control.dto.js";
+import { CreateRoleDto, UpdateRoleDto } from "./access-control.dto.js";
 import { AccessControlService } from "./access-control.service.js";
 
 @Controller()
@@ -22,6 +23,12 @@ export class AccessControlController {
   @Get("roles")
   roles() {
     return this.access.listRoles();
+  }
+
+  @RequireGlobalAdmin()
+  @Post("roles")
+  createRole(@Body() input: CreateRoleDto) {
+    return this.access.createRole(input);
   }
 
   @RequireGlobalAdmin()

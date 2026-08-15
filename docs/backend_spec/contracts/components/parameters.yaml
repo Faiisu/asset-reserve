@@ -12,6 +12,13 @@ RoleId:
   schema:
     type: string
     format: uuid
+ManagementAreaId:
+  name: managementAreaId
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
 AssetId:
   name: assetId
   in: path

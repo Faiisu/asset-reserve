@@ -104,6 +104,12 @@ export const api = {
 
   permissions: () => request<{ data: PermissionDefinition[] }>("/permissions"),
   roles: () => request<{ data: Role[] }>("/roles"),
+  createRole: (input: {
+    name: string;
+    description?: string | null;
+    permissions: PermissionKey[];
+  }) =>
+    request<Role>("/roles", { method: "POST", body: json(input) }),
   updateRole: (
     roleId: string,
     input: {
@@ -157,6 +163,20 @@ export const api = {
     request<ListResponse<ManagementArea>>(
       `/management-areas${queryString({ search, limit: 100 })}`,
     ),
+  createArea: (input: { name: string; description?: string }) =>
+    request<ManagementArea>("/management-areas", {
+      method: "POST",
+      body: json(input),
+    }),
+  updateArea: (id: string, input: { name?: string; description?: string }) =>
+    request<ManagementArea>(`/management-areas/${id}`, {
+      method: "PATCH",
+      body: json(input),
+    }),
+  deleteArea: (id: string) =>
+    request<{ success: boolean; id: string }>(`/management-areas/${id}`, {
+      method: "DELETE",
+    }),
   assets: (filters: {
     search?: string;
     areaId?: string;

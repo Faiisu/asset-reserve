@@ -21,6 +21,7 @@ import { useAuth } from "../auth";
 import {
   AssetPicture,
   Button,
+  CheckboxDropdownFilter,
   Dialog,
   EmptyState,
   ErrorState,
@@ -30,31 +31,30 @@ import {
   Select,
   StatusBadge,
   Textarea,
+  WorkspaceCheckboxFilter,
   apiError,
   cx,
   formatDate,
 } from "../components/ui";
-import type { AssetSummary, AssetTemplate, ManagementArea } from "../types";
+import type { AssetSummary, ManagementArea } from "../types";
 
-type Filters = {
+interface Filters {
   search: string;
-  areaId: string;
-  templateId: string;
-  status: string;
-};
+  areaIds: string[];
+  statuses: string[];
+}
 
 export function AssetsPage() {
   const { hasPermission } = useAuth();
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [filters, setFilters] = useState<Filters>({
     search: "",
-    areaId: "",
-    templateId: "",
-    status: "active",
+    areaIds: [],
+    statuses: ["active"],
   });
   const [draftSearch, setDraftSearch] = useState("");
   const [assets, setAssets] = useState<AssetSummary[]>([]);
   const [areas, setAreas] = useState<ManagementArea[]>([]);
-  const [templates, setTemplates] = useState<AssetTemplate[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -73,15 +73,27 @@ export function AssetsPage() {
       try {
         const response = await api.assets({
           search: filters.search || undefined,
-          areaId: filters.areaId || undefined,
-          templateId: filters.templateId || undefined,
+          areaId: filters.areaIds.length === 1 ? filters.areaIds[0] : undefined,
           isActive:
-            filters.status === "all" ? undefined : filters.status === "active",
+            filters.statuses.length === 1
+              ? filters.statuses[0] === "active"
+              : undefined,
           cursor,
           limit: 20,
         });
+        let list = response.data;
+        if (filters.areaIds.length > 1) {
+          list = list.filter((asset) =>
+            filters.areaIds.includes(asset.managementArea.id),
+          );
+        }
+        if (filters.statuses.length > 1) {
+          list = list.filter((asset) =>
+            filters.statuses.includes(asset.isActive ? "active" : "inactive"),
+          );
+        }
         setAssets((current) =>
-          append ? [...current, ...response.data] : response.data,
+          append ? [...current, ...list] : list,
         );
         setNextCursor(response.pageInfo.nextCursor);
         if (!append) setSelected([]);
@@ -99,10 +111,10 @@ export function AssetsPage() {
     void load();
   }, [load]);
   useEffect(() => {
-    void Promise.all([api.areas(), api.templates()])
-      .then(([areaResponse, templateResponse]) => {
+    void api
+      .areas()
+      .then((areaResponse) => {
         setAreas(areaResponse.data);
-        setTemplates(templateResponse.data);
       })
       .catch(() => undefined);
   }, []);
@@ -182,54 +194,32 @@ export function AssetsPage() {
             <Filter size={15} />
             Filters
           </span>
-          <Select
-            aria-label="Management area"
-            value={filters.areaId}
-            onChange={(event) =>
+          <WorkspaceCheckboxFilter
+            areas={areas}
+            selectedIds={filters.areaIds}
+            onChange={(ids) =>
               setFilters((current) => ({
                 ...current,
-                areaId: event.target.value,
+                areaIds: ids,
               }))
             }
-          >
-            <option value="">All areas</option>
-            {areas.map((area) => (
-              <option key={area.id} value={area.id}>
-                {area.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            aria-label="Template"
-            value={filters.templateId}
-            onChange={(event) =>
+          />
+          <CheckboxDropdownFilter
+            label="Statuses"
+            allLabel="All statuses"
+            options={[
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ]}
+            selectedValues={filters.statuses}
+            onChange={(statuses) =>
               setFilters((current) => ({
                 ...current,
-                templateId: event.target.value,
+                statuses,
               }))
             }
-          >
-            <option value="">All templates</option>
-            {templates.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            aria-label="Status"
-            value={filters.status}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                status: event.target.value,
-              }))
-            }
-          >
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="all">All statuses</option>
-          </Select>
+            ariaLabel="Filter statuses"
+          />
         </div>
         {hasPermission("asset:create") && (
           <Link
@@ -294,7 +284,7 @@ export function AssetsPage() {
         <EmptyState
           title="No assets found"
           description={
-            filters.search || filters.areaId || filters.templateId
+            filters.search || filters.areaIds.length > 0
               ? "Try changing your search or filters."
               : "Start by adding the first asset in your area."
           }
@@ -326,7 +316,7 @@ export function AssetsPage() {
                     />
                   </th>
                   <th>Asset</th>
-                  <th>Area / Template</th>
+                  <th>Workspace</th>
                   <th className="cell-number">Total</th>
                   <th>Status</th>
                   <th>Updated</th>
@@ -383,9 +373,6 @@ export function AssetsPage() {
                         <strong className="table-primary">
                           {asset.managementArea.name}
                         </strong>
-                        <small className="table-secondary">
-                          {asset.assetTemplate?.name ?? "No template"}
-                        </small>
                       </td>
                       <td className="cell-number">
                         <strong className="quantity">

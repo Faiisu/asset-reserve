@@ -2,9 +2,11 @@ import {
   Check,
   KeyRound,
   LockKeyhole,
+  Plus,
   RefreshCw,
   Save,
   Shield,
+  ShieldPlus,
   UsersRound,
 } from "lucide-react";
 import {
@@ -18,8 +20,11 @@ import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
 import {
   Button,
+  Dialog,
   EmptyState,
   ErrorState,
+  Field,
+  Input,
   LoadingState,
   Notice,
   RoleBadge,
@@ -46,6 +51,7 @@ export function AccessPage() {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState("");
 
@@ -70,6 +76,7 @@ export function AccessPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
   const selectedRole = roles.find((role) => role.id === selectedId) ?? null;
   useEffect(() => {
     if (!selectedRole) return;
@@ -90,11 +97,14 @@ export function AccessPage() {
       ),
     [permissions],
   );
+
   const dirty = selectedRole
     ? description !== (selectedRole.description ?? "") ||
       [...draftPermissions].sort().join() !==
         [...selectedRole.permissions].sort().join()
     : false;
+
+  const isSystemAdmin = selectedRole?.name.toUpperCase() === "ADMIN";
 
   if (!isGlobalAdmin)
     return (
@@ -108,7 +118,7 @@ export function AccessPage() {
 
   function togglePermission(permission: PermissionKey) {
     if (
-      selectedRole?.name === "ADMIN" &&
+      isSystemAdmin &&
       ["user:disable", "role:assign"].includes(permission)
     )
       return;
@@ -183,9 +193,16 @@ export function AccessPage() {
 
       <div className="access-layout">
         <aside className="role-list" aria-label="Roles">
-          <header>
-            <p className="eyebrow">Role registry</p>
-            <h2>Select a role</h2>
+          <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+            <div>
+              <p className="eyebrow">Role registry</p>
+              <h2>Select a role</h2>
+            </div>
+            {isGlobalAdmin && (
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
+                New role
+              </Button>
+            )}
           </header>
           {roles.map((role) => (
             <button
@@ -251,7 +268,7 @@ export function AccessPage() {
                     {items?.map((permission) => {
                       const checked = draftPermissions.includes(permission.key);
                       const locked =
-                        selectedRole.name === "ADMIN" &&
+                        isSystemAdmin &&
                         ["user:disable", "role:assign"].includes(
                           permission.key,
                         );
@@ -302,6 +319,189 @@ export function AccessPage() {
           </form>
         )}
       </div>
+
+      <CreateRoleDialog
+        open={createOpen}
+        permissions={permissions}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(newRole) => {
+          setRoles((prev) => [...prev, newRole]);
+          setSelectedId(newRole.id);
+          setNotice(`Role "${newRole.name}" created successfully`);
+          setCreateOpen(false);
+        }}
+      />
     </div>
+  );
+}
+
+function CreateRoleDialog({
+  open,
+  permissions,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  permissions: PermissionDefinition[];
+  onClose: () => void;
+  onCreated: (role: Role) => void;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [selectedPermissions, setSelectedPermissions] = useState<
+    PermissionKey[]
+  >([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setName("");
+    setDescription("");
+    setSelectedPermissions([]);
+    setError("");
+  }, [open]);
+
+  const groups = useMemo(
+    () =>
+      Object.entries(
+        permissions.reduce<Record<string, PermissionDefinition[]>>(
+          (result, permission) => {
+            (result[permission.resource] ??= []).push(permission);
+            return result;
+          },
+          {},
+        ),
+      ),
+    [permissions],
+  );
+
+  function togglePermission(key: PermissionKey) {
+    setSelectedPermissions((prev) =>
+      prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key],
+    );
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const roleName = name.trim().toUpperCase();
+    if (!roleName) {
+      setError("Role name is required.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const created = await api.createRole({
+        name: roleName,
+        description: description.trim() || undefined,
+        permissions: selectedPermissions,
+      });
+      onCreated(created);
+    } catch (caught) {
+      setError(
+        caught instanceof ApiClientError
+          ? caught.message
+          : "Unable to create role",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      title="Create new role"
+      description="Define a new role and choose its initial permission set."
+      onClose={onClose}
+      wide
+    >
+      <form className="form-stack" onSubmit={submit}>
+        {error && (
+          <div className="form-alert" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="form-grid form-grid--2">
+          <Field label="Role name" hint="Uppercase identifier, e.g. TECHNICIAN, SUPERVISOR" required>
+            <Input
+              value={name}
+              onChange={(event) =>
+                setName(event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_"))
+              }
+              placeholder="For example, EQUIPMENT_OFFICER"
+              maxLength={50}
+              required
+              autoFocus
+            />
+          </Field>
+          <Field label="Description">
+            <Input
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Role responsibilities and access scope"
+              maxLength={500}
+            />
+          </Field>
+        </div>
+
+        <Field label="Initial permissions">
+          <div className="permission-groups" style={{ maxHeight: "360px", overflowY: "auto", paddingRight: "4px" }}>
+            {groups.map(([resource, items]) => (
+              <section className="permission-group" key={resource}>
+                <header>
+                  <div>
+                    <h3>{resourceLabels[resource] ?? resource}</h3>
+                    <span className="mono">{resource}</span>
+                  </div>
+                  <small>
+                    {items?.filter((p) => selectedPermissions.includes(p.key)).length ?? 0}
+                    /{items?.length ?? 0} selected
+                  </small>
+                </header>
+                <div>
+                  {items?.map((permission) => {
+                    const checked = selectedPermissions.includes(permission.key);
+                    return (
+                      <label
+                        className={cx(
+                          "permission-item",
+                          checked && "permission-item--checked",
+                        )}
+                        key={permission.key}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => togglePermission(permission.key)}
+                        />
+                        <span className="permission-item__check">
+                          {checked && <Check size={14} />}
+                        </span>
+                        <span>
+                          <strong>{permission.action}</strong>
+                          <code>{permission.key}</code>
+                          <small>{permission.description}</small>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
+        </Field>
+
+        <div className="dialog__actions">
+          <Button type="button" variant="quiet" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={submitting}>
+            <ShieldPlus size={16} />
+            Create role
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

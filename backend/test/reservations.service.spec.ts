@@ -506,7 +506,9 @@ describe("reservation change requests", () => {
 
   it("creates an event without items and automatically sets status to APPROVED", async () => {
     const reservationCreate = vi.fn().mockResolvedValue({ id: reservationId });
-    const userFindFirst = vi.fn().mockResolvedValue({ id: actorId, isActive: true });
+    const userFindFirst = vi
+      .fn()
+      .mockResolvedValue({ id: actorId, isActive: true });
     const tx = {
       user: { findFirst: userFindFirst },
       reservation: { create: reservationCreate },
@@ -519,7 +521,10 @@ describe("reservation change requests", () => {
       ),
     } as unknown as PrismaService;
     const service = new ReservationsService(prisma);
-    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId, status: "APPROVED" } as never);
+    vi.spyOn(service, "get").mockResolvedValue({
+      id: reservationId,
+      status: "APPROVED",
+    } as never);
 
     const result = await service.create(actor, {
       eventName: "Company All-Hands Meeting",
@@ -536,5 +541,130 @@ describe("reservation change requests", () => {
       }),
     });
     expect(result.status).toBe("APPROVED");
+  });
+
+  it("filters out other users rejected/cancelled reservations when regular user lists all reservations", async () => {
+    const regularUserActor: AuthenticatedActor = {
+      user: {
+        id: "regular-user-id",
+        email: "user@example.com",
+        isActive: true,
+        profile: null,
+      },
+      roles: [],
+      effectivePermissions: {
+        global: ["reservation:create", "reservation:view"],
+        byManagementArea: [],
+      },
+    };
+    const findMany = vi.fn().mockResolvedValue([]);
+    const service = new ReservationsService({
+      reservation: { findMany },
+    } as unknown as PrismaService);
+
+    await service.list(regularUserActor, {
+      view: "ALL",
+      limit: 20,
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: expect.arrayContaining([
+            {
+              OR: [
+                {
+                  OR: [
+                    { requesterId: "regular-user-id" },
+                    { participants: { some: { userId: "regular-user-id" } } },
+                  ],
+                },
+                {
+                  status: {
+                    notIn: [
+                      "DRAFT",
+                      "PENDING_APPROVAL",
+                      "REJECTED",
+                      "CANCELLED",
+                    ],
+                  },
+                },
+              ],
+            },
+          ]),
+        },
+      }),
+    );
+  });
+
+  it("forbids regular user from viewing another user's pending approval reservation detail", async () => {
+    const regularUserActor: AuthenticatedActor = {
+      user: {
+        id: "regular-user-id",
+        email: "user@example.com",
+        isActive: true,
+        profile: null,
+      },
+      roles: [],
+      effectivePermissions: {
+        global: ["reservation:create", "asset:view"],
+        byManagementArea: [],
+      },
+    };
+    const pendingReservation = detailRecord("PENDING_APPROVAL");
+    const service = new ReservationsService({
+      reservation: {
+        findUnique: vi.fn().mockResolvedValue(pendingReservation),
+      },
+    } as unknown as PrismaService);
+
+    await expect(service.get(regularUserActor, reservationId)).rejects.toThrow(
+      "You do not have permission to perform this reservation action.",
+    );
+  });
+
+  it("forbids regular user from viewing another user's rejected reservation detail", async () => {
+    const regularUserActor: AuthenticatedActor = {
+      user: {
+        id: "regular-user-id",
+        email: "user@example.com",
+        isActive: true,
+        profile: null,
+      },
+      roles: [],
+      effectivePermissions: {
+        global: ["reservation:create", "asset:view"],
+        byManagementArea: [],
+      },
+    };
+    const rejectedReservation = detailRecord("REJECTED");
+    const service = new ReservationsService({
+      reservation: {
+        findUnique: vi.fn().mockResolvedValue(rejectedReservation),
+      },
+    } as unknown as PrismaService);
+
+    await expect(service.get(regularUserActor, reservationId)).rejects.toThrow(
+      "You do not have permission to perform this reservation action.",
+    );
+  });
+
+  it("allows requester to view their own rejected reservation detail", async () => {
+    const rejectedReservation = detailRecord("REJECTED");
+    const service = new ReservationsService({
+      reservation: {
+        findUnique: vi.fn().mockResolvedValue(rejectedReservation),
+      },
+      asset: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]),
+      },
+      reservationItem: { findMany: vi.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService);
+
+    const result = await service.get(actor, reservationId);
+    expect(result.id).toBe(reservationId);
+    expect(result.status).toBe("REJECTED");
   });
 });

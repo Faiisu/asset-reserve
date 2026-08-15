@@ -6,7 +6,11 @@ import type { AuthenticatedActor } from "../auth/auth.types.js";
 import { ApiException } from "../common/api-exception.js";
 import { decodeCursor, pageInfo } from "../common/pagination.js";
 import { PrismaService } from "../database/prisma.service.js";
-import { hasAnyPermission, hasAreaPermission } from "../assets/asset-access.js";
+import {
+  hasAnyPermission,
+  hasAreaPermission,
+  hasGlobalPermission,
+} from "../assets/asset-access.js";
 import type {
   CancelReservationDto,
   CreateReservationChangeRequestDto,
@@ -150,21 +154,47 @@ export class ReservationsService {
       }
       conditions.push({ OR: approvalConditions });
     } else {
-      const visibility: Prisma.ReservationWhereInput[] = [
-        { requesterId: actor.user.id },
-        { participants: { some: { userId: actor.user.id } } },
-      ];
-      if (operationalAreaIds !== null) {
-        if (operationalAreaIds.length) {
-          visibility.push({
-            items: {
-              some: {
-                asset: { managementAreaId: { in: operationalAreaIds } },
+      const ownReservationCondition: Prisma.ReservationWhereInput = {
+        OR: [
+          { requesterId: actor.user.id },
+          { participants: { some: { userId: actor.user.id } } },
+        ],
+      };
+
+      if (operationalAreaIds === null) {
+        // Global admin: can see all reservations
+      } else if (operationalAreaIds.length) {
+        // Area manager: can see own reservations + reservations in their managed areas
+        // + other public active reservations (NOT DRAFT, NOT PENDING_APPROVAL, NOT REJECTED, NOT CANCELLED)
+        conditions.push({
+          OR: [
+            ownReservationCondition,
+            {
+              items: {
+                some: {
+                  asset: { managementAreaId: { in: operationalAreaIds } },
+                },
               },
             },
-          });
-        }
-        conditions.push({ OR: visibility });
+            {
+              status: {
+                notIn: ["DRAFT", "PENDING_APPROVAL", "REJECTED", "CANCELLED"],
+              },
+            },
+          ],
+        });
+      } else {
+        // Regular user: can ONLY see own reservations, OR other public active reservations (NOT DRAFT, NOT PENDING_APPROVAL, NOT REJECTED, NOT CANCELLED)
+        conditions.push({
+          OR: [
+            ownReservationCondition,
+            {
+              status: {
+                notIn: ["DRAFT", "PENDING_APPROVAL", "REJECTED", "CANCELLED"],
+              },
+            },
+          ],
+        });
       }
     }
 
@@ -234,13 +264,7 @@ export class ReservationsService {
       for (const asset of assets) {
         this.assertArea(actor, "reservation:create", asset.managementAreaId);
       }
-      await this.assertAvailability(
-        this.prisma,
-        items,
-        assets,
-        startAt,
-        endAt,
-      );
+      await this.assertAvailability(this.prisma, items, assets, startAt, endAt);
     } else {
       this.assertAnyArea(actor, "reservation:create");
     }
@@ -956,9 +980,12 @@ export class ReservationsService {
         canReview: actionableItems > 0 || canReviewChange,
         canCancel:
           canManage &&
-          ["DRAFT", "PENDING_APPROVAL", "PARTIALLY_APPROVED", "APPROVED"].includes(
-            reservation.status,
-          ),
+          [
+            "DRAFT",
+            "PENDING_APPROVAL",
+            "PARTIALLY_APPROVED",
+            "APPROVED",
+          ].includes(reservation.status),
       },
       createdAt: reservation.createdAt.toISOString(),
       updatedAt: reservation.updatedAt.toISOString(),
@@ -1154,9 +1181,12 @@ export class ReservationsService {
           canManage && editableReservationStatuses.includes(reservation.status),
         canCancel:
           canManage &&
-          ["DRAFT", "PENDING_APPROVAL", "PARTIALLY_APPROVED", "APPROVED"].includes(
-            reservation.status,
-          ),
+          [
+            "DRAFT",
+            "PENDING_APPROVAL",
+            "PARTIALLY_APPROVED",
+            "APPROVED",
+          ].includes(reservation.status),
       },
       createdAt: reservation.createdAt.toISOString(),
       updatedAt: reservation.updatedAt.toISOString(),
@@ -1408,17 +1438,17 @@ export class ReservationsService {
       reservation.participants.some(
         (participant) => participant.userId === actor.user.id,
       );
-    const globalView = (
-      [
-        "reservation:create",
-        "reservation:update",
-        "reservation:approve",
-        "reservation:reject",
-      ] as PermissionKey[]
-    ).some((permission) => hasAnyPermission(actor, permission));
+    if (involved) return;
+
     const operationalAccess =
       reservation.items.length === 0
-        ? globalView
+        ? (
+            [
+              "reservation:update",
+              "reservation:approve",
+              "reservation:reject",
+            ] as PermissionKey[]
+          ).some((permission) => hasGlobalPermission(actor, permission))
         : reservation.items.some((item) =>
             (
               [
@@ -1430,7 +1460,20 @@ export class ReservationsService {
               hasAreaPermission(actor, permission, item.asset.managementAreaId),
             ),
           );
-    if (!involved && !operationalAccess) this.permissionDenied();
+
+    if (
+      ["DRAFT", "PENDING_APPROVAL", "REJECTED", "CANCELLED"].includes(
+        reservation.status,
+      )
+    ) {
+      if (!operationalAccess) this.permissionDenied();
+    } else {
+      const canViewGeneral =
+        hasAnyPermission(actor, "reservation:create") ||
+        hasAnyPermission(actor, "asset:view") ||
+        operationalAccess;
+      if (!canViewGeneral) this.permissionDenied();
+    }
   }
 
   private canManage(

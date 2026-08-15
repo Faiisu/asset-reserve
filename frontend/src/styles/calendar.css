@@ -1,17 +1,24 @@
 .calendar-page {
-  max-width: 1380px;
+  max-width: 1600px;
   margin: 0 auto;
+  height: calc(100vh - 60px - 26px);
+  max-height: calc(100vh - 60px - 26px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
 }
 .calendar-controls {
-  min-height: 84px;
-  padding: 12px 14px;
+  min-height: 48px;
+  padding: 8px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 14px;
   border: 1px solid var(--line);
-  border-radius: 13px;
+  border-radius: 12px;
   background: var(--surface);
+  flex-shrink: 0;
 }
 .calendar-month-control,
 .calendar-month-control__buttons,
@@ -122,11 +129,11 @@
   font-weight: 700;
 }
 .calendar-month-control > div:last-child {
-  min-width: 180px;
+  min-width: 150px;
 }
 .calendar-month-control span {
   display: block;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
   color: var(--ink-faint);
   font-family: var(--mono);
   font-size: 9px;
@@ -134,7 +141,7 @@
 }
 .calendar-month-control h2 {
   margin: 0;
-  font-size: 21px;
+  font-size: 19px;
   letter-spacing: -0.025em;
 }
 .calendar-filters {
@@ -146,32 +153,45 @@
   color: var(--ink-faint);
   font-size: 10px;
 }
-.calendar-filters .control {
+.calendar-filters .control,
+.calendar-filters .select-wrap {
   width: auto;
   min-width: 150px;
 }
 .calendar-workspace {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 296px;
-  align-items: start;
-  gap: 16px;
+  align-items: stretch;
+  gap: 12px;
 }
 .calendar-workspace--calendar-only {
   grid-template-columns: minmax(0, 1fr);
 }
 .calendar-workspace__rail {
   min-width: 0;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .calendar-frame {
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--surface);
   box-shadow: 0 10px 28px rgba(16, 33, 58, 0.045);
 }
 .calendar-scroll {
-  height: clamp(560px, calc(100vh - 190px), 860px);
-  max-height: clamp(560px, calc(100vh - 190px), 860px);
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
   overflow-x: auto;
   overflow-y: auto;
   scroll-behavior: smooth;
@@ -218,7 +238,7 @@
 }
 .calendar-week {
   position: relative;
-  height: max(104px, calc(56px + (var(--calendar-lanes) * 27px)));
+  height: max(94px, calc(48px + (var(--calendar-lanes) * 26px)));
   border-bottom: 1px solid var(--line);
 }
 .calendar-week:last-child {
@@ -643,8 +663,8 @@
   --legend-color: var(--green);
 }
 .calendar-reserve-panel {
-  position: sticky;
-  top: 92px;
+  height: 100%;
+  max-height: 100%;
   min-height: 0;
   overflow: hidden;
   display: flex;
@@ -806,7 +826,7 @@
   background: var(--blue-soft);
 }
 .calendar-asset-list {
-  min-height: 240px;
+  min-height: 0;
   padding: 0 7px 8px;
   overflow-y: auto;
   display: flex;

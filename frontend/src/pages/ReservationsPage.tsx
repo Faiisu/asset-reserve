@@ -4,7 +4,6 @@ import {
   Clock3,
   Filter,
   Inbox,
-  Layers3,
   Plus,
   Search,
   ShieldCheck,
@@ -27,8 +26,8 @@ import {
   ErrorState,
   LoadingState,
   Notice,
-  PaginationControls,
-  Select,
+  CheckboxDropdownFilter,
+  WorkspaceCheckboxFilter,
   cx,
   formatDate,
 } from "../components/ui";
@@ -40,18 +39,33 @@ import type {
   ReservationSummary,
 } from "../types";
 
-type ReservationView = "MINE" | "APPROVALS" | "ALL";
+type ReservationView = "MINE" | "APPROVALS";
 
-const statusOptions: Array<{ value: "" | ReservationStatus; label: string }> = [
-  { value: "", label: "All statuses" },
-  { value: "DRAFT", label: "Draft" },
-  { value: "PENDING_APPROVAL", label: "Pending approval" },
-  { value: "PARTIALLY_APPROVED", label: "Partially approved" },
-  { value: "APPROVED", label: "Approved" },
-  { value: "REJECTED", label: "Rejected" },
-  { value: "ACTIVE", label: "In use" },
-  { value: "COMPLETED", label: "Completed" },
-  { value: "CANCELLED", label: "Cancelled" },
+const statusOptions = [
+  {
+    value: "REQUEST",
+    label: "Request",
+    statuses: [
+      "PENDING_APPROVAL",
+      "DRAFT",
+      "PARTIALLY_APPROVED",
+    ] as ReservationStatus[],
+  },
+  {
+    value: "APPROVE",
+    label: "Approve",
+    statuses: ["APPROVED", "ACTIVE", "COMPLETED"] as ReservationStatus[],
+  },
+  {
+    value: "REJECT",
+    label: "Reject",
+    statuses: ["REJECTED"] as ReservationStatus[],
+  },
+  {
+    value: "CANCEL",
+    label: "Cancel",
+    statuses: ["CANCELLED"] as ReservationStatus[],
+  },
 ];
 
 export function ReservationsPage() {
@@ -64,8 +78,8 @@ export function ReservationsPage() {
   );
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
-  const [areaId, setAreaId] = useState("");
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedAreaIds, setSelectedAreaIds] = useState<string[]>([]);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [areas, setAreas] = useState<ManagementArea[]>([]);
@@ -92,10 +106,14 @@ export function ReservationsPage() {
       cursor ? setLoadingMore(true) : setLoading(true);
       setError(null);
       try {
+        const allowedStatuses = selectedStatuses.flatMap(
+          (val) =>
+            statusOptions.find((opt) => opt.value === val)?.statuses ?? [],
+        );
         const response = await api.reservations({
           view,
-          status: status || undefined,
-          areaId: areaId || undefined,
+          status: allowedStatuses.length === 1 ? allowedStatuses[0] : undefined,
+          areaId: selectedAreaIds.length === 1 ? selectedAreaIds[0] : undefined,
           search: search || undefined,
           from: from ? localDayBoundary(from, false) : undefined,
           to: to ? localDayBoundary(to, true) : undefined,
@@ -103,8 +121,21 @@ export function ReservationsPage() {
           limit: 20,
         });
         if (requestId !== requestSequence.current) return;
+        let list = response.data;
+        if (selectedAreaIds.length > 1) {
+          list = list.filter(
+            (res) =>
+              res.managementAreas.length === 0 ||
+              res.managementAreas.some((area) =>
+                selectedAreaIds.includes(area.id),
+              ),
+          );
+        }
+        if (selectedStatuses.length > 0) {
+          list = list.filter((res) => allowedStatuses.includes(res.status));
+        }
         setItems((current) =>
-          cursor ? [...current, ...response.data] : response.data,
+          cursor ? [...current, ...list] : list,
         );
         setPageInfo(response.pageInfo);
       } catch (caught) {
@@ -117,7 +148,7 @@ export function ReservationsPage() {
         }
       }
     },
-    [areaId, from, search, status, to, view],
+    [from, search, selectedAreaIds, selectedStatuses, to, view],
   );
 
   useEffect(() => {
@@ -154,14 +185,6 @@ export function ReservationsPage() {
             <ShieldCheck size={16} /> Approval queue
           </button>
         )}
-        <button
-          role="tab"
-          aria-selected={view === "ALL"}
-          className={cx(view === "ALL" && "is-active")}
-          onClick={() => setView("ALL")}
-        >
-          <Layers3 size={16} /> All visible
-        </button>
         {canCreate && (
           <Link
             style={{ marginLeft: "auto" }}
@@ -205,29 +228,19 @@ export function ReservationsPage() {
           <span>
             <Filter size={14} /> Filters
           </span>
-          <Select
-            value={status}
-            onChange={(event) => setStatus(event.target.value)}
-            aria-label="Reservation status"
-          >
-            {statusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={areaId}
-            onChange={(event) => setAreaId(event.target.value)}
-            aria-label="Management area"
-          >
-            <option value="">All areas</option>
-            {areas.map((area) => (
-              <option key={area.id} value={area.id}>
-                {area.name}
-              </option>
-            ))}
-          </Select>
+          <CheckboxDropdownFilter
+            label="Statuses"
+            allLabel="All statuses"
+            options={statusOptions}
+            selectedValues={selectedStatuses}
+            onChange={setSelectedStatuses}
+            ariaLabel="Filter statuses"
+          />
+          <WorkspaceCheckboxFilter
+            areas={areas}
+            selectedIds={selectedAreaIds}
+            onChange={setSelectedAreaIds}
+          />
           <label className="compact-date">
             <span>From</span>
             <input

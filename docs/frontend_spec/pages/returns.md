@@ -1,5 +1,9 @@
 # Returns
 
+> [!WARNING]
+> **NOT YET IMPLEMENTED**
+> This feature is not yet implemented in the frontend. The documentation below describes a planned/future feature.
+
 [← กลับไปสารบัญ](../README.md)
 
 ## Return workflow

@@ -1,9 +1,9 @@
 import {
   Boxes,
+  Building2,
   ChevronDown,
   LogOut,
   Moon,
-  PackagePlus,
   CalendarDays,
   CalendarRange,
   ShieldCheck,
@@ -25,7 +25,7 @@ const titles: Array<[string, string]> = [
   ["/assets", "Asset registry"],
   ["/admin/access", "Access and roles"],
   ["/admin/users", "Users"],
-  ["/admin/templates", "Asset templates"],
+  ["/admin/areas", "Management areas"],
 ];
 
 export function AppShell() {
@@ -77,10 +77,10 @@ export function AppShell() {
       ].some((permission) => hasPermission(permission as "reservation:create")),
     },
     {
-      to: "/admin/templates",
-      label: "Templates",
-      icon: PackagePlus,
-      show: hasPermission("asset:view"),
+      to: "/admin/areas",
+      label: "Workspaces",
+      icon: Building2,
+      show: isGlobalAdmin,
     },
     {
       to: "/admin/access",

@@ -55,15 +55,17 @@ Field:
 | managementAreaId | Yes      | ต้องอยู่ใน scope ของ actor                         |
 | assetTemplateId  | No       | เลือกจาก AssetTemplate                             |
 | description      | No       | Text                                               |
-| pictureUrl       | No       | URL ที่ได้จากระบบ upload ภายนอก                    |
+| pictureUrl       | No       | URL จาก `POST /uploads/image`, file picker หรือ camera capture |
 | totalQuantity    | Yes      | จำนวนเต็มตั้งแต่ 0                                 |
 | isActive         | Yes      | ค่าเริ่มต้น true                                   |
 
-MVP รับ pictureUrl เท่านั้น การ upload ไฟล์โดยตรงต้องมี storage contract เพิ่มเติมและยังไม่ใช่ persistence ที่ Prisma กำหนด
+First draft upload รูปเข้า local backend storage โดยตรง รองรับ file picker และ camera capture, จำกัดหนึ่งไฟล์ไม่เกิน 10 MiB ต่อ request และเก็บ URL ใน `Asset.pictureUrl`
 
 Deactivate ใช้ Asset.isActive=false ไม่ hard delete เพื่อรักษา relation และ ledger
 
 ### Asset templates
+
+> Backend API implement แล้ว แต่ frontend route `/admin/templates` redirect ไป `/admin/areas` และ form สร้าง asset ปัจจุบันยังไม่เปิด template picker
 
 Admin/Manager สามารถ:
 

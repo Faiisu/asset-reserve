@@ -75,7 +75,7 @@ export function LoginPage() {
                 required
               />
             </Field>
-            <Field label="Password" hint="At least 12 characters" required>
+            <Field label="Password" hint="At least 8 characters" required>
               <Input
                 type="password"
                 name="password"

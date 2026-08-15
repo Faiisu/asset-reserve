@@ -9,7 +9,8 @@
   .toolbar__filters {
     flex-wrap: wrap;
   }
-  .toolbar__filters .control {
+  .toolbar__filters .control,
+  .toolbar__filters .select-wrap {
     flex: 1;
   }
   .record-form {
@@ -45,7 +46,8 @@
   .reservation-list-filters {
     flex-wrap: wrap;
   }
-  .reservation-list-filters .control {
+  .reservation-list-filters .control,
+  .reservation-list-filters .select-wrap {
     flex: 1;
   }
   .calendar-controls {
@@ -55,7 +57,8 @@
   .calendar-filters {
     flex-wrap: wrap;
   }
-  .calendar-filters .control {
+  .calendar-filters .control,
+  .calendar-filters .select-wrap {
     flex: 1;
   }
   .calendar-workspace {
@@ -265,7 +268,8 @@
   .calendar-filters > span {
     width: 100%;
   }
-  .calendar-filters .control {
+  .calendar-filters .control,
+  .calendar-filters .select-wrap {
     min-width: calc(50% - 4px);
   }
   .search-box {
@@ -275,7 +279,8 @@
   .toolbar__filter-label {
     width: 100%;
   }
-  .toolbar__filters .control {
+  .toolbar__filters .control,
+  .toolbar__filters .select-wrap {
     min-width: calc(50% - 4px);
   }
   .selection-bar {
@@ -552,7 +557,8 @@
   .reservation-list-filters > span {
     width: 100%;
   }
-  .reservation-list-filters .control {
+  .reservation-list-filters .control,
+  .reservation-list-filters .select-wrap {
     min-width: calc(50% - 4px);
   }
   .compact-date {

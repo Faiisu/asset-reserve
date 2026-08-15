@@ -1,0 +1,32 @@
+/uploads/image:
+  post:
+    tags: [Uploads]
+    summary: Upload one image to local storage
+    description: Authenticated multipart upload. Fastify limits the request to one file of at most 10 MiB.
+    operationId: uploadImage
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file]
+            properties:
+              file:
+                type: string
+                format: binary
+    responses:
+      "201":
+        description: Public path of the stored image.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  example: /uploads/assets/1786816076097-3756379e-db1a-418a-abb6-f5e01c4b26da.jpg
+      "400": { $ref: "#/components/responses/BadRequest" }
+      "401": { $ref: "#/components/responses/Unauthorized" }
+      "422": { $ref: "#/components/responses/ValidationError" }

@@ -7,6 +7,7 @@
 - [Software architecture](../software_spec/README.md)
 - [File and schema structure conventions](../software_spec/file-and-schema-structure.md)
 - [Backend specification](../backend_spec/README.md)
+- [Implemented frontend surface](implementation-status.md) — route และ feature ที่ตรวจจาก source ปัจจุบัน
 
 หลักการสำคัญ:
 
@@ -110,7 +111,9 @@ flowchart LR
 | /returns                   | Return queue                     | เจ้าของรายการหรือ return:approve           |
 | /returns/:id               | Return details/approval          | เจ้าของรายการหรือ return:approve           |
 | /admin/users               | Users and roles                  | user:create, user:disable หรือ role:assign |
-| /admin/management-areas    | Management areas                 | ADMIN                                      |
-| /admin/asset-templates     | Asset templates                  | ADMIN หรือ MANAGER ตาม policy              |
+| /admin/areas               | Management areas                 | Global ADMIN                               |
+| /admin/templates           | Redirect ไป `/admin/areas`       | ผู้ใช้ที่เข้าสู่ระบบ                       |
+
+> ตารางนี้แสดง route ที่ register ใน `frontend/src/app.tsx` จริง สำหรับสถานะ feature รายหน้าและข้อจำกัดของ first draft ดู [Implemented frontend surface](implementation-status.md)
 
 หลัง login หรือเข้า / ให้ redirect ไป /calendar

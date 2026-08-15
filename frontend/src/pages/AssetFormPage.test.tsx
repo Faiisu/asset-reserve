@@ -27,22 +27,10 @@ const mockArea = {
   updatedAt: "2026-08-15T00:00:00.000Z",
 };
 
-const mockTemplate = {
-  id: "template-1",
-  name: "AV Equipment",
-  description: "Standard AV gear",
-  createdAt: "2026-08-15T00:00:00.000Z",
-  updatedAt: "2026-08-15T00:00:00.000Z",
-};
-
 describe("AssetFormPage", () => {
   beforeEach(() => {
     vi.spyOn(api, "areas").mockResolvedValue({
       data: [mockArea],
-      pageInfo: { nextCursor: null, hasNextPage: false },
-    });
-    vi.spyOn(api, "templates").mockResolvedValue({
-      data: [mockTemplate],
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
   });
@@ -66,7 +54,7 @@ describe("AssetFormPage", () => {
     expect(nameInput).toBeInTheDocument();
 
     fireEvent.change(nameInput, { target: { value: "New Camera" } });
-    fireEvent.change(screen.getByLabelText(/Initial quantity/i), {
+    fireEvent.change(screen.getByLabelText(/quantity/i), {
       target: { value: "3" },
     });
 
@@ -86,7 +74,7 @@ describe("AssetFormPage", () => {
     expect(await screen.findByText("Asset Detail Page")).toBeInTheDocument();
   });
 
-  it("autofills name and description when template is selected", async () => {
+  it("selects own management area and fills description", async () => {
     render(
       <MemoryRouter initialEntries={["/assets/new"]}>
         <Routes>
@@ -95,14 +83,12 @@ describe("AssetFormPage", () => {
       </MemoryRouter>,
     );
 
-    const templateSelect = await screen.findByLabelText(/Asset template/i);
-    fireEvent.change(templateSelect, { target: { value: "template-1" } });
+    const areaSelect = await screen.findByLabelText(/Management area/i);
+    expect(areaSelect).toBeInTheDocument();
 
-    const nameInput = screen.getByLabelText(/Asset name/i) as HTMLInputElement;
-    const descInput = screen.getByLabelText(/Description/i) as HTMLTextAreaElement;
-
-    expect(nameInput.value).toBe("AV Equipment");
-    expect(descInput.value).toBe("Standard AV gear");
+    const descInput = screen.getByLabelText(/Description/i);
+    fireEvent.change(descInput, { target: { value: "High precision gear" } });
+    expect((descInput as HTMLTextAreaElement).value).toBe("High precision gear");
   });
 
   it("switches to batch mode and submits multiple assets", async () => {
@@ -140,5 +126,22 @@ describe("AssetFormPage", () => {
     });
 
     expect(await screen.findByText("Asset Detail Page")).toBeInTheDocument();
+  });
+
+  it("opens camera capture modal when Take photo button is clicked", async () => {
+    render(
+      <MemoryRouter initialEntries={["/assets/new"]}>
+        <Routes>
+          <Route path="/assets/new" element={<AssetFormPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByLabelText(/Asset name/i);
+    const takePhotoBtn = screen.getByText("Take photo");
+    expect(takePhotoBtn).toBeInTheDocument();
+
+    fireEvent.click(takePhotoBtn);
+    expect(screen.getByText("Take asset photo")).toBeInTheDocument();
   });
 });

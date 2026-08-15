@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Asset Reservation API
-  version: 1.3.0
-  description: Contract-first API for authentication, access control, users, assets, inventory, asset templates, and reservations.
+  version: 1.4.0
+  description: Contract-first API for authentication, access control, users, management areas, assets, inventory, uploads, asset templates, and reservations.
 servers:
   - url: /api/v1
 tags:
@@ -26,6 +26,8 @@ tags:
     description: Picture-free reusable asset metadata.
   - name: Reservations
     description: Reservation details, item approvals, availability conflicts, overlap warnings, and post-approval changes.
+  - name: Uploads
+    description: Authenticated local image uploads used by asset and user forms.
 security:
   - bearerAuth: []
 paths:
@@ -44,7 +46,9 @@ paths:
   /roles/{roleId}:
     $ref: ./paths/access-control.yaml#/~1roles~1{roleId}
   /management-areas:
-    $ref: ./paths/access-control.yaml#/~1management-areas
+    $ref: ./paths/management-areas.yaml#/~1management-areas
+  /management-areas/{managementAreaId}:
+    $ref: ./paths/management-areas.yaml#/~1management-areas~1{managementAreaId}
   /users:
     $ref: ./paths/users.yaml#/~1users
   /users/{userId}:
@@ -89,6 +93,10 @@ paths:
     $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1change-requests
   /reservations/{reservationId}/change-requests/{changeRequestId}/decision:
     $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1change-requests~1{changeRequestId}~1decision
+  /reservations/{reservationId}/cancel:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1cancel
+  /uploads/image:
+    $ref: ./paths/uploads.yaml#/~1uploads~1image
 components:
   securitySchemes:
     bearerAuth:
@@ -101,6 +109,8 @@ components:
       $ref: ./components/parameters.yaml#/UserId
     RoleId:
       $ref: ./components/parameters.yaml#/RoleId
+    ManagementAreaId:
+      $ref: ./components/parameters.yaml#/ManagementAreaId
     AssetId:
       $ref: ./components/parameters.yaml#/AssetId
     TemplateId:
@@ -159,12 +169,20 @@ components:
       $ref: ./components/schemas/access-control.yaml#/PermissionDefinition
     Role:
       $ref: ./components/schemas/access-control.yaml#/Role
+    CreateRoleRequest:
+      $ref: ./components/schemas/access-control.yaml#/CreateRoleRequest
     UpdateRoleRequest:
       $ref: ./components/schemas/access-control.yaml#/UpdateRoleRequest
     ManagementArea:
       $ref: ./components/schemas/access-control.yaml#/ManagementArea
     ManagementAreaListResponse:
       $ref: ./components/schemas/access-control.yaml#/ManagementAreaListResponse
+    ManagementAreaDetail:
+      $ref: ./components/schemas/access-control.yaml#/ManagementAreaDetail
+    CreateManagementAreaRequest:
+      $ref: ./components/schemas/access-control.yaml#/CreateManagementAreaRequest
+    UpdateManagementAreaRequest:
+      $ref: ./components/schemas/access-control.yaml#/UpdateManagementAreaRequest
     UserListItem:
       $ref: ./components/schemas/users.yaml#/UserListItem
     UserListResponse:
@@ -259,6 +277,8 @@ components:
       $ref: ./components/schemas/reservations.yaml#/ReservationListResponse
     CreateReservationRequest:
       $ref: ./components/schemas/reservations.yaml#/CreateReservationRequest
+    CancelReservationRequest:
+      $ref: ./components/schemas/reservations.yaml#/CancelReservationRequest
     SubmitReservationRequest:
       $ref: ./components/schemas/reservations.yaml#/SubmitReservationRequest
     ReservationItemDecisionRequest:

@@ -79,7 +79,11 @@ export class UsersService {
       where,
       take: query.limit + 1,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      include: { profile: true, _count: { select: { userRoles: true } } },
+      include: {
+        profile: true,
+        userRoles: { include: { role: true } },
+        _count: { select: { userRoles: true } },
+      },
     });
     const page = pageInfo(rows, query.limit);
     return {
@@ -89,6 +93,14 @@ export class UsersService {
         name: user.profile?.name ?? null,
         isActive: user.isActive,
         roleCount: user._count.userRoles,
+        roles: [
+          ...new Map(
+            user.userRoles.map((assignment) => [
+              assignment.role.id,
+              { id: assignment.role.id, name: assignment.role.name },
+            ]),
+          ).values(),
+        ],
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString(),
       })),

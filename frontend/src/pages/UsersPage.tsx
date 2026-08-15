@@ -1,12 +1,15 @@
 import {
   Ban,
+  Camera,
   CheckCircle2,
+  Filter,
   KeyRound,
   Mail,
   Plus,
   Search,
   ShieldPlus,
   Trash2,
+  Upload,
   UserRound,
   UserRoundCheck,
   X,
@@ -14,9 +17,11 @@ import {
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
+import { CameraCaptureModal } from "../components/CameraCaptureModal";
 import {
   Avatar,
   Button,
+  CheckboxDropdownFilter,
   Dialog,
   EmptyState,
   ErrorState,
@@ -46,8 +51,8 @@ export function UsersPage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [draftSearch, setDraftSearch] = useState("");
-  const [status, setStatus] = useState("all");
-  const [roleId, setRoleId] = useState("");
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -71,13 +76,27 @@ export function UsersPage() {
       try {
         const response = await api.users({
           search: search || undefined,
-          isActive: status === "all" ? undefined : status === "active",
-          roleId: roleId || undefined,
+          isActive:
+            selectedStatuses.length === 1
+              ? selectedStatuses[0] === "active"
+              : undefined,
+          roleId: selectedRoleIds.length === 1 ? selectedRoleIds[0] : undefined,
           cursor,
           limit: 30,
         });
+        let list = response.data;
+        if (selectedStatuses.length > 1) {
+          list = list.filter((user) =>
+            selectedStatuses.includes(user.isActive ? "active" : "inactive"),
+          );
+        }
+        if (selectedRoleIds.length > 1) {
+          list = list.filter((user) =>
+            user.roles.some((role) => selectedRoleIds.includes(role.id)),
+          );
+        }
         setUsers((current) =>
-          append ? [...current, ...response.data] : response.data,
+          append ? [...current, ...list] : list,
         );
         setNextCursor(response.pageInfo.nextCursor);
       } catch (caught) {
@@ -86,7 +105,7 @@ export function UsersPage() {
         setLoading(false);
       }
     },
-    [search, status, roleId],
+    [search, selectedRoleIds, selectedStatuses],
   );
 
   useEffect(() => {
@@ -186,27 +205,32 @@ export function UsersPage() {
           <button>Search</button>
         </form>
         <div className="toolbar__filters">
-          <Select
-            aria-label="User status"
-            value={status}
-            onChange={(event) => setStatus(event.target.value)}
-          >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </Select>
-          <Select
-            aria-label="Role"
-            value={roleId}
-            onChange={(event) => setRoleId(event.target.value)}
-          >
-            <option value="">All roles</option>
-            {roles.map((role) => (
-              <option key={role.id} value={role.id}>
-                {role.name}
-              </option>
-            ))}
-          </Select>
+          <span className="toolbar__filter-label">
+            <Filter size={15} />
+            Filters
+          </span>
+          <CheckboxDropdownFilter
+            label="Statuses"
+            allLabel="All statuses"
+            options={[
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ]}
+            selectedValues={selectedStatuses}
+            onChange={setSelectedStatuses}
+            ariaLabel="Filter user status"
+          />
+          <CheckboxDropdownFilter
+            label="Roles"
+            allLabel="All roles"
+            options={roles.map((role) => ({
+              value: role.id,
+              label: role.name,
+            }))}
+            selectedValues={selectedRoleIds}
+            onChange={setSelectedRoleIds}
+            ariaLabel="Filter roles"
+          />
         </div>
         {canCreate && (
           <Button onClick={() => setCreateOpen(true)}>
@@ -548,8 +572,27 @@ function CreateUserDialog({
     phoneNumber: "",
     profilePictureUrl: "",
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  async function handleImageUpload(file: File) {
+    setUploadingImage(true);
+    setUploadError("");
+    try {
+      const res = await api.uploadImage(file);
+      setForm((prev) => ({ ...prev, profilePictureUrl: res.url }));
+    } catch (caught) {
+      setUploadError(
+        caught instanceof Error ? caught.message : "Image upload failed",
+      );
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
@@ -583,85 +626,132 @@ function CreateUserDialog({
     }
   }
   return (
-    <Dialog
-      open={open}
-      title="Create new user"
-      description="Create a password account first, then assign roles and areas."
-      onClose={onClose}
-      wide
-    >
-      <form className="form-stack" onSubmit={submit}>
-        {error && (
-          <div className="form-alert" role="alert">
-            {error}
+    <>
+      <Dialog
+        open={open}
+        title="Create new user"
+        description="Create a password account first, then assign roles and areas."
+        onClose={onClose}
+        wide
+      >
+        <form className="form-stack" onSubmit={submit}>
+          {error && (
+            <div className="form-alert" role="alert">
+              {error}
+            </div>
+          )}
+          <div className="form-grid form-grid--2">
+            <Field label="Name" required>
+              <Input
+                value={form.name}
+                onChange={(event) =>
+                  setForm({ ...form, name: event.target.value })
+                }
+                maxLength={150}
+                required
+                autoFocus
+              />
+            </Field>
+            <Field label="Email" required>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(event) =>
+                  setForm({ ...form, email: event.target.value })
+                }
+                required
+              />
+            </Field>
+            <Field label="Initial password" hint="At least 8 characters" required>
+              <Input
+                type="password"
+                value={form.password}
+                onChange={(event) =>
+                  setForm({ ...form, password: event.target.value })
+                }
+                minLength={8}
+                required
+              />
+            </Field>
+            <Field label="Phone number">
+              <Input
+                value={form.phoneNumber}
+                onChange={(event) =>
+                  setForm({ ...form, phoneNumber: event.target.value })
+                }
+                maxLength={30}
+              />
+            </Field>
           </div>
-        )}
-        <div className="form-grid form-grid--2">
-          <Field label="Name" required>
-            <Input
-              value={form.name}
-              onChange={(event) =>
-                setForm({ ...form, name: event.target.value })
-              }
-              maxLength={150}
-              required
-              autoFocus
-            />
+          <Field label="Profile picture" error={uploadError}>
+            <div style={{ display: "flex", gap: "14px", alignItems: "center", flexWrap: "wrap" }}>
+              <Avatar
+                name={form.name || "User"}
+                imageUrl={form.profilePictureUrl || null}
+                size="lg"
+              />
+              <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={uploadingImage}
+                  onClick={() => setCameraOpen(true)}
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  <Camera size={17} /> Take photo
+                </Button>
+                <label
+                  className="button button--secondary button--md"
+                  style={{ cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  <Upload size={17} />
+                  {uploadingImage ? "Uploading..." : "Upload file"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    disabled={uploadingImage}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void handleImageUpload(file);
+                    }}
+                  />
+                </label>
+                {form.profilePictureUrl && (
+                  <Button
+                    type="button"
+                    variant="quiet"
+                    onClick={() =>
+                      setForm((prev) => ({ ...prev, profilePictureUrl: "" }))
+                    }
+                    style={{ color: "var(--red)", gap: "5px" }}
+                  >
+                    <X size={15} /> Remove photo
+                  </Button>
+                )}
+              </div>
+            </div>
           </Field>
-          <Field label="Email" required>
-            <Input
-              type="email"
-              value={form.email}
-              onChange={(event) =>
-                setForm({ ...form, email: event.target.value })
-              }
-              required
-            />
-          </Field>
-          <Field label="Initial password" hint="At least 12 characters" required>
-            <Input
-              type="password"
-              value={form.password}
-              onChange={(event) =>
-                setForm({ ...form, password: event.target.value })
-              }
-              minLength={12}
-              required
-            />
-          </Field>
-          <Field label="Phone number">
-            <Input
-              value={form.phoneNumber}
-              onChange={(event) =>
-                setForm({ ...form, phoneNumber: event.target.value })
-              }
-              maxLength={30}
-            />
-          </Field>
-        </div>
-        <Field label="Profile picture URL">
-          <Input
-            type="url"
-            value={form.profilePictureUrl}
-            onChange={(event) =>
-              setForm({ ...form, profilePictureUrl: event.target.value })
-            }
-          />
-        </Field>
-        <div className="dialog__actions">
-          <Button type="button" variant="quiet" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            loading={submitting}
-            disabled={form.password.length < 12}
-          >
-            <CheckCircle2 size={16} />
-            Create user
-          </Button>
-        </div>
-      </form>
-    </Dialog>
+          <div className="dialog__actions">
+            <Button type="button" variant="quiet" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={submitting}
+              disabled={form.password.length < 8}
+            >
+              <CheckCircle2 size={16} />
+              Create user
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+      <CameraCaptureModal
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onCapture={(file) => handleImageUpload(file)}
+      />
+    </>
   );
 }

@@ -15,10 +15,10 @@ PermissionKey:
     - role:assign
 RoleName:
   type: string
-  enum:
+  description: Built-in roles include ADMIN, MANAGER, and USER; global administrators may create additional names.
+  examples:
     - ADMIN
-    - MANAGER
-    - USER
+    - TECHNICIAN
 ManagementAreaRef:
   type: object
   required:
@@ -77,6 +77,28 @@ Role:
     updatedAt:
       type: string
       format: date-time
+CreateRoleRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - name
+    - permissions
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 50
+      description: Case-insensitive unique role name; persisted in uppercase.
+    description:
+      type:
+        - string
+        - "null"
+      maxLength: 10000
+    permissions:
+      type: array
+      uniqueItems: true
+      items:
+        $ref: "#/components/schemas/PermissionKey"
 UpdateRoleRequest:
   type: object
   additionalProperties: false
@@ -127,3 +149,42 @@ ManagementAreaListResponse:
         $ref: "#/components/schemas/ManagementArea"
     pageInfo:
       $ref: "#/components/schemas/PageInfo"
+ManagementAreaDetail:
+  allOf:
+    - $ref: "#/components/schemas/ManagementArea"
+    - type: object
+      required:
+        - assetCount
+        - userRoleCount
+      properties:
+        assetCount:
+          type: integer
+          minimum: 0
+        userRoleCount:
+          type: integer
+          minimum: 0
+CreateManagementAreaRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - name
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 150
+    description:
+      type: string
+      maxLength: 1000
+UpdateManagementAreaRequest:
+  type: object
+  additionalProperties: false
+  minProperties: 1
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 150
+    description:
+      type: string
+      maxLength: 1000

@@ -19,6 +19,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -34,11 +35,13 @@ import { useAuth } from "../auth";
 import {
   AssetPicture,
   Button,
+  CheckboxDropdownFilter,
   Dialog,
   ErrorState,
   Field,
   Select,
   Textarea,
+  WorkspaceCheckboxFilter,
   cx,
 } from "../components/ui";
 import { reservationStatusLabel } from "../reservations";
@@ -50,16 +53,35 @@ import type {
 } from "../types";
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const statusOptions: Array<{ value: "" | ReservationStatus; label: string }> = [
-  { value: "", label: "All statuses" },
-  { value: "DRAFT", label: "Draft" },
-  { value: "PENDING_APPROVAL", label: "Pending approval" },
-  { value: "PARTIALLY_APPROVED", label: "Partially approved" },
-  { value: "APPROVED", label: "Approved" },
-  { value: "REJECTED", label: "Rejected" },
-  { value: "CANCELLED", label: "Cancelled" },
-  { value: "ACTIVE", label: "In use" },
-  { value: "COMPLETED", label: "Completed" },
+const statusOptions = [
+  {
+    value: "REQUEST",
+    label: "Request",
+    statuses: [
+      "PENDING_APPROVAL",
+      "DRAFT",
+      "PARTIALLY_APPROVED",
+    ] as ReservationStatus[],
+    colorClass: "calendar-legend__pending_approval",
+  },
+  {
+    value: "APPROVE",
+    label: "Approve",
+    statuses: ["APPROVED", "ACTIVE", "COMPLETED"] as ReservationStatus[],
+    colorClass: "calendar-legend__approved",
+  },
+  {
+    value: "REJECT",
+    label: "Reject",
+    statuses: ["REJECTED"] as ReservationStatus[],
+    colorClass: "calendar-legend__rejected",
+  },
+  {
+    value: "CANCEL",
+    label: "Cancel",
+    statuses: ["CANCELLED"] as ReservationStatus[],
+    colorClass: "calendar-legend__cancelled",
+  },
 ];
 
 type DateSelection = { anchor: Date; focus: Date };
@@ -85,8 +107,8 @@ export function CalendarPage() {
   const baseMonth = useMemo(() => startOfMonth(new Date()), []);
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
   const [monthOffsets, setMonthOffsets] = useState({ before: 0, after: 4 });
-  const [status, setStatus] = useState("");
-  const [areaId, setAreaId] = useState("");
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedAreaIds, setSelectedAreaIds] = useState<string[]>([]);
   const [areas, setAreas] = useState<ManagementArea[]>([]);
   const [reservations, setReservations] = useState<ReservationSummary[]>([]);
   const [assets, setAssets] = useState<AssetSummary[]>([]);
@@ -122,6 +144,8 @@ export function CalendarPage() {
   const calendarScrollRef = useRef<HTMLDivElement>(null);
   const eventMenuRef = useRef<HTMLElement>(null);
   const requestSequence = useRef(0);
+  const prevScrollHeightRef = useRef<number | null>(null);
+  const prevSavedScrollTopRef = useRef<number>(0);
   const selectedRange = selection ? orderedSelection(selection) : null;
   const selectedSchedule = selectedRange
     ? reservationSchedule(selectedRange.start, selectedRange.end)
@@ -160,6 +184,14 @@ export function CalendarPage() {
     );
   }, [gridStart, gridEnd]);
   const closeAssetBrowser = useCallback(() => setAssetBrowserOpen(false), []);
+
+  useLayoutEffect(() => {
+    if (prevScrollHeightRef.current !== null && calendarScrollRef.current) {
+      const delta = calendarScrollRef.current.scrollHeight - prevScrollHeightRef.current;
+      calendarScrollRef.current.scrollTop = prevSavedScrollTopRef.current + delta;
+      prevScrollHeightRef.current = null;
+    }
+  }, [monthOffsets.before]);
 
   useEffect(() => {
     void api
@@ -234,7 +266,7 @@ export function CalendarPage() {
           do {
             const response = await api.assets({
               search: assetSearch.trim() || undefined,
-              areaId: areaId || undefined,
+              areaId: selectedAreaIds.length === 1 ? selectedAreaIds[0] : undefined,
               isActive: true,
               from: selectedStartAt,
               to: selectedEndAt,
@@ -247,9 +279,15 @@ export function CalendarPage() {
               : undefined;
           } while (active && cursor);
           if (!active) return;
-          setAssets(visible);
+          const filteredAssets =
+            selectedAreaIds.length > 1
+              ? visible.filter((asset) =>
+                  selectedAreaIds.includes(asset.managementArea.id),
+                )
+              : visible;
+          setAssets(filteredAssets);
           const byId = new Map(
-            visible.map((asset) => [asset.id, asset] as const),
+            filteredAssets.map((asset) => [asset.id, asset] as const),
           );
           setSelectedAssets((current) =>
             current.flatMap((asset) => {
@@ -272,7 +310,7 @@ export function CalendarPage() {
       window.clearTimeout(timer);
     };
   }, [
-    areaId,
+    selectedAreaIds,
     assetSearch,
     canCreate,
     hasSelectedSchedule,
@@ -287,11 +325,15 @@ export function CalendarPage() {
     try {
       const visible: ReservationSummary[] = [];
       let cursor: string | undefined;
+      const allowedStatuses = selectedStatuses.flatMap(
+        (val) =>
+          statusOptions.find((opt) => opt.value === val)?.statuses ?? [],
+      );
       do {
         const response = await api.reservations({
           view: "ALL",
-          status: status || undefined,
-          areaId: areaId || undefined,
+          status: allowedStatuses.length === 1 ? allowedStatuses[0] : undefined,
+          areaId: selectedAreaIds.length === 1 ? selectedAreaIds[0] : undefined,
           from: gridStart.toISOString(),
           to: gridEnd.toISOString(),
           cursor,
@@ -302,13 +344,30 @@ export function CalendarPage() {
           ? (response.pageInfo.nextCursor ?? undefined)
           : undefined;
       } while (cursor && requestId === requestSequence.current);
-      if (requestId === requestSequence.current) setReservations(visible);
+      if (requestId === requestSequence.current) {
+        let filtered = visible;
+        if (selectedAreaIds.length > 1) {
+          filtered = filtered.filter(
+            (res) =>
+              res.managementAreas.length === 0 ||
+              res.managementAreas.some((area) =>
+                selectedAreaIds.includes(area.id),
+              ),
+          );
+        }
+        if (selectedStatuses.length > 0) {
+          filtered = filtered.filter((res) =>
+            allowedStatuses.includes(res.status),
+          );
+        }
+        setReservations(filtered);
+      }
     } catch (caught) {
       if (requestId === requestSequence.current) setError(caught);
     } finally {
       if (requestId === requestSequence.current) setLoading(false);
     }
-  }, [areaId, gridEnd, gridStart, status]);
+  }, [gridEnd, gridStart, selectedAreaIds, selectedStatuses]);
 
   useEffect(() => {
     void load();
@@ -404,18 +463,11 @@ export function CalendarPage() {
 
     // 2. Infinite scroll detection near top / bottom
     if (scrollTop < 80) {
-      const prevScrollHeight = container.scrollHeight;
-      const prevScrollTop = container.scrollTop;
+      prevScrollHeightRef.current = container.scrollHeight;
+      prevSavedScrollTopRef.current = container.scrollTop;
       setMonthOffsets((prev) => {
         if (prev.before >= 24) return prev;
         return { ...prev, before: prev.before + 2 };
-      });
-      requestAnimationFrame(() => {
-        if (calendarScrollRef.current) {
-          const newScrollHeight = calendarScrollRef.current.scrollHeight;
-          calendarScrollRef.current.scrollTop =
-            prevScrollTop + (newScrollHeight - prevScrollHeight);
-        }
       });
     } else if (
       container.scrollHeight - scrollTop - container.clientHeight < 150
@@ -693,31 +745,21 @@ export function CalendarPage() {
 
         <div className="calendar-filters">
           <span>
-            <Filter size={14} /> Filter workspace
+            <Filter size={14} /> Filters
           </span>
-          <Select
-            value={areaId}
-            onChange={(event) => setAreaId(event.target.value)}
-            aria-label="Management area"
-          >
-            <option value="">All areas</option>
-            {areas.map((area) => (
-              <option key={area.id} value={area.id}>
-                {area.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={status}
-            onChange={(event) => setStatus(event.target.value)}
-            aria-label="Reservation status"
-          >
-            {statusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
+          <WorkspaceCheckboxFilter
+            areas={areas}
+            selectedIds={selectedAreaIds}
+            onChange={setSelectedAreaIds}
+          />
+          <CheckboxDropdownFilter
+            label="Statuses"
+            allLabel="All statuses"
+            options={statusOptions}
+            selectedValues={selectedStatuses}
+            onChange={setSelectedStatuses}
+            ariaLabel="Filter statuses"
+          />
         </div>
       </section>
 
@@ -1406,9 +1448,9 @@ function CancelReservationDialog({
 function CalendarLegend() {
   return (
     <div className="calendar-legend" aria-label="Reservation status colors">
-      {statusOptions.slice(1).map((status) => (
+      {statusOptions.map((status) => (
         <span key={status.value}>
-          <i className={`calendar-legend__${status.value.toLowerCase()}`} />
+          <i className={status.colorClass} />
           {status.label}
         </span>
       ))}

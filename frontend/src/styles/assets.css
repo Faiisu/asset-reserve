@@ -100,7 +100,7 @@
 .batch-row {
   padding: 12px;
   display: grid;
-  grid-template-columns: 32px 1.2fr 1.5fr 1.3fr 90px 38px;
+  grid-template-columns: 32px 1.4fr 90px 1.5fr 1.1fr 38px;
   align-items: end;
   gap: 10px;
   border: 1px solid var(--line);

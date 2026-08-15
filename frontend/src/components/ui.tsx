@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   Archive,
   Check,
+  ChevronDown,
   ChevronRight,
   LoaderCircle,
   PackageOpen,
@@ -11,14 +12,17 @@ import {
   useEffect,
   useId,
   useRef,
+  useState,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
+import type { LucideIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ApiClientError } from "../api";
+import type { ManagementAreaRef } from "../types";
 
 export function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -86,8 +90,186 @@ export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cx("control", props.className)} {...props} />;
 }
 
-export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={cx("control", props.className)} {...props} />;
+export function Select({
+  className,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className={cx("select-wrap", className)}>
+      <select className="control control--select" {...props} />
+      <ChevronDown className="select-wrap__chevron" size={15} aria-hidden />
+    </div>
+  );
+}
+
+export type FilterOption = {
+  value: string;
+  label: string;
+};
+
+export function CheckboxDropdownFilter({
+  label = "Options",
+  allLabel = "All",
+  options,
+  selectedValues,
+  onChange,
+  className,
+  ariaLabel,
+}: {
+  label?: string;
+  allLabel?: string;
+  options: FilterOption[];
+  selectedValues: string[];
+  onChange: (values: string[]) => void;
+  className?: string;
+  ariaLabel?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [open]);
+
+  const toggleValue = (val: string) => {
+    if (selectedValues.includes(val)) {
+      onChange(selectedValues.filter((item) => item !== val));
+    } else {
+      onChange([...selectedValues, val]);
+    }
+  };
+
+  const selectAll = () => onChange([]);
+  const clearAll = () => onChange([]);
+
+  const labelText =
+    selectedValues.length === 0
+      ? allLabel
+      : selectedValues.length === 1
+        ? options.find((o) => o.value === selectedValues[0])?.label ?? "1 selected"
+        : `${selectedValues.length} selected`;
+
+  return (
+    <div
+      className={cx("workspace-filter-dropdown", className)}
+      ref={containerRef}
+    >
+      <button
+        type="button"
+        className={cx(
+          "control",
+          "workspace-filter-trigger",
+          open && "workspace-filter-trigger--open",
+          selectedValues.length > 0 && "workspace-filter-trigger--active",
+        )}
+        onClick={() => setOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel || `Filter by ${label.toLowerCase()}`}
+      >
+        <span className="workspace-filter-trigger__label">{labelText}</span>
+        {selectedValues.length > 0 && (
+          <span className="workspace-filter-trigger__badge">
+            {selectedValues.length}
+          </span>
+        )}
+        <ChevronDown
+          size={15}
+          className={cx(
+            "workspace-filter-trigger__chevron",
+            open && "workspace-filter-trigger__chevron--open",
+          )}
+          aria-hidden
+        />
+      </button>
+
+      {open && (
+        <div className="workspace-filter-popover" role="listbox">
+          <div className="workspace-filter-popover__header">
+            <span>{label}</span>
+            <div className="workspace-filter-popover__actions">
+              <button
+                type="button"
+                className="workspace-filter-popover__action"
+                onClick={selectAll}
+              >
+                All
+              </button>
+              {selectedValues.length > 0 && (
+                <button
+                  type="button"
+                  className="workspace-filter-popover__action"
+                  onClick={clearAll}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="workspace-filter-popover__list">
+            {options.map((option) => {
+              const checked = selectedValues.includes(option.value);
+              return (
+                <label
+                  key={option.value}
+                  className={cx(
+                    "workspace-filter-checkbox-item",
+                    checked && "workspace-filter-checkbox-item--checked",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleValue(option.value)}
+                    aria-label={option.label}
+                  />
+                  <span className="workspace-filter-checkbox-item__name">
+                    {option.label}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function WorkspaceCheckboxFilter({
+  areas,
+  selectedIds,
+  onChange,
+  className,
+}: {
+  areas: ManagementAreaRef[];
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+  className?: string;
+}) {
+  return (
+    <CheckboxDropdownFilter
+      label="Workspaces"
+      allLabel="All workspaces"
+      options={areas.map((a) => ({ value: a.id, label: a.name }))}
+      selectedValues={selectedIds}
+      onChange={onChange}
+      className={className}
+      ariaLabel="Filter workspaces"
+    />
+  );
 }
 
 export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -216,10 +398,12 @@ export function LoadingState({
 }
 
 export function EmptyState({
+  icon: Icon = PackageOpen,
   title,
   description,
   action,
 }: {
+  icon?: LucideIcon;
   title: string;
   description: string;
   action?: ReactNode;
@@ -227,7 +411,7 @@ export function EmptyState({
   return (
     <div className="empty-state">
       <span className="empty-state__mark">
-        <PackageOpen size={26} />
+        <Icon size={26} />
       </span>
       <h3>{title}</h3>
       <p>{description}</p>

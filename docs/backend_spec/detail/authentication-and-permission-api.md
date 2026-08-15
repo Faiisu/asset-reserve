@@ -384,7 +384,7 @@ Request:
 Validation:
 
 - email required สูงสุด 255 และ unique แบบ normalized lowercase
-- password required สำหรับ password user, 12–128 ตัวอักษร และ hash ด้วย Argon2id
+- password required สำหรับ password user, 8–128 ตัวอักษร และ hash ด้วย Argon2id
 - profile.name required 1–150 ตัวอักษร
 - phoneNumber optional สูงสุด 30
 - profilePictureUrl optional URL สูงสุด 2048

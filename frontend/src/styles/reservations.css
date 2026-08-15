@@ -125,7 +125,8 @@
   color: var(--ink-faint);
   font-size: 10px;
 }
-.reservation-list-filters .control {
+.reservation-list-filters .control,
+.reservation-list-filters .select-wrap {
   width: auto;
   min-width: 125px;
 }

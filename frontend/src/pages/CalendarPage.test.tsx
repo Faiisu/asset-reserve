@@ -486,6 +486,52 @@ describe("CalendarPage", () => {
     fireEvent.pointerUp(sepBox);
     expect(screen.getByRole("heading", { level: 2, name: "September 2026" })).toBeInTheDocument();
   });
+
+  it("filters calendar and assets using workspace checkboxes", async () => {
+    vi.spyOn(api, "areas").mockResolvedValue({
+      data: [
+        { id: "area-1", name: "Production", description: null, createdAt: "", updatedAt: "" },
+        { id: "area-2", name: "Audio Lab", description: null, createdAt: "", updatedAt: "" },
+      ],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+    vi.spyOn(api, "reservations").mockResolvedValue({
+      data: [reservation],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <CalendarPage />
+      </MemoryRouter>,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Filter workspaces" });
+    expect(trigger).toBeInTheDocument();
+    expect(screen.getByText("All workspaces")).toBeInTheDocument();
+
+    // Open workspace filter popover
+    fireEvent.click(trigger);
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+
+    // Wait for Production checkbox and toggle it
+    const prodCheckbox = await screen.findByRole("checkbox", { name: "Production" });
+    expect(prodCheckbox).not.toBeChecked();
+    fireEvent.click(prodCheckbox);
+    expect(prodCheckbox).toBeChecked();
+    expect(trigger).toHaveTextContent("Production");
+    expect(trigger).toHaveTextContent("1");
+
+    // Test Status Filter dropdown
+    const statusTrigger = screen.getByRole("button", { name: "Filter statuses" });
+    expect(statusTrigger).toBeInTheDocument();
+    expect(screen.getByText("All statuses")).toBeInTheDocument();
+    fireEvent.click(statusTrigger);
+    const approvedCheckbox = screen.getByRole("checkbox", { name: "Approve" });
+    fireEvent.click(approvedCheckbox);
+    expect(approvedCheckbox).toBeChecked();
+    expect(statusTrigger).toHaveTextContent("Approve");
+  });
 });
 
 function LocationProbe() {

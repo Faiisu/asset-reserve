@@ -4,7 +4,6 @@ import {
   ArrowUpFromLine,
   CalendarClock,
   Edit3,
-  FilePlus2,
   PackageCheck,
   Power,
   UserRound,
@@ -45,7 +44,6 @@ export function AssetDetailPage() {
     "ADD" | "REMOVE" | null
   >(null);
   const [statusOpen, setStatusOpen] = useState(false);
-  const [templateOpen, setTemplateOpen] = useState(false);
   const [mutating, setMutating] = useState(false);
 
   const load = useCallback(async () => {
@@ -123,7 +121,6 @@ export function AssetDetailPage() {
             {asset.description || "No description for this asset."}
           </p>
           <div className="asset-hero__meta">
-            <span>{asset.assetTemplate?.name ?? "No template"}</span>
             <span>Updated {formatDate(asset.updatedAt, true)}</span>
           </div>
         </div>
@@ -189,16 +186,6 @@ export function AssetDetailPage() {
               <p className="eyebrow">Ownership</p>
               <h2>Owner and edit access</h2>
             </div>
-            {hasAreaPermission("asset:create", asset.managementArea.id) && (
-              <Button
-                variant="quiet"
-                size="sm"
-                onClick={() => setTemplateOpen(true)}
-              >
-                <FilePlus2 size={15} />
-                Save as template
-              </Button>
-            )}
           </header>
           <div className="owner-row">
             <Avatar
@@ -342,15 +329,6 @@ export function AssetDetailPage() {
           await load();
         }}
       />
-      <SaveTemplateDialog
-        asset={asset}
-        open={templateOpen}
-        onClose={() => setTemplateOpen(false)}
-        onDone={(message) => {
-          setTemplateOpen(false);
-          setNotice(message);
-        }}
-      />
       <Dialog
         open={statusOpen}
         title={asset.isActive ? "Disable asset?" : "Enable asset?"}
@@ -475,81 +453,6 @@ function AdjustOneDialog({
           </Button>
           <Button type="submit" loading={submitting}>
             Save to ledger
-          </Button>
-        </div>
-      </form>
-    </Dialog>
-  );
-}
-
-function SaveTemplateDialog({
-  asset,
-  open,
-  onClose,
-  onDone,
-}: {
-  asset: AssetDetail;
-  open: boolean;
-  onClose: () => void;
-  onDone: (message: string) => void;
-}) {
-  const [name, setName] = useState(asset.name);
-  const [description, setDescription] = useState(asset.description ?? "");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError("");
-    try {
-      await api.saveAssetTemplate(asset.id, {
-        name,
-        description: description || null,
-      });
-      onDone("Template saved without the image");
-    } catch (caught) {
-      setError(
-        caught instanceof ApiClientError
-          ? caught.message
-          : "Unable to save template",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }
-  return (
-    <Dialog
-      open={open}
-      title="Save as template"
-      description="Templates store only the name and description, not the image."
-      onClose={onClose}
-    >
-      <form className="form-stack" onSubmit={submit}>
-        {error && (
-          <div className="form-alert" role="alert">
-            {error}
-          </div>
-        )}
-        <Field label="Template name" required>
-          <Input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            required
-          />
-        </Field>
-        <Field label="Description">
-          <Textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-          />
-        </Field>
-        <div className="dialog__actions">
-          <Button type="button" variant="quiet" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" loading={submitting}>
-            <FilePlus2 size={16} />
-            Save template
           </Button>
         </div>
       </form>

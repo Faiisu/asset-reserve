@@ -11,7 +11,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { ReservationCreatePage } from "./pages/ReservationCreatePage";
 import { ReservationDetailPage } from "./pages/ReservationDetailPage";
 import { ReservationsPage } from "./pages/ReservationsPage";
-import { TemplatesPage } from "./pages/TemplatesPage";
+import { ManagementAreasPage } from "./pages/ManagementAreasPage";
 import { UsersPage } from "./pages/UsersPage";
 
 function ProtectedApp() {
@@ -53,7 +53,8 @@ export function App() {
         />
         <Route path="admin/access" element={<AccessPage />} />
         <Route path="admin/users" element={<UsersPage />} />
-        <Route path="admin/templates" element={<TemplatesPage />} />
+        <Route path="admin/areas" element={<ManagementAreasPage />} />
+        <Route path="admin/templates" element={<Navigate to="/admin/areas" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -18,6 +18,7 @@
 | [API and authentication](detail/api-and-authentication.md)                            | REST/OpenAPI, DTO, idempotency, auth และ authorization       |
 | [Auth and permission API contract](detail/authentication-and-permission-api.md)       | Endpoint, input/output, RBAC scope และ OpenAPI สำหรับ mock   |
 | [API algorithm reference](detail/api-algorithms.md)                                   | Algorithm, permission, transaction และ error ของทุก endpoint |
+| [Implemented API inventory](detail/implemented-api.md)                               | Endpoint ทั้งหมดที่ตรวจจาก NestJS controllers ปัจจุบัน       |
 | [OpenAPI contract](contracts/README.md)                                               | โครงสร้าง contract แบบ modular และวิธีสร้าง Swagger bundle   |
 | [Database and concurrency](detail/database-and-concurrency.md)                        | Connection pool, transaction, retry, constraints และ indexes |
 | [Performance, deployment and operations](detail/performance-deployment-operations.md) | Server load, Docker Compose, config, logging และ backup      |

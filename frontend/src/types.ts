@@ -12,7 +12,7 @@ export type PermissionKey =
   | "user:disable"
   | "role:assign";
 
-export type RoleName = "ADMIN" | "MANAGER" | "USER";
+export type RoleName = string;
 
 export type ManagementAreaRef = { id: string; name: string };
 
@@ -74,6 +74,7 @@ export type UserListItem = {
   name: string | null;
   isActive: boolean;
   roleCount: number;
+  roles: Array<{ id: string; name: RoleName }>;
   createdAt: string;
   updatedAt: string;
 };

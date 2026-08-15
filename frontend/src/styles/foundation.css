@@ -280,6 +280,201 @@ code {
   line-height: 1.55;
 }
 
+.select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+}
+
+.control--select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 36px !important;
+  cursor: pointer;
+  background-color: var(--surface);
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.3;
+}
+
+.control--select::-ms-expand {
+  display: none;
+}
+
+.select-wrap__chevron {
+  position: absolute;
+  right: 12px;
+  pointer-events: none;
+  color: var(--ink-soft);
+  transition: transform 150ms ease, color 150ms ease;
+}
+
+.select-wrap:hover .select-wrap__chevron {
+  color: var(--ink);
+}
+
+.select-wrap:focus-within .select-wrap__chevron {
+  color: var(--blue);
+}
+
+/* Workspace Multi-Select Checkbox Filter */
+.workspace-filter-dropdown {
+  position: relative;
+  display: inline-flex;
+  width: auto;
+}
+
+.workspace-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+  cursor: pointer;
+  text-align: left;
+  user-select: none;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.workspace-filter-trigger__label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.workspace-filter-trigger__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.workspace-filter-trigger__chevron {
+  color: var(--ink-soft);
+  transition: transform 150ms ease, color 150ms ease;
+  flex-shrink: 0;
+}
+
+.workspace-filter-trigger__chevron--open {
+  transform: rotate(180deg);
+  color: var(--blue);
+}
+
+.workspace-filter-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  min-width: 220px;
+  max-width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  animation: popoverFadeIn 120ms ease-out;
+}
+
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.workspace-filter-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-raised);
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.workspace-filter-popover__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.workspace-filter-popover__action {
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.workspace-filter-popover__action:hover {
+  text-decoration: underline;
+}
+
+.workspace-filter-popover__list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.workspace-filter-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink);
+  transition: background 120ms ease;
+  user-select: none;
+}
+
+.workspace-filter-checkbox-item:hover {
+  background: var(--surface-raised);
+}
+
+.workspace-filter-checkbox-item--checked {
+  background: color-mix(in srgb, var(--blue) 8%, transparent);
+  font-weight: 500;
+}
+
+.workspace-filter-checkbox-item input[type="checkbox"] {
+  accent-color: var(--blue);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.workspace-filter-checkbox-item__name {
+  flex: 1;
+}
+
 .app-layout {
   min-height: 100vh;
   display: grid;
@@ -439,8 +634,8 @@ code {
   position: sticky;
   z-index: 15;
   top: 0;
-  height: 72px;
-  padding: 0 32px;
+  height: 60px;
+  padding: 0 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -547,7 +742,11 @@ code {
   width: 100%;
   max-width: 1540px;
   margin: 0 auto;
-  padding: 38px 38px 80px;
+  padding: 28px 32px 60px;
+}
+.content:has(.calendar-page) {
+  padding: 12px 24px 14px;
+  max-width: 1600px;
 }
 .mobile-nav {
   display: none;

@@ -29,6 +29,46 @@ export class AccessControlService {
     return { data: roles.map((role) => this.roleDto(role)) };
   }
 
+  async createRole(input: {
+    name: string;
+    description?: string | null;
+    permissions: PermissionKey[];
+  }) {
+    const trimmedName = input.name.trim();
+    if (!trimmedName) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        "Role name cannot be empty.",
+        { name: "Role name is required." },
+      );
+    }
+
+    const existing = await this.prisma.role.findFirst({
+      where: { name: { equals: trimmedName, mode: "insensitive" } },
+    });
+    if (existing) {
+      throw new ApiException(
+        409,
+        "ROLE_ALREADY_EXISTS",
+        `A role named "${trimmedName}" already exists.`,
+      );
+    }
+
+    const permissions = normalizePermissions(input.permissions);
+
+    const created = await this.prisma.role.create({
+      data: {
+        id: crypto.randomUUID(),
+        name: trimmedName.toUpperCase(),
+        description: input.description?.trim() || null,
+        permissions,
+      },
+    });
+
+    return this.roleDto(created);
+  }
+
   async updateRole(
     roleId: string,
     input: {

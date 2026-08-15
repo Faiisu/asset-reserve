@@ -27,10 +27,18 @@ Action:
 
 ### Management areas
 
-MVP ต้องมี list/create/edit สำหรับ:
+หน้า `/admin/areas` สำหรับ Global ADMIN มี search/list/create/edit/delete สำหรับ:
 
 - name required สูงสุด 150 และ unique
 - description optional
 - asset count และ user-role count เป็น computed summary
 
-การลบ management area ไม่อยู่ใน MVP เพราะมี relation กับ Asset และ UserRole
+ก่อนลบมี confirmation dialog และ backend ปฏิเสธ area ที่ยังมี asset อยู่ ส่วน role assignment relation อาจทำให้ database ปฏิเสธการลบตาม constraint
+
+### Roles and permissions
+
+หน้า `/admin/access` แสดง permission catalog แยกตาม resource, สร้าง role ใหม่ และแก้ description/permission set ของ role เดิม โดย `user:disable` และ `role:assign` บังคับให้เลือก `user:create` ร่วมด้วย การสร้างและแก้ไขจำกัด Global ADMIN
+
+### สถานะ route ของ templates
+
+`/admin/templates` redirect ไป `/admin/areas` ใน first draft ปัจจุบัน แม้ `TemplatesPage.tsx` และ backend asset-template API ยังอยู่ใน source

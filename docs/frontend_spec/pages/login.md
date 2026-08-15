@@ -4,11 +4,11 @@
 
 ## Authentication และ session
 
-User รองรับ password authentication และ external identity:
+หน้า first draft รองรับ password authentication:
 
 - Email required
 - Password required เฉพาะ flow ที่ใช้ password
-- External provider button แสดงจาก provider ที่ backend เปิดใช้งาน เช่น google หรือ microsoft
+- External identity เป็น roadmap; `LoginPage` ปัจจุบันยังไม่มี provider button
 - User ที่มี passwordHash เป็น null ต้องไม่เห็นข้อผิดพลาดที่เปิดเผยวิธี authentication ของบัญชีนั้น
 - Login ไม่สำเร็จแสดงข้อความทั่วไป “Email or password is incorrect.”
 - User.isActive=false ต้องไม่สามารถเข้าสู่ระบบหรือใช้ protected route

@@ -2,6 +2,13 @@ import type { PermissionKey } from "../access-control/permissions.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import { ApiException } from "../common/api-exception.js";
 
+export function hasGlobalPermission(
+  actor: AuthenticatedActor,
+  permission: PermissionKey,
+): boolean {
+  return actor.effectivePermissions.global.includes(permission);
+}
+
 export function hasAreaPermission(
   actor: AuthenticatedActor,
   permission: PermissionKey,
