@@ -1,0 +1,9 @@
+.venv/
+.cache/
+data/chroma/
+data/images/
+data/test_images/
+__pycache__/
+*.pyc
+server.log
+.DS_Store
