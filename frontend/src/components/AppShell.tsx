@@ -4,6 +4,7 @@ import {
   LogOut,
   Moon,
   PackagePlus,
+  CalendarDays,
   CalendarRange,
   ShieldCheck,
   Sun,
@@ -15,6 +16,7 @@ import { useAuth } from "../auth";
 import { Avatar, cx } from "./ui";
 
 const titles: Array<[string, string]> = [
+  ["/calendar", "Calendar"],
   ["/reservations/new", "New reservation"],
   ["/reservations", "Reservations"],
   ["/assets/new", "Add asset"],
@@ -49,6 +51,12 @@ export function AppShell() {
   }, [theme]);
 
   const nav = [
+    {
+      to: "/calendar",
+      label: "Calendar",
+      icon: CalendarDays,
+      show: true,
+    },
     {
       to: "/assets",
       label: "Assets",

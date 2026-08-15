@@ -12,7 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
 import {
@@ -28,6 +28,7 @@ import {
   readRecentReservations,
   rememberReservation,
   reservationStatusLabel,
+  toLocalDateTime,
 } from "../reservations";
 import type { AssetSummary } from "../types";
 
@@ -35,8 +36,27 @@ type SelectedAsset = { asset: AssetSummary; quantity: number };
 
 export function ReservationCreatePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { hasPermission, hasAreaPermission } = useAuth();
-  const defaults = useMemo(defaultReservationWindow, []);
+  const requestedStartAt = searchParams.get("startAt");
+  const requestedEndAt = searchParams.get("endAt");
+  const defaults = useMemo(() => {
+    const fallback = defaultReservationWindow();
+    if (!requestedStartAt || !requestedEndAt) return fallback;
+    const start = new Date(requestedStartAt);
+    const end = new Date(requestedEndAt);
+    if (
+      Number.isNaN(start.getTime()) ||
+      Number.isNaN(end.getTime()) ||
+      end <= start
+    ) {
+      return fallback;
+    }
+    return {
+      startAt: toLocalDateTime(start.toISOString()),
+      endAt: toLocalDateTime(end.toISOString()),
+    };
+  }, [requestedEndAt, requestedStartAt]);
   const [eventName, setEventName] = useState("");
   const [description, setDescription] = useState("");
   const [startAt, setStartAt] = useState(defaults.startAt);

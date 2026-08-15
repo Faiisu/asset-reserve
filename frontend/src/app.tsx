@@ -6,6 +6,7 @@ import { AccessPage } from "./pages/AccessPage";
 import { AssetDetailPage } from "./pages/AssetDetailPage";
 import { AssetFormPage } from "./pages/AssetFormPage";
 import { AssetsPage } from "./pages/AssetsPage";
+import { CalendarPage } from "./pages/CalendarPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ReservationCreatePage } from "./pages/ReservationCreatePage";
 import { ReservationDetailPage } from "./pages/ReservationDetailPage";
@@ -29,26 +30,7 @@ function ProtectedApp() {
 }
 
 function HomeRedirect() {
-  const { hasPermission, isGlobalAdmin, hasGlobalPermission } = useAuth();
-  if (hasPermission("asset:view")) return <Navigate to="/assets" replace />;
-  if (
-    [
-      "reservation:create",
-      "reservation:update",
-      "reservation:approve",
-      "reservation:reject",
-    ].some((permission) => hasPermission(permission as "reservation:create"))
-  )
-    return <Navigate to="/reservations" replace />;
-  if (isGlobalAdmin) return <Navigate to="/admin/access" replace />;
-  if (
-    ["user:create", "user:disable", "role:assign"].some((value) =>
-      hasGlobalPermission(value as "user:create"),
-    )
-  ) {
-    return <Navigate to="/admin/users" replace />;
-  }
-  return <Navigate to="/login" replace />;
+  return <Navigate to="/calendar" replace />;
 }
 
 export function App() {
@@ -57,6 +39,7 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedApp />}>
         <Route index element={<HomeRedirect />} />
+        <Route path="calendar" element={<CalendarPage />} />
         <Route path="assets" element={<AssetsPage />} />
         <Route path="assets/new" element={<AssetFormPage />} />
         <Route path="assets/:assetId" element={<AssetDetailPage />} />

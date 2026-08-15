@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { api } from "../api";
+import { toLocalDateTime } from "../reservations";
 import type { AssetSummary } from "../types";
 import { ReservationCreatePage } from "./ReservationCreatePage";
 
@@ -61,5 +62,29 @@ describe("ReservationCreatePage", () => {
     fireEvent.click(screen.getByRole("button", { name: /save draft/i }));
     expect(screen.getByText("Enter an event name.")).toBeInTheDocument();
     expect(createSpy).not.toHaveBeenCalled();
+  });
+
+  it("uses a valid calendar window as the initial local schedule", () => {
+    vi.spyOn(api, "assets").mockResolvedValue({
+      data: [],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+    const startAt = "2026-08-18T02:00:00.000Z";
+    const endAt = "2026-08-18T10:00:00.000Z";
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          `/reservations/new?startAt=${encodeURIComponent(startAt)}&endAt=${encodeURIComponent(endAt)}`,
+        ]}
+      >
+        <ReservationCreatePage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText(/^Starts/)).toHaveValue(
+      toLocalDateTime(startAt),
+    );
+    expect(screen.getByLabelText(/^Ends/)).toHaveValue(toLocalDateTime(endAt));
   });
 });
