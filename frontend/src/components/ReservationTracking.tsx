@@ -104,46 +104,56 @@ export function buildReservationSteps(reservation: ReservationDetail): Reservati
       : "Awaiting delivery confirmation",
   });
 
-  // Step 4: Event Active / In-Use
-  const now = new Date();
-  const startAt = new Date(reservation.startAt);
-  const endAt = new Date(reservation.endAt);
-  const isEventConcluded = now > endAt || ["RETURN", "RETURN_PENDING", "RETURN_CONFIRMED", "COMPLETED"].includes(status);
-  const isCurrentlyInUse = isDeliveredOrBeyond && now >= startAt && now <= endAt;
+  // Step 4: Pending Return (Borrower Return Submission)
+  const latestReturn = reservation.returns[0];
+  const hasSubmittedReturn =
+    reservation.returns.length > 0 ||
+    ["RETURN", "RETURN_PENDING", "RETURN_CONFIRMED", "COMPLETED"].includes(status);
+  const isAwaitingReturnSubmission =
+    ["DELIVERY_CONFIRMED", "ACTIVE"].includes(status) && reservation.returns.length === 0;
 
   steps.push({
-    name: "Event / In-Use Window",
-    timestamp: `${formatDate(reservation.startAt, true)} - ${formatDate(reservation.endAt, true)}`,
-    status: isEventConcluded
+    name: "Pending Return",
+    timestamp: hasSubmittedReturn
+      ? formatDate(latestReturn?.createdAt ?? reservation.updatedAt, true)
+      : isAwaitingReturnSubmission
+        ? "Awaiting return submission"
+        : "After handover",
+    status: hasSubmittedReturn
       ? "completed"
-      : isCurrentlyInUse
+      : isAwaitingReturnSubmission
         ? "current"
         : "upcoming",
-    description: isCurrentlyInUse ? "Active event ongoing" : "Scheduled reservation period",
+    description: hasSubmittedReturn
+      ? `Return slip submitted (${reservation.returns.length} filed)`
+      : isAwaitingReturnSubmission
+        ? "Equipment handed over; awaiting return"
+        : "Available after equipment handover",
   });
 
-  // Step 5: Equipment Return & Physical Inspection
-  const latestReturn = reservation.returns[0];
-  const isCompleted = status === "COMPLETED";
-  const isReturnPending = ["RETURN", "RETURN_PENDING"].includes(status);
+  // Step 5: Return Approval & Inspection (Manager Approval & Restock)
+  const isCompleted = ["RETURN_CONFIRMED", "COMPLETED"].includes(status);
+  const isInspectionPending =
+    ["RETURN", "RETURN_PENDING"].includes(status) ||
+    (reservation.returns.length > 0 && !isCompleted);
 
   steps.push({
-    name: "Return & Inspection",
+    name: isCompleted ? "Return Approved & Restocked" : "Return Approval & Inspection",
     timestamp: isCompleted
       ? formatDate(latestReturn?.approval?.decidedAt ?? reservation.updatedAt, true)
-      : isReturnPending
-        ? "Return slip submitted, pending inspection"
-        : "Pending event completion",
+      : isInspectionPending
+        ? "Pending Manager Inspection"
+        : "After return drop-off",
     status: isCompleted
       ? "completed"
-      : isReturnPending
+      : isInspectionPending
         ? "current"
         : "upcoming",
     description: isCompleted
-      ? "All equipment returned & restocked"
-      : isReturnPending
-        ? "Manager physical inspection required"
-        : "Return equipment when event concludes",
+      ? "All equipment returned, inspected, and restocked"
+      : isInspectionPending
+        ? "Manager physical inspection & approval required"
+        : "Manager inspection after return submission",
   });
 
   return steps;

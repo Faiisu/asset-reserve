@@ -7,8 +7,8 @@ import {
   FileText,
   ShieldCheck,
   PackageCheck,
-  CalendarDays,
   RotateCcw,
+  ClipboardCheck,
   X,
 } from "lucide-react";
 import type { ReservationDetail } from "@/types";
@@ -16,7 +16,7 @@ import { formatDate } from "@/components/ui";
 
 export interface StepLogItem {
   id: string;
-  stepKey: "draft" | "approval" | "delivery" | "active" | "return";
+  stepKey: "draft" | "approval" | "delivery" | "pending_return" | "return_approve";
   title: string;
   shortLabel: string;
   status: "completed" | "current" | "upcoming" | "rejected" | "cancelled";
@@ -43,8 +43,6 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
   const status = reservation.status;
   const createdAt = formatDate(reservation.createdAt, true);
   const updatedAt = formatDate(reservation.updatedAt, true);
-  const startAtFormatted = formatDate(reservation.startAt, true);
-  const endAtFormatted = formatDate(reservation.endAt, true);
 
   // 1. DRAFT STEP
   const draftStep: StepLogItem = {
@@ -120,7 +118,6 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
   // 2. APPROVAL STEP
   const isApprovedOrBeyond = [
     "APPROVED",
-    "PARTIALLY_APPROVED",
     "DELIVERY_CONFIRMED",
     "ACTIVE",
     "RETURN",
@@ -209,78 +206,115 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
     ],
   };
 
-  // 4. EVENT ACTIVE / IN-USE STEP
-  const now = new Date();
-  const startAt = new Date(reservation.startAt);
-  const endAt = new Date(reservation.endAt);
-  const isEventConcluded = now > endAt || ["RETURN", "RETURN_PENDING", "RETURN_CONFIRMED", "COMPLETED"].includes(status);
-  const isCurrentlyInUse = isDeliveredOrBeyond && now >= startAt && now <= endAt;
-
-  const activeStep: StepLogItem = {
-    id: "step-active",
-    stepKey: "active",
-    title: "4. Event / In-Use Window",
-    shortLabel: "In Use",
-    status: isEventConcluded
-      ? "completed"
-      : isCurrentlyInUse
-        ? "current"
-        : "upcoming",
-    timestamp: `${startAtFormatted} - ${endAtFormatted}`,
-    summary: isCurrentlyInUse
-      ? "Event is currently ongoing"
-      : isEventConcluded
-        ? "Event window concluded"
-        : `Scheduled: ${startAtFormatted}`,
-    icon: CalendarDays,
-    logs: [
-      { label: "Scheduled Start", value: startAtFormatted },
-      { label: "Scheduled End", value: endAtFormatted },
-      { label: "Active Status", value: isCurrentlyInUse ? "🟢 Currently Active In-Use" : isEventConcluded ? "Concluded" : "Upcoming Scheduled" },
-      { label: "Event Name", value: reservation.eventName },
-    ],
-  };
-
-  // 5. RETURN & INSPECTION STEP
+  // 4. PENDING RETURN PHASE (Borrower drop-off submission)
   const latestReturn = reservation.returns[0];
-  const isCompleted = status === "COMPLETED";
-  const isReturnPending = ["RETURN", "RETURN_PENDING"].includes(status);
+  const hasSubmittedReturn =
+    reservation.returns.length > 0 ||
+    ["RETURN", "RETURN_PENDING", "RETURN_CONFIRMED", "COMPLETED"].includes(status);
+  const isAwaitingReturnSubmission =
+    ["DELIVERY_CONFIRMED", "ACTIVE"].includes(status) && reservation.returns.length === 0;
 
-  const returnStep: StepLogItem = {
-    id: "step-return",
-    stepKey: "return",
-    title: "5. Return & Inspection",
-    shortLabel: "Returned",
-    status: isCompleted
+  const pendingReturnStep: StepLogItem = {
+    id: "step-pending-return",
+    stepKey: "pending_return",
+    title: "4. Pending Return",
+    shortLabel: "Pending Return",
+    status: hasSubmittedReturn
       ? "completed"
-      : isReturnPending
+      : isAwaitingReturnSubmission
         ? "current"
         : "upcoming",
-    timestamp: isCompleted
-      ? formatDate(latestReturn?.approval?.decidedAt ?? reservation.updatedAt, true)
-      : isReturnPending
-        ? "Pending Inspection"
-        : "Pending Return",
-    summary: isCompleted
-      ? "All equipment returned, inspected, and restocked"
-      : isReturnPending
-        ? "Return slip submitted; awaiting manager inspection"
-        : "Return equipment when event concludes",
+    timestamp: hasSubmittedReturn
+      ? formatDate(latestReturn?.createdAt ?? reservation.updatedAt, true)
+      : isAwaitingReturnSubmission
+        ? "Awaiting return"
+        : "After handover",
+    summary: hasSubmittedReturn
+      ? `Return slip submitted (${reservation.returns.length} slip(s) filed)`
+      : isAwaitingReturnSubmission
+        ? "Equipment handed over; awaiting return submission"
+        : "Available after equipment handover",
     icon: RotateCcw,
     logs: [
-      { label: "Return Status", value: isCompleted ? "Completed & Restocked" : isReturnPending ? "Awaiting Physical Inspection" : "Not yet returned" },
+      {
+        label: "Return Phase",
+        value: hasSubmittedReturn
+          ? "Return Slip Filed"
+          : isAwaitingReturnSubmission
+            ? "Equipment with borrower (Pending Return)"
+            : "Not yet handed over",
+      },
       { label: "Return Slips Filed", value: `${reservation.returns.length} return slip(s)` },
       ...(latestReturn
         ? [
-            { label: "Latest Return Date", value: formatDate(latestReturn.createdAt, true) },
-            { label: "Inspection Decision", value: latestReturn.approval?.status ?? "PENDING" },
-            { label: "Inspector Notes", value: latestReturn.approval?.description || "No inspection remarks." },
+            { label: "Latest Drop-off Date", value: formatDate(latestReturn.createdAt, true) },
+            {
+              label: "Returned By",
+              value: `${latestReturn.returnedBy?.name ?? latestReturn.returnedBy?.email ?? "Borrower"}`,
+            },
           ]
         : []),
     ],
   };
 
-  return [draftStep, approvalStep, deliveryStep, activeStep, returnStep];
+  // 5. RETURN APPROVE & INSPECTION PHASE (Manager approval & Restock)
+  const isCompleted = ["RETURN_CONFIRMED", "COMPLETED"].includes(status);
+  const isInspectionPending =
+    ["RETURN", "RETURN_PENDING"].includes(status) ||
+    (reservation.returns.length > 0 && !isCompleted);
+
+  const returnApproveStep: StepLogItem = {
+    id: "step-return-approve",
+    stepKey: "return_approve",
+    title: isCompleted ? "5. Return Approved & Restocked" : "5. Return Approval & Inspection",
+    shortLabel: isCompleted ? "Return Approved" : "Return Approval",
+    status: isCompleted
+      ? "completed"
+      : isInspectionPending
+        ? "current"
+        : "upcoming",
+    timestamp: isCompleted
+      ? formatDate(latestReturn?.approval?.decidedAt ?? reservation.updatedAt, true)
+      : isInspectionPending
+        ? "Pending Inspection"
+        : "After return drop-off",
+    summary: isCompleted
+      ? "All equipment inspected, approved, and restocked in inventory"
+      : isInspectionPending
+        ? "Return slip submitted; awaiting manager inspection & clearance"
+        : "Available after return slip is submitted",
+    icon: ClipboardCheck,
+    logs: [
+      {
+        label: "Approval Decision",
+        value: isCompleted
+          ? "Approved & Restocked"
+          : isInspectionPending
+            ? "Awaiting Physical Inspection"
+            : "Awaiting return submission",
+      },
+      ...(latestReturn
+        ? [
+            {
+              label: "Inspector",
+              value: `${latestReturn.approval?.approver?.name ?? latestReturn.approval?.approver?.email ?? "Pending Manager"}`,
+            },
+            {
+              label: "Inspection Timestamp",
+              value: latestReturn.approval?.decidedAt
+                ? formatDate(latestReturn.approval.decidedAt, true)
+                : "Pending",
+            },
+            {
+              label: "Inspection Remarks",
+              value: latestReturn.approval?.description || "No inspection remarks.",
+            },
+          ]
+        : []),
+    ],
+  };
+
+  return [draftStep, approvalStep, deliveryStep, pendingReturnStep, returnApproveStep];
 }
 
 export function ReservationHorizontalTracker({
