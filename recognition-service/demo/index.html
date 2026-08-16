@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Asset Recognition — Demo</title>
+<style>
+  :root {
+    --bg: #0f1420; --panel: #171e2e; --panel-2: #1f2740; --border: #2b3550;
+    --text: #e7ecf7; --muted: #93a0bd; --accent: #5b8cff; --accent-2: #7fe0b0;
+    --danger: #ff6b6b; --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(1200px 600px at 20% -10%, #1b2542 0%, var(--bg) 55%);
+    color: var(--text); min-height: 100vh; padding: 32px 20px 80px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  header { margin-bottom: 28px; }
+  header h1 { font-size: 1.6rem; margin: 0 0 6px; }
+  header p { color: var(--muted); margin: 0; max-width: 720px; line-height: 1.5; }
+  header code { background: var(--panel-2); padding: 1px 6px; border-radius: 6px; font-size: 0.85em; }
+
+  .flow-note {
+    display: flex; gap: 10px; align-items: center; background: var(--panel);
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px;
+    margin-bottom: 24px; color: var(--muted); font-size: 0.9rem;
+  }
+  .flow-note b { color: var(--text); }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px; display: flex; flex-direction: column; gap: 14px;
+  }
+  .card h2 { margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 8px; }
+  .card .step-badge {
+    width: 24px; height: 24px; border-radius: 50%; background: var(--accent);
+    display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: #fff;
+  }
+  .card.recognize .step-badge { background: var(--accent-2); color: #0f1420; }
+  .card p.hint { color: var(--muted); font-size: 0.85rem; margin: -6px 0 0; line-height: 1.45; }
+
+  .dropzone {
+    border: 2px dashed var(--border); border-radius: 10px; padding: 18px; text-align: center;
+    cursor: pointer; color: var(--muted); transition: border-color .15s, background .15s; position: relative;
+    min-height: 150px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px;
+    background: var(--panel-2); overflow: hidden;
+  }
+  .dropzone.drag { border-color: var(--accent); background: #202b4d; }
+  .dropzone img { max-width: 100%; max-height: 180px; border-radius: 8px; }
+  .dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+  input[type=text], input[type=number], select {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; color: var(--text); font-size: 0.95rem; width: 100%;
+    font-family: inherit;
+  }
+  label.field { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: var(--muted); }
+
+  .segmented { display: flex; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; padding: 3px; gap: 3px; }
+  .segmented button {
+    flex: 1; background: transparent; color: var(--muted); font-weight: 600; font-size: 0.82rem;
+    padding: 8px 10px; border-radius: 7px;
+  }
+  .segmented button.active { background: var(--accent-2); color: #0f1420; }
+  .segmented.reg button.active { background: var(--accent); color: #fff; }
+
+  button {
+    background: var(--accent); color: #fff; border: none; border-radius: 9px;
+    padding: 11px 16px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: opacity .15s;
+  }
+  button:hover { opacity: 0.9; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .card.recognize button.primary { background: var(--accent-2); color: #0f1420; }
+
+  .result { border-top: 1px solid var(--border); padding-top: 14px; font-size: 0.9rem; min-height: 20px; }
+  .result.empty { color: var(--muted); }
+
+  .match-badge {
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px;
+    font-weight: 700; font-size: 0.85rem; margin-bottom: 10px;
+  }
+  .match-badge.yes { background: rgba(127,224,176,0.15); color: var(--accent-2); border: 1px solid rgba(127,224,176,0.4); }
+  .match-badge.no { background: rgba(255,107,107,0.15); color: var(--danger); border: 1px solid rgba(255,107,107,0.4); }
+
+  .match-row { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .match-row:last-child { border-bottom: none; }
+  .match-row img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+  .match-row .meta { flex: 1; }
+  .match-row .meta .name { font-weight: 600; }
+  .match-row .sim { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .sim.high { color: var(--accent-2); }
+  .sim.low { color: var(--muted); }
+
+  .bar { height: 6px; border-radius: 4px; background: var(--panel-2); margin-top: 4px; overflow: hidden; }
+  .bar > div { height: 100%; background: var(--accent-2); }
+
+  .multi-canvas-wrap { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+  .multi-canvas-wrap canvas { display: block; width: 100%; height: auto; }
+  .multi-object-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .multi-object-item {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 0.85rem;
+  }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+  .fallback-note { color: var(--muted); font-size: 0.8rem; margin-top: 6px; }
+
+  .gallery { margin-top: 34px; }
+  .gallery h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
+  .asset-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .asset-card img.cover { width: 100%; height: 110px; object-fit: cover; background: var(--panel-2); }
+  .asset-card .info { padding: 8px 10px 4px; font-size: 0.8rem; }
+  .asset-card .name-row { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+  .asset-card .name-row .name { font-weight: 600; flex: 1; cursor: text; }
+  .asset-card .name-row input[type=text] { padding: 3px 6px; font-size: 0.8rem; }
+  .asset-card .name-row .icon-btn {
+    background: transparent; color: var(--muted); border: none; padding: 2px 4px; font-size: 0.8rem;
+    cursor: pointer; border-radius: 4px; line-height: 1;
+  }
+  .asset-card .name-row .icon-btn:hover { color: var(--text); background: var(--panel-2); opacity: 1; }
+  .asset-card .info .sub { color: var(--muted); font-size: 0.72rem; }
+  .asset-card .row-actions { display: flex; }
+  .asset-card .row-actions button {
+    flex: 1; background: transparent; font-size: 0.72rem; border: none; padding: 7px 10px;
+    text-align: center; cursor: pointer; border-top: 1px solid var(--border);
+  }
+  .asset-card .manage-btn { color: var(--muted); }
+  .asset-card .manage-btn:hover { color: var(--text); }
+  .asset-card .del { color: var(--danger); }
+  .photos-panel { padding: 8px 10px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 6px; }
+  .photos-panel .photo-thumb { position: relative; width: 44px; height: 44px; }
+  .photos-panel .photo-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+  .photos-panel .photo-thumb button {
+    position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--danger); color: #fff; font-size: 0.65rem; padding: 0; line-height: 1; border: none; cursor: pointer;
+  }
+  .photos-panel .photo-note { color: var(--muted); font-size: 0.72rem; width: 100%; }
+  .empty-state { color: var(--muted); font-size: 0.9rem; }
+
+  .threshold-row { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: var(--muted); }
+  .threshold-row input[type=range] { flex: 1; accent-color: var(--accent-2); }
+  .threshold-row .val { color: var(--text); font-weight: 700; width: 42px; text-align: right; }
+
+  footer { margin-top: 40px; color: var(--muted); font-size: 0.8rem; text-align: center; }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🔎 Asset Recognition — Demo</h1>
+    <p>
+      This page is <b>only a demo harness</b> for the actual deliverable: the recognition API itself
+      (<code>POST /api/assets</code>, <code>POST /api/recognize</code>, <code>POST /api/recognize/multi</code>).
+      It exercises the same HTTP endpoints your main app's backend would call. Left = manager registering an
+      asset when it's lent out. Right = a borrower photographing the asset(s) on the table when returning them.
+    </p>
+  </header>
+
+  <div class="flow-note">
+    ℹ️ <span><b>Real flow:</b> manager uploads asset photo once (register) → borrowing happens in your main app →
+    on return, borrower snaps a photo → this API tells you which asset it is and how confident it is.</span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2><span class="step-badge">1</span> Register an asset (manager)</h2>
+      <p class="hint">Register a new asset, or add another reference photo (a different angle/side) to one that
+        already exists — recognition checks an incoming photo against every stored view and takes the best score.</p>
+
+      <label class="field">Register as
+        <select id="register-target"><option value="__new__">+ New asset</option></select>
+      </label>
+      <label class="field" id="asset-name-field">Asset name
+        <input type="text" id="asset-name" placeholder="e.g. Bosch Cordless Drill #14" />
+      </label>
+      <div class="dropzone" id="register-drop">
+        <span id="register-placeholder">Click or drag a photo here</span>
+        <input type="file" id="register-file" accept="image/*" />
+      </div>
+      <button id="register-btn">Register asset</button>
+      <div class="result empty" id="register-result">No asset registered yet.</div>
+    </div>
+
+    <div class="card recognize">
+      <h2><span class="step-badge">2</span> Recognize a returned asset</h2>
+      <p class="hint" id="recognize-hint">Upload a photo taken at return time. We embed it and compare against every registered asset.</p>
+
+      <div class="segmented" id="recognize-mode">
+        <button class="active" data-mode="single">One asset in photo</button>
+        <button data-mode="multi">Multiple assets in photo</button>
+      </div>
+
+      <div class="threshold-row">
+        Match threshold
+        <input type="range" id="threshold" min="0.5" max="0.99" step="0.01" value="0.85" />
+        <span class="val" id="threshold-val">0.85</span>
+      </div>
+      <div class="dropzone" id="recognize-drop">
+        <span id="recognize-placeholder">Click or drag a photo here</span>
+        <input type="file" id="recognize-file" accept="image/*" />
+      </div>
+      <button id="recognize-btn" class="primary">Recognize</button>
+      <div class="result empty" id="recognize-result">No photo checked yet.</div>
+    </div>
+  </div>
+
+  <div class="gallery">
+    <h2>📦 Registered assets</h2>
+    <div class="gallery-grid" id="gallery"></div>
+    <div class="empty-state" id="gallery-empty" style="display:none;">Nothing registered yet — register an asset above.</div>
+  </div>
+
+  <footer>
+    Talks only to <code>/api/*</code> on this same server. See <a href="/docs">/docs</a> for the raw OpenAPI schema.
+  </footer>
+</div>
+
+<script>
+const API = ""; // same origin
+let assetsCache = [];
+
+function setupDropzone(dropId, fileId, placeholderId, onFile) {
+  const drop = document.getElementById(dropId);
+  const input = document.getElementById(fileId);
+  const placeholder = document.getElementById(placeholderId);
+  let currentFile = null;
+
+  function showPreview(file) {
+    const url = URL.createObjectURL(file);
+    placeholder.style.display = "none";
+    let img = drop.querySelector("img");
+    if (!img) {
+      img = document.createElement("img");
+      drop.insertBefore(img, input);
+    }
+    img.src = url;
+  }
+
+  input.addEventListener("change", () => {
+    if (input.files[0]) {
+      currentFile = input.files[0];
+      showPreview(currentFile);
+      onFile(currentFile);
+    }
+  });
+  ["dragover", "dragenter"].forEach(evt =>
+    drop.addEventListener(evt, e => { e.preventDefault(); drop.classList.add("drag"); })
+  );
+  ["dragleave", "drop"].forEach(evt =>
+    drop.addEventListener(evt, e => { e.preventDefault(); drop.classList.remove("drag"); })
+  );
+  drop.addEventListener("drop", e => {
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      currentFile = file;
+      showPreview(file);
+      onFile(file);
+    }
+  });
+  return () => currentFile;
+}
+
+let registerFile = null;
+let recognizeFile = null;
+const getRegisterFile = setupDropzone("register-drop", "register-file", "register-placeholder", f => registerFile = f);
+const getRecognizeFile = setupDropzone("recognize-drop", "recognize-file", "recognize-placeholder", f => recognizeFile = f);
+
+const thresholdInput = document.getElementById("threshold");
+const thresholdVal = document.getElementById("threshold-val");
+thresholdInput.addEventListener("input", () => thresholdVal.textContent = thresholdInput.value);
+
+// --- recognize mode toggle (single vs multi) ---
+let recognizeMode = "single";
+const recognizeHint = document.getElementById("recognize-hint");
+document.querySelectorAll("#recognize-mode button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#recognize-mode button").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    recognizeMode = btn.dataset.mode;
+    recognizeHint.textContent = recognizeMode === "single"
+      ? "Upload a photo taken at return time. We embed it and compare against every registered asset."
+      : "Upload a photo that may show several assets at once. We detect each object, then recognize them independently.";
+    document.getElementById("recognize-result").innerHTML = "";
+    document.getElementById("recognize-result").className = "result empty";
+    document.getElementById("recognize-result").textContent = "No photo checked yet.";
+  });
+});
+
+// --- register target select (new asset vs add photo to existing) ---
+const registerTarget = document.getElementById("register-target");
+const assetNameField = document.getElementById("asset-name-field");
+const assetNameInput = document.getElementById("asset-name");
+const registerBtn = document.getElementById("register-btn");
+
+registerTarget.addEventListener("change", () => {
+  if (registerTarget.value === "__new__") {
+    assetNameField.style.display = "";
+    assetNameInput.value = "";
+    registerBtn.textContent = "Register asset";
+  } else {
+    // Adding a photo to an existing asset never touches its name (rename is a
+    // separate, explicit action via the ✏️ button in the gallery below) --
+    // so there's nothing to fill in here, just hide the field entirely.
+    assetNameField.style.display = "none";
+    registerBtn.textContent = "Add photo to this asset";
+  }
+});
+
+async function loadGallery() {
+  const res = await fetch(`${API}/api/assets`);
+  const assets = await res.json();
+  assetsCache = assets;
+
+  // gallery grid
+  const grid = document.getElementById("gallery");
+  const empty = document.getElementById("gallery-empty");
+  grid.innerHTML = "";
+  empty.style.display = assets.length ? "none" : "block";
+  for (const a of assets) {
+    grid.appendChild(buildAssetCard(a));
+  }
+
+  // register-target dropdown
+  const prevValue = registerTarget.value;
+  registerTarget.innerHTML = '<option value="__new__">+ New asset</option>';
+  for (const a of assets) {
+    const opt = document.createElement("option");
+    opt.value = a.asset_id;
+    opt.textContent = `${a.name} (${a.photo_count} photo${a.photo_count === 1 ? '' : 's'})`;
+    registerTarget.appendChild(opt);
+  }
+  if ([...registerTarget.options].some(o => o.value === prevValue)) {
+    registerTarget.value = prevValue;
+  }
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function buildAssetCard(a) {
+  const card = document.createElement("div");
+  card.className = "asset-card";
+  card.innerHTML = `
+    <img class="cover" src="${a.image_url || ''}" alt="${escapeHtml(a.name)}" />
+    <div class="info">
+      <div class="name-row">
+        <span class="name" title="Click to rename">${escapeHtml(a.name)}</span>
+        <button class="icon-btn rename-btn" title="Rename asset">✏️</button>
+      </div>
+      <div class="sub">${a.photo_count} photo${a.photo_count === 1 ? '' : 's'} · ${a.asset_id.slice(0,8)}…</div>
+    </div>
+    <div class="photos-panel" hidden></div>
+    <div class="row-actions">
+      <button class="manage-btn">Manage photos</button>
+      <button class="del">Delete asset</button>
+    </div>
+  `;
+
+  const nameRow = card.querySelector(".name-row");
+  const nameSpan = card.querySelector(".name");
+  card.querySelector(".rename-btn").addEventListener("click", () => startRename(a, nameRow, nameSpan));
+
+  card.querySelector(".del").addEventListener("click", async () => {
+    if (!confirm(`Delete "${a.name}" and all its reference photos?`)) return;
+    await fetch(`${API}/api/assets/${a.asset_id}`, { method: "DELETE" });
+    loadGallery();
+  });
+
+  const photosPanel = card.querySelector(".photos-panel");
+  const manageBtn = card.querySelector(".manage-btn");
+  let photosLoaded = false;
+  manageBtn.addEventListener("click", async () => {
+    const willShow = photosPanel.hidden;
+    photosPanel.hidden = !willShow;
+    manageBtn.textContent = willShow ? "Hide photos" : "Manage photos";
+    if (willShow && !photosLoaded) {
+      await loadPhotosPanel(a, photosPanel);
+      photosLoaded = true;
+    }
+  });
+
+  return card;
+}
+
+function startRename(a, nameRow, nameSpan) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = a.name;
+  nameRow.replaceChild(input, nameSpan);
+  input.focus();
+  input.select();
+
+  let done = false;
+  async function commit() {
+    if (done) return;
+    done = true;
+    const newName = input.value.trim();
+    if (newName && newName !== a.name) {
+      const res = await fetch(`${API}/api/assets/${a.asset_id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName }),
+      });
+      if (!res.ok) {
+        alert("Rename failed: " + (await res.text()));
+      }
+    }
+    loadGallery();
+  }
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") input.blur();
+    if (e.key === "Escape") { done = true; loadGallery(); }
+  });
+  input.addEventListener("blur", commit);
+}
+
+async function loadPhotosPanel(a, panel) {
+  panel.innerHTML = `<span class="photo-note">Loading…</span>`;
+  const photos = await (await fetch(`${API}/api/assets/${a.asset_id}/photos`)).json();
+  panel.innerHTML = "";
+  if (photos.length <= 1) {
+    const note = document.createElement("div");
+    note.className = "photo-note";
+    note.textContent = "Only reference photo — add more above for better match reliability. (Can't delete the last one; delete the whole asset instead.)";
+    panel.appendChild(note);
+  }
+  for (const p of photos) {
+    const thumb = document.createElement("div");
+    thumb.className = "photo-thumb";
+    thumb.innerHTML = `<img src="${p.image_url}" alt="reference photo" />`;
+    if (photos.length > 1) {
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "×";
+      delBtn.title = "Delete this photo";
+      delBtn.addEventListener("click", async () => {
+        const res = await fetch(`${API}/api/assets/${a.asset_id}/photos/${p.photo_id}`, { method: "DELETE" });
+        if (!res.ok) { alert("Delete failed: " + (await res.text())); return; }
+        loadGallery();
+      });
+      thumb.appendChild(delBtn);
+    }
+    panel.appendChild(thumb);
+  }
+}
+
+document.getElementById("register-btn").addEventListener("click", async () => {
+  const file = getRegisterFile();
+  const resultEl = document.getElementById("register-result");
+  const target = registerTarget.value;
+
+  if (!file) { resultEl.textContent = "Pick a photo first."; resultEl.className = "result"; return; }
+
+  const fd = new FormData();
+  fd.append("file", file);
+
+  let url = `${API}/api/assets`;
+  if (target === "__new__") {
+    const name = assetNameInput.value.trim();
+    if (!name) { resultEl.textContent = "Give the new asset a name first."; resultEl.className = "result"; return; }
+    fd.append("name", name);
+  } else {
+    // Adding a photo to an existing asset -- name/metadata are never sent here,
+    // the asset keeps whatever it already has. Rename via the gallery instead.
+    url = `${API}/api/assets/${target}/photos`;
+  }
+
+  resultEl.textContent = "Embedding + registering...";
+  resultEl.className = "result";
+  const res = await fetch(url, { method: "POST", body: fd });
+  if (!res.ok) {
+    resultEl.textContent = "Error: " + (await res.text());
+    return;
+  }
+  const data = await res.json();
+  const verb = target === "__new__" ? "Registered" : "Added reference photo to";
+  resultEl.innerHTML = `✅ ${verb} <b>${escapeHtml(data.name)}</b> — now ${data.photo_count} reference photo${data.photo_count === 1 ? '' : 's'}<br><span style="color:var(--muted)">asset_id: ${data.asset_id}</span>`;
+  loadGallery();
+});
+
+function matchRowHtml(m, threshold) {
+  const pct = Math.max(0, Math.min(100, m.similarity * 100));
+  const cls = m.similarity >= threshold ? "high" : "low";
+  return `
+    <div class="match-row">
+      <img src="${m.image_url || ''}" alt="${escapeHtml(m.name)}" />
+      <div class="meta">
+        <div class="name">${escapeHtml(m.name)}</div>
+        <div class="bar"><div style="width:${pct}%"></div></div>
+      </div>
+      <div class="sim ${cls}">${(m.similarity * 100).toFixed(1)}%</div>
+    </div>`;
+}
+
+async function runSingleRecognize(file, resultEl) {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("threshold", thresholdInput.value);
+  fd.append("top_k", "5");
+  const res = await fetch(`${API}/api/recognize`, { method: "POST", body: fd });
+  if (!res.ok) { resultEl.textContent = "Error: " + (await res.text()); return; }
+  const data = await res.json();
+  let html = `<div class="match-badge ${data.is_match ? 'yes' : 'no'}">${data.is_match ? '✔ Recognized as an already-uploaded asset' : '✘ No confident match — looks new'}</div>`;
+  if (data.top_matches.length === 0) {
+    html += `<div style="color:var(--muted)">No assets registered yet to compare against.</div>`;
+  } else {
+    for (const m of data.top_matches) html += matchRowHtml(m, data.threshold);
+  }
+  resultEl.innerHTML = html;
+}
+
+const DET_COLORS = ["#7fe0b0", "#5b8cff", "#ffb84d", "#ff6b6b", "#c792ea", "#4dd0e1"];
+
+async function runMultiRecognize(file, resultEl) {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("threshold", thresholdInput.value);
+  fd.append("top_k", "3");
+  const res = await fetch(`${API}/api/recognize/multi`, { method: "POST", body: fd });
+  if (!res.ok) { resultEl.textContent = "Error: " + (await res.text()); return; }
+  const data = await res.json();
+
+  resultEl.innerHTML = "";
+  const summary = document.createElement("div");
+  summary.className = "match-badge yes";
+  summary.style.background = "rgba(91,140,255,0.15)";
+  summary.style.color = "var(--accent)";
+  summary.style.border = "1px solid rgba(91,140,255,0.4)";
+  summary.textContent = `Found ${data.object_count} object${data.object_count === 1 ? '' : 's'} in the photo`;
+  resultEl.appendChild(summary);
+
+  if (data.used_fallback_whole_image) {
+    const note = document.createElement("div");
+    note.className = "fallback-note";
+    note.textContent = "⚠ Detector didn't confidently localize separate objects — treated the whole photo as one item.";
+    resultEl.appendChild(note);
+  }
+
+  // draw the photo + bounding boxes on a canvas
+  const wrap = document.createElement("div");
+  wrap.className = "multi-canvas-wrap";
+  const canvas = document.createElement("canvas");
+  wrap.appendChild(canvas);
+  resultEl.appendChild(wrap);
+
+  const img = new Image();
+  img.onload = () => {
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    data.detections.forEach((det, i) => {
+      const color = DET_COLORS[i % DET_COLORS.length];
+      const { x1, y1, x2, y2 } = det.box;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(3, img.naturalWidth * 0.005);
+      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      const label = det.best_match
+        ? `${det.best_match.name} (${(det.best_match.similarity * 100).toFixed(0)}%)`
+        : "no match";
+      ctx.font = `${Math.max(16, img.naturalWidth * 0.022)}px -apple-system, sans-serif`;
+      const textW = ctx.measureText(label).width;
+      const pad = 6;
+      ctx.fillStyle = color;
+      ctx.fillRect(x1, Math.max(0, y1 - 26), textW + pad * 2, 26);
+      ctx.fillStyle = "#0f1420";
+      ctx.fillText(label, x1 + pad, Math.max(18, y1 - 7));
+    });
+  };
+  img.src = URL.createObjectURL(file);
+
+  // list below with full top-k per object
+  const list = document.createElement("div");
+  list.className = "multi-object-list";
+  data.detections.forEach((det, i) => {
+    const color = DET_COLORS[i % DET_COLORS.length];
+    const item = document.createElement("div");
+    item.innerHTML = `<div style="display:flex;align-items:center;gap:8px;">
+        <span class="swatch" style="background:${color}"></span>
+        <span>${det.is_match ? '✔' : '✘'} ${det.best_match ? escapeHtml(det.best_match.name) : 'unmatched'}
+        <span style="color:var(--muted)">(detector guess: ${escapeHtml(det.detector_label)})</span></span>
+      </div>
+      <span class="sim ${det.is_match ? 'high' : 'low'}">${det.best_match ? (det.best_match.similarity * 100).toFixed(1) + '%' : '—'}</span>`;
+    item.className = "multi-object-item";
+    list.appendChild(item);
+  });
+  resultEl.appendChild(list);
+}
+
+document.getElementById("recognize-btn").addEventListener("click", async () => {
+  const file = getRecognizeFile();
+  const resultEl = document.getElementById("recognize-result");
+  if (!file) { resultEl.textContent = "Pick a photo first."; resultEl.className = "result"; return; }
+
+  resultEl.textContent = recognizeMode === "single" ? "Embedding + searching..." : "Detecting objects + matching each one...";
+  resultEl.className = "result";
+  if (recognizeMode === "single") {
+    await runSingleRecognize(file, resultEl);
+  } else {
+    await runMultiRecognize(file, resultEl);
+  }
+});
+
+loadGallery();
+</script>
+</body>
+</html>
