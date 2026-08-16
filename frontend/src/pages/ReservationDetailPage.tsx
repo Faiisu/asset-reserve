@@ -430,7 +430,7 @@ export function ReservationDetailPage() {
               <span>Reservation Lifecycle Help</span>
             </h4>
             <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--ink-soft)" }}>
-              คลิกที่แต่ละขั้นตอนใน <strong>Reservation Status Track</strong> ด้านบนเพื่อเปิดดูบันทึก Audit Logs และการตัดสินใจของแต่ละแผนกอย่างละเอียด
+              Click on any step in the <strong>Reservation Status Track</strong> above to open detailed audit logs, actor records, and department decisions.
             </p>
           </div>
         </div>

@@ -298,7 +298,7 @@ export function ReservationHorizontalTracker({
       <div className="res-tracker-header">
         <h3>
           <span>Reservation Status Track</span>
-          <small>(คลิกที่แต่ละขั้นตอนเพื่อดู Log ละเอียด)</small>
+          <small>(Click any step to inspect audit logs)</small>
         </h3>
         <span className="res-detail-ref-id">
           ID: {reservation.id.slice(0, 8)}
