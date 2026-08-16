@@ -5,7 +5,12 @@
 // untouched.
 //
 // We reuse the main app's own asset UUID as this service's asset_id, so the
-// two systems stay 1:1 without needing a mapping table anywhere.
+// two systems stay 1:1 without needing a mapping table anywhere. The single
+// extra bit of bookkeeping we need -- "which reference photo, if any, was
+// derived from the main Asset Photo thumbnail" -- is stored in the
+// recognition asset's own `extra` metadata as `{ mainPhotoId: "<photo_id>" }`,
+// rather than anywhere in the main app's database, so that link travels with
+// the recognition asset and needs no schema change on either side.
 
 const ROOT = "/recognition/api";
 
@@ -20,6 +25,7 @@ export type RecognitionAsset = {
   name: string;
   photo_count: number;
   image_url: string | null;
+  extra: Record<string, unknown>;
 };
 
 export class RecognitionApiError extends Error {
@@ -72,37 +78,66 @@ export const recognitionApi = {
     return (await res.json()) as RecognitionPhoto[];
   },
 
+  /** Renames/replaces the recognition asset's custom metadata (`extra` is
+   * replaced wholesale by the service, not merged -- callers should read the
+   * current value first if they need to preserve other keys). */
+  async updateAsset(assetId: string, update: { name?: string; extra?: Record<string, unknown> }): Promise<RecognitionAsset> {
+    return request(`/assets/${assetId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(update),
+    });
+  },
+
   /** Registers a brand-new asset (first reference photo) under a caller-chosen
-   * asset_id -- used the very first time an asset gets a recognition photo. */
-  async registerAsset(assetId: string, name: string, file: File | Blob, filename = "photo.jpg"): Promise<void> {
+   * asset_id -- used the very first time an asset gets a recognition photo.
+   * Returns the new photo's id. */
+  async registerAsset(
+    assetId: string,
+    name: string,
+    file: File | Blob,
+    filename = "photo.jpg",
+    extra?: Record<string, unknown>,
+  ): Promise<string> {
     const form = new FormData();
     form.append("file", file, filename);
     form.append("name", name);
     form.append("asset_id", assetId);
-    await request(`/assets`, { method: "POST", body: form });
+    if (extra) form.append("extra", JSON.stringify(extra));
+    const res = await request<{ photo_id: string }>(`/assets`, { method: "POST", body: form });
+    return res.photo_id;
   },
 
-  /** Adds another reference photo to an asset that's already registered. */
-  async addPhoto(assetId: string, file: File | Blob, filename = "photo.jpg"): Promise<RecognitionPhoto> {
+  /** Adds another reference photo to an asset that's already registered.
+   * Returns the new photo's id. */
+  async addPhoto(assetId: string, file: File | Blob, filename = "photo.jpg"): Promise<string> {
     const form = new FormData();
     form.append("file", file, filename);
-    return request(`/assets/${assetId}/photos`, { method: "POST", body: form });
+    const res = await request<{ photo_id: string }>(`/assets/${assetId}/photos`, { method: "POST", body: form });
+    return res.photo_id;
   },
 
   /** Registers the asset if this is its first recognition photo, otherwise
    * adds another reference photo to it -- the one function both the
-   * asset-create flow and the edit-page photo section should call. */
-  async registerOrAddPhoto(assetId: string, name: string, file: File | Blob, filename = "photo.jpg"): Promise<void> {
+   * asset-create flow and the edit-page photo section should call. Returns
+   * the new photo's id. */
+  async registerOrAddPhoto(assetId: string, name: string, file: File | Blob, filename = "photo.jpg"): Promise<string> {
     const existing = await recognitionApi.getAsset(assetId);
     if (existing) {
-      await recognitionApi.addPhoto(assetId, file, filename);
-    } else {
-      await recognitionApi.registerAsset(assetId, name, file, filename);
+      return recognitionApi.addPhoto(assetId, file, filename);
     }
+    return recognitionApi.registerAsset(assetId, name, file, filename);
   },
 
   async deletePhoto(assetId: string, photoId: string): Promise<void> {
     await request(`/assets/${assetId}/photos/${photoId}`, { method: "DELETE" });
+  },
+
+  /** Removes the asset from the recognition service entirely (all reference
+   * photos with it) -- used when the last remaining photo is being removed,
+   * since the service refuses to delete a lone photo standalone. */
+  async deleteAsset(assetId: string): Promise<void> {
+    await request(`/assets/${assetId}`, { method: "DELETE" });
   },
 
   /** Pulls an already-uploaded image (e.g. the asset's own thumbnail URL from

@@ -27,7 +27,7 @@ import {
   Select,
   Textarea,
 } from "../components/ui";
-import { recognitionApi, type RecognitionPhoto } from "../recognitionApi";
+import { recognitionApi, RecognitionApiError, type RecognitionPhoto } from "../recognitionApi";
 import type { AssetDetail, ManagementArea } from "../types";
 
 type FormValue = {
@@ -216,17 +216,71 @@ export function AssetFormPage() {
   async function syncRecognitionPhotos(assetId: string, name: string) {
     const failures: string[] = [];
 
-    // A newly attached/replaced main thumbnail also becomes a recognition
-    // reference photo, same as at creation time (removing the thumbnail,
-    // by contrast, does not delete any recognition photos automatically --
-    // those are independent reference photos, not required to mirror it).
+    // A newly attached/replaced/removed main thumbnail is reconciled against
+    // whichever recognition reference photo was previously derived from it --
+    // tracked as extra.mainPhotoId on the recognition asset itself, since
+    // that's the one piece of state that needs to survive between edits.
+    // Manually-added photos (via the section below) are never touched here;
+    // this only follows the single photo that mirrors the Asset Photo field.
+    const originalPictureUrl = asset?.pictureUrl ?? "";
     const newPictureUrl = form.pictureUrl.trim();
-    if (newPictureUrl && newPictureUrl !== (asset?.pictureUrl ?? "")) {
+    if (newPictureUrl !== originalPictureUrl) {
+      let existing: Awaited<ReturnType<typeof recognitionApi.getAsset>> = null;
       try {
-        const file = await recognitionApi.fetchAsFile(newPictureUrl, `${assetId}.jpg`);
-        await recognitionApi.registerOrAddPhoto(assetId, name, file);
+        existing = await recognitionApi.getAsset(assetId);
       } catch (caught) {
-        failures.push(caught instanceof Error ? caught.message : "Could not sync the new asset photo");
+        failures.push(caught instanceof Error ? caught.message : "Could not check recognition status");
+      }
+      const currentExtra = { ...(existing?.extra ?? {}) };
+      const oldMainPhotoId = typeof currentExtra.mainPhotoId === "string" ? currentExtra.mainPhotoId : undefined;
+      let finalMainPhotoId = oldMainPhotoId;
+      let assetDeleted = false;
+
+      // Register the replacement FIRST (if any), so that removing the old
+      // main photo below is never blocked by "can't delete an asset's only
+      // photo" -- by the time we try, the new one already exists too.
+      if (newPictureUrl) {
+        try {
+          const file = await recognitionApi.fetchAsFile(newPictureUrl, `${assetId}.jpg`);
+          finalMainPhotoId = await recognitionApi.registerOrAddPhoto(assetId, name, file);
+        } catch (caught) {
+          failures.push(caught instanceof Error ? caught.message : "Could not sync the new asset photo");
+        }
+      } else {
+        finalMainPhotoId = undefined;
+      }
+
+      if (oldMainPhotoId && oldMainPhotoId !== finalMainPhotoId) {
+        try {
+          await recognitionApi.deletePhoto(assetId, oldMainPhotoId);
+        } catch (caught) {
+          if (caught instanceof RecognitionApiError && caught.status === 400) {
+            // It really was the asset's only photo and nothing replaced it --
+            // remove the whole recognition entry rather than leave an orphan
+            // the service won't let us delete piecemeal.
+            try {
+              await recognitionApi.deleteAsset(assetId);
+              assetDeleted = true;
+            } catch (deleteCaught) {
+              failures.push(
+                deleteCaught instanceof Error ? deleteCaught.message : "Could not remove the recognition entry",
+              );
+            }
+          } else {
+            failures.push(caught instanceof Error ? caught.message : "Could not remove the previous main photo reference");
+          }
+        }
+      }
+
+      if (!assetDeleted && finalMainPhotoId !== oldMainPhotoId) {
+        try {
+          const nextExtra = { ...currentExtra };
+          if (finalMainPhotoId) nextExtra.mainPhotoId = finalMainPhotoId;
+          else delete nextExtra.mainPhotoId;
+          await recognitionApi.updateAsset(assetId, { extra: nextExtra });
+        } catch (caught) {
+          failures.push(caught instanceof Error ? caught.message : "Could not save recognition metadata");
+        }
       }
     }
 
@@ -291,7 +345,13 @@ export function AssetFormPage() {
               form.pictureUrl.trim(),
               `${created.id}.jpg`,
             );
-            await recognitionApi.registerOrAddPhoto(created.id, created.name, file);
+            // Registering fresh here (this asset can't already exist in the
+            // recognition service), so this is always the "first photo" case
+            // -- tracked as extra.mainPhotoId so a later edit-page photo
+            // change/removal can find and reconcile this exact reference
+            // photo (see syncRecognitionPhotos above).
+            const photoId = await recognitionApi.registerAsset(created.id, created.name, file);
+            await recognitionApi.updateAsset(created.id, { extra: { mainPhotoId: photoId } });
           } catch (caught) {
             console.warn("Could not register asset with recognition service:", caught);
           }

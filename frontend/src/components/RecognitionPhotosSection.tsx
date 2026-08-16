@@ -102,15 +102,20 @@ export function RecognitionPhotosSection({
         </Button>
         <label className="button button--secondary button--md" style={{ cursor: "pointer" }}>
           <Upload size={17} />
-          Upload file
+          Upload files
           <input
             type="file"
             accept="image/*"
+            multiple
             style={{ display: "none" }}
             onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = ""; // allow re-selecting the same file next time
-              if (file) onAdd(file);
+              // Snapshot to a real array BEFORE clearing .value -- some
+              // browsers back input.files with a live FileList that gets
+              // mutated in place by the reset below, which would otherwise
+              // silently empty out this same reference before forEach runs.
+              const files = event.target.files ? Array.from(event.target.files) : [];
+              event.target.value = ""; // allow re-selecting the same file(s) next time
+              files.forEach(onAdd);
             }}
           />
         </label>
