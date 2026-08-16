@@ -31,8 +31,7 @@ import {
 import { reservationDuration, reservationStatusLabel } from "../reservations";
 import type {
   ReservationDetail,
-  ReservationItem,
-  ReturnItemInput,
+  CreateReturnItemInput,
 } from "../types";
 
 export function ReservationDetailPage() {
@@ -103,7 +102,7 @@ export function ReservationDetailPage() {
     setActionError(null);
     setActionNotice(null);
 
-    const itemsToReturn: ReturnItemInput[] = Object.entries(returnQuantities)
+    const itemsToReturn: CreateReturnItemInput[] = Object.entries(returnQuantities)
       .filter(([_, qty]) => qty > 0)
       .map(([itemId, qty]) => ({
         reservationItemId: itemId,
@@ -164,10 +163,8 @@ export function ReservationDetailPage() {
     return (
       <div className="reservation-detail-page p-8 max-w-6xl mx-auto">
         <ErrorState
-          title="Reservation not found"
-          description={error ?? "Could not find the requested reservation."}
-          actionLabel="Back to Reservations"
-          onAction={() => navigate("/reservations")}
+          error={error ?? "Could not find the requested reservation."}
+          onRetry={loadReservation}
         />
       </div>
     );
@@ -197,12 +194,12 @@ export function ReservationDetailPage() {
 
       {/* Global Notices */}
       {actionNotice && (
-        <Notice variant="success" onClose={() => setActionNotice(null)}>
+        <Notice tone="success">
           {actionNotice}
         </Notice>
       )}
       {actionError && (
-        <Notice variant="error" onClose={() => setActionError(null)}>
+        <Notice tone="warning">
           {actionError}
         </Notice>
       )}
@@ -351,7 +348,7 @@ export function ReservationDetailPage() {
                         {item.asset.name}
                       </h4>
                       <p className="text-xs text-slate-500">
-                        Area: {item.asset.managementArea.name} · Total Pool: {item.asset.totalQuantity}
+                        Area: {item.asset.managementArea.name}
                       </p>
                       {item.approval?.comment && (
                         <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded">

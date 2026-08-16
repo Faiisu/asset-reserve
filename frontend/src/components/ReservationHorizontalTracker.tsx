@@ -17,7 +17,7 @@ import {
   Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ReservationDetail, ReservationItem } from "@/types";
+import type { ReservationDetail } from "@/types";
 import { formatDate } from "@/components/ui";
 
 export interface StepLogItem {
@@ -184,7 +184,7 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
     "COMPLETED",
   ].includes(status);
 
-  const deliveredAt = reservation.items.find((i) => i.status === "DELIVERED" || i.status === "RETURNED")?.updatedAt;
+  const deliveredAt = reservation.updatedAt;
 
   const deliveryStep: StepLogItem = {
     id: "step-delivery",

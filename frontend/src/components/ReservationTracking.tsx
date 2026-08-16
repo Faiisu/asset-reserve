@@ -85,7 +85,7 @@ export function buildReservationSteps(reservation: ReservationDetail): Reservati
     "COMPLETED",
   ].includes(status);
 
-  const deliveredAt = reservation.items.find((i) => i.status === "DELIVERED" || i.status === "RETURNED")?.updatedAt;
+  const deliveredAt = reservation.updatedAt;
 
   steps.push({
     name: "Equipment Handover",

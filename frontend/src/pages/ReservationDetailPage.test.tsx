@@ -34,7 +34,6 @@ const mockReservation: ReservationDetail = {
   items: [
     {
       id: "item-1",
-      assetId: "asset-1",
       quantity: 2,
       status: "APPROVED",
       asset: {
@@ -42,11 +41,12 @@ const mockReservation: ReservationDetail = {
         name: "Stage Camera 4K",
         description: "Studio camera",
         pictureUrl: null,
-        totalQuantity: 5,
+        isActive: true,
         managementArea: {
           id: "area-1",
           name: "Marketing",
         },
+        template: null,
       },
       approval: {
         id: "app-1",
@@ -57,7 +57,23 @@ const mockReservation: ReservationDetail = {
           id: "mgr-1",
           name: "Marketing Manager",
           email: "mk@example.com",
+          profilePictureUrl: null,
         },
+      },
+      availability: {
+        assetId: "asset-1",
+        totalQuantity: 5,
+        approvedQuantity: 2,
+        pendingQuantity: 0,
+        availableQuantity: 3,
+        pendingReservationCount: 0,
+      },
+      warnings: [],
+      capabilities: {
+        canApprove: false,
+        canReject: false,
+        canConfirmDelivery: true,
+        canReturn: false,
       },
       returnSummary: {
         returnedQuantity: 0,
@@ -73,7 +89,6 @@ const mockReservation: ReservationDetail = {
   capabilities: {
     canSubmit: false,
     canRequestChange: true,
-    canReview: false,
     canConfirmDelivery: true,
     canReturn: false,
     canCancel: true,
