@@ -86,7 +86,17 @@ Asset/template/inventory services ตรวจ permission และ management-a
 | POST | `/reservations/{reservationId}/items/decision` | atomic batch approve/reject |
 | POST | `/reservations/{reservationId}/change-requests` | request post-submit schedule/item/participant changes |
 | POST | `/reservations/{reservationId}/change-requests/{changeRequestId}/decision` | approve/reject change atomically |
+| POST | `/reservations/{reservationId}/delivery-confirm` | confirm equipment handover/pickup; transitions items to `DELIVERED` and reservation to `DELIVERY_CONFIRMED` |
 | POST | `/reservations/{reservationId}/cancel` | owner/manager cancellation พร้อม optional reason |
+
+## Returns and inspection
+
+| Method | Path | Behavior/access |
+| --- | --- | --- |
+| GET | `/returns` | views `MINE`, `APPROVALS`, `ALL`; status/area/reservationId filters และ cursor pagination |
+| GET | `/returns/{returnId}` | return slip detail พร้อมรายการตรวจรับ, condition breakdown และ approval status |
+| POST | `/reservations/{reservationId}/returns` | borrower/participant submits return slip สำหรับคืนอุปกรณ์; creates return in `PENDING` status |
+| POST | `/reservations/{reservationId}/returns/{returnId}/decision` | area manager inspects & decides return with Good, Broken, Lost breakdown; auto-adjusts stock for Broken/Lost and completes reservation |
 
 ## Runtime behavior shared by every API
 

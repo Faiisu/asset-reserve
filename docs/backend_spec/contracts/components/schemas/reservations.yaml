@@ -2,13 +2,18 @@ ReservationStatus:
   type: string
   enum:
     - DRAFT
+    - PENDING
     - PENDING_APPROVAL
     - PARTIALLY_APPROVED
     - APPROVED
+    - DELIVERY_CONFIRMED
+    - ACTIVE
+    - RETURN
+    - RETURN_PENDING
+    - RETURN_CONFIRMED
+    - COMPLETED
     - REJECTED
     - CANCELLED
-    - ACTIVE
-    - COMPLETED
 ReservationItemStatus:
   type: string
   enum:
@@ -17,6 +22,7 @@ ReservationItemStatus:
     - REJECTED
     - PREPARED
     - CHECKED_OUT
+    - DELIVERED
     - RETURNED
 ReservationItemInput:
   type: object
@@ -522,8 +528,7 @@ ReservationDetail:
     returns:
       type: array
       items:
-        type: object
-        additionalProperties: true
+        $ref: "#/components/schemas/ReturnDetail"
     capabilities:
       type: object
       required:
@@ -540,3 +545,195 @@ ReservationDetail:
     updatedAt:
       type: string
       format: date-time
+ConfirmDeliveryRequest:
+  type: object
+  additionalProperties: false
+  properties:
+    itemIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+ReturnItemInput:
+  type: object
+  additionalProperties: false
+  required:
+    - reservationItemId
+  properties:
+    reservationItemId:
+      type: string
+      format: uuid
+    quantityReturned:
+      type: integer
+      minimum: 0
+      default: 0
+    quantityBroken:
+      type: integer
+      minimum: 0
+      default: 0
+    quantityLost:
+      type: integer
+      minimum: 0
+      default: 0
+    description:
+      type: string
+      maxLength: 2000
+      nullable: true
+CreateReturnRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - items
+  properties:
+    items:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/components/schemas/ReturnItemInput"
+    note:
+      type: string
+      maxLength: 2000
+      nullable: true
+    immediateApprove:
+      type: boolean
+ReturnDecisionRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - decision
+  properties:
+    decision:
+      type: string
+      enum: [APPROVE, REJECT]
+    items:
+      type: array
+      items:
+        $ref: "#/components/schemas/ReturnItemInput"
+    description:
+      type: string
+      maxLength: 2000
+      nullable: true
+ReturnItemDetail:
+  type: object
+  required:
+    - id
+    - returnId
+    - reservationItemId
+    - quantityReturned
+    - quantityBroken
+    - quantityLost
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    returnId:
+      type: string
+      format: uuid
+    reservationItemId:
+      type: string
+      format: uuid
+    quantityReturned:
+      type: integer
+    quantityBroken:
+      type: integer
+    quantityLost:
+      type: integer
+    description:
+      type: string
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    reservationItem:
+      $ref: "#/components/schemas/ReservationDetailItem"
+ReturnApprovalDetail:
+  type: object
+  required:
+    - id
+    - returnId
+    - approverId
+    - status
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    returnId:
+      type: string
+      format: uuid
+    approverId:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum: [PENDING, APPROVED, REJECTED]
+    description:
+      type: string
+      nullable: true
+    decidedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    approver:
+      $ref: "#/components/schemas/ReservationUser"
+ReturnDetail:
+  type: object
+  required:
+    - id
+    - reservationId
+    - returnedBy
+    - status
+    - items
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    reservationId:
+      type: string
+      format: uuid
+    returnedBy:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum: [PENDING, APPROVED, REJECTED, COMPLETED]
+    returnedAt:
+      type: string
+      format: date-time
+      nullable: true
+    returner:
+      $ref: "#/components/schemas/ReservationUser"
+    items:
+      type: array
+      items:
+        $ref: "#/components/schemas/ReturnItemDetail"
+    approval:
+      $ref: "#/components/schemas/ReturnApprovalDetail"
+    reservation:
+      type: object
+      additionalProperties: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+ReturnListResponse:
+  type: object
+  required:
+    - data
+    - pagination
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/components/schemas/ReturnDetail"
+    pagination:
+      $ref: "#/components/schemas/CursorPagination"
+

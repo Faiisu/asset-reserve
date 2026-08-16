@@ -1,0 +1,131 @@
+name: asset-reservation-stack
+
+x-db-env: &db-env
+  DATABASE_URL: postgresql://${POSTGRES_USER:-asset_reservation}:${POSTGRES_PASSWORD:-change-this-database-password}@postgres:5432/${POSTGRES_DB:-asset_reservation}?schema=public
+  DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+  DATABASE_CONNECTION_TIMEOUT_MS: ${DATABASE_CONNECTION_TIMEOUT_MS:-5000}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: asset-reservation-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-asset_reservation}
+      POSTGRES_USER: ${POSTGRES_USER:-asset_reservation}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-database-password}
+    command:
+      - postgres
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    shm_size: ${POSTGRES_SHM_SIZE:-256mb}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\"",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    stop_grace_period: 30s
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  schema:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: schema
+    container_name: asset-reservation-schema
+    environment:
+      <<: *db-env
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-00000000}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-System Admin}
+      LOAD_MOCK_DATA: ${LOAD_MOCK_DATA:-true}
+      MOCK_USER_PASSWORD: ${MOCK_USER_PASSWORD:-password123456}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runtime
+    container_name: asset-reservation-backend
+    environment:
+      <<: *db-env
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-replace-with-at-least-32-random-characters-for-production}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-28800}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:3000,http://127.0.0.1:8080,http://127.0.0.1:3000}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      OPENAPI_CONTRACT_PATH: /docs/openapi.bundle.yaml
+    depends_on:
+      postgres:
+        condition: service_healthy
+      schema:
+        condition: service_completed_successfully
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    volumes:
+      - uploads-data:/app/uploads
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/v1/auth/me').then(r=>process.exit(r.status < 500 ? 0 : 1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: runtime
+    container_name: asset-reservation-frontend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    init: true
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  postgres-data:
+    name: ${POSTGRES_VOLUME_NAME:-asset-reservation-postgres-data}
+  uploads-data:
+    name: ${UPLOADS_VOLUME_NAME:-asset-reservation-uploads-data}
+
+networks:
+  app-network:
+    name: ${DOCKER_NETWORK_NAME:-asset-reservation-network}

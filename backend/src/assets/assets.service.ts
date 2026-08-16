@@ -26,7 +26,7 @@ const assetInclude = {
   createdBy: { include: { profile: true } },
 } satisfies Prisma.AssetInclude;
 
-const allocatedItemStatuses = ["APPROVED", "PREPARED", "CHECKED_OUT"];
+const allocatedItemStatuses = ["APPROVED", "PREPARED", "CHECKED_OUT", "DELIVERED"];
 const allocatedReservationStatuses = [
   "PARTIALLY_APPROVED",
   "APPROVED",
@@ -34,8 +34,6 @@ const allocatedReservationStatuses = [
   "ACTIVE",
   "RETURN",
   "RETURN_PENDING",
-  "RETURN_CONFIRMED",
-  "COMPLETED",
 ];
 
 @Injectable()
@@ -387,7 +385,7 @@ export class AssetsService {
     assetIds: string[],
     range?: { startAt: Date; endAt: Date },
   ) {
-    if (!assetIds.length) return new Map<string, number>();
+    if (!assetIds.length || !range) return new Map<string, number>();
     const rows = await this.prisma.reservationItem.groupBy({
       by: ["assetId"],
       where: {
@@ -395,12 +393,8 @@ export class AssetsService {
         status: { in: allocatedItemStatuses },
         reservation: {
           status: { in: allocatedReservationStatuses },
-          ...(range
-            ? {
-                startAt: { lt: range.endAt },
-                endAt: { gt: range.startAt },
-              }
-            : {}),
+          startAt: { lt: range.endAt },
+          endAt: { gt: range.startAt },
         },
       },
       _sum: { quantity: true },

@@ -36,9 +36,6 @@
   .reservation-compose {
     grid-template-columns: minmax(0, 1fr) 290px;
   }
-  .reservation-item-card {
-    grid-template-columns: 20px 44px minmax(130px, 1fr) 62px 62px auto auto;
-  }
   .reservation-list-toolbar {
     align-items: stretch;
     flex-direction: column;
@@ -209,20 +206,13 @@
     grid-template-columns: 1fr;
   }
   .reservation-compose,
-  .reservation-detail-grid,
+  .res-detail-columns,
   .reservation-review-landing {
     grid-template-columns: 1fr;
   }
-  .reservation-compose__rail,
-  .reservation-detail-aside {
+  .reservation-compose__rail {
     position: static;
-  }
-  .reservation-compose__rail,
-  .reservation-detail-aside {
     grid-template-columns: 1fr 1fr;
-  }
-  .reservation-back {
-    grid-column: 1 / -1;
   }
   .review-lane-banner small {
     display: none;
@@ -535,8 +525,7 @@
   .reservation-submit .button {
     width: 100%;
   }
-  .reservation-compose__rail,
-  .reservation-detail-aside {
+  .reservation-compose__rail {
     grid-template-columns: 1fr;
   }
   .reservation-reference-form {
@@ -597,82 +586,6 @@
   .reservation-decision-flag {
     grid-column: 3;
   }
-  .reservation-hero__top {
-    display: block;
-  }
-  .reservation-hero__top .reservation-status {
-    margin-top: 13px;
-  }
-  .reservation-hero__schedule {
-    grid-template-columns: 1fr;
-    gap: 13px;
-  }
-  .reservation-hero__track {
-    width: 1px;
-    height: 24px;
-    margin-left: 18px;
-    border-top: 0;
-    border-left: 1px dashed #49637f;
-    text-align: left;
-  }
-  .reservation-hero__track span {
-    top: 4px;
-    left: 10px;
-  }
-  .reservation-hero__actions {
-    align-items: stretch;
-    flex-direction: column-reverse;
-  }
-  .reservation-stepper {
-    padding: 16px 14px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  .res-step__label {
-    font-size: 9px;
-  }
-  .res-step__circle {
-    width: 28px;
-    height: 28px;
-  }
-  .approval-selection-bar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .approval-selection-bar__actions {
-    width: 100%;
-  }
-  .approval-selection-bar__actions .button {
-    flex: 1;
-  }
-  .reservation-item-card {
-    grid-template-columns: 20px 44px minmax(0, 1fr) auto;
-  }
-  .reservation-item-card__quantity {
-    grid-row: 2;
-  }
-  .reservation-item-card__quantity--requested {
-    grid-column: 3;
-  }
-  .reservation-item-card__quantity--available {
-    grid-column: 4;
-  }
-  .reservation-item-card > .item-status {
-    grid-column: 4;
-    grid-row: 1;
-  }
-  .reservation-item-card__view {
-    grid-column: 3 / -1;
-    grid-row: 3;
-  }
-  .item-overlap-warning,
-  .reservation-item-card__comment,
-  .reservation-item-card__actions {
-    grid-column: 2 / -1;
-  }
-  .reservation-item-card__actions .button {
-    flex: 1;
-  }
   .calendar-asset-browser {
     height: min(600px, calc(100vh - 170px));
     min-height: 300px;
@@ -688,16 +601,6 @@
   }
   .calendar-asset-browser__results--grid {
     grid-template-columns: 1fr;
-  }
-  .edit-manifest__row {
-    grid-template-columns: 44px minmax(0, 1fr) 38px;
-  }
-  .edit-manifest__row .control {
-    grid-column: 2;
-  }
-  .edit-manifest__row .icon-button {
-    grid-column: 3;
-    grid-row: 1;
   }
 }
 

@@ -1,2262 +1,1240 @@
 import {
-  AlertTriangle,
   ArrowLeft,
-  CalendarDays,
-  Check,
-  CheckCircle2,
-  Clock3,
-  Edit3,
-  Eye,
-  PackageCheck,
-  Plus,
-  RefreshCw,
-  Send,
-  ShieldCheck,
-  Trash2,
+  Calendar,
+  Clock,
+  Package,
+  User,
   Truck,
-  Users,
-  X,
+  RotateCcw,
   XCircle,
+  Info,
+  CheckCircle,
+  ShieldCheck,
+  Check,
+  X,
+  ClipboardCheck,
 } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-} from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
-import { api, ApiClientError } from "../api";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { api } from "../api";
 import { useAuth } from "../auth";
+import { ReservationHorizontalTracker } from "../components/ReservationHorizontalTracker";
 import {
-  AssetPicture,
   Avatar,
-  Breadcrumb,
   Button,
-  Dialog,
-  EmptyState,
   ErrorState,
-  Field,
-  Input,
   LoadingState,
   Notice,
-  Textarea,
-  cx,
   formatDate,
 } from "../components/ui";
-import {
-  rememberReservation,
-  reservationDuration,
-  reservationStatusLabel,
-  toLocalDateTime,
-} from "../reservations";
+import { reservationDuration, reservationStatusLabel } from "../reservations";
 import type {
-  AssetSummary,
   ReservationDetail,
-  ReservationItemStatus,
-  ReservationStatus,
-  ReturnDetail,
-  ReturnItemDetail,
+  CreateReturnItemInput,
 } from "../types";
 
-type ReservationItem = ReservationDetail["items"][number];
-
-type DecisionTarget = {
-  itemIds: string[];
-  assetNames: string[];
-  decision: "APPROVE" | "REJECT";
-} | null;
+export type InspectionItemState = {
+  quantityReturned: number;
+  quantityBroken: number;
+  quantityLost: number;
+  isVerified: boolean;
+  description: string;
+};
 
 export function ReservationDetailPage() {
-  const { reservationId } = useParams();
-  const location = useLocation();
+  const { reservationId } = useParams<{ reservationId: string }>();
+  const navigate = useNavigate();
   const { hasAreaPermission } = useAuth();
-  const [reservation, setReservation] = useState<ReservationDetail | null>(
-    null,
-  );
+
+  const [reservation, setReservation] = useState<ReservationDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<unknown>(null);
-  const [actionError, setActionError] = useState<unknown>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [decisionTarget, setDecisionTarget] = useState<DecisionTarget>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // Selection states for manifest actions
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
-  const [editOpen, setEditOpen] = useState(false);
-  const [cancelOpen, setCancelOpen] = useState(false);
-  const [returnDecisionTarget, setReturnDecisionTarget] = useState<{
-    returnId: string;
-    decision: "APPROVE" | "REJECT";
-    returnRecord: ReturnDetail;
-  } | null>(null);
-  const [singleDeliveryItemId, setSingleDeliveryItemId] = useState<string | null>(null);
-  const [deliveryConfirmOpen, setDeliveryConfirmOpen] = useState(false);
-  const [reviewingChange, setReviewingChange] = useState<string | null>(null);
-  const [noticeState, setNoticeState] = useState<string>("");
-  const notice = (location.state as { notice?: string } | null)?.notice || noticeState;
+  const [selectedDeliveryItemIds, setSelectedDeliveryItemIds] = useState<string[]>([]);
+  const [selectedReturnItemIds, setSelectedReturnItemIds] = useState<string[]>([]);
+  const [selectedInspectItemIds, setSelectedInspectItemIds] = useState<string[]>([]);
 
-  async function handleConfirmDelivery(itemIds?: string[]) {
-    if (!reservation) return;
-    setActionError(null);
-    const result = await api.confirmDelivery(reservation.id, itemIds);
-    setReservation(result);
-    rememberReservation(result);
-    setSingleDeliveryItemId(null);
-    setNoticeState(
-      result.status === "DELIVERY_CONFIRMED"
-        ? "All equipment delivery confirmed (Event status: Delivery Confirmed)"
-        : "Selected equipment delivery confirmed",
-    );
-  }
+  // Remarks / notes for each state
+  const [approvalComment, setApprovalComment] = useState("");
+  const [returnNote, setReturnNote] = useState("");
+  const [inspectionComment, setInspectionComment] = useState("");
 
-  async function confirmCancel(reason?: string) {
-    if (!reservation) return;
-    setActionError(null);
-    const result = await api.cancelReservation(reservation.id, reason);
-    setReservation(result);
-    rememberReservation(result);
-    setNoticeState("Reservation cancelled");
-  }
+  // Quantity adjustments
+  const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
+  const [returnQuantities, setReturnQuantities] = useState<Record<string, number>>({});
+  const [inspectionItemStates, setInspectionItemStates] = useState<Record<string, InspectionItemState>>({});
 
-  const load = useCallback(async () => {
+  // Fetch reservation data
+  const loadReservation = useCallback(async () => {
     if (!reservationId) return;
+    setLoading(true);
     setError(null);
     try {
-      const result = await api.reservation(reservationId);
-      setReservation(result);
+      const data = await api.reservation(reservationId);
+      setReservation(data);
+
+      // Initialize return quantities & approvable item quantities
+      const initialReturnQty: Record<string, number> = {};
+      const initialItemQty: Record<string, number> = {};
+      data.items.forEach((item) => {
+        const remaining = item.returnSummary?.remainingReturnQuantity ?? item.quantity;
+        initialReturnQty[item.id] = remaining > 0 ? remaining : item.quantity;
+        initialItemQty[item.id] = item.quantity;
+      });
+      setReturnQuantities(initialReturnQty);
+      setItemQuantities(initialItemQty);
+
+      // Initialize inspection checklist states for pending return slips
+      const pendingReturn = data.returns.find(
+        (ret) => ret.status === "PENDING" || ret.approval?.status === "PENDING",
+      );
+      const initialInspection: Record<string, InspectionItemState> = {};
+      if (pendingReturn && pendingReturn.items && pendingReturn.items.length > 0) {
+        pendingReturn.items.forEach((item) => {
+          initialInspection[item.reservationItemId] = {
+            quantityReturned: item.quantityReturned,
+            quantityBroken: item.quantityBroken ?? 0,
+            quantityLost: item.quantityLost ?? 0,
+            isVerified: true,
+            description: item.description ?? "",
+          };
+        });
+        setSelectedInspectItemIds(pendingReturn.items.map((i) => i.reservationItemId));
+      } else {
+        setSelectedInspectItemIds([]);
+      }
+      setInspectionItemStates(initialInspection);
+
+      // Reset selection state
       setSelectedItemIds([]);
-      rememberReservation(result);
-    } catch (caught) {
-      setError(caught);
+      setSelectedDeliveryItemIds([]);
+      setSelectedReturnItemIds([]);
+    } catch (err: any) {
+      setError(err.message ?? "Failed to load reservation details.");
     } finally {
       setLoading(false);
     }
   }, [reservationId]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    loadReservation();
+  }, [loadReservation]);
 
-  async function submitDraft() {
-    if (!reservation) return;
-    setSubmitting(true);
-    setActionError(null);
-    try {
-      const result = await api.submitReservation(
-        reservation.id,
-        reservation.updatedAt,
-      );
-      setReservation(result);
-      rememberReservation(result);
-    } catch (caught) {
-      setActionError(caught);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function decideChange(
-    changeRequestId: string,
-    decision: "APPROVE" | "REJECT",
-  ) {
-    if (!reservation) return;
-    setReviewingChange(`${changeRequestId}:${decision}`);
-    setActionError(null);
-    try {
-      const result = await api.decideReservationChange(
-        reservation.id,
-        changeRequestId,
-        decision,
-      );
-      setReservation(result);
-      rememberReservation(result);
-    } catch (caught) {
-      setActionError(caught);
-    } finally {
-      setReviewingChange(null);
-    }
-  }
-
-  if (loading) return <LoadingState label="Loading reservation" />;
-  if (error || !reservation)
-    return <ErrorState error={error} onRetry={() => void load()} />;
-
-  const pendingWarnings = reservation.items.reduce(
-    (sum, item) => sum + item.warnings.length,
-    0,
-  );
-  const hasPendingChange = reservation.changeRequests.some(
-    (request) => request.status === "PENDING",
-  );
-  const canApproveChange = reservation.items.every((item) =>
-    hasAreaPermission("reservation:approve", item.asset.managementArea.id),
-  );
-  const canRejectChange = reservation.items.every((item) =>
-    hasAreaPermission("reservation:reject", item.asset.managementArea.id),
-  );
-  const canReviewChanges = canApproveChange || canRejectChange;
-  const isReturnPhase = [
-    "DELIVERY_CONFIRMED",
-    "ACTIVE",
-    "RETURN",
-    "RETURN_PENDING",
-    "RETURN_CONFIRMED",
-    "COMPLETED",
-  ].includes(reservation.status);
-  const returnableItems = reservation.items.filter(
-    (item) =>
-      item.status !== "REJECTED" &&
-      item.status !== "PENDING" &&
-      item.status !== "APPROVED" &&
-      ((item.returnSummary?.remainingReturnQuantity ?? item.quantity) > 0 ||
-        (item.returnSummary?.lostQuantity ?? 0) > 0),
-  );
-  const canRecordReturn = isReturnPhase && returnableItems.length > 0;
-  const decidableItems = reservation.items.filter(
-    (item) => item.capabilities.canApprove || item.capabilities.canReject,
-  );
-  const selectableItems = isReturnPhase ? returnableItems : decidableItems;
-  const selectedItems = selectableItems.filter((item) =>
-    selectedItemIds.includes(item.id),
-  );
-  const allSelectableSelected =
-    selectableItems.length > 0 &&
-    selectedItems.length === selectableItems.length;
-  const canApproveSelected =
-    !isReturnPhase &&
-    selectedItems.length > 0 &&
-    selectedItems.every((item) => item.capabilities.canApprove);
-  const canRejectSelected =
-    !isReturnPhase &&
-    selectedItems.length > 0 &&
-    selectedItems.every((item) => item.capabilities.canReject);
-  const canApproveReturnSelected =
-    isReturnPhase &&
-    selectedItems.length > 0 &&
-    selectedItems.every((item) =>
-      hasAreaPermission("return:approve", item.asset.managementArea.id),
+  // Approvable items helper (Area Manager)
+  const approvableItems = useMemo(() => {
+    if (!reservation) return [];
+    return reservation.items.filter(
+      (i) =>
+        i.status === "PENDING" &&
+        (i.capabilities?.canApprove ||
+          hasAreaPermission("reservation:approve", i.asset.managementArea.id))
     );
+  }, [reservation, hasAreaPermission]);
 
-  function toggleItemSelection(itemId: string) {
-    setSelectedItemIds((current) =>
-      current.includes(itemId)
-        ? current.filter((id) => id !== itemId)
-        : [...current, itemId],
+  // Deliverable items helper (Handover)
+  const deliverableItems = useMemo(() => {
+    if (!reservation) return [];
+    return reservation.items.filter(
+      (item) =>
+        item.capabilities?.canConfirmDelivery &&
+        ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status),
     );
-  }
+  }, [reservation]);
 
-  function openDecision(decision: "APPROVE" | "REJECT") {
-    setDecisionTarget({
-      itemIds: selectedItems.map((item) => item.id),
-      assetNames: selectedItems.map((item) => item.asset.name),
-      decision,
+  // Returnable items helper (Pending Return)
+  const returnableItems = useMemo(() => {
+    if (!reservation) return [];
+    const canReturnOverall = reservation.capabilities?.canReturn;
+    return reservation.items.filter((item) => {
+      const remaining =
+        item.returnSummary?.remainingReturnQuantity ??
+        (item.status === "DELIVERED" ? item.quantity : 0);
+      const itemCanReturn =
+        item.capabilities?.canReturn ?? canReturnOverall ?? false;
+      return (
+        itemCanReturn &&
+        remaining > 0 &&
+        (["DELIVERED", "APPROVED", "DELIVERY_CONFIRMED"].includes(item.status) ||
+          ["DELIVERY_CONFIRMED", "ACTIVE"].includes(reservation.status))
+      );
     });
+  }, [reservation]);
+
+  // Pending return slip that requires inspection (Area Manager)
+  const pendingInspectableReturn = useMemo(() => {
+    if (!reservation || !reservation.returns) return null;
+    return (
+      reservation.returns.find(
+        (ret) =>
+          (ret.status === "PENDING" || ret.approval?.status === "PENDING") &&
+          (ret.capabilities?.canApprove ||
+            hasAreaPermission("return:approve", ret.items?.[0]?.managementArea?.id || ""))
+      ) ?? null
+    );
+  }, [reservation, hasAreaPermission]);
+
+  // Toggle selection for approval
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItemIds((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+  };
+
+  const toggleSelectAllApprovable = () => {
+    if (selectedItemIds.length === approvableItems.length) {
+      setSelectedItemIds([]);
+    } else {
+      setSelectedItemIds(approvableItems.map((i) => i.id));
+    }
+  };
+
+  // Toggle selection for delivery handover
+  const toggleDeliveryItemSelection = (itemId: string) => {
+    setSelectedDeliveryItemIds((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+  };
+
+  const toggleSelectAllDeliverable = () => {
+    if (selectedDeliveryItemIds.length === deliverableItems.length) {
+      setSelectedDeliveryItemIds([]);
+    } else {
+      setSelectedDeliveryItemIds(deliverableItems.map((item) => item.id));
+    }
+  };
+
+  // Toggle selection for equipment return
+  const toggleReturnItemSelection = (itemId: string) => {
+    setSelectedReturnItemIds((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+  };
+
+  const toggleSelectAllReturnable = () => {
+    if (selectedReturnItemIds.length === returnableItems.length) {
+      setSelectedReturnItemIds([]);
+    } else {
+      setSelectedReturnItemIds(returnableItems.map((item) => item.id));
+    }
+  };
+
+  // Toggle selection for inspection review
+  const toggleInspectItemSelection = (itemId: string) => {
+    setSelectedInspectItemIds((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+  };
+
+  const toggleSelectAllInspectable = () => {
+    const inspectableIds = (pendingInspectableReturn?.items || []).map((i) => i.reservationItemId);
+    if (selectedInspectItemIds.length === inspectableIds.length) {
+      setSelectedInspectItemIds([]);
+    } else {
+      setSelectedInspectItemIds(inspectableIds);
+    }
+  };
+
+  // Handle Area Manager Item Decision (Approve / Reject)
+  const handleDecideItems = async (
+    decision: "APPROVE" | "REJECT",
+    targetItemIds?: string[]
+  ) => {
+    if (!reservation) return;
+    const ids = targetItemIds ?? selectedItemIds;
+    if (ids.length === 0) {
+      setActionError("Please select at least one item to decide.");
+      return;
+    }
+
+    setActionLoading(true);
+    setActionError(null);
+    setActionNotice(null);
+
+    try {
+      const updated = await api.decideReservationItems(
+        reservation.id,
+        ids,
+        decision,
+        approvalComment.trim() || undefined
+      );
+      setReservation(updated);
+      setSelectedItemIds([]);
+      setApprovalComment("");
+      setActionNotice(
+        `Successfully ${decision === "APPROVE" ? "approved" : "rejected"} ${ids.length} item(s).`
+      );
+    } catch (err: any) {
+      setActionError(err.message ?? `Failed to ${decision.toLowerCase()} items.`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle Delivery Confirm
+  const handleConfirmDelivery = async () => {
+    if (!reservation) return;
+    if (selectedDeliveryItemIds.length === 0) {
+      setActionError("Please select at least one item to confirm handover.");
+      return;
+    }
+    setActionLoading(true);
+    setActionError(null);
+    setActionNotice(null);
+    try {
+      const updated = await api.confirmDelivery(
+        reservation.id,
+        selectedDeliveryItemIds,
+      );
+      setReservation(updated);
+      setSelectedDeliveryItemIds([]);
+      setActionNotice(
+        `Handover confirmed for ${selectedDeliveryItemIds.length} item(s).`,
+      );
+    } catch (err: any) {
+      setActionError(err.message ?? "Failed to confirm delivery.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle Return Submit directly from Equipment Manifest
+  const handleReturnSubmit = async () => {
+    if (!reservation) return;
+    const targetIds =
+      selectedReturnItemIds.length > 0
+        ? selectedReturnItemIds
+        : returnableItems.map((i) => i.id);
+
+    if (targetIds.length === 0) {
+      setActionError("Please select at least one item to return.");
+      return;
+    }
+
+    const itemsToReturn: CreateReturnItemInput[] = targetIds.map((itemId) => {
+      const item = reservation.items.find((i) => i.id === itemId);
+      const remaining =
+        item?.returnSummary?.remainingReturnQuantity ?? item?.quantity ?? 1;
+      const qty = returnQuantities[itemId] ?? remaining;
+      return {
+        reservationItemId: itemId,
+        quantityReturned: Math.max(1, Math.min(remaining, qty)),
+        quantityBroken: 0,
+        quantityLost: 0,
+      };
+    });
+
+    setActionLoading(true);
+    setActionError(null);
+    setActionNotice(null);
+
+    try {
+      await api.createReturn(reservation.id, {
+        items: itemsToReturn,
+        note: returnNote.trim() || undefined,
+      });
+      setSelectedReturnItemIds([]);
+      setReturnNote("");
+      setActionNotice("Return slip submitted. Equipment room inspection pending.");
+      await loadReservation();
+    } catch (err: any) {
+      setActionError(err.message ?? "Failed to submit return request.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle Manager Return Slip Inspection Decision with Checklist
+  const handleDecideReturn = async (decision: "APPROVE" | "REJECT") => {
+    if (!reservation || !pendingInspectableReturn) return;
+    setActionLoading(true);
+    setActionError(null);
+    setActionNotice(null);
+
+    const targetReturnItems = (pendingInspectableReturn.items || []).filter((retItem) =>
+      selectedInspectItemIds.length === 0 || selectedInspectItemIds.includes(retItem.reservationItemId)
+    );
+
+    const decidedItems = targetReturnItems.map((retItem) => {
+      const itemState = inspectionItemStates[retItem.reservationItemId] ?? {
+        quantityReturned: retItem.quantityReturned,
+        quantityBroken: retItem.quantityBroken ?? 0,
+        quantityLost: retItem.quantityLost ?? 0,
+        description: retItem.description ?? "",
+        isVerified: true,
+      };
+      return {
+        reservationItemId: retItem.reservationItemId,
+        quantityReturned: itemState.quantityReturned,
+        quantityBroken: itemState.quantityBroken,
+        quantityLost: itemState.quantityLost,
+        description: itemState.description.trim() || undefined,
+      };
+    });
+
+    if (decision === "APPROVE") {
+      for (const retItem of targetReturnItems) {
+        const itemState = inspectionItemStates[retItem.reservationItemId] ?? {
+          quantityReturned: retItem.quantityReturned,
+          quantityBroken: 0,
+          quantityLost: 0,
+        };
+        const good = itemState.quantityReturned || 0;
+        const broken = itemState.quantityBroken || 0;
+        const lost = itemState.quantityLost || 0;
+        const total = good + broken + lost;
+        const maxAllowed = retItem.quantityReturned;
+        if (total > maxAllowed) {
+          const resItem = reservation.items.find((i) => i.id === retItem.reservationItemId);
+          const assetName = resItem?.asset.name ?? "item";
+          setActionError(
+            `Total inspected units (${total}) exceeds returned quantity (${maxAllowed}) for ${assetName}.`
+          );
+          setActionLoading(false);
+          return;
+        }
+      }
+    }
+
+    try {
+      await api.decideReturn(reservation.id, pendingInspectableReturn.id, {
+        decision,
+        items: decidedItems.length > 0 ? decidedItems : undefined,
+        description: inspectionComment.trim() || undefined,
+      });
+      setInspectionComment("");
+      setActionNotice(
+        `Return slip ${decision === "APPROVE" ? "approved" : "rejected"} successfully.`,
+      );
+      await loadReservation();
+    } catch (err: any) {
+      setActionError(err.message ?? `Failed to ${decision.toLowerCase()} return slip.`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle Cancel
+  const handleCancelReservation = async () => {
+    if (!reservation) return;
+    if (!window.confirm("Are you sure you want to cancel this reservation?")) return;
+    setActionLoading(true);
+    setActionError(null);
+    setActionNotice(null);
+    try {
+      const updated = await api.cancelReservation(reservation.id);
+      setReservation(updated);
+      setActionNotice("Reservation cancelled successfully.");
+    } catch (err: any) {
+      setActionError(err.message ?? "Failed to cancel reservation.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="res-detail-layout">
+        <LoadingState label="Loading reservation details..." />
+      </div>
+    );
   }
+
+  if (error || !reservation) {
+    return (
+      <div className="res-detail-layout">
+        <ErrorState
+          error={error ?? "Could not find the requested reservation."}
+          onRetry={loadReservation}
+        />
+      </div>
+    );
+  }
+
+  const canCancel = reservation.capabilities?.canCancel;
+  const statusClass = reservation.status.toLowerCase();
+  const approvedItemCount = reservation.items.filter(
+    (item) => item.status === "APPROVED",
+  ).length;
+  const startDate = new Date(reservation.startAt);
+  const startMonth = new Intl.DateTimeFormat("en", { month: "short" })
+    .format(startDate)
+    .toUpperCase();
+  const startDay = new Intl.DateTimeFormat("en", { day: "2-digit" }).format(startDate);
 
   return (
-    <div className="page-stack reservation-detail-page">
-      <Breadcrumb
-        items={[
-          { label: "Reservations", to: "/reservations" },
-          { label: reservation.eventName },
-        ]}
-      />
-      {notice && <Notice>{notice}</Notice>}
-      {Boolean(actionError) && (
-        <div className="form-alert" role="alert">
-          {actionError instanceof ApiClientError
-            ? actionError.message
-            : "Unable to complete this reservation action."}
-        </div>
+    <div className="res-detail-layout">
+      {/* Top Breadcrumb / Navigation */}
+      <div className="res-detail-top-nav">
+        <Link to="/reservations" className="res-detail-back-link">
+          <ArrowLeft size={16} />
+          <span>Back to Reservations</span>
+        </Link>
+        <span className="res-detail-ref-id">
+          Ref: {reservation.id}
+        </span>
+      </div>
+
+      {/* Global Notices */}
+      {actionNotice && (
+        <Notice tone="success">
+          {actionNotice}
+        </Notice>
+      )}
+      {actionError && (
+        <Notice tone="warning">
+          {actionError}
+        </Notice>
       )}
 
-      <section className="reservation-hero">
-        <div className="reservation-hero__top">
-          <div>
-            <p className="eyebrow eyebrow--light">
-              Reservation / {reservation.id.slice(0, 8)}
-            </p>
-            <h1>{reservation.eventName}</h1>
+      {/* Hero Header Section */}
+      <div className="res-detail-hero">
+        <div className="res-detail-date-stamp" aria-label={`Starts ${formatDate(reservation.startAt, true)}`}>
+          <span>{startMonth}</span>
+          <strong>{startDay}</strong>
+          <small>{startDate.getFullYear()}</small>
+        </div>
+        <div className="res-detail-hero-header">
+          <div className="res-detail-title-group">
+            <span className="res-detail-kicker">Reservation dispatch</span>
+            <div className="res-detail-title-row">
+              <h1>{reservation.eventName}</h1>
+              <span className={`res-status-badge res-status-badge--${statusClass}`}>
+                {reservationStatusLabel[reservation.status] ?? reservation.status}
+              </span>
+            </div>
+            {reservation.description && (
+              <p className="res-detail-description">
+                {reservation.description}
+              </p>
+            )}
           </div>
-          <ReservationStatusBadge status={reservation.status} />
-        </div>
-        {reservation.description && (
-          <p className="reservation-hero__description">
-            {reservation.description}
-          </p>
-        )}
-        <ReservationStepper status={reservation.status} />
-        <div className="reservation-hero__schedule">
-          <SchedulePoint
-            icon={<CalendarDays size={18} />}
-            label="Starts"
-            value={formatDate(reservation.startAt, true)}
-          />
-          <div className="reservation-hero__track">
-            <span>
-              {reservationDuration(reservation.startAt, reservation.endAt)}
-            </span>
-          </div>
-          <SchedulePoint
-            icon={<Clock3 size={18} />}
-            label="Ends"
-            value={formatDate(reservation.endAt, true)}
-          />
-        </div>
-        <div className="reservation-hero__actions">
-          {reservation.capabilities.canConfirmDelivery && (
-            <Button
-              variant="secondary"
-              onClick={() => setDeliveryConfirmOpen(true)}
-            >
-              <Truck size={17} />
-              Confirm delivery
-            </Button>
-          )}
-          {reservation.capabilities.canRequestChange && (
-            <Button
-              variant="secondary"
-              disabled={hasPendingChange}
-              onClick={() => setEditOpen(true)}
-            >
-              <Edit3 size={17} />
-              {hasPendingChange ? "Edit request pending" : "Request changes"}
-            </Button>
-          )}
-          {reservation.capabilities.canSubmit && (
-            <Button loading={submitting} onClick={() => void submitDraft()}>
-              <Send size={17} />
-              Send for approval
-            </Button>
-          )}
-          {reservation.capabilities.canCancel && (
-            <Button variant="danger" onClick={() => setCancelOpen(true)}>
-              <XCircle size={17} />
-              Cancel reservation
-            </Button>
-          )}
-        </div>
-      </section>
 
-      {pendingWarnings > 0 && (
-        <div className="reservation-overlap-callout" role="status">
-          <span>
-            <AlertTriangle size={21} />
-          </span>
-          <div>
-            <strong>Unapproved requests overlap this schedule</strong>
-            <p>
-              {pendingWarnings} asset{" "}
-              {pendingWarnings === 1 ? "line has" : "lines have"} other pending
-              demand. This is a warning only; approved reservations determine
-              final availability.
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="reservation-detail-grid">
-        <main className="reservation-detail-main">
-          {!isReturnPhase && (
-            <section className="reservation-section">
-              <header className="reservation-section__header">
-                <div>
-                  <p className="eyebrow">Asset manifest</p>
-                  <h2>{reservation.items.length} asset types</h2>
-                </div>
-                <div className="reservation-manifest-tools">
-                  {selectableItems.length > 0 && (
-                  <label className="approval-select-all">
-                    <input
-                      type="checkbox"
-                      checked={allSelectableSelected}
-                      onChange={() =>
-                        setSelectedItemIds(
-                          allSelectableSelected
-                            ? []
-                            : selectableItems.map((item) => item.id),
-                        )
-                      }
-                    />
-                    {isReturnPhase ? "Select all returnable" : "Select all pending"}
-                  </label>
-                )}
-                <span className="manifest-total">
-                  {reservation.items.reduce(
-                    (sum, item) => sum + item.quantity,
-                    0,
-                  )}{" "}
-                  units
-                </span>
-              </div>
-            </header>
-            {selectedItems.length > 0 && (
-              <div
-                className={cx(
-                  "approval-selection-bar",
-                  isReturnPhase && "return-selection-bar",
-                )}
-                role="region"
-                aria-live="polite"
+          {/* Quick Primary Actions */}
+          <div className="res-detail-hero-actions">
+            {returnableItems.length > 0 && (
+              <Button
+                variant="primary"
+                onClick={() => {
+                  toggleSelectAllReturnable();
+                  const manifestEl = document.getElementById("manifest-card");
+                  manifestEl?.scrollIntoView({ behavior: "smooth" });
+                }}
+                disabled={actionLoading}
               >
-                <div className="approval-selection-bar__count">
-                  <span>{selectedItems.length}</span>
-                  <div>
-                    <strong>
-                      {selectedItems.length === 1
-                        ? isReturnPhase
-                          ? "asset selected for return"
-                          : "asset selected"
-                        : isReturnPhase
-                        ? "assets selected for return"
-                        : "assets selected"}
-                    </strong>
-                    <small>
-                      {isReturnPhase
-                        ? "Confirm condition (Intact, Broken, Lost) and approve return"
-                        : "One decision and note will apply to all"}
-                    </small>
-                  </div>
+                <RotateCcw size={15} />
+                <span>Return Equipment</span>
+              </Button>
+            )}
+
+            {canCancel && (
+              <Button
+                variant="danger"
+                onClick={handleCancelReservation}
+                disabled={actionLoading}
+              >
+                <XCircle size={15} />
+                <span>Cancel</span>
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Key Info Meta Grid */}
+        <div className="res-detail-meta-grid">
+          <div className="res-detail-meta-item">
+            <Calendar size={18} />
+            <div>
+              <span className="res-detail-meta-label">Starts</span>
+              <span className="res-detail-meta-value">
+                {formatDate(reservation.startAt, true)}
+              </span>
+            </div>
+          </div>
+
+          <div className="res-detail-meta-item">
+            <Clock size={18} />
+            <div>
+              <span className="res-detail-meta-label">Booking window</span>
+              <span className="res-detail-meta-value">
+                {reservationDuration(reservation.startAt, reservation.endAt)}
+              </span>
+            </div>
+          </div>
+
+          <div className="res-detail-meta-item">
+            <User size={18} />
+            <div>
+              <span className="res-detail-meta-label">Requester</span>
+              <span className="res-detail-meta-value">
+                {reservation.requester.name ?? reservation.requester.email}
+              </span>
+            </div>
+          </div>
+
+          <div className="res-detail-meta-item">
+            <Package size={18} />
+            <div>
+              <span className="res-detail-meta-label">Equipment</span>
+              <span className="res-detail-meta-value">
+                {reservation.items.length} lines ({reservation.items.reduce((acc, it) => acc + it.quantity, 0)} units)
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 🚀 HORIZONTAL INTERACTIVE TRACKING STEPPER WITH AUDIT LOGS */}
+      <ReservationHorizontalTracker reservation={reservation} />
+
+      {/* Main Two-Column Layout */}
+      <div className="res-detail-columns">
+        {/* Left Column (2/3): Equipment Manifest & Unified Action Bars */}
+        <div className="res-detail-stack">
+          {/* Equipment Manifest Card */}
+          <div className="res-card" id="manifest-card">
+            <div className="res-card-header">
+              <div>
+                <h2>
+                  <Package size={16} />
+                  <span>Reserved Equipment Manifest</span>
+                </h2>
+                <p className="res-card-header__supporting">
+                  {approvableItems.length > 0
+                    ? `${approvedItemCount} of ${reservation.items.length} equipment lines approved`
+                    : deliverableItems.length > 0
+                      ? approvedItemCount === reservation.items.length
+                        ? "All equipment cleared for handover"
+                        : `${deliverableItems.length} line(s) cleared for equipment handover`
+                      : returnableItems.length > 0
+                        ? `${returnableItems.length} equipment line(s) pending return`
+                        : pendingInspectableReturn
+                          ? "Return Inspection • Verify returned equipment condition"
+                          : reservation.status === "COMPLETED" || reservation.status === "RETURN_CONFIRMED"
+                            ? "All equipment returned and restocked"
+                            : "Equipment manifest summary"}
+                </p>
+              </div>
+
+              {/* Action Select All Toggles */}
+              {approvableItems.length > 0 ? (
+                <label className="approval-select-all">
+                  <input
+                    type="checkbox"
+                    checked={
+                      selectedItemIds.length > 0 &&
+                      selectedItemIds.length === approvableItems.length
+                    }
+                    onChange={toggleSelectAllApprovable}
+                    aria-label="Select all pending assets"
+                  />
+                  <span>Select all pending ({approvableItems.length})</span>
+                </label>
+              ) : deliverableItems.length > 0 ? (
+                <label className="approval-select-all">
+                  <input
+                    type="checkbox"
+                    checked={
+                      selectedDeliveryItemIds.length > 0 &&
+                      selectedDeliveryItemIds.length === deliverableItems.length
+                    }
+                    onChange={toggleSelectAllDeliverable}
+                    aria-label="Select all items for handover"
+                  />
+                  <span>Select all for handover ({deliverableItems.length})</span>
+                </label>
+              ) : returnableItems.length > 0 ? (
+                <label className="approval-select-all">
+                  <input
+                    type="checkbox"
+                    checked={
+                      selectedReturnItemIds.length > 0 &&
+                      selectedReturnItemIds.length === returnableItems.length
+                    }
+                    onChange={toggleSelectAllReturnable}
+                    aria-label="Select all items for return"
+                  />
+                  <span>Select all for return ({returnableItems.length})</span>
+                </label>
+              ) : pendingInspectableReturn && pendingInspectableReturn.items?.length ? (
+                <label className="approval-select-all">
+                  <input
+                    type="checkbox"
+                    checked={
+                      selectedInspectItemIds.length > 0 &&
+                      selectedInspectItemIds.length === pendingInspectableReturn.items.length
+                    }
+                    onChange={toggleSelectAllInspectable}
+                    aria-label="Select all items for inspection"
+                  />
+                  <span>Select all for inspection ({pendingInspectableReturn.items.length})</span>
+                </label>
+              ) : null}
+            </div>
+
+            {/* 🛡️ 1. AREA MANAGER BATCH DECISION TOOLBAR */}
+            {approvableItems.length > 0 && (
+              <div className="res-review-bar">
+                <div className="res-review-bar__title">
+                  <ShieldCheck size={18} color="var(--teal)" />
+                  <span>
+                    Area Manager Review ({selectedItemIds.length} of {approvableItems.length} selected)
+                  </span>
                 </div>
-                <div className="approval-selection-bar__actions">
+
+                <div className="res-review-bar__actions">
+                  <input
+                    type="text"
+                    placeholder="Decision comment / remark..."
+                    value={approvalComment}
+                    onChange={(e) => setApprovalComment(e.target.value)}
+                    className="control"
+                    aria-label="Decision comment"
+                  />
+
+                  <Button
+                    variant="primary"
+                    disabled={actionLoading || selectedItemIds.length === 0}
+                    onClick={() => handleDecideItems("APPROVE")}
+                  >
+                    <Check size={14} />
+                    <span>Approve Selected</span>
+                  </Button>
+
                   <Button
                     variant="danger"
-                    size="sm"
-                    disabled={!canRejectSelected}
-                    title={
-                      canRejectSelected
-                        ? undefined
-                        : "You do not have reject permission for every selected asset"
-                    }
-                    onClick={() => openDecision("REJECT")}
+                    disabled={actionLoading || selectedItemIds.length === 0}
+                    onClick={() => handleDecideItems("REJECT")}
                   >
-                    <X size={15} /> Reject selected
-                  </Button>
-                  <Button
-                    size="sm"
-                    disabled={!canApproveSelected}
-                    title={
-                      canApproveSelected
-                        ? undefined
-                        : "You do not have approve permission for every selected asset"
-                    }
-                    onClick={() => openDecision("APPROVE")}
-                  >
-                    <Check size={15} /> Approve selected
+                    <X size={14} />
+                    <span>Reject</span>
                   </Button>
                 </div>
               </div>
             )}
-            <div className="reservation-item-list">
+
+            {/* 🚚 2. HANDOVER CONFIRMATION TOOLBAR */}
+            {deliverableItems.length > 0 && (
+              <div className="res-review-bar res-handover-bar">
+                <div className="res-review-bar__title">
+                  <Truck size={18} />
+                  <span>
+                    Handover confirmation ({selectedDeliveryItemIds.length} of {deliverableItems.length} selected)
+                  </span>
+                </div>
+                <div className="res-review-bar__actions">
+                  <Button
+                    variant="primary"
+                    disabled={actionLoading || selectedDeliveryItemIds.length === 0}
+                    onClick={handleConfirmDelivery}
+                  >
+                    <Check size={14} />
+                    <span>Confirm Handover</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* 🔄 3. RETURN EQUIPMENT TOOLBAR (PENDING RETURN STATE) */}
+            {returnableItems.length > 0 && (
+              <div className="res-review-bar res-return-bar">
+                <div className="res-review-bar__title">
+                  <RotateCcw size={18} />
+                  <span>
+                    Equipment Return ({selectedReturnItemIds.length} of {returnableItems.length} selected)
+                  </span>
+                </div>
+                <div className="res-review-bar__actions">
+                  <input
+                    type="text"
+                    placeholder="Drop-off location / return notes..."
+                    value={returnNote}
+                    onChange={(e) => setReturnNote(e.target.value)}
+                    className="control"
+                    aria-label="Return notes"
+                  />
+                  <Button
+                    variant="primary"
+                    disabled={actionLoading || selectedReturnItemIds.length === 0}
+                    onClick={handleReturnSubmit}
+                  >
+                    <RotateCcw size={14} />
+                    <span>Submit Return ({selectedReturnItemIds.length})</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* 📋 4. MANAGER RETURN INSPECTION REVIEW TOOLBAR */}
+            {pendingInspectableReturn && (
+              <div className="res-review-bar res-inspection-bar">
+                <div className="res-review-bar__title">
+                  <ClipboardCheck size={18} />
+                  <span>
+                    Return Inspection Review ({selectedInspectItemIds.length} of {pendingInspectableReturn.items?.length || reservation.items.length} selected)
+                  </span>
+                </div>
+                <div className="res-review-bar__actions">
+                  <input
+                    type="text"
+                    placeholder="Inspection remarks / condition note..."
+                    value={inspectionComment}
+                    onChange={(e) => setInspectionComment(e.target.value)}
+                    className="control"
+                    aria-label="Inspection remarks"
+                  />
+                  <Button
+                    variant="primary"
+                    disabled={actionLoading}
+                    onClick={() => handleDecideReturn("APPROVE")}
+                  >
+                    <Check size={14} />
+                    <span>Approve Return</span>
+                  </Button>
+                  <Button
+                    variant="danger"
+                    disabled={actionLoading}
+                    onClick={() => handleDecideReturn("REJECT")}
+                  >
+                    <X size={14} />
+                    <span>Reject Return</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Manifest Table Header for Return Inspection */}
+            {pendingInspectableReturn && (
+              <div className="res-manifest-grid-header res-manifest-grid-header--inspection">
+                <span className="res-grid-th res-grid-th--check"></span>
+                <span className="res-grid-th res-grid-th--media"></span>
+                <span className="res-grid-th res-grid-th--asset">Equipment & Area</span>
+                <span className="res-grid-th res-grid-th--good">Good</span>
+                <span className="res-grid-th res-grid-th--broken">Broken</span>
+                <span className="res-grid-th res-grid-th--lost">Lost</span>
+              </div>
+            )}
+
+            {/* Equipment Items List (Uniform across all 4 lifecycle states) */}
+            <div className="res-manifest-list">
               {reservation.items.map((item) => {
-                const selectable = isReturnPhase
-                  ? returnableItems.some((ri) => ri.id === item.id)
-                  : item.capabilities.canApprove || item.capabilities.canReject;
-                const selected = selectedItemIds.includes(item.id);
+                const itemStatusClass = item.status.toLowerCase();
+                const isApprovable =
+                  item.status === "PENDING" &&
+                  (item.capabilities?.canApprove ||
+                    hasAreaPermission("reservation:approve", item.asset.managementArea.id));
+                const isDeliverySelectable = Boolean(
+                  item.capabilities?.canConfirmDelivery &&
+                    ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status),
+                );
+                const remainingReturn =
+                  item.returnSummary?.remainingReturnQuantity ??
+                  (item.status === "DELIVERED" ? item.quantity : 0);
+                const isReturnSelectable = Boolean(
+                  (item.capabilities?.canReturn ?? reservation.capabilities?.canReturn) &&
+                    remainingReturn > 0 &&
+                    (["DELIVERED", "APPROVED", "DELIVERY_CONFIRMED"].includes(item.status) ||
+                      ["DELIVERY_CONFIRMED", "ACTIVE"].includes(reservation.status)),
+                );
+
+                const retItem = pendingInspectableReturn?.items?.find(
+                  (ri) => ri.reservationItemId === item.id,
+                );
+                const isInspectSelectable = Boolean(
+                  pendingInspectableReturn &&
+                  (retItem || pendingInspectableReturn.items?.length === 0 || pendingInspectableReturn.status === "PENDING"),
+                );
+
+                const isSelected = selectedItemIds.includes(item.id);
+                const isDeliverySelected = selectedDeliveryItemIds.includes(item.id);
+                const isReturnSelected = selectedReturnItemIds.includes(item.id);
+                const isInspectSelected = selectedInspectItemIds.includes(item.id);
+
+                const isSelectable =
+                  isApprovable || isDeliverySelectable || isReturnSelectable || isInspectSelectable;
+                const isApproved = item.status === "APPROVED";
+                const isDelivered =
+                  item.status === "DELIVERED" ||
+                  ["DELIVERY_CONFIRMED", "ACTIVE"].includes(reservation.status);
+                const isFullyReturned =
+                  item.status === "RETURNED" ||
+                  (item.returnSummary?.returnedQuantity === item.quantity &&
+                    ["RETURN_CONFIRMED", "COMPLETED"].includes(reservation.status));
+
+                const inspectReturnedQty = retItem?.quantityReturned ?? item.quantity;
+
                 return (
-                  <article
-                    className={cx(
-                      "reservation-item-card",
-                      selectable && "reservation-item-card--selectable",
-                      selected && "reservation-item-card--selected",
-                    )}
+                  <div
                     key={item.id}
-                    onClick={(event) => {
+                    className={`res-manifest-item ${
+                      isSelectable ? "reservation-item-card--selectable" : ""
+                    } ${
+                      isDeliverySelectable ? "reservation-item-card--handover" : ""
+                    } ${
+                      isReturnSelectable ? "res-manifest-item--return" : ""
+                    } ${
+                      isInspectSelectable ? "res-manifest-item--inspection" : ""
+                    }`}
+                    data-selected={(isSelected || isDeliverySelected || isReturnSelected || isInspectSelected) || undefined}
+                    data-status={itemStatusClass}
+                    onClick={(e) => {
                       if (
-                        !selectable ||
-                        (event.target as Element).closest("a, button, input")
+                        isSelectable &&
+                        !(e.target instanceof HTMLInputElement) &&
+                        !(e.target instanceof HTMLButtonElement)
                       ) {
-                        return;
+                        if (isApprovable) toggleItemSelection(item.id);
+                        else if (isDeliverySelectable) toggleDeliveryItemSelection(item.id);
+                        else if (isReturnSelectable) toggleReturnItemSelection(item.id);
+                        else if (isInspectSelectable) toggleInspectItemSelection(item.id);
                       }
-                      toggleItemSelection(item.id);
                     }}
                   >
-                    {selectable ? (
-                      <input
-                        className="reservation-item-select"
-                        type="checkbox"
-                        aria-label={`Select ${item.asset.name}`}
-                        checked={selected}
-                        onChange={() => toggleItemSelection(item.id)}
-                      />
-                    ) : (
-                      <span
-                        className="reservation-item-select-spacer"
-                        aria-hidden="true"
-                      />
-                    )}
-                    <AssetPicture
-                      src={item.asset.pictureUrl}
-                      name={item.asset.name}
-                    />
-                    <div className="reservation-item-card__identity">
-                      <strong>{item.asset.name}</strong>
-                      <span>
-                        {item.asset.managementArea.name}
-                        {item.asset.template
-                          ? ` · ${item.asset.template.name}`
-                          : ""}
-                      </span>
-                    </div>
-                    <div className="reservation-item-card__quantity reservation-item-card__quantity--requested">
-                      <small>Requested</small>
-                      <strong>{item.quantity}</strong>
-                    </div>
-                    <div className="reservation-item-card__quantity reservation-item-card__quantity--available">
-                      <small>Available</small>
-                      <strong
-                        className={cx(
-                          item.quantity > item.availability.availableQuantity &&
-                            "is-short",
-                        )}
-                      >
-                        {item.availability.availableQuantity}
-                      </strong>
-                    </div>
-                    <ItemStatusBadge status={item.status} />
-                    <div className="reservation-item-card__links">
-                      <Link
-                        className="reservation-item-card__view"
-                        to={`/assets/${item.asset.id}`}
-                        aria-label={`View ${item.asset.name}`}
-                      >
-                        <Eye size={14} /> View
-                      </Link>
-                      {item.capabilities?.canConfirmDelivery && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => {
-                            setSingleDeliveryItemId(item.id);
-                            setDeliveryConfirmOpen(true);
-                          }}
-                        >
-                          <Truck size={14} /> Confirm delivery
-                        </Button>
-                      )}
-                    </div>
-                    {item.warnings.map((warning) => (
-                      <div className="item-overlap-warning" key={warning.code}>
-                        <AlertTriangle size={15} />
-                        <span>
-                          <strong>
-                            {warning.pendingQuantity} units pending
-                          </strong>{" "}
-                          across {warning.pendingReservationCount} other{" "}
-                          {warning.pendingReservationCount === 1
-                            ? "request"
-                            : "requests"}
-                        </span>
-                      </div>
-                    ))}
-                    {item.approval?.comment && (
-                      <p className="reservation-item-card__comment">
-                        “{item.approval.comment}” —{" "}
-                        {item.approval.approver.name ??
-                          item.approval.approver.email}
-                      </p>
-                    )}
-                    {item.returnSummary &&
-                      (item.returnSummary.returnedQuantity > 0 ||
-                        item.returnSummary.pendingReturnQuantity > 0 ||
-                        item.returnSummary.brokenQuantity > 0 ||
-                        item.returnSummary.lostQuantity > 0) && (
-                        <div className="item-return-summary">
-                          <span className="item-return-summary__badge">
-                            {item.returnSummary.returnedQuantity}/{item.quantity} returned
-                          </span>
-                          {item.returnSummary.pendingReturnQuantity > 0 && (
-                            <span className="item-return-summary__pending">
-                              ({item.returnSummary.pendingReturnQuantity} pending confirmation)
-                            </span>
+                    {isSelectable ? (
+                      <>
+                        <div className="res-pending-check">
+                          <input
+                            type="checkbox"
+                            checked={
+                              isApprovable
+                                ? isSelected
+                                : isDeliverySelectable
+                                  ? isDeliverySelected
+                                  : isReturnSelectable
+                                    ? isReturnSelected
+                                    : isInspectSelected
+                            }
+                            onChange={() => {
+                              if (isApprovable) toggleItemSelection(item.id);
+                              else if (isDeliverySelectable) toggleDeliveryItemSelection(item.id);
+                              else if (isReturnSelectable) toggleReturnItemSelection(item.id);
+                              else if (isInspectSelectable) toggleInspectItemSelection(item.id);
+                            }}
+                            aria-label={
+                              isApprovable
+                                ? `Select ${item.asset.name}`
+                                : isDeliverySelectable
+                                  ? `Select ${item.asset.name} for handover`
+                                  : isReturnSelectable
+                                    ? `Select ${item.asset.name} for return`
+                                    : `Select ${item.asset.name} for inspection`
+                            }
+                            className="reservation-item-select"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+
+                        <div className="res-item-media">
+                          {item.asset.pictureUrl ? (
+                            <img src={item.asset.pictureUrl} alt="" />
+                          ) : (
+                            <span>{item.asset.name.slice(0, 2).toUpperCase()}</span>
                           )}
-                          {item.returnSummary.brokenQuantity > 0 && (
-                            <span className="item-return-summary__broken">
-                              {item.returnSummary.brokenQuantity} broken
-                            </span>
-                          )}
-                          {item.returnSummary.lostQuantity > 0 && (
-                            <span className="item-return-summary__lost">
-                              {item.returnSummary.lostQuantity} lost
+                          {isApproved && (
+                            <span className="res-item-media__clearance" aria-hidden="true">
+                              <Check size={10} strokeWidth={3} />
                             </span>
                           )}
                         </div>
-                      )}
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-          )}
 
-          {(isReturnPhase || reservation.returns.length > 0) && (
-            <section className="reservation-section">
-              {!canRecordReturn && (
-                <header className="reservation-section__header">
-                  <div>
-                    <p className="eyebrow">Asset return confirmation</p>
-                    <h2>
-                      {reservation.returns.length === 0
-                        ? "Waiting for return"
-                        : `${reservation.returns.length} ${
-                            reservation.returns.length === 1
-                              ? "return record"
-                              : "return records"
-                          }`}
-                    </h2>
-                  </div>
-                </header>
-              )}
-
-              {canRecordReturn && (
-                <InlineReturnForm
-                  reservation={reservation}
-                  selectedItemIds={selectedItemIds}
-                  onSaved={(result) => {
-                    setReservation(result);
-                    rememberReservation(result);
-                    setSelectedItemIds([]);
-                    setNoticeState("Return recorded successfully");
-                  }}
-                />
-              )}
-
-              {reservation.returns.length === 0 && !canRecordReturn && (
-                <div className="reservation-empty-returns">
-                  <PackageCheck size={22} />
-                  <div>
-                    <strong>No return records submitted yet</strong>
-                    <p>
-                      When the event concludes, record returned equipment for
-                      management area confirmation.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {reservation.returns.length > 0 && (
-                <>
-                  {canRecordReturn && (
-                    <h3 className="return-history-heading">
-                      Return records ({reservation.returns.length})
-                    </h3>
-                  )}
-                  <div className="return-card-list">
-                  {reservation.returns.map((ret) => {
-                    const canApproveThis =
-                      ret.capabilities?.canApprove ||
-                      (ret.status === "PENDING" &&
-                        ret.items.every((it) =>
-                          hasAreaPermission(
-                            "return:approve",
-                            it.managementArea.id,
-                          ),
-                        ));
-                    return (
-                      <article className="return-card" key={ret.id}>
-                        <div className="return-card__top">
-                          <div>
-                            <div className="return-card__title-row">
-                              <strong>Return / {ret.id.slice(0, 8)}</strong>
-                              <ReturnStatusBadge status={ret.status} />
+                        <div className="res-pending-identity">
+                          <div className="res-item-copy">
+                            <div className="res-item-name-row">
+                              <div className="res-item-name">{item.asset.name}</div>
+                              <span className="res-item-area">
+                                {item.asset.managementArea.name}
+                              </span>
                             </div>
-                            <span>
-                              Submitted by{" "}
-                              {ret.returnedBy.name ?? ret.returnedBy.email} ·{" "}
-                              {formatDate(ret.returnedAt ?? ret.createdAt, true)}
-                            </span>
+                            <div className="res-item-sub">
+                              {isInspectSelectable
+                                ? `Returned by borrower (${inspectReturnedQty} ${inspectReturnedQty === 1 ? "unit" : "units"})`
+                                : isReturnSelectable
+                                  ? `Awaiting return (${remainingReturn} units remaining)`
+                                  : isDeliverySelectable
+                                    ? `Cleared for handover`
+                                    : `Awaiting area clearance`}
+                            </div>
                           </div>
                         </div>
-                        <div className="return-card__items">
-                          {ret.items.map((it) => (
-                            <div className="return-card__item-row" key={it.id}>
-                              <div className="return-card__item-info">
-                                <strong>{it.assetName}</strong>
-                                <small>{it.managementArea.name}</small>
-                                {it.description && (
-                                  <p className="return-card__item-note">
-                                    "{it.description}"
-                                  </p>
-                                )}
-                              </div>
-                              <div className="return-card__item-tags">
-                                {it.quantityReturned > 0 && (
-                                  <span className="return-tag return-tag--intact">
-                                    {it.quantityReturned} intact
-                                  </span>
-                                )}
-                                {it.quantityBroken > 0 && (
-                                  <span className="return-tag return-tag--broken">
-                                    {it.quantityBroken} broken
-                                  </span>
-                                )}
-                                {it.quantityLost > 0 && (
-                                  <span className="return-tag return-tag--lost">
-                                    {it.quantityLost} lost
-                                  </span>
-                                )}
-                              </div>
+
+                        {isInspectSelectable ? (
+                          <>
+                            <div className="res-inspect-col res-inspect-col--good" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                id={`inspect-good-${item.id}`}
+                                aria-label={`Good quantity for ${item.asset.name}`}
+                                type="number"
+                                min={0}
+                                max={inspectReturnedQty}
+                                value={inspectionItemStates[item.id]?.quantityReturned ?? inspectReturnedQty}
+                                onChange={(e) => {
+                                  const val = Math.max(0, parseInt(e.target.value) || 0);
+                                  const currentBroken = inspectionItemStates[item.id]?.quantityBroken ?? 0;
+                                  const currentLost = inspectionItemStates[item.id]?.quantityLost ?? 0;
+                                  const maxGood = Math.max(0, inspectReturnedQty - currentBroken - currentLost);
+                                  const clampedGood = Math.min(maxGood, val);
+                                  setInspectionItemStates((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...(prev[item.id] || { quantityBroken: 0, quantityLost: 0, isVerified: true, description: "" }),
+                                      quantityReturned: clampedGood,
+                                    },
+                                  }));
+                                }}
+                                className="control"
+                              />
                             </div>
-                          ))}
-                        </div>
-                        {ret.approval && (
-                          <div className="return-card__approval-callout">
-                            <small>
-                              {ret.approval.status === "APPROVED"
-                                ? "Confirmed & approved"
-                                : "Rejected"}{" "}
-                              by{" "}
-                              <strong>
-                                {ret.approval.approver.name ??
-                                  ret.approval.approver.email}
-                              </strong>
-                              {ret.approval.decidedAt &&
-                                ` · ${formatDate(ret.approval.decidedAt, true)}`}
-                            </small>
-                            {ret.approval.description && (
-                              <p>"{ret.approval.description}"</p>
+
+                            <div className="res-inspect-col res-inspect-col--broken" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                id={`inspect-broken-${item.id}`}
+                                aria-label={`Broken quantity for ${item.asset.name}`}
+                                type="number"
+                                min={0}
+                                max={inspectReturnedQty}
+                                value={inspectionItemStates[item.id]?.quantityBroken ?? 0}
+                                onChange={(e) => {
+                                  const val = Math.max(0, parseInt(e.target.value) || 0);
+                                  const currentLost = inspectionItemStates[item.id]?.quantityLost ?? 0;
+                                  const maxBroken = Math.max(0, inspectReturnedQty - currentLost);
+                                  const clampedBroken = Math.min(maxBroken, val);
+                                  const newGood = Math.max(0, inspectReturnedQty - clampedBroken - currentLost);
+                                  setInspectionItemStates((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...(prev[item.id] || { isVerified: true, description: "" }),
+                                      quantityBroken: clampedBroken,
+                                      quantityReturned: newGood,
+                                      quantityLost: currentLost,
+                                    },
+                                  }));
+                                }}
+                                className="control"
+                              />
+                            </div>
+
+                            <div className="res-inspect-col res-inspect-col--lost" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                id={`inspect-lost-${item.id}`}
+                                aria-label={`Lost quantity for ${item.asset.name}`}
+                                type="number"
+                                min={0}
+                                max={inspectReturnedQty}
+                                value={inspectionItemStates[item.id]?.quantityLost ?? 0}
+                                onChange={(e) => {
+                                  const val = Math.max(0, parseInt(e.target.value) || 0);
+                                  const currentBroken = inspectionItemStates[item.id]?.quantityBroken ?? 0;
+                                  const maxLost = Math.max(0, inspectReturnedQty - currentBroken);
+                                  const clampedLost = Math.min(maxLost, val);
+                                  const newGood = Math.max(0, inspectReturnedQty - currentBroken - clampedLost);
+                                  setInspectionItemStates((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...(prev[item.id] || { isVerified: true, description: "" }),
+                                      quantityLost: clampedLost,
+                                      quantityReturned: newGood,
+                                      quantityBroken: currentBroken,
+                                    },
+                                  }));
+                                }}
+                                className="control"
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="res-pending-quantity">
+                            {isApprovable ? (
+                              <>
+                                <input
+                                  id={`approve-qty-${item.id}`}
+                                  aria-label={`Approve quantity for ${item.asset.name}`}
+                                  type="number"
+                                  min={1}
+                                  max={item.quantity}
+                                  value={itemQuantities[item.id] ?? item.quantity}
+                                  onChange={(e) => {
+                                    const val = Math.min(
+                                      item.quantity,
+                                      Math.max(1, parseInt(e.target.value) || 1),
+                                    );
+                                    setItemQuantities((prev) => ({ ...prev, [item.id]: val }));
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="control"
+                                />
+                                <span aria-label={`${item.quantity} total reserved`}>
+                                  / {item.quantity}
+                                </span>
+                              </>
+                            ) : isReturnSelectable ? (
+                              <>
+                                <input
+                                  id={`return-qty-${item.id}`}
+                                  aria-label={`Return quantity for ${item.asset.name}`}
+                                  type="number"
+                                  min={1}
+                                  max={remainingReturn}
+                                  value={returnQuantities[item.id] ?? remainingReturn}
+                                  onChange={(e) => {
+                                    const val = Math.min(
+                                      remainingReturn,
+                                      Math.max(1, parseInt(e.target.value) || 1),
+                                    );
+                                    setReturnQuantities((prev) => ({ ...prev, [item.id]: val }));
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="control"
+                                  style={{ width: 64, height: 32, textAlign: "center", fontWeight: 700 }}
+                                />
+                                <span aria-label={`${remainingReturn} remaining to return`}>
+                                  / {remainingReturn}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <strong>{item.quantity}</strong>
+                                <span>{item.quantity === 1 ? "unit" : "units"}</span>
+                              </>
                             )}
                           </div>
                         )}
-                        {ret.status === "PENDING" && canApproveThis && (
-                          <div className="return-card__actions">
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={() =>
-                                setReturnDecisionTarget({
-                                  returnId: ret.id,
-                                  decision: "REJECT",
-                                  returnRecord: ret,
-                                })
-                              }
-                            >
-                              <X size={15} /> Reject return
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() =>
-                                setReturnDecisionTarget({
-                                  returnId: ret.id,
-                                  decision: "APPROVE",
-                                  returnRecord: ret,
-                                })
-                              }
-                            >
-                              <Check size={15} /> Confirm & approve return
-                            </Button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="res-item-info">
+                          <div className="res-item-media">
+                            {item.asset.pictureUrl ? (
+                              <img src={item.asset.pictureUrl} alt="" />
+                            ) : (
+                              <span>{item.asset.name.slice(0, 2).toUpperCase()}</span>
+                            )}
+                            {isApproved && (
+                              <span className="res-item-media__clearance" aria-hidden="true">
+                                <Check size={10} strokeWidth={3} />
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </article>
-                    );
-                  })}
+
+                          <div className="res-item-copy">
+                            <div className="res-item-name-row">
+                              <div className="res-item-name">{item.asset.name}</div>
+                              <span className="res-item-area">
+                                {item.asset.managementArea.name}
+                              </span>
+                            </div>
+                            {isApproved && item.approval ? (
+                              <div className="res-item-clearance">
+                                <CheckCircle size={14} />
+                                <div>
+                                  <span>
+                                    Cleared by {item.approval.approver.name ?? item.approval.approver.email}
+                                  </span>
+                                  {item.approval.decidedAt && (
+                                    <small>{formatDate(item.approval.decidedAt, true)}</small>
+                                  )}
+                                </div>
+                              </div>
+                            ) : isDelivered ? (
+                              <div className="res-item-sub">
+                                {item.returnSummary?.pendingReturnQuantity
+                                  ? `Return slip submitted (${item.returnSummary.pendingReturnQuantity} units pending inspection)`
+                                  : `Equipment handed over • Pending return`}
+                              </div>
+                            ) : isFullyReturned ? (
+                              <div className="res-item-sub">All units returned and restocked in inventory</div>
+                            ) : (
+                              <div className="res-item-sub">Awaiting area clearance</div>
+                            )}
+                            {item.approval?.comment && (
+                              <blockquote className="res-item-comment">
+                                {item.approval.comment}
+                              </blockquote>
+                            )}
+                          </div>
+                        </div>
+                        <div className="res-item-controls">
+                          <div className="res-item-qty-ticket">
+                            <span>{isApproved ? "Approved qty" : "Quantity"}</span>
+                            <strong>{item.quantity}</strong>
+                            <small>{item.quantity === 1 ? "unit" : "units"}</small>
+                          </div>
+                          <div className="res-item-status-col">
+                            <span className={`res-status-badge res-status-badge--${itemStatusClass}`}>
+                              {isApproved
+                                ? "Cleared"
+                                : isFullyReturned
+                                  ? "Returned"
+                                  : isDelivered
+                                    ? "Pending Return"
+                                    : item.status}
+                            </span>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
-                </>
-              )}
-            </section>
-          )}
-
-          {reservation.changeRequests.length > 0 && (
-            <section className="reservation-section">
-              <header className="reservation-section__header">
-                <div>
-                  <p className="eyebrow">Change history</p>
-                  <h2>Edit requests</h2>
-                </div>
-              </header>
-              <div className="change-request-list">
-                {reservation.changeRequests.map((request) => (
-                  <article className="change-request" key={request.id}>
-                    <div className="change-request__top">
-                      <div>
-                        <strong>
-                          {request.requestedBy.name ??
-                            request.requestedBy.email}
-                        </strong>
-                        <span>{formatDate(request.createdAt, true)}</span>
-                      </div>
-                      <span
-                        className={cx(
-                          "change-status",
-                          `change-status--${request.status.toLowerCase()}`,
-                        )}
-                      >
-                        {request.status.toLowerCase()}
-                      </span>
-                    </div>
-                    {request.reason && <p>{request.reason}</p>}
-                    <ChangeSummary change={request.changeData} />
-                    {request.reviewedBy && (
-                      <small className="change-request__reviewer">
-                        Reviewed by{" "}
-                        {request.reviewedBy.name ?? request.reviewedBy.email}
-                      </small>
-                    )}
-                    {request.status === "PENDING" && canReviewChanges && (
-                      <div className="change-request__actions">
-                        {canRejectChange && (
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            loading={reviewingChange === `${request.id}:REJECT`}
-                            onClick={() =>
-                              void decideChange(request.id, "REJECT")
-                            }
-                          >
-                            <X size={15} /> Reject edit
-                          </Button>
-                        )}
-                        {canApproveChange && (
-                          <Button
-                            size="sm"
-                            loading={
-                              reviewingChange === `${request.id}:APPROVE`
-                            }
-                            onClick={() =>
-                              void decideChange(request.id, "APPROVE")
-                            }
-                          >
-                            <Check size={15} /> Approve edit
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </article>
-                ))}
-              </div>
-            </section>
-          )}
-        </main>
-
-        <aside className="reservation-detail-aside">
-          <section className="reservation-facts">
-            <p className="eyebrow">Request owner</p>
-            <div className="reservation-person">
-              <Avatar
-                name={reservation.requester.name ?? reservation.requester.email}
-                imageUrl={reservation.requester.profilePictureUrl}
-              />
-              <span>
-                <strong>
-                  {reservation.requester.name ?? reservation.requester.email}
-                </strong>
-                <small>{reservation.requester.email}</small>
-              </span>
+                );
+              })}
             </div>
-            <dl>
-              <div>
-                <dt>Created</dt>
-                <dd>{formatDate(reservation.createdAt, true)}</dd>
-              </div>
-              <div>
-                <dt>Updated</dt>
-                <dd>{formatDate(reservation.updatedAt, true)}</dd>
-              </div>
-              <div>
-                <dt>Reference</dt>
-                <dd className="mono">{reservation.id.slice(0, 8)}</dd>
-              </div>
-            </dl>
-          </section>
-          <section className="reservation-facts">
-            <p className="eyebrow">Participants</p>
-            {reservation.participants.length ? (
-              reservation.participants.map((person) => (
-                <div
-                  className="reservation-person reservation-person--small"
-                  key={person.id}
-                >
-                  <Avatar
-                    name={person.name ?? person.email}
-                    imageUrl={person.profilePictureUrl}
-                    size="sm"
-                  />
-                  <span>
-                    <strong>{person.name ?? person.email}</strong>
-                    <small>{person.email}</small>
-                  </span>
+          </div>
+        </div>
+
+        {/* Right Column (1/3): Participants & Help */}
+        <aside className="res-detail-stack">
+          {/* Participants Card */}
+          <div className="res-card">
+            <div className="res-card-header">
+              <h3>
+                <User size={16} />
+                <span>Event Team & Participants</span>
+              </h3>
+            </div>
+            <div className="res-team-list">
+              <div className="res-team-member res-team-member--requester">
+                <Avatar name={reservation.requester.name ?? reservation.requester.email} />
+                <div>
+                  <div className="res-team-member__name">
+                    {reservation.requester.name ?? "User"}
+                  </div>
+                  <div className="res-team-member__meta">
+                    {reservation.requester.email}
+                  </div>
                 </div>
-              ))
-            ) : (
-              <div className="reservation-empty-fact">
-                <Users size={18} />
-                <span>No additional participants</span>
+                <span className="res-team-role">Requester</span>
               </div>
-            )}
-          </section>
-          <Link
-            className="button button--quiet button--md reservation-back"
-            to="/reservations/new"
-          >
-            <ArrowLeft size={17} /> New reservation
-          </Link>
+
+              {reservation.participants.map((p) => (
+                <div key={p.id} className="res-team-member">
+                  <Avatar name={p.name ?? p.email} />
+                  <div>
+                    <div className="res-team-member__name">
+                      {p.name ?? "Participant"}
+                    </div>
+                    <div className="res-team-member__meta">
+                      {p.email}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Quick Help Card */}
+          <div className="res-card res-help-card">
+            <h4>
+              <Info size={16} />
+              <span>Reservation Lifecycle Help</span>
+            </h4>
+            <p>
+              Manage all lifecycle actions (<strong>Approvals</strong>, <strong>Handover</strong>, and <strong>Equipment Returns</strong>) directly inside the <strong>Reserved Equipment Manifest</strong>.
+            </p>
+          </div>
         </aside>
       </div>
-
-      <ItemDecisionDialog
-        target={decisionTarget}
-        reservationId={reservation.id}
-        onClose={() => setDecisionTarget(null)}
-        onDecided={(result) => {
-          setReservation(result);
-          rememberReservation(result);
-          setDecisionTarget(null);
-          setSelectedItemIds([]);
-        }}
-      />
-      <ReservationEditDialog
-        open={editOpen}
-        reservation={reservation}
-        onClose={() => setEditOpen(false)}
-        onSaved={(result) => {
-          setReservation(result);
-          rememberReservation(result);
-          setEditOpen(false);
-        }}
-      />
-      <CancelReservationDialog
-        open={cancelOpen}
-        eventName={reservation.eventName}
-        onClose={() => setCancelOpen(false)}
-        onConfirm={confirmCancel}
-      />
-      <ConfirmDeliveryDialog
-        open={deliveryConfirmOpen}
-        reservation={reservation}
-        initialSelectedItemId={singleDeliveryItemId}
-        onClose={() => {
-          setDeliveryConfirmOpen(false);
-          setSingleDeliveryItemId(null);
-        }}
-        onConfirm={handleConfirmDelivery}
-      />
-      <ReturnDecisionDialog
-        target={returnDecisionTarget}
-        reservation={reservation}
-        onClose={() => setReturnDecisionTarget(null)}
-        onDecided={(result) => {
-          setReservation(result);
-          rememberReservation(result);
-          setReturnDecisionTarget(null);
-          setNoticeState("Return decision recorded");
-        }}
-      />
     </div>
   );
 }
-
-function CancelReservationDialog({
-  open,
-  eventName,
-  onClose,
-  onConfirm,
-}: {
-  open: boolean;
-  eventName: string;
-  onClose: () => void;
-  onConfirm: (reason?: string) => Promise<void>;
-}) {
-  const [reason, setReason] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<unknown>(null);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      await onConfirm(reason.trim() || undefined);
-      onClose();
-    } catch (caught) {
-      setError(caught);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <Dialog
-      open={open}
-      title="Cancel reservation"
-      description={`Are you sure you want to cancel "${eventName}"? All allocated assets will be released back into available inventory.`}
-      onClose={onClose}
-    >
-      <form className="dialog-form" onSubmit={(event) => void submit(event)}>
-        {Boolean(error) && <ErrorState error={error} />}
-        <Field
-          label="Reason for cancellation"
-          hint="Optional — provide context for managers and requesters"
-        >
-          <Textarea
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            maxLength={2000}
-            rows={3}
-            placeholder="e.g. Event cancelled, date changed, or assets no longer needed"
-          />
-        </Field>
-        <div className="dialog-actions">
-          <Button type="button" variant="quiet" onClick={onClose}>
-            Keep reservation
-          </Button>
-          <Button type="submit" variant="danger" loading={loading}>
-            <XCircle size={17} />
-            Confirm cancellation
-          </Button>
-        </div>
-      </form>
-    </Dialog>
-  );
-}
-
-function ConfirmDeliveryDialog({
-  open,
-  reservation,
-  initialSelectedItemId,
-  onClose,
-  onConfirm,
-}: {
-  open: boolean;
-  reservation: ReservationDetail;
-  initialSelectedItemId?: string | null;
-  onClose: () => void;
-  onConfirm: (itemIds?: string[]) => Promise<void>;
-}) {
-  const deliverableItems = useMemo(
-    () =>
-      reservation.items.filter((item) =>
-        ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status),
-      ),
-    [reservation.items],
-  );
-
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<unknown>(null);
-
-  useEffect(() => {
-    if (open) {
-      if (initialSelectedItemId) {
-        setSelectedIds([initialSelectedItemId]);
-      } else {
-        setSelectedIds(deliverableItems.map((i) => i.id));
-      }
-      setError(null);
-    }
-  }, [open, initialSelectedItemId, deliverableItems]);
-
-  function toggleItem(id: string) {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-    );
-  }
-
-  function toggleAll() {
-    if (selectedIds.length === deliverableItems.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(deliverableItems.map((i) => i.id));
-    }
-  }
-
-  async function handleConfirm() {
-    if (selectedIds.length === 0) return;
-    setLoading(true);
-    setError(null);
-    try {
-      await onConfirm(
-        selectedIds.length === deliverableItems.length
-          ? undefined
-          : selectedIds,
-      );
-      onClose();
-    } catch (caught) {
-      setError(caught);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const allWillBeDelivered =
-    selectedIds.length === deliverableItems.length &&
-    reservation.items
-      .filter((i) => !["REJECTED", "PENDING"].includes(i.status))
-      .every(
-        (i) =>
-          ["DELIVERED", "RETURNED"].includes(i.status) ||
-          selectedIds.includes(i.id),
-      );
-
-  return (
-    <Dialog
-      open={open}
-      title="Confirm equipment delivery"
-      description={`Confirm receipt of approved equipment for "${reservation.eventName}".`}
-      onClose={onClose}
-    >
-      <div className="dialog-form">
-        {Boolean(error) && <ErrorState error={error} />}
-
-        {deliverableItems.length > 1 && (
-          <div className="delivery-selection-header">
-            <label className="select-all-label">
-              <input
-                type="checkbox"
-                checked={
-                  deliverableItems.length > 0 &&
-                  selectedIds.length === deliverableItems.length
-                }
-                onChange={toggleAll}
-              />
-              <span>
-                Select all ({selectedIds.length}/{deliverableItems.length})
-              </span>
-            </label>
-          </div>
-        )}
-
-        <div className="delivery-item-list">
-          {deliverableItems.map((item) => {
-            const isChecked = selectedIds.includes(item.id);
-            return (
-              <label
-                key={item.id}
-                className={cx(
-                  "delivery-item-row",
-                  isChecked && "is-selected",
-                )}
-              >
-                <input
-                  type="checkbox"
-                  checked={isChecked}
-                  onChange={() => toggleItem(item.id)}
-                />
-                <div className="delivery-item-info">
-                  <strong>{item.asset.name}</strong>
-                  <span>
-                    Qty: {item.quantity} · {item.asset.managementArea.name}
-                  </span>
-                </div>
-                <ItemStatusBadge status={item.status} />
-              </label>
-            );
-          })}
-        </div>
-
-        <p className="dialog-help">
-          {allWillBeDelivered ? (
-            <>
-              Confirming delivery for all approved items will{" "}
-              <strong>auto-advance the event status to Delivery Confirmed</strong>.
-            </>
-          ) : (
-            <>
-              Selected items will be updated to <strong>Delivered</strong>. The event status will automatically update to Delivery Confirmed once all equipment is confirmed.
-            </>
-          )}
-        </p>
-        <div className="dialog-actions">
-          <Button type="button" variant="quiet" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            loading={loading}
-            disabled={selectedIds.length === 0}
-            onClick={() => void handleConfirm()}
-          >
-            <Truck size={17} /> Confirm delivery receipt (
-            {selectedIds.length})
-          </Button>
-        </div>
-      </div>
-    </Dialog>
-  );
-}
-
-function SchedulePoint({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="schedule-point">
-      <span>{icon}</span>
-      <div>
-        <small>{label}</small>
-        <strong>{value}</strong>
-      </div>
-    </div>
-  );
-}
-
-function ReservationStatusBadge({ status }: { status: ReservationStatus }) {
-  return (
-    <span
-      className={cx(
-        "reservation-status",
-        `reservation-status--${status.toLowerCase().replace(/_/g, "-")}`,
-      )}
-    >
-      <span />
-      {reservationStatusLabel[status]}
-    </span>
-  );
-}
-
-type StepState = "done" | "active" | "upcoming";
-
-type StepDef = {
-  key: string;
-  label: string;
-  icon: React.ReactNode;
-};
-
-const RESERVATION_STEPS: StepDef[] = [
-  { key: "approval", label: "Waiting for Approve", icon: <ShieldCheck size={16} /> },
-  { key: "delivery", label: "Receive Confirmed", icon: <Truck size={16} /> },
-  { key: "return", label: "Return", icon: <PackageCheck size={16} /> },
-  { key: "complete", label: "Return Confirm", icon: <CheckCircle2 size={16} /> },
-];
-
-function getActiveStep(status: ReservationStatus): number {
-  switch (status) {
-    case "DRAFT":
-    case "PENDING":
-    case "PENDING_APPROVAL":
-    case "PARTIALLY_APPROVED":
-      return 0; // approval step is active
-    case "APPROVED":
-      return 1; // delivery step is active (waiting to be confirmed)
-    case "DELIVERY_CONFIRMED":
-    case "ACTIVE":
-      return 2; // delivery done → return step is now active
-    case "RETURN":
-    case "RETURN_PENDING":
-      return 2; // return submitted, waiting manager confirm
-    case "RETURN_CONFIRMED":
-    case "COMPLETED":
-      return 3; // all done
-    case "REJECTED":
-    case "CANCELLED":
-      return -1; // cancelled / failed
-    default:
-      return 0;
-  }
-}
-
-function ReservationStepper({ status }: { status: ReservationStatus }) {
-  const isCancelled = status === "CANCELLED" || status === "REJECTED";
-  const isCompleted = status === "RETURN_CONFIRMED" || status === "COMPLETED";
-  const activeStep = isCompleted ? 4 : getActiveStep(status);
-
-  return (
-    <div className={cx("reservation-stepper", isCancelled && "reservation-stepper--cancelled")}>
-      {RESERVATION_STEPS.map((step, idx) => {
-        const state: StepState = isCancelled
-          ? "upcoming"
-          : idx < activeStep
-            ? "done"
-            : idx === activeStep
-              ? "active"
-              : "upcoming";
-
-        return (
-          <div
-            key={step.key}
-            className={cx(
-              "res-step",
-              `res-step--${state}`,
-            )}
-          >
-            {idx > 0 && (
-              <div className={cx("res-step__connector", idx <= activeStep && !isCancelled && "res-step__connector--filled")} />
-            )}
-            <div className="res-step__node">
-              <div className="res-step__circle">
-                {state === "done" ? <Check size={13} strokeWidth={3} /> : step.icon}
-              </div>
-            </div>
-            <div className="res-step__label">{step.label}</div>
-          </div>
-        );
-      })}
-      {isCancelled && (
-        <div className="res-step res-step--cancelled-badge">
-          <div className="res-step__connector" />
-          <div className="res-step__node">
-            <div className="res-step__circle">
-              <X size={13} strokeWidth={3} />
-            </div>
-          </div>
-          <div className="res-step__label">
-            {status === "REJECTED" ? "Rejected" : "Cancelled"}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const itemLabels: Record<ReservationItemStatus, string> = {
-  PENDING: "Pending",
-  APPROVED: "Approved",
-  REJECTED: "Rejected",
-  PREPARED: "Prepared",
-  CHECKED_OUT: "Checked out",
-  DELIVERED: "Delivered",
-  RETURNED: "Returned",
-};
-
-function ItemStatusBadge({ status }: { status: ReservationItemStatus }) {
-  return (
-    <span className={cx("item-status", `item-status--${status.toLowerCase()}`)}>
-      {itemLabels[status]}
-    </span>
-  );
-}
-
-function ChangeSummary({
-  change,
-}: {
-  change: ReservationDetail["changeRequests"][number]["changeData"];
-}) {
-  const entries = [
-    change.eventName ? `Event name: ${change.eventName}` : null,
-    change.startAt ? `Starts: ${formatDate(change.startAt, true)}` : null,
-    change.endAt ? `Ends: ${formatDate(change.endAt, true)}` : null,
-    change.items
-      ? `${change.items.length} asset types in the revised manifest`
-      : null,
-  ].filter(Boolean);
-  return (
-    <ul className="change-summary">
-      {entries.map((entry) => (
-        <li key={entry}>
-          <RefreshCw size={13} />
-          {entry}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function ItemDecisionDialog({
-  target,
-  reservationId,
-  onClose,
-  onDecided,
-}: {
-  target: DecisionTarget;
-  reservationId: string;
-  onClose: () => void;
-  onDecided: (detail: ReservationDetail) => void;
-}) {
-  const [comment, setComment] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (target) {
-      setComment("");
-      setError("");
-    }
-  }, [target]);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!target) return;
-    setLoading(true);
-    setError("");
-    try {
-      onDecided(
-        await api.decideReservationItems(
-          reservationId,
-          target.itemIds,
-          target.decision,
-          comment.trim() || undefined,
-        ),
-      );
-    } catch (caught) {
-      setError(
-        caught instanceof ApiClientError
-          ? caught.message
-          : "Unable to record this decision.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <Dialog
-      open={Boolean(target)}
-      title={`${target?.decision === "APPROVE" ? "Approve" : "Reject"} ${target?.itemIds.length ?? 0} selected ${(target?.itemIds.length ?? 0) === 1 ? "asset" : "assets"}`}
-      description={
-        target?.decision === "APPROVE"
-          ? "Availability will be checked for every selected asset before the batch is approved."
-          : "Every selected asset will be rejected together."
-      }
-      onClose={onClose}
-    >
-      <form className="dialog-form" onSubmit={(event) => void submit(event)}>
-        {error && (
-          <div className="form-alert" role="alert">
-            {error}
-          </div>
-        )}
-        {target && (
-          <div className="decision-asset-summary">
-            <span>Selected manifest</span>
-            <strong>{target.assetNames.join(" · ")}</strong>
-          </div>
-        )}
-        <Field
-          label="Decision note"
-          hint="Optional — add context for the requester"
-        >
-          <Textarea
-            value={comment}
-            onChange={(event) => setComment(event.target.value)}
-            maxLength={2000}
-            rows={4}
-          />
-        </Field>
-        <div className="dialog-actions">
-          <Button type="button" variant="quiet" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant={target?.decision === "REJECT" ? "danger" : "primary"}
-            loading={loading}
-          >
-            {target?.decision === "APPROVE" ? (
-              <CheckCircle2 size={17} />
-            ) : (
-              <X size={17} />
-            )}
-            {target?.decision === "APPROVE"
-              ? "Approve selected"
-              : "Reject selected"}
-          </Button>
-        </div>
-      </form>
-    </Dialog>
-  );
-}
-
-type EditAsset = {
-  assetId: string;
-  name: string;
-  area: string;
-  pictureUrl: string | null;
-  totalQuantity: number;
-  quantity: number;
-};
-
-function ReservationEditDialog({
-  open,
-  reservation,
-  onClose,
-  onSaved,
-}: {
-  open: boolean;
-  reservation: ReservationDetail;
-  onClose: () => void;
-  onSaved: (detail: ReservationDetail) => void;
-}) {
-  const { hasAreaPermission } = useAuth();
-  const initialAssets = useMemo<EditAsset[]>(
-    () =>
-      reservation.items.map((item) => ({
-        assetId: item.asset.id,
-        name: item.asset.name,
-        area: item.asset.managementArea.name,
-        pictureUrl: item.asset.pictureUrl,
-        totalQuantity: item.availability.totalQuantity,
-        quantity: item.quantity,
-      })),
-    [reservation],
-  );
-  const [eventName, setEventName] = useState(reservation.eventName);
-  const [description, setDescription] = useState(reservation.description ?? "");
-  const [startAt, setStartAt] = useState(toLocalDateTime(reservation.startAt));
-  const [endAt, setEndAt] = useState(toLocalDateTime(reservation.endAt));
-  const [items, setItems] = useState<EditAsset[]>(initialAssets);
-  const [reason, setReason] = useState("");
-  const [search, setSearch] = useState("");
-  const [assets, setAssets] = useState<AssetSummary[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-    setEventName(reservation.eventName);
-    setDescription(reservation.description ?? "");
-    setStartAt(toLocalDateTime(reservation.startAt));
-    setEndAt(toLocalDateTime(reservation.endAt));
-    setItems(initialAssets);
-    setReason("");
-    setSearch("");
-    setError("");
-  }, [open, reservation, initialAssets]);
-
-  useEffect(() => {
-    if (!open) return;
-    let active = true;
-    const timer = window.setTimeout(() => {
-      void api
-        .assets({ search: search.trim(), isActive: true, limit: 100 })
-        .then((response) => active && setAssets(response.data))
-        .catch(() => active && setAssets([]));
-    }, 180);
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [open, search]);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!items.length) {
-      setError("Keep at least one asset in the reservation.");
-      return;
-    }
-    if (new Date(endAt) <= new Date(startAt)) {
-      setError("End time must be later than start time.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const result = await api.requestReservationChange(
-        reservation.id,
-        {
-          eventName: eventName.trim(),
-          description: description.trim() || null,
-          startAt: new Date(startAt).toISOString(),
-          endAt: new Date(endAt).toISOString(),
-          items: items.map((item) => ({
-            assetId: item.assetId,
-            quantity: item.quantity,
-          })),
-          participantIds: reservation.participants.map((person) => person.id),
-        },
-        reason.trim() || undefined,
-      );
-      onSaved(result);
-    } catch (caught) {
-      setError(
-        caught instanceof ApiClientError
-          ? caught.message
-          : "Unable to send this edit request.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const selectedIds = new Set(items.map((item) => item.assetId));
-  const editableAssets = assets.filter(
-    (asset) =>
-      hasAreaPermission("reservation:update", asset.managementArea.id) ||
-      hasAreaPermission("reservation:create", asset.managementArea.id),
-  );
-
-  return (
-    <Dialog
-      open={open}
-      title="Request reservation changes"
-      description="The current approved plan stays in place until an approver accepts this revision."
-      onClose={onClose}
-      wide
-    >
-      <form
-        className="dialog-form reservation-edit-form"
-        onSubmit={(event) => void submit(event)}
-      >
-        {error && (
-          <div className="form-alert" role="alert">
-            {error}
-          </div>
-        )}
-        <div className="form-grid form-grid--2">
-          <Field label="Event name" required>
-            <Input
-              value={eventName}
-              onChange={(event) => setEventName(event.target.value)}
-              required
-              maxLength={200}
-            />
-          </Field>
-          <Field label="Reason for changes">
-            <Input
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="What changed?"
-              maxLength={2000}
-            />
-          </Field>
-          <Field label="Starts" required>
-            <Input
-              type="datetime-local"
-              value={startAt}
-              onChange={(event) => setStartAt(event.target.value)}
-              required
-            />
-          </Field>
-          <Field label="Ends" required>
-            <Input
-              type="datetime-local"
-              value={endAt}
-              min={startAt}
-              onChange={(event) => setEndAt(event.target.value)}
-              required
-            />
-          </Field>
-        </div>
-        <Field label="Event notes">
-          <Textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            rows={3}
-            maxLength={10000}
-          />
-        </Field>
-        <div className="edit-manifest">
-          <div className="edit-manifest__heading">
-            <strong>Revised asset manifest</strong>
-            <span>{items.length} asset types</span>
-          </div>
-          {items.map((item) => (
-            <div className="edit-manifest__row" key={item.assetId}>
-              <AssetPicture src={item.pictureUrl} name={item.name} />
-              <span>
-                <strong>{item.name}</strong>
-                <small>{item.area}</small>
-              </span>
-              <Input
-                aria-label={`Quantity for ${item.name}`}
-                type="number"
-                min={1}
-                max={item.totalQuantity}
-                value={item.quantity}
-                required
-                onChange={(event) =>
-                  setItems((current) =>
-                    current.map((value) =>
-                      value.assetId === item.assetId
-                        ? { ...value, quantity: Number(event.target.value) }
-                        : value,
-                    ),
-                  )
-                }
-              />
-              <button
-                type="button"
-                className="icon-button icon-button--danger"
-                aria-label={`Remove ${item.name}`}
-                onClick={() =>
-                  setItems((current) =>
-                    current.filter((value) => value.assetId !== item.assetId),
-                  )
-                }
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          ))}
-          <div className="edit-asset-search">
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search to add another asset"
-            />
-            {search && (
-              <div className="edit-asset-search__results">
-                {editableAssets
-                  .filter((asset) => !selectedIds.has(asset.id))
-                  .slice(0, 6)
-                  .map((asset) => (
-                    <button
-                      type="button"
-                      key={asset.id}
-                      onClick={() => {
-                        setItems((current) => [
-                          ...current,
-                          {
-                            assetId: asset.id,
-                            name: asset.name,
-                            area: asset.managementArea.name,
-                            pictureUrl: asset.pictureUrl,
-                            totalQuantity: asset.totalQuantity,
-                            quantity: 1,
-                          },
-                        ]);
-                        setSearch("");
-                      }}
-                    >
-                      <Plus size={15} />
-                      <span>
-                        <strong>{asset.name}</strong>
-                        <small>{asset.managementArea.name}</small>
-                      </span>
-                    </button>
-                  ))}
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="edit-request-note">
-          <ShieldCheck size={17} />
-          <span>
-            Approvers will recheck asset availability before applying this
-            request.
-          </span>
-        </div>
-        <div className="dialog-actions">
-          <Button type="button" variant="quiet" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" loading={loading}>
-            <Send size={17} /> Send edit request
-          </Button>
-        </div>
-      </form>
-    </Dialog>
-  );
-}
-
-function ReturnStatusBadge({ status }: { status: ReturnDetail["status"] }) {
-  const labels: Record<ReturnDetail["status"], string> = {
-    PENDING: "Pending Confirmation",
-    APPROVED: "Confirmed",
-    COMPLETED: "Confirmed & Completed",
-    REJECTED: "Rejected",
-  };
-  return (
-    <span
-      className={cx(
-        "return-status-badge",
-        `return-status-badge--${status.toLowerCase()}`,
-      )}
-    >
-      <span />
-      {labels[status] ?? status}
-    </span>
-  );
-}
-
-
-
-function InlineReturnForm({
-  reservation,
-  selectedItemIds = [],
-  onCancel,
-  onSaved,
-}: {
-  reservation: ReservationDetail;
-  selectedItemIds?: string[];
-  onCancel?: () => void;
-  onSaved: (result: ReservationDetail) => void;
-}) {
-  const allReturnableItems = useMemo(
-    () =>
-      reservation.items.filter(
-        (item) =>
-          item.status !== "REJECTED" &&
-          item.status !== "PENDING" &&
-          item.status !== "APPROVED" &&
-          ((item.returnSummary
-            ? item.returnSummary.remainingReturnQuantity > 0
-            : item.quantity > 0) ||
-            (item.returnSummary ? (item.returnSummary.lostQuantity ?? 0) > 0 : false)),
-      ),
-    [reservation.items],
-  );
-
-  const targetItems = useMemo(() => {
-    if (selectedItemIds && selectedItemIds.length > 0) {
-      const filtered = allReturnableItems.filter((item) =>
-        selectedItemIds.includes(item.id),
-      );
-      if (filtered.length > 0) return filtered;
-    }
-    return allReturnableItems;
-  }, [allReturnableItems, selectedItemIds]);
-
-  const [returnQuantities, setReturnQuantities] = useState<Record<string, number>>({});
-  const [generalNote, setGeneralNote] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<unknown>(null);
-
-  function getInitialQty(item: ReservationItem): number {
-    const remaining = item.returnSummary
-      ? item.returnSummary.remainingReturnQuantity
-      : item.quantity;
-    const lost = item.returnSummary ? (item.returnSummary.lostQuantity ?? 0) : 0;
-    return remaining > 0 ? remaining : lost > 0 ? lost : 1;
-  }
-
-  useEffect(() => {
-    const initial: Record<string, number> = {};
-    targetItems.forEach((item) => {
-      initial[item.id] = getInitialQty(item);
-    });
-    setReturnQuantities(initial);
-    setGeneralNote("");
-    setError(null);
-  }, [targetItems]);
-
-  const totalUnits = useMemo(() => {
-    let sum = 0;
-    targetItems.forEach((item) => {
-      const qty =
-        returnQuantities[item.id] !== undefined
-          ? returnQuantities[item.id]
-          : getInitialQty(item);
-      sum += Number(qty) || 0;
-    });
-    return sum;
-  }, [returnQuantities, targetItems]);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      const itemsToSubmit = targetItems
-        .map((item) => {
-          const defaultQty = getInitialQty(item);
-          const qty =
-            returnQuantities[item.id] !== undefined
-              ? Number(returnQuantities[item.id])
-              : defaultQty;
-          return {
-            reservationItemId: item.id,
-            quantityReturned: qty,
-            quantityBroken: 0,
-            quantityLost: 0,
-            description: undefined,
-          };
-        })
-        .filter((item) => item.quantityReturned > 0);
-
-      if (itemsToSubmit.length === 0) {
-        throw new Error(
-          "Please specify at least 1 unit to return.",
-        );
-      }
-
-      await api.createReturn(reservation.id, {
-        items: itemsToSubmit,
-        note: generalNote.trim() || undefined,
-      });
-
-      const updated = await api.reservation(reservation.id);
-      onSaved(updated);
-    } catch (caught) {
-      setError(caught);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="inline-return-form">
-      <div className="inline-return-form__header">
-        <div>
-          <p className="eyebrow">Reservation / {reservation.id.slice(0, 8)}</p>
-          <h2>Return request</h2>
-          <p>
-            Input the number of items returning. Area managers will inspect and detail item condition (Good, Broken, Lost) during return confirmation.
-          </p>
-        </div>
-        {onCancel && (
-          <Button type="button" variant="quiet" size="sm" onClick={onCancel}>
-            <X size={14} /> Cancel
-          </Button>
-        )}
-      </div>
-
-      <form className="inline-return-form__body" onSubmit={(e) => void submit(e)}>
-        {Boolean(error) && <ErrorState error={error} />}
-        <div className="return-items-inputs">
-          {targetItems.map((item) => {
-            const remaining = item.returnSummary
-              ? item.returnSummary.remainingReturnQuantity
-              : item.quantity;
-            const lost = item.returnSummary ? (item.returnSummary.lostQuantity ?? 0) : 0;
-            const maxUnits = item.quantity;
-            const defaultQty = getInitialQty(item);
-            const currentQty =
-              returnQuantities[item.id] !== undefined
-                ? returnQuantities[item.id]
-                : defaultQty;
-
-            return (
-              <div className="return-input-row return-input-row--simple" key={item.id}>
-                <div className="return-input-row__asset">
-                  <AssetPicture
-                    src={item.asset.pictureUrl}
-                    name={item.asset.name}
-                  />
-                  <div className="return-input-row__asset-info">
-                    <strong>{item.asset.name}</strong>
-                    <span>
-                      {item.asset.managementArea.name} · {item.quantity} reserved
-                      {item.returnSummary && item.returnSummary.returnedQuantity > 0 && ` (${item.returnSummary.returnedQuantity} already returned)`}
-                      {lost > 0 && ` · ${lost} previously reported lost`}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="return-input-row__qty-input">
-                  <Field label="Return number" hint={`Max ${remaining > 0 ? remaining : maxUnits} remaining`}>
-                    <Input
-                      aria-label={`Return quantity for ${item.asset.name}`}
-                      type="number"
-                      min={0}
-                      max={maxUnits}
-                      value={currentQty}
-                      onChange={(e) => {
-                        const val = Math.max(0, Number(e.target.value));
-                        setReturnQuantities((prev) => ({
-                          ...prev,
-                          [item.id]: val,
-                        }));
-                      }}
-                    />
-                  </Field>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <Field label="Return notes (optional)">
-          <Textarea
-            rows={2}
-            value={generalNote}
-            onChange={(e) => setGeneralNote(e.target.value)}
-            placeholder="e.g. Returned all equipment to storage cabinet A"
-            maxLength={2000}
-          />
-        </Field>
-
-        <div className="return-form-summary-bar">
-          <div className="return-form-summary-counts">
-            <span>Total to return:</span>
-            <strong>{totalUnits} unit{totalUnits === 1 ? "" : "s"}</strong>
-          </div>
-        </div>
-
-        <div className="inline-return-form__actions">
-          {onCancel && (
-            <Button type="button" variant="quiet" onClick={onCancel}>
-              Cancel
-            </Button>
-          )}
-          <Button type="submit" loading={loading}>
-            <PackageCheck size={17} /> Return confirm request
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-
-function getInitialDecisionState(item: ReturnItemDetail): { good: number; broken: number; lost: number; description: string } {
-  return {
-    good: item.quantityReturned,
-    broken: item.quantityBroken,
-    lost: item.quantityLost,
-    description: item.description ?? "",
-  };
-}
-
-function ReturnDecisionDialog({
-  target,
-  reservation,
-  onClose,
-  onDecided,
-}: {
-  target: {
-    returnId: string;
-    decision: "APPROVE" | "REJECT";
-    returnRecord: ReturnDetail;
-  } | null;
-  reservation: ReservationDetail | null;
-  onClose: () => void;
-  onDecided: (detail: ReservationDetail) => void;
-}) {
-  const [description, setDescription] = useState("");
-  const [itemCounts, setItemCounts] = useState<
-    Record<
-      string,
-      {
-        good: number;
-        broken: number;
-        lost: number;
-        description: string;
-      }
-    >
-  >({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<unknown>(null);
-
-  useEffect(() => {
-    if (target) {
-      const initial: Record<
-        string,
-        { good: number; broken: number; lost: number; description: string }
-      > = {};
-      target.returnRecord.items.forEach((item) => {
-        initial[item.id] = getInitialDecisionState(item);
-      });
-      setItemCounts(initial);
-      setDescription("");
-      setError(null);
-    }
-  }, [target, reservation]);
-
-  if (!target || !reservation) return null;
-
-  const isApprove = target.decision === "APPROVE";
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!target || !reservation) return;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const itemsPayload = isApprove
-        ? target.returnRecord.items.map((item) => {
-            const counts = itemCounts[item.id] ?? getInitialDecisionState(item);
-            return {
-              reservationItemId: item.reservationItemId,
-              quantityReturned: Number(counts.good) || 0,
-              quantityBroken: Number(counts.broken) || 0,
-              quantityLost: Number(counts.lost) || 0,
-              description: counts.description?.trim() || undefined,
-            };
-          })
-        : undefined;
-
-      await api.decideReturn(reservation.id, target.returnId, {
-        decision: target.decision,
-        items: itemsPayload,
-        description: description.trim() || undefined,
-      });
-      const updated = await api.reservation(reservation.id);
-      onDecided(updated);
-      onClose();
-    } catch (caught) {
-      setError(caught);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-
-  return (
-    <Dialog
-      open={Boolean(target)}
-      title={
-        isApprove ? "Return confirm & physical inspection" : "Reject return request"
-      }
-      description={
-        isApprove
-          ? "Verify physical condition of equipment. Confirm or adjust the count of Good, Broken, and Lost units."
-          : "Reject this return submission and request correction from the submitter."
-      }
-      onClose={onClose}
-    >
-      <form className="dialog-form" onSubmit={(e) => void submit(e)}>
-        {Boolean(error) && <ErrorState error={error} />}
-
-        <div className="return-confirm-info">
-          <div className="return-confirm-info__row">
-            <span>Reservation:</span>
-            <strong>{reservation.eventName} (#{reservation.id.slice(0, 8)})</strong>
-          </div>
-          <div className="return-confirm-info__row">
-            <span>Submitted by:</span>
-            <strong>
-              {target.returnRecord.returnedBy.name ?? target.returnRecord.returnedBy.email}
-            </strong>
-          </div>
-          <div className="return-confirm-info__row">
-            <span>Return slip:</span>
-            <span>
-              Return / {target.returnRecord.id.slice(0, 8)} · {formatDate(target.returnRecord.returnedAt ?? target.returnRecord.createdAt, true)}
-            </span>
-          </div>
-        </div>
-
-        {isApprove && (
-          <div className="return-confirm-items">
-            {target.returnRecord.items.map((item) => {
-              const resItem = reservation.items.find(
-                (it) => it.id === item.reservationItemId,
-              );
-              const totalReserved =
-                resItem?.quantity ??
-                (item.quantityReturned + item.quantityBroken + item.quantityLost);
-              const counts = itemCounts[item.id] ?? {
-                good: item.quantityReturned,
-                broken: item.quantityBroken,
-                lost: item.quantityLost,
-                description: item.description ?? "",
-              };
-
-              return (
-                <div key={item.id} className="return-confirm-item-card">
-                  <div className="return-confirm-item-card__header">
-                    {resItem && (
-                      <AssetPicture
-                        src={resItem.asset.pictureUrl}
-                        name={item.assetName}
-                      />
-                    )}
-                    <div>
-                      <strong>{item.assetName}</strong>
-                      <small>
-                        {item.managementArea.name} · {totalReserved} reserved
-                      </small>
-                    </div>
-                  </div>
-
-                  <div className="return-declared-badge">
-                    <span>Declared:</span>
-                    <span className="return-tag return-tag--intact">{item.quantityReturned} good</span>
-                    {item.quantityBroken > 0 && <span className="return-tag return-tag--broken">{item.quantityBroken} broken</span>}
-                    {item.quantityLost > 0 && <span className="return-tag return-tag--lost">{item.quantityLost} lost</span>}
-                    {item.description && <span style={{ fontStyle: "italic", marginLeft: 4 }}>"{item.description}"</span>}
-                  </div>
-
-                  <div className="return-confirm-counts-grid">
-                    <div className="return-confirm-count-field return-confirm-count-field--good">
-                      <label>Number of good</label>
-                      <Input
-                        aria-label={`Number of good for ${item.assetName}`}
-                        type="number"
-                        min={0}
-                        max={totalReserved}
-                        value={counts.good}
-                        onChange={(e) => {
-                          const val = Math.max(0, Number(e.target.value));
-                          setItemCounts((prev) => ({
-                            ...prev,
-                            [item.id]: { ...counts, good: val },
-                          }));
-                        }}
-                      />
-                    </div>
-
-                    <div className="return-confirm-count-field return-confirm-count-field--broken">
-                      <label>Number of broken</label>
-                      <Input
-                        aria-label={`Number of broken for ${item.assetName}`}
-                        type="number"
-                        min={0}
-                        max={totalReserved}
-                        value={counts.broken}
-                        onChange={(e) => {
-                          const val = Math.max(0, Number(e.target.value));
-                          setItemCounts((prev) => ({
-                            ...prev,
-                            [item.id]: { ...counts, broken: val },
-                          }));
-                        }}
-                      />
-                    </div>
-
-                    <div className="return-confirm-count-field return-confirm-count-field--lost">
-                      <label>Number of lost</label>
-                      <Input
-                        aria-label={`Number of lost for ${item.assetName}`}
-                        type="number"
-                        min={0}
-                        max={totalReserved}
-                        value={counts.lost}
-                        onChange={(e) => {
-                          const val = Math.max(0, Number(e.target.value));
-                          setItemCounts((prev) => ({
-                            ...prev,
-                            [item.id]: { ...counts, lost: val },
-                          }));
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="return-impact-callout">
-                    <span className="return-impact-pill return-impact-pill--good">
-                      ✓ {counts.good} returned to storage
-                    </span>
-                    {counts.broken > 0 && (
-                      <span className="return-impact-pill return-impact-pill--broken">
-                        ⚙ {counts.broken} sent to repair log
-                      </span>
-                    )}
-                    {counts.lost > 0 && (
-                      <span className="return-impact-pill return-impact-pill--lost">
-                        ✕ {counts.lost} deducted from stock
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        <Field
-          label="Inspector notes"
-          hint={
-            isApprove
-              ? "Optional inspection notes or remarks"
-              : "Reason for rejection"
-          }
-          required={!isApprove}
-        >
-          <Textarea
-            rows={2}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder={
-              isApprove
-                ? "e.g. All equipment inspected and stored back into storage cabinet"
-                : "e.g. 1 unit missing from the package, please re-check"
-            }
-            required={!isApprove}
-            maxLength={2000}
-          />
-        </Field>
-
-        <div className="dialog-actions">
-          <Button type="button" variant="quiet" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant={isApprove ? "primary" : "danger"}
-            loading={loading}
-          >
-            {isApprove ? <Check size={17} /> : <X size={17} />}
-            {isApprove ? "Return confirm" : "Reject return"}
-          </Button>
-        </div>
-      </form>
-    </Dialog>
-  );
-}
-
-

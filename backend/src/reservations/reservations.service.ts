@@ -81,6 +81,7 @@ const reservationInclude = {
 
 const reservationListInclude = {
   requester: { include: { profile: true } },
+  participants: { select: { userId: true } },
   items: {
     include: { asset: { include: { managementArea: true } } },
     orderBy: { createdAt: "asc" },
@@ -850,7 +851,6 @@ export class ReservationsService {
     input?: ConfirmDeliveryDto,
   ) {
     const reservation = await this.findDetail(reservationId);
-    this.assertCanManage(actor, reservation);
     if (
       !["APPROVED", "PARTIALLY_APPROVED", "DELIVERY_CONFIRMED"].includes(
         reservation.status,
@@ -862,14 +862,17 @@ export class ReservationsService {
     }
 
     const deliverableItemStatuses = ["APPROVED", "PREPARED", "CHECKED_OUT"];
-    const targetItems = reservation.items.filter((item) => {
-      if (input?.itemIds && input.itemIds.length > 0) {
-        return input.itemIds.includes(item.id);
-      }
-      return deliverableItemStatuses.includes(item.status);
-    });
+    const deliverableItems = reservation.items.filter((item) =>
+      deliverableItemStatuses.includes(item.status),
+    );
+    let targetItems = deliverableItems.filter((item) =>
+      this.canConfirmDeliveryItem(actor, reservation, item),
+    );
 
     if (input?.itemIds && input.itemIds.length > 0) {
+      targetItems = reservation.items.filter((item) =>
+        input.itemIds!.includes(item.id),
+      );
       if (targetItems.length !== input.itemIds.length) {
         throw new ApiException(
           400,
@@ -887,9 +890,17 @@ export class ReservationsService {
           "Only approved equipment can be confirmed for delivery.",
         );
       }
+      if (
+        targetItems.some(
+          (item) => !this.canConfirmDeliveryItem(actor, reservation, item),
+        )
+      ) {
+        this.permissionDenied();
+      }
     }
 
     if (targetItems.length === 0) {
+      if (deliverableItems.length > 0) this.permissionDenied();
       throw new ApiException(
         400,
         "NO_ITEMS_TO_DELIVER",
@@ -1047,6 +1058,11 @@ export class ReservationsService {
           )
         : this.areaIsPermitted(updateAreaIds, item.asset.managementAreaId),
     );
+    const isEventTeamMember =
+      reservation.requesterId === actor.user.id ||
+      reservation.participants.some(
+        (participant) => participant.userId === actor.user.id,
+      );
     const actionableItems = reservation.items.filter(
       (item) =>
         item.status === "PENDING" &&
@@ -1105,8 +1121,17 @@ export class ReservationsService {
           reservation.changeRequests.length === 0,
         canReview: actionableItems > 0 || canReviewChange,
         canConfirmDelivery:
-          canManage &&
-          ["APPROVED", "PARTIALLY_APPROVED"].includes(reservation.status),
+          ["APPROVED", "PARTIALLY_APPROVED"].includes(reservation.status) &&
+          reservation.items.some(
+            (item) =>
+              ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status) &&
+              (isEventTeamMember ||
+                hasAreaPermission(
+                  actor,
+                  "asset:update",
+                  item.asset.managementAreaId,
+                )),
+          ),
         canCancel:
           canManage &&
           [
@@ -1347,13 +1372,13 @@ export class ReservationsService {
                 item.asset.managementAreaId,
               ),
             canConfirmDelivery:
-              canManage &&
               [
                 "APPROVED",
                 "PARTIALLY_APPROVED",
                 "DELIVERY_CONFIRMED",
               ].includes(reservation.status) &&
-              ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status),
+              ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status) &&
+              this.canConfirmDeliveryItem(actor, reservation, item),
             canReturn:
               [
                 "DELIVERY_CONFIRMED",
@@ -1434,14 +1459,14 @@ export class ReservationsService {
           canManage &&
           editableReservationStatuses.includes(reservation.status),
         canConfirmDelivery:
-          canManage &&
           [
             "APPROVED",
             "PARTIALLY_APPROVED",
             "DELIVERY_CONFIRMED",
           ].includes(reservation.status) &&
           reservation.items.some((item) =>
-            ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status),
+            ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status) &&
+            this.canConfirmDeliveryItem(actor, reservation, item),
           ),
         canCancel:
           canManage &&
@@ -1784,6 +1809,22 @@ export class ReservationsService {
             "reservation:update",
             item.asset.managementAreaId,
           ),
+    );
+  }
+
+  private canConfirmDeliveryItem(
+    actor: AuthenticatedActor,
+    reservation: ReservationDetailRecord,
+    item: ReservationDetailRecord["items"][number],
+  ) {
+    const isEventTeamMember =
+      reservation.requesterId === actor.user.id ||
+      reservation.participants.some(
+        (participant) => participant.userId === actor.user.id,
+      );
+    return (
+      isEventTeamMember ||
+      hasAreaPermission(actor, "asset:update", item.asset.managementAreaId)
     );
   }
 

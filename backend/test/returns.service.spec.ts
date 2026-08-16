@@ -424,7 +424,6 @@ describe("ReturnsService", () => {
     } as unknown as PrismaService;
 
     const service = new ReturnsService(prismaMock);
-    // Should successfully allow returning the 1 lost unit now that it's found
     const created = await service.create(requesterActor, reservationId, {
       items: [
         {
@@ -437,6 +436,116 @@ describe("ReturnsService", () => {
 
     expect(created.status).toBe("PENDING");
     expect(createReturn).toHaveBeenCalled();
+  });
+
+  it("decrements asset totalQuantity when items are returned as broken or lost", async () => {
+    const returnRecord = sampleReturnRecord("PENDING");
+    const updatedReturnRecord = {
+      ...returnRecord,
+      status: "COMPLETED",
+      approval: {
+        ...returnRecord.approval,
+        approverId: managerId,
+        status: "APPROVED",
+        description: "1 broken, 1 lost",
+        decidedAt: new Date(),
+        approver: managerRecord,
+      },
+    };
+
+    const updateAsset = vi.fn().mockResolvedValue({});
+    const updateReturn = vi.fn().mockResolvedValue(updatedReturnRecord);
+    const updateReturnItem = vi.fn().mockResolvedValue({});
+    const upsertApproval = vi.fn().mockResolvedValue(updatedReturnRecord.approval);
+    const createBatch = vi.fn().mockResolvedValue({ id: "batch-1" });
+    const createTransaction = vi.fn().mockResolvedValue({});
+    const updateItem = vi.fn().mockResolvedValue({});
+    const updateReservation = vi.fn().mockResolvedValue({});
+    const findReturnItems = vi.fn().mockResolvedValue([
+      {
+        quantityReturned: 0,
+        quantityBroken: 1,
+        quantityLost: 1,
+      },
+    ]);
+    const findReservationItems = vi.fn().mockResolvedValue([
+      { id: itemId, status: "RETURNED" },
+    ]);
+
+    const prismaMock = {
+      return: {
+        findFirst: vi.fn().mockResolvedValue(returnRecord),
+        findUnique: vi.fn().mockResolvedValue(updatedReturnRecord),
+      },
+      $transaction: vi.fn().mockImplementation(async (callback) => {
+        return callback({
+          asset: { update: updateAsset },
+          return: { update: updateReturn },
+          returnItem: {
+            update: updateReturnItem,
+            findMany: findReturnItems,
+          },
+          returnApproval: { upsert: upsertApproval },
+          assetTransactionBatch: { create: createBatch },
+          assetTransaction: { create: createTransaction },
+          reservationItem: {
+            update: updateItem,
+            findMany: findReservationItems,
+          },
+          reservation: { update: updateReservation },
+        });
+      }),
+    } as unknown as PrismaService;
+
+    const service = new ReturnsService(prismaMock);
+    const result = await service.decide(areaManagerActor, reservationId, returnId, {
+      decision: "APPROVE",
+      items: [
+        {
+          reservationItemId: itemId,
+          quantityReturned: 0,
+          quantityBroken: 1,
+          quantityLost: 1,
+          description: "1 broken lens, 1 lost tripod",
+        },
+      ],
+      description: "1 broken, 1 lost",
+    });
+
+    expect(result.status).toBe("COMPLETED");
+    expect(updateAsset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: assetId },
+        data: expect.objectContaining({
+          totalQuantity: { decrement: 1 },
+        }),
+      }),
+    );
+  });
+
+  it("rejects return approval when sum of good, broken, and lost exceeds returned quantity", async () => {
+    const returnRecord = sampleReturnRecord("PENDING");
+    const prismaMock = {
+      return: {
+        findFirst: vi.fn().mockResolvedValue(returnRecord),
+      },
+      $transaction: vi.fn().mockImplementation(async (callback) => callback(prismaMock)),
+    } as unknown as PrismaService;
+
+    const service = new ReturnsService(prismaMock);
+    await expect(
+      service.decide(areaManagerActor, reservationId, returnId, {
+        decision: "APPROVE",
+        items: [
+          {
+            reservationItemId: itemId,
+            quantityReturned: 2,
+            quantityBroken: 1,
+            quantityLost: 1, // Total = 4, but returned limit was only 2
+          },
+        ],
+      }),
+    ).rejects.toThrow(/cannot exceed the returned quantity/);
   });
 });
 

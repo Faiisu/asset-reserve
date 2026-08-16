@@ -72,6 +72,26 @@ describe("time-based asset availability", () => {
     );
   });
 
+  it("does not deduct booked quantities when no date range filter is provided in general asset list", async () => {
+    const groupBy = vi.fn();
+    const service = new AssetsService({
+      asset: { findMany: vi.fn().mockResolvedValue([asset]) },
+      reservationItem: { groupBy },
+    } as unknown as PrismaService);
+
+    const result = await service.list(actor, {
+      limit: 20,
+      isActive: true,
+    });
+
+    expect(result.data[0]).toMatchObject({
+      totalQuantity: 4,
+      allocatedQuantity: 0,
+      availableQuantity: 4,
+    });
+    expect(groupBy).not.toHaveBeenCalled();
+  });
+
   it("requires both ends of the availability range", async () => {
     const service = new AssetsService({} as PrismaService);
 

@@ -490,6 +490,42 @@ export class ReturnsService {
       );
     }
 
+    // Validate condition breakdown before processing decision
+    if (input.decision === "APPROVE" && input.items && input.items.length > 0) {
+      for (const [index, itemInput] of input.items.entries()) {
+        const line = returnRecord.items.find(
+          (it) => it.reservationItemId === itemInput.reservationItemId,
+        );
+        if (line) {
+          const good = itemInput.quantityReturned ?? 0;
+          const broken = itemInput.quantityBroken ?? 0;
+          const lost = itemInput.quantityLost ?? 0;
+
+          if (good < 0 || broken < 0 || lost < 0) {
+            throw new ApiException(
+              422,
+              "VALIDATION_ERROR",
+              "Inspected quantities cannot be negative.",
+            );
+          }
+
+          const maxAllowed = line.quantityReturned;
+          const totalInspected = good + broken + lost;
+          if (totalInspected > maxAllowed) {
+            const assetName = line.reservationItem?.asset?.name ?? "asset";
+            throw new ApiException(
+              422,
+              "VALIDATION_ERROR",
+              `Total inspected units (${totalInspected}) cannot exceed the returned quantity of ${maxAllowed} for ${assetName}.`,
+              {
+                [`items.${index}`]: `Good (${good}) + Broken (${broken}) + Lost (${lost}) = ${totalInspected} exceeds returned limit of ${maxAllowed}.`,
+              },
+            );
+          }
+        }
+      }
+    }
+
     const decidedAt = new Date();
 
     await this.runSerializable(async (tx) => {
@@ -503,7 +539,7 @@ export class ReturnsService {
           },
         });
 
-        // 1.1 Update item quantities if customized during decision
+        // 1.1 Update item quantities during decision
         if (input.items && input.items.length > 0) {
           for (const itemInput of input.items) {
             const line = returnRecord.items.find(
@@ -629,8 +665,17 @@ export class ReturnsService {
                 batchId,
                 assetId,
                 transactionType: "BROKEN",
-                quantityDelta: 0,
+                quantityDelta: -line.quantityBroken,
                 reason: line.description ?? "Returned damaged/broken",
+              },
+            });
+
+            // Decrement totalQuantity for broken asset from available pool
+            await tx.asset.update({
+              where: { id: assetId },
+              data: {
+                totalQuantity: { decrement: line.quantityBroken },
+                updatedAt: decidedAt,
               },
             });
           }

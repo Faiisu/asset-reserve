@@ -1,6 +1,5 @@
 /* Reservation workspace */
-.reservation-page,
-.reservation-detail-page {
+.reservation-page {
   max-width: 1320px;
   margin: 0 auto;
 }
@@ -27,8 +26,6 @@
   gap: 18px;
 }
 .reservation-panel,
-.reservation-section,
-.reservation-facts,
 .recent-reservations {
   border: 1px solid var(--line);
   border-radius: 13px;

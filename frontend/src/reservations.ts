@@ -14,7 +14,7 @@ export const reservationStatusLabel: Record<ReservationStatus, string> = {
   PARTIALLY_APPROVED: "Partially approved",
   APPROVED: "Approved",
   DELIVERY_CONFIRMED: "Delivery Confirmed",
-  ACTIVE: "Active",
+  ACTIVE: "Pending Return",
   RETURN: "Return Pending",
   RETURN_PENDING: "Return Pending",
   RETURN_CONFIRMED: "Return Confirmed",

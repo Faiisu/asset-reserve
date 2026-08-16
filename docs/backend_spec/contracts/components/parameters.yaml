@@ -54,6 +54,13 @@ ChangeRequestId:
   schema:
     type: string
     format: uuid
+ReturnId:
+  name: returnId
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
 Search:
   name: search
   in: query

@@ -3,7 +3,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { api } from "../api";
@@ -11,330 +10,144 @@ import type { ReservationDetail } from "../types";
 import { ReservationDetailPage } from "./ReservationDetailPage";
 
 vi.mock("../auth", () => ({
-  useAuth: () => ({ hasAreaPermission: () => true }),
+  useAuth: () => ({
+    session: { user: { id: "00000000-0000-4000-8000-000000000001" } },
+    hasPermission: () => true,
+    hasAreaPermission: () => true,
+  }),
 }));
 
-vi.mock("../reservations", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../reservations")>()),
-  rememberReservation: vi.fn(),
-}));
-
-const reservation: ReservationDetail = {
+const mockReservation: ReservationDetail = {
   id: "00000000-0000-4000-8000-000000000101",
-  eventName: "Quarterly town hall",
-  description: null,
+  eventName: "Quarterly Town Hall Stream",
+  description: "Stage video shoot with multiple cameras",
   startAt: "2026-09-01T09:00:00.000Z",
   endAt: "2026-09-01T11:00:00.000Z",
-  status: "PENDING_APPROVAL",
+  status: "APPROVED",
   requester: {
     id: "00000000-0000-4000-8000-000000000001",
     email: "owner@example.com",
-    name: "Event owner",
+    name: "Event Owner",
     profilePictureUrl: null,
   },
   participants: [],
   items: [
-    reservationItem(
-      "00000000-0000-4000-8000-000000000201",
-      "00000000-0000-4000-8000-000000000301",
-      "Stage camera",
-    ),
-    reservationItem(
-      "00000000-0000-4000-8000-000000000202",
-      "00000000-0000-4000-8000-000000000302",
-      "Wireless microphone",
-    ),
-  ],
-  changeRequests: [],
-  returns: [],
-  capabilities: { canSubmit: false, canRequestChange: false },
-  createdAt: "2026-08-15T00:00:00.000Z",
-  updatedAt: "2026-08-15T00:00:00.000Z",
-};
-
-describe("ReservationDetailPage", () => {
-  it("selects pending assets and submits one batch approval", async () => {
-    vi.spyOn(api, "reservation").mockResolvedValue(reservation);
-    const decideSpy = vi
-      .spyOn(api, "decideReservationItems")
-      .mockResolvedValue({ ...reservation, status: "APPROVED" });
-
-    render(
-      <MemoryRouter initialEntries={[`/reservations/${reservation.id}`]}>
-        <Routes>
-          <Route
-            path="/reservations/:reservationId"
-            element={<ReservationDetailPage />}
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    await screen.findByRole("heading", { name: "Quarterly town hall" });
-    const stageCameraCheckbox = screen.getByLabelText("Select Stage camera");
-    fireEvent.click(screen.getByText("Stage camera"));
-    expect(stageCameraCheckbox).toBeChecked();
-    expect(
-      screen.getByRole("link", { name: "View Stage camera" }),
-    ).toHaveAttribute("href", `/assets/${reservation.items[0].asset.id}`);
-    fireEvent.click(screen.getByLabelText("Select Wireless microphone"));
-    fireEvent.click(screen.getByRole("button", { name: "Approve selected" }));
-
-    const dialog = screen.getByRole("dialog");
-    expect(
-      within(dialog).getByRole("heading", {
-        name: "Approve 2 selected assets",
-      }),
-    ).toBeInTheDocument();
-    fireEvent.change(within(dialog).getByRole("textbox"), {
-      target: { value: "Ready together" },
-    });
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Approve selected" }),
-    );
-
-    await waitFor(() =>
-      expect(decideSpy).toHaveBeenCalledWith(
-        reservation.id,
-        reservation.items.map((item) => item.id),
-        "APPROVE",
-        "Ready together",
-      ),
-    );
-  });
-
-  it("cancels an approved reservation when confirmed in dialog", async () => {
-    const approvedReservation: ReservationDetail = {
-      ...reservation,
+    {
+      id: "item-1",
+      quantity: 2,
       status: "APPROVED",
-      capabilities: { canSubmit: false, canRequestChange: true, canCancel: true },
-    };
-    vi.spyOn(api, "reservation").mockResolvedValue(approvedReservation);
-    const cancelSpy = vi
-      .spyOn(api, "cancelReservation")
-      .mockResolvedValue({ ...approvedReservation, status: "CANCELLED" });
-
-    render(
-      <MemoryRouter initialEntries={[`/reservations/${approvedReservation.id}`]}>
-        <Routes>
-          <Route
-            path="/reservations/:reservationId"
-            element={<ReservationDetailPage />}
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    await screen.findByRole("heading", { name: "Quarterly town hall" });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel reservation" }));
-
-    const dialog = screen.getByRole("dialog");
-    expect(
-      within(dialog).getByRole("heading", { name: "Cancel reservation" }),
-    ).toBeInTheDocument();
-
-    fireEvent.change(within(dialog).getByRole("textbox"), {
-      target: { value: "Event postponed" },
-    });
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Confirm cancellation" }),
-    );
-
-    await waitFor(() =>
-      expect(cancelSpy).toHaveBeenCalledWith(approvedReservation.id, "Event postponed"),
-    );
-  });
-
-  it("allows user to confirm equipment delivery on approved reservation", async () => {
-    const approvedReservation: ReservationDetail = {
-      ...reservation,
-      status: "APPROVED",
-      items: reservation.items.map((item) => ({
-        ...item,
-        status: "APPROVED" as const,
-      })),
-      returns: [],
-      capabilities: {
-        canSubmit: false,
-        canRequestChange: false,
-        canConfirmDelivery: true,
-        canReturn: true,
+      asset: {
+        id: "asset-1",
+        name: "Stage Camera 4K",
+        description: "Studio camera",
+        pictureUrl: null,
+        isActive: true,
+        managementArea: {
+          id: "area-1",
+          name: "Marketing",
+        },
+        template: null,
       },
-    };
-    vi.spyOn(api, "reservation").mockResolvedValue(approvedReservation);
-    const confirmDeliverySpy = vi.spyOn(api, "confirmDelivery").mockResolvedValue({
-      ...approvedReservation,
-      status: "DELIVERY_CONFIRMED",
-      capabilities: {
-        canSubmit: false,
-        canRequestChange: false,
-        canConfirmDelivery: false,
-        canReturn: true,
-      },
-    });
-
-    render(
-      <MemoryRouter initialEntries={[`/reservations/${approvedReservation.id}`]}>
-        <Routes>
-          <Route
-            path="/reservations/:reservationId"
-            element={<ReservationDetailPage />}
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    await screen.findByRole("heading", { name: "Quarterly town hall" });
-    fireEvent.click(screen.getByRole("button", { name: /Confirm delivery/i }));
-
-    const dialog = screen.getByRole("dialog");
-    expect(
-      within(dialog).getByRole("heading", { name: "Confirm equipment delivery" }),
-    ).toBeInTheDocument();
-
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: /Confirm delivery receipt/i }),
-    );
-
-    await waitFor(() =>
-      expect(confirmDeliverySpy).toHaveBeenCalledWith(approvedReservation.id, undefined),
-    );
-  });
-
-  it("renders inline return request panel on delivery confirmed reservation and submits return", async () => {
-    const deliveryConfirmedReservation: ReservationDetail = {
-      ...reservation,
-      status: "DELIVERY_CONFIRMED",
-      items: reservation.items.map((item) => ({
-        ...item,
-        status: "DELIVERED" as const,
-        returnSummary: {
-          returnedQuantity: 0,
-          brokenQuantity: 0,
-          lostQuantity: 0,
-          pendingReturnQuantity: 0,
-          remainingReturnQuantity: 1,
-        },
-      })),
-      returns: [],
-      capabilities: { canSubmit: false, canRequestChange: false, canReturn: true },
-    };
-    vi.spyOn(api, "reservation").mockResolvedValue(deliveryConfirmedReservation);
-    const createReturnSpy = vi.spyOn(api, "createReturn").mockResolvedValue({
-      id: "ret-1",
-      reservationId: deliveryConfirmedReservation.id,
-      status: "PENDING",
-      returnedAt: "2026-09-01T12:00:00.000Z",
-      returnedBy: deliveryConfirmedReservation.requester,
-      items: [],
-      approval: null,
-      capabilities: { canApprove: true, canReject: true },
-      createdAt: "2026-09-01T12:00:00.000Z",
-      updatedAt: "2026-09-01T12:00:00.000Z",
-    });
-
-    render(
-      <MemoryRouter initialEntries={[`/reservations/${deliveryConfirmedReservation.id}`]}>
-        <Routes>
-          <Route
-            path="/reservations/:reservationId"
-            element={<ReservationDetailPage />}
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    await screen.findByRole("heading", { name: "Quarterly town hall" });
-
-    expect(
-      screen.getByRole("heading", { name: /Return request/i }),
-    ).toBeInTheDocument();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Return confirm request" }),
-    );
-
-    await waitFor(() =>
-      expect(createReturnSpy).toHaveBeenCalledWith(
-        deliveryConfirmedReservation.id,
-        expect.objectContaining({
-          items: expect.arrayContaining([
-            expect.objectContaining({
-              reservationItemId: deliveryConfirmedReservation.items[0].id,
-              quantityReturned: 1,
-            }),
-          ]),
-        }),
-      ),
-    );
-  });
-
-  it("allows manager to confirm and approve a pending return with 3 condition counts", async () => {
-    const returnWithPending: ReservationDetail = {
-      ...reservation,
-      status: "APPROVED",
-      items: reservation.items.map((item) => ({
-        ...item,
-        status: "APPROVED" as const,
-        returnSummary: {
-          returnedQuantity: 0,
-          brokenQuantity: 0,
-          lostQuantity: 0,
-          pendingReturnQuantity: 1,
-          remainingReturnQuantity: 0,
-        },
-      })),
-      returns: [
-        {
-          id: "ret-1",
-          reservationId: reservation.id,
-          status: "PENDING",
-          returnedAt: "2026-09-01T12:00:00.000Z",
-          returnedBy: reservation.requester,
-          items: [
-            {
-              id: "ret-item-1",
-              reservationItemId: reservation.items[0].id,
-              assetId: reservation.items[0].asset.id,
-              assetName: "Stage camera",
-              managementArea: { id: "area-1", name: "Production" },
-              quantityReturned: 1,
-              quantityBroken: 0,
-              quantityLost: 0,
-              description: "All intact",
-            },
-          ],
-          approval: null,
-          capabilities: { canApprove: true, canReject: true },
-          createdAt: "2026-09-01T12:00:00.000Z",
-          updatedAt: "2026-09-01T12:00:00.000Z",
-        },
-      ],
-      capabilities: { canSubmit: false, canRequestChange: false, canReturn: true },
-    };
-
-    vi.spyOn(api, "reservation").mockResolvedValue(returnWithPending);
-    const decideReturnSpy = vi.spyOn(api, "decideReturn").mockResolvedValue({
-      id: "ret-1",
-      reservationId: reservation.id,
-      status: "COMPLETED",
-      returnedAt: "2026-09-01T12:00:00.000Z",
-      returnedBy: reservation.requester,
-      items: [],
       approval: {
         id: "app-1",
         status: "APPROVED",
-        description: "Verified in good order",
-        decidedAt: "2026-09-01T13:00:00.000Z",
-        approver: reservation.requester,
+        comment: "Approved for town hall",
+        decidedAt: "2026-08-16T10:00:00.000Z",
+        approver: {
+          id: "mgr-1",
+          name: "Marketing Manager",
+          email: "mk@example.com",
+          profilePictureUrl: null,
+        },
       },
-      capabilities: { canApprove: false, canReject: false },
-      createdAt: "2026-09-01T12:00:00.000Z",
-      updatedAt: "2026-09-01T13:00:00.000Z",
-    });
+      availability: {
+        assetId: "asset-1",
+        totalQuantity: 5,
+        approvedQuantity: 2,
+        pendingQuantity: 0,
+        availableQuantity: 3,
+        pendingReservationCount: 0,
+      },
+      warnings: [],
+      capabilities: {
+        canApprove: false,
+        canReject: false,
+        canConfirmDelivery: true,
+        canReturn: false,
+      },
+      returnSummary: {
+        returnedQuantity: 0,
+        brokenQuantity: 0,
+        lostQuantity: 0,
+        pendingReturnQuantity: 0,
+        remainingReturnQuantity: 2,
+      },
+    },
+  ],
+  changeRequests: [],
+  returns: [],
+  capabilities: {
+    canSubmit: false,
+    canRequestChange: true,
+    canConfirmDelivery: true,
+    canReturn: false,
+    canCancel: true,
+  },
+  createdAt: "2026-08-15T00:00:00.000Z",
+  updatedAt: "2026-08-16T10:00:00.000Z",
+};
 
-    render(
-      <MemoryRouter initialEntries={[`/reservations/${returnWithPending.id}`]}>
+const mockPendingReservation: ReservationDetail = {
+  ...mockReservation,
+  status: "PENDING_APPROVAL",
+  items: [
+    {
+      id: "item-pending-1",
+      quantity: 3,
+      status: "PENDING",
+      asset: {
+        id: "asset-pending-1",
+        name: "Wireless Microphone Kit",
+        description: "Dual channel receiver",
+        pictureUrl: null,
+        isActive: true,
+        managementArea: {
+          id: "area-1",
+          name: "Marketing",
+        },
+        template: null,
+      },
+      approval: null,
+      availability: {
+        assetId: "asset-pending-1",
+        totalQuantity: 10,
+        approvedQuantity: 0,
+        pendingQuantity: 3,
+        availableQuantity: 7,
+        pendingReservationCount: 1,
+      },
+      warnings: [],
+      capabilities: {
+        canApprove: true,
+        canReject: true,
+      },
+      returnSummary: {
+        returnedQuantity: 0,
+        brokenQuantity: 0,
+        lostQuantity: 0,
+        pendingReturnQuantity: 0,
+        remainingReturnQuantity: 3,
+      },
+    },
+  ],
+};
+
+describe("ReservationDetailPage", () => {
+  it("renders event details, horizontal tracker, and opens step audit logs on click", async () => {
+    vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
+
+    const { container } = render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -344,87 +157,318 @@ describe("ReservationDetailPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByRole("heading", { name: "Quarterly town hall" });
-    expect(screen.getByText("Pending Confirmation")).toBeInTheDocument();
+    // 1. Verify Event title and manifest load
+    await waitFor(() => {
+      expect(screen.getByText("Quarterly Town Hall Stream")).toBeInTheDocument();
+    });
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Confirm & approve return" }),
+    expect(screen.getByText("Stage Camera 4K")).toBeInTheDocument();
+    expect(screen.getByText("All equipment cleared for handover")).toBeInTheDocument();
+    expect(screen.getByText("Handover confirmation (0 of 1 selected)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Select Stage Camera 4K for handover")).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Confirm Handover" })).toBeDisabled();
+    expect(screen.getAllByText("Reservation Status Track")[0]).toBeInTheDocument();
+
+    // 2. Click on the "Approved" step in the horizontal tracker (.res-step-btn)
+    const approvedStepButton = screen.getByLabelText("Inspect step Approved");
+    fireEvent.click(approvedStepButton);
+
+    // 3. Verify that the Step Log Modal opened
+    await waitFor(() => {
+      expect(screen.getByText("Step Metadata & Timeline")).toBeInTheDocument();
+      expect(screen.getByText("Line Items & Decisions")).toBeInTheDocument();
+    });
+
+    // Close the log inspector
+    const closeButton = screen.getByRole("button", { name: /Close Log Inspector/i });
+    fireEvent.click(closeButton);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Step Metadata & Timeline")).not.toBeInTheDocument();
+    });
+  });
+
+  it("allows Area Manager to select items, adjust approved quantity, and submit batch approval", async () => {
+    vi.spyOn(api, "reservation").mockResolvedValue(mockPendingReservation);
+    const decideSpy = vi.spyOn(api, "decideReservationItems").mockResolvedValue({
+      ...mockPendingReservation,
+      status: "APPROVED",
+      items: [
+        {
+          ...mockPendingReservation.items[0],
+          status: "APPROVED",
+          capabilities: { canApprove: false, canReject: false },
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
     );
 
-    const dialog = screen.getByRole("dialog");
-    expect(
-      within(dialog).getByRole("heading", { name: /Return confirm/i }),
-    ).toBeInTheDocument();
-
-    // Verify 3 input boxes exist with correct defaults
-    const goodInput = within(dialog).getByLabelText("Number of good for Stage camera");
-    expect(goodInput).toHaveValue(1);
-
-    const brokenInput = within(dialog).getByLabelText("Number of broken for Stage camera");
-    expect(brokenInput).toHaveValue(0);
-
-    const lostInput = within(dialog).getByLabelText("Number of lost for Stage camera");
-    expect(lostInput).toHaveValue(0);
-
-    fireEvent.change(within(dialog).getByRole("textbox"), {
-      target: { value: "Verified in good order" },
+    // 1. Wait for reservation to load and Area Manager Review toolbar to appear
+    await waitFor(() => {
+      expect(screen.getByText(/Area Manager Review/i)).toBeInTheDocument();
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Return confirm" }));
 
-    await waitFor(() =>
-      expect(decideReturnSpy).toHaveBeenCalledWith(
-        returnWithPending.id,
-        "ret-1",
-        expect.objectContaining({
-          decision: "APPROVE",
-          description: "Verified in good order",
-          items: expect.arrayContaining([
-            expect.objectContaining({
-              reservationItemId: returnWithPending.items[0].id,
-              quantityReturned: 1,
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
+    expect(screen.getByLabelText("3 total reserved")).toBeInTheDocument();
+
+    // 2. Verify checkbox and quantity input box
+    const checkbox = screen.getByLabelText("Select Wireless Microphone Kit");
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox).not.toBeChecked();
+
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+
+    const qtyInput = screen.getByLabelText("Approve quantity for Wireless Microphone Kit");
+    expect(qtyInput).toBeInTheDocument();
+
+    // Change approved quantity
+    fireEvent.change(qtyInput, { target: { value: "2" } });
+    expect(qtyInput).toHaveValue(2);
+
+    // 3. Type decision remark and click Approve Selected
+    const remarkInput = screen.getByPlaceholderText(/Decision comment \/ remark/i);
+    fireEvent.change(remarkInput, { target: { value: "Approved 2 units for town hall" } });
+
+    const approveButton = screen.getByRole("button", { name: /Approve Selected/i });
+    fireEvent.click(approveButton);
+
+    // 4. Verify API was called with selected items and remark
+    await waitFor(() => {
+      expect(decideSpy).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000101",
+        ["item-pending-1"],
+        "APPROVE",
+        "Approved 2 units for town hall"
+      );
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Wireless Microphone Kit").closest(".res-manifest-item"),
+      ).toHaveAttribute("data-status", "approved");
+    });
+  });
+
+  it("confirms handover only for explicitly selected authorized items", async () => {
+    vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
+    const confirmSpy = vi.spyOn(api, "confirmDelivery").mockResolvedValue({
+      ...mockReservation,
+      status: "DELIVERY_CONFIRMED",
+      items: mockReservation.items.map((item) => ({
+        ...item,
+        status: "DELIVERED",
+        capabilities: { ...item.capabilities, canConfirmDelivery: false },
+      })),
+      capabilities: { ...mockReservation.capabilities, canConfirmDelivery: false },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const checkbox = await screen.findByLabelText(
+      "Select Stage Camera 4K for handover",
+    );
+    const confirmButton = screen.getByRole("button", {
+      name: "Confirm Handover",
+    });
+    expect(checkbox).not.toBeChecked();
+    expect(confirmButton).toBeDisabled();
+
+    fireEvent.click(checkbox);
+    expect(confirmButton).toBeEnabled();
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(confirmSpy).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000101",
+        ["item-1"],
+      );
+    });
+  });
+
+  it("submits equipment return directly from Reserved Equipment Manifest during pending return state", async () => {
+    const deliveredReservation: ReservationDetail = {
+      ...mockReservation,
+      status: "DELIVERY_CONFIRMED",
+      items: [
+        {
+          ...mockReservation.items[0],
+          status: "DELIVERED",
+          capabilities: {
+            canApprove: false,
+            canReject: false,
+            canConfirmDelivery: false,
+            canReturn: true,
+          },
+          returnSummary: {
+            returnedQuantity: 0,
+            brokenQuantity: 0,
+            lostQuantity: 0,
+            pendingReturnQuantity: 0,
+            remainingReturnQuantity: 2,
+          },
+        },
+      ],
+      capabilities: {
+        ...mockReservation.capabilities,
+        canConfirmDelivery: false,
+        canReturn: true,
+      },
+    };
+
+    vi.spyOn(api, "reservation").mockResolvedValue(deliveredReservation);
+    const returnSpy = vi.spyOn(api, "createReturn").mockResolvedValue({
+      id: "ret-1",
+      reservationId: deliveredReservation.id,
+      status: "PENDING",
+      returnedAt: null,
+      returnedBy: deliveredReservation.requester,
+      items: [],
+      approval: {
+        id: "ret-app-1",
+        status: "PENDING",
+        description: null,
+        decidedAt: null,
+        approver: deliveredReservation.requester,
+      },
+      capabilities: { canApprove: true, canReject: true },
+      createdAt: "2026-09-02T10:00:00.000Z",
+      updatedAt: "2026-09-02T10:00:00.000Z",
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // 1. Wait for manifest return controls to appear
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Equipment Return \(/i, { selector: "span" }),
+      ).toBeInTheDocument();
+    });
+
+    const checkbox = screen.getByLabelText("Select Stage Camera 4K for return");
+    expect(checkbox).not.toBeChecked();
+
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+
+    const returnQtyInput = screen.getByLabelText("Return quantity for Stage Camera 4K");
+    expect(returnQtyInput).toBeInTheDocument();
+    fireEvent.change(returnQtyInput, { target: { value: "2" } });
+
+    const notesInput = screen.getByPlaceholderText(/Drop-off location \/ return notes/i);
+    fireEvent.change(notesInput, { target: { value: "Returned to Cabinet A" } });
+
+    const submitReturnBtn = screen.getByRole("button", { name: /Submit Return/i });
+    fireEvent.click(submitReturnBtn);
+
+    await waitFor(() => {
+      expect(returnSpy).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000101",
+        {
+          items: [
+            {
+              reservationItemId: "item-1",
+              quantityReturned: 2,
               quantityBroken: 0,
               quantityLost: 0,
-            }),
-          ]),
-        }),
-      ),
-    );
+            },
+          ],
+          note: "Returned to Cabinet A",
+        }
+      );
+    });
   });
 
-  it("submits return confirm request via inline return form with custom return quantity", async () => {
-    const deliveryConfirmedReservation: ReservationDetail = {
-      ...reservation,
-      status: "DELIVERY_CONFIRMED",
-      items: reservation.items.map((item) => ({
-        ...item,
-        status: "DELIVERED" as const,
-        returnSummary: {
-          returnedQuantity: 0,
-          brokenQuantity: 0,
-          lostQuantity: 0,
-          pendingReturnQuantity: 0,
-          remainingReturnQuantity: 1,
+  it("allows Area Manager to inspect and approve return slips directly on Reserved Equipment Manifest", async () => {
+    const pendingReturnReservation: ReservationDetail = {
+      ...mockReservation,
+      status: "RETURN_PENDING",
+      items: [
+        {
+          ...mockReservation.items[0],
+          status: "DELIVERED",
+          returnSummary: {
+            returnedQuantity: 0,
+            brokenQuantity: 0,
+            lostQuantity: 0,
+            pendingReturnQuantity: 2,
+            remainingReturnQuantity: 0,
+          },
         },
-      })),
-      returns: [],
-      capabilities: { canSubmit: false, canRequestChange: false, canReturn: true },
+      ],
+      returns: [
+        {
+          id: "00000000-0000-4000-8000-000000000201",
+          reservationId: mockReservation.id,
+          status: "PENDING",
+          returnedAt: "2026-09-02T10:00:00.000Z",
+          returnedBy: mockReservation.requester,
+          items: [],
+          approval: {
+            id: "ret-app-1",
+            status: "PENDING",
+            description: null,
+            decidedAt: null,
+            approver: mockReservation.requester,
+          },
+          capabilities: { canApprove: true, canReject: true },
+          createdAt: "2026-09-02T10:00:00.000Z",
+          updatedAt: "2026-09-02T10:00:00.000Z",
+        },
+      ],
     };
-    vi.spyOn(api, "reservation").mockResolvedValue(deliveryConfirmedReservation);
-    const createReturnSpy = vi.spyOn(api, "createReturn").mockResolvedValue({
-      id: "ret-2",
-      reservationId: deliveryConfirmedReservation.id,
+
+    vi.spyOn(api, "reservation").mockResolvedValue(pendingReturnReservation);
+    const decideReturnSpy = vi.spyOn(api, "decideReturn").mockResolvedValue({
+      id: "00000000-0000-4000-8000-000000000201",
+      reservationId: mockReservation.id,
       status: "COMPLETED",
-      returnedAt: "2026-09-01T12:00:00.000Z",
-      returnedBy: deliveryConfirmedReservation.requester,
+      returnedAt: "2026-09-02T10:00:00.000Z",
+      returnedBy: mockReservation.requester,
       items: [],
-      approval: null,
+      approval: {
+        id: "ret-app-1",
+        status: "APPROVED",
+        description: "All parts in good condition",
+        decidedAt: "2026-09-02T11:00:00.000Z",
+        approver: mockReservation.requester,
+      },
       capabilities: { canApprove: false, canReject: false },
-      createdAt: "2026-09-01T12:00:00.000Z",
-      updatedAt: "2026-09-01T12:00:00.000Z",
+      createdAt: "2026-09-02T10:00:00.000Z",
+      updatedAt: "2026-09-02T11:00:00.000Z",
     });
 
     render(
-      <MemoryRouter initialEntries={[`/reservations/${deliveryConfirmedReservation.id}`]}>
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -434,60 +478,160 @@ describe("ReservationDetailPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByRole("heading", { name: "Quarterly town hall" });
+    // 1. Wait for Return Inspection Review toolbar to appear in manifest
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Return Inspection Review/i, { selector: "span" }),
+      ).toBeInTheDocument();
+    });
 
-    // The inline return form should be rendered directly by default in the page
-    expect(screen.getByRole("heading", { name: /Return request/i })).toBeInTheDocument();
+    const remarkInput = screen.getByPlaceholderText(/Inspection remarks \/ condition note/i);
+    fireEvent.change(remarkInput, { target: { value: "All parts in good condition" } });
 
-    // Verify the return quantity input
-    const returnQtyInput = screen.getByLabelText(`Return quantity for ${deliveryConfirmedReservation.items[0].asset.name}`);
-    expect(returnQtyInput).toHaveValue(1);
+    const approveReturnBtn = screen.getByRole("button", { name: "Approve Return" });
+    fireEvent.click(approveReturnBtn);
 
-    // Submit return confirm request
-    fireEvent.click(
-      screen.getByRole("button", { name: "Return confirm request" }),
+    await waitFor(() => {
+      expect(decideReturnSpy).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000101",
+        "00000000-0000-4000-8000-000000000201",
+        {
+          decision: "APPROVE",
+          description: "All parts in good condition",
+        }
+      );
+    });
+  });
+
+  it("renders interactive return inspection checklist and submits item condition breakdown", async () => {
+    const pendingReturnReservation: ReservationDetail = {
+      ...mockReservation,
+      status: "RETURN_PENDING",
+      items: [
+        {
+          ...mockReservation.items[0],
+          status: "DELIVERED",
+          returnSummary: {
+            returnedQuantity: 0,
+            brokenQuantity: 0,
+            lostQuantity: 0,
+            pendingReturnQuantity: 2,
+            remainingReturnQuantity: 0,
+          },
+        },
+      ],
+      returns: [
+        {
+          id: "00000000-0000-4000-8000-000000000201",
+          reservationId: mockReservation.id,
+          status: "PENDING",
+          returnedAt: "2026-09-02T10:00:00.000Z",
+          returnedBy: mockReservation.requester,
+          items: [
+            {
+              id: "ret-item-1",
+              reservationItemId: "item-1",
+              assetId: "asset-1",
+              assetName: "Stage Camera 4K",
+              managementArea: { id: "area-1", name: "Marketing" },
+              quantityReturned: 2,
+              quantityBroken: 0,
+              quantityLost: 0,
+              description: null,
+            },
+          ],
+          approval: {
+            id: "ret-app-1",
+            status: "PENDING",
+            description: null,
+            decidedAt: null,
+            approver: mockReservation.requester,
+          },
+          capabilities: { canApprove: true, canReject: true },
+          createdAt: "2026-09-02T10:00:00.000Z",
+          updatedAt: "2026-09-02T10:00:00.000Z",
+        },
+      ],
+    };
+
+    vi.spyOn(api, "reservation").mockResolvedValue(pendingReturnReservation);
+    const decideReturnSpy = vi.spyOn(api, "decideReturn").mockResolvedValue({
+      id: "00000000-0000-4000-8000-000000000201",
+      reservationId: mockReservation.id,
+      status: "COMPLETED",
+      returnedAt: "2026-09-02T10:00:00.000Z",
+      returnedBy: mockReservation.requester,
+      items: [],
+      approval: {
+        id: "ret-app-1",
+        status: "APPROVED",
+        description: "1 intact, 1 minor cable damage",
+        decidedAt: "2026-09-02T11:00:00.000Z",
+        approver: mockReservation.requester,
+      },
+      capabilities: { canApprove: false, canReject: false },
+      createdAt: "2026-09-02T10:00:00.000Z",
+      updatedAt: "2026-09-02T11:00:00.000Z",
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
     );
 
-    await waitFor(() =>
-      expect(createReturnSpy).toHaveBeenCalledWith(
-        deliveryConfirmedReservation.id,
-        expect.objectContaining({
-          items: expect.arrayContaining([
-            expect.objectContaining({
-              reservationItemId: deliveryConfirmedReservation.items[0].id,
+    // 1. Wait for inspection review bar and checklist item to appear
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Return Inspection Review/i, { selector: "span" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByLabelText("Select Stage Camera 4K for inspection"),
+      ).toBeChecked();
+      expect(screen.getByText("Stage Camera 4K")).toBeInTheDocument();
+      expect(screen.getByText("Marketing")).toBeInTheDocument();
+    });
+
+    const goodInput = screen.getByLabelText("Good quantity for Stage Camera 4K");
+    expect(goodInput).toBeInTheDocument();
+    fireEvent.change(goodInput, { target: { value: "1" } });
+
+    const brokenInput = screen.getByLabelText("Broken quantity for Stage Camera 4K");
+    expect(brokenInput).toBeInTheDocument();
+    fireEvent.change(brokenInput, { target: { value: "1" } });
+
+    const lostInput = screen.getByLabelText("Lost quantity for Stage Camera 4K");
+    expect(lostInput).toBeInTheDocument();
+
+    const remarkInput = screen.getByPlaceholderText(/Inspection remarks \/ condition note/i);
+    fireEvent.change(remarkInput, { target: { value: "1 intact, 1 minor cable damage" } });
+
+    const approveReturnBtn = screen.getByRole("button", { name: "Approve Return" });
+    fireEvent.click(approveReturnBtn);
+
+    await waitFor(() => {
+      expect(decideReturnSpy).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000101",
+        "00000000-0000-4000-8000-000000000201",
+        {
+          decision: "APPROVE",
+          items: [
+            {
+              reservationItemId: "item-1",
               quantityReturned: 1,
-            }),
-          ]),
-        }),
-      ),
-    );
+              quantityBroken: 1,
+              quantityLost: 0,
+              description: undefined,
+            },
+          ],
+          description: "1 intact, 1 minor cable damage",
+        }
+      );
+    });
   });
 });
-
-function reservationItem(id: string, assetId: string, name: string) {
-  return {
-    id,
-    quantity: 1,
-    status: "PENDING" as const,
-    asset: {
-      id: assetId,
-      name,
-      description: null,
-      pictureUrl: null,
-      isActive: true,
-      managementArea: { id: "area-1", name: "Production" },
-      template: null,
-    },
-    approval: null,
-    availability: {
-      assetId,
-      totalQuantity: 2,
-      approvedQuantity: 0,
-      pendingQuantity: 0,
-      availableQuantity: 2,
-      pendingReservationCount: 0,
-    },
-    warnings: [],
-    capabilities: { canApprove: true, canReject: true },
-  };
-}

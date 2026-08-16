@@ -142,7 +142,10 @@ try {
 
 try {
   console.log(`  🔄 Synchronizing database tables (prisma db push)...`);
-  execSync("npx prisma db push --skip-generate", {
+  // --accept-data-loss: Prisma 7 falsely reports the filtered unique index
+  // (reservation_change_requests_one_pending) as a pending change even when
+  // already applied, so a plain push always exits 1. Safe in dev (disposable DB).
+  execSync("npx prisma db push --accept-data-loss", {
     cwd: backendDir,
     stdio: "ignore",
     timeout: 15000,
