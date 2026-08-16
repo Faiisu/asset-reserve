@@ -13,7 +13,6 @@ import {
   Check,
   X,
   ClipboardCheck,
-  AlertTriangle,
 } from "lucide-react";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -58,6 +57,7 @@ export function ReservationDetailPage() {
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [selectedDeliveryItemIds, setSelectedDeliveryItemIds] = useState<string[]>([]);
   const [selectedReturnItemIds, setSelectedReturnItemIds] = useState<string[]>([]);
+  const [selectedInspectItemIds, setSelectedInspectItemIds] = useState<string[]>([]);
 
   // Remarks / notes for each state
   const [approvalComment, setApprovalComment] = useState("");
@@ -94,7 +94,7 @@ export function ReservationDetailPage() {
         (ret) => ret.status === "PENDING" || ret.approval?.status === "PENDING",
       );
       const initialInspection: Record<string, InspectionItemState> = {};
-      if (pendingReturn && pendingReturn.items) {
+      if (pendingReturn && pendingReturn.items && pendingReturn.items.length > 0) {
         pendingReturn.items.forEach((item) => {
           initialInspection[item.reservationItemId] = {
             quantityReturned: item.quantityReturned,
@@ -104,6 +104,9 @@ export function ReservationDetailPage() {
             description: item.description ?? "",
           };
         });
+        setSelectedInspectItemIds(pendingReturn.items.map((i) => i.reservationItemId));
+      } else {
+        setSelectedInspectItemIds([]);
       }
       setInspectionItemStates(initialInspection);
 
@@ -217,6 +220,22 @@ export function ReservationDetailPage() {
       setSelectedReturnItemIds([]);
     } else {
       setSelectedReturnItemIds(returnableItems.map((item) => item.id));
+    }
+  };
+
+  // Toggle selection for inspection review
+  const toggleInspectItemSelection = (itemId: string) => {
+    setSelectedInspectItemIds((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+  };
+
+  const toggleSelectAllInspectable = () => {
+    const inspectableIds = (pendingInspectableReturn?.items || []).map((i) => i.reservationItemId);
+    if (selectedInspectItemIds.length === inspectableIds.length) {
+      setSelectedInspectItemIds([]);
+    } else {
+      setSelectedInspectItemIds(inspectableIds);
     }
   };
 
@@ -336,7 +355,11 @@ export function ReservationDetailPage() {
     setActionError(null);
     setActionNotice(null);
 
-    const decidedItems = (pendingInspectableReturn.items || []).map((retItem) => {
+    const targetReturnItems = (pendingInspectableReturn.items || []).filter((retItem) =>
+      selectedInspectItemIds.length === 0 || selectedInspectItemIds.includes(retItem.reservationItemId)
+    );
+
+    const decidedItems = targetReturnItems.map((retItem) => {
       const itemState = inspectionItemStates[retItem.reservationItemId] ?? {
         quantityReturned: retItem.quantityReturned,
         quantityBroken: retItem.quantityBroken ?? 0,
@@ -352,6 +375,30 @@ export function ReservationDetailPage() {
         description: itemState.description.trim() || undefined,
       };
     });
+
+    if (decision === "APPROVE") {
+      for (const retItem of targetReturnItems) {
+        const itemState = inspectionItemStates[retItem.reservationItemId] ?? {
+          quantityReturned: retItem.quantityReturned,
+          quantityBroken: 0,
+          quantityLost: 0,
+        };
+        const good = itemState.quantityReturned || 0;
+        const broken = itemState.quantityBroken || 0;
+        const lost = itemState.quantityLost || 0;
+        const total = good + broken + lost;
+        const maxAllowed = retItem.quantityReturned;
+        if (total > maxAllowed) {
+          const resItem = reservation.items.find((i) => i.id === retItem.reservationItemId);
+          const assetName = resItem?.asset.name ?? "item";
+          setActionError(
+            `Total inspected units (${total}) exceeds returned quantity (${maxAllowed}) for ${assetName}.`
+          );
+          setActionLoading(false);
+          return;
+        }
+      }
+    }
 
     try {
       await api.decideReturn(reservation.id, pendingInspectableReturn.id, {
@@ -566,7 +613,7 @@ export function ReservationDetailPage() {
                       : returnableItems.length > 0
                         ? `${returnableItems.length} equipment line(s) pending return`
                         : pendingInspectableReturn
-                          ? "Return inspection checklist • Verify returned equipment condition"
+                          ? "Return Inspection • Verify returned equipment condition"
                           : reservation.status === "COMPLETED" || reservation.status === "RETURN_CONFIRMED"
                             ? "All equipment returned and restocked"
                             : "Equipment manifest summary"}
@@ -612,6 +659,19 @@ export function ReservationDetailPage() {
                     aria-label="Select all items for return"
                   />
                   <span>Select all for return ({returnableItems.length})</span>
+                </label>
+              ) : pendingInspectableReturn && pendingInspectableReturn.items?.length ? (
+                <label className="approval-select-all">
+                  <input
+                    type="checkbox"
+                    checked={
+                      selectedInspectItemIds.length > 0 &&
+                      selectedInspectItemIds.length === pendingInspectableReturn.items.length
+                    }
+                    onChange={toggleSelectAllInspectable}
+                    aria-label="Select all items for inspection"
+                  />
+                  <span>Select all for inspection ({pendingInspectableReturn.items.length})</span>
                 </label>
               ) : null}
             </div>
@@ -709,13 +769,13 @@ export function ReservationDetailPage() {
               </div>
             )}
 
-            {/* 📋 4. MANAGER RETURN INSPECTION CHECKLIST TOOLBAR */}
+            {/* 📋 4. MANAGER RETURN INSPECTION REVIEW TOOLBAR */}
             {pendingInspectableReturn && (
               <div className="res-review-bar res-inspection-bar">
                 <div className="res-review-bar__title">
                   <ClipboardCheck size={18} />
                   <span>
-                    Return Inspection Review (Slip #{pendingInspectableReturn.id.slice(0, 8)})
+                    Return Inspection Review ({selectedInspectItemIds.length} of {pendingInspectableReturn.items?.length || reservation.items.length} selected)
                   </span>
                 </div>
                 <div className="res-review-bar__actions">
@@ -747,150 +807,19 @@ export function ReservationDetailPage() {
               </div>
             )}
 
-            {/* 📋 RETURN APPROVAL INSPECTION CHECKLIST CARDS */}
-            {pendingInspectableReturn && pendingInspectableReturn.items && pendingInspectableReturn.items.length > 0 && (
-              <div className="res-checklist-section">
-                <h4 style={{ margin: "0 0 4px", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--teal)" }}>
-                  Inspection Checklist & Restock Manifest
-                </h4>
-                {pendingInspectableReturn.items.map((retItem) => {
-                  const state = inspectionItemStates[retItem.reservationItemId] || {
-                    quantityReturned: retItem.quantityReturned,
-                    quantityBroken: 0,
-                    quantityLost: 0,
-                    isVerified: true,
-                    description: "",
-                  };
-
-                  const isDamagedOrLost = (state.quantityBroken > 0 || state.quantityLost > 0);
-
-                  return (
-                    <div
-                      key={retItem.id}
-                      className="res-checklist-card"
-                      data-verified={state.isVerified ? "true" : undefined}
-                    >
-                      <div className="res-checklist-header">
-                        <div className="res-checklist-identity">
-                          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                            <input
-                              type="checkbox"
-                              checked={state.isVerified}
-                              onChange={(e) => {
-                                setInspectionItemStates((prev) => ({
-                                  ...prev,
-                                  [retItem.reservationItemId]: {
-                                    ...state,
-                                    isVerified: e.target.checked,
-                                  },
-                                }));
-                              }}
-                              aria-label={`Verify ${retItem.assetName} return checklist`}
-                            />
-                            <div>
-                              <div className="res-checklist-title">{retItem.assetName}</div>
-                              <div className="res-checklist-meta">
-                                Area: {retItem.managementArea?.name ?? "General"} • Returned by borrower: {retItem.quantityReturned} units
-                              </div>
-                            </div>
-                          </label>
-                        </div>
-                        <div>
-                          {isDamagedOrLost ? (
-                            <span className="res-checklist-tag res-checklist-tag--warn">
-                              <AlertTriangle size={12} />
-                              <span>Damage/Loss Flagged</span>
-                            </span>
-                          ) : (
-                            <span className="res-checklist-tag res-checklist-tag--ok">
-                              <CheckCircle size={12} />
-                              <span>Condition Intact</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="res-checklist-grid">
-                        <div className="res-checklist-field res-checklist-field--number">
-                          <label>Intact Qty (OK)</label>
-                          <input
-                            type="number"
-                            min={0}
-                            max={retItem.quantityReturned}
-                            value={state.quantityReturned}
-                            aria-label={`Intact quantity for ${retItem.assetName}`}
-                            onChange={(e) => {
-                              const val = Math.max(0, parseInt(e.target.value) || 0);
-                              setInspectionItemStates((prev) => ({
-                                ...prev,
-                                [retItem.reservationItemId]: { ...state, quantityReturned: val },
-                              }));
-                            }}
-                            className="control"
-                          />
-                        </div>
-
-                        <div className="res-checklist-field res-checklist-field--number">
-                          <label>Broken Qty</label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={state.quantityBroken}
-                            aria-label={`Broken quantity for ${retItem.assetName}`}
-                            onChange={(e) => {
-                              const val = Math.max(0, parseInt(e.target.value) || 0);
-                              setInspectionItemStates((prev) => ({
-                                ...prev,
-                                [retItem.reservationItemId]: { ...state, quantityBroken: val },
-                              }));
-                            }}
-                            className="control"
-                          />
-                        </div>
-
-                        <div className="res-checklist-field res-checklist-field--number">
-                          <label>Lost Qty</label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={state.quantityLost}
-                            aria-label={`Lost quantity for ${retItem.assetName}`}
-                            onChange={(e) => {
-                              const val = Math.max(0, parseInt(e.target.value) || 0);
-                              setInspectionItemStates((prev) => ({
-                                ...prev,
-                                [retItem.reservationItemId]: { ...state, quantityLost: val },
-                              }));
-                            }}
-                            className="control"
-                          />
-                        </div>
-
-                        <div className="res-checklist-field" style={{ gridColumn: "span 2" }}>
-                          <label>Condition Notes / Remarks</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Lens clean, minor wear on case"
-                            value={state.description}
-                            aria-label={`Condition note for ${retItem.assetName}`}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setInspectionItemStates((prev) => ({
-                                ...prev,
-                                [retItem.reservationItemId]: { ...state, description: val },
-                              }));
-                            }}
-                            className="control"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* Manifest Table Header for Return Inspection */}
+            {pendingInspectableReturn && (
+              <div className="res-manifest-grid-header res-manifest-grid-header--inspection">
+                <span className="res-grid-th res-grid-th--check"></span>
+                <span className="res-grid-th res-grid-th--media"></span>
+                <span className="res-grid-th res-grid-th--asset">Equipment & Area</span>
+                <span className="res-grid-th res-grid-th--good">Good</span>
+                <span className="res-grid-th res-grid-th--broken">Broken</span>
+                <span className="res-grid-th res-grid-th--lost">Lost</span>
               </div>
             )}
 
-            {/* Equipment Items List */}
+            {/* Equipment Items List (Uniform across all 4 lifecycle states) */}
             <div className="res-manifest-list">
               {reservation.items.map((item) => {
                 const itemStatusClass = item.status.toLowerCase();
@@ -912,10 +841,21 @@ export function ReservationDetailPage() {
                       ["DELIVERY_CONFIRMED", "ACTIVE"].includes(reservation.status)),
                 );
 
+                const retItem = pendingInspectableReturn?.items?.find(
+                  (ri) => ri.reservationItemId === item.id,
+                );
+                const isInspectSelectable = Boolean(
+                  pendingInspectableReturn &&
+                  (retItem || pendingInspectableReturn.items?.length === 0 || pendingInspectableReturn.status === "PENDING"),
+                );
+
                 const isSelected = selectedItemIds.includes(item.id);
                 const isDeliverySelected = selectedDeliveryItemIds.includes(item.id);
                 const isReturnSelected = selectedReturnItemIds.includes(item.id);
-                const isSelectable = isApprovable || isDeliverySelectable || isReturnSelectable;
+                const isInspectSelected = selectedInspectItemIds.includes(item.id);
+
+                const isSelectable =
+                  isApprovable || isDeliverySelectable || isReturnSelectable || isInspectSelectable;
                 const isApproved = item.status === "APPROVED";
                 const isDelivered =
                   item.status === "DELIVERED" ||
@@ -924,6 +864,8 @@ export function ReservationDetailPage() {
                   item.status === "RETURNED" ||
                   (item.returnSummary?.returnedQuantity === item.quantity &&
                     ["RETURN_CONFIRMED", "COMPLETED"].includes(reservation.status));
+
+                const inspectReturnedQty = retItem?.quantityReturned ?? item.quantity;
 
                 return (
                   <div
@@ -934,8 +876,10 @@ export function ReservationDetailPage() {
                       isDeliverySelectable ? "reservation-item-card--handover" : ""
                     } ${
                       isReturnSelectable ? "res-manifest-item--return" : ""
+                    } ${
+                      isInspectSelectable ? "res-manifest-item--inspection" : ""
                     }`}
-                    data-selected={(isSelected || isDeliverySelected || isReturnSelected) || undefined}
+                    data-selected={(isSelected || isDeliverySelected || isReturnSelected || isInspectSelected) || undefined}
                     data-status={itemStatusClass}
                     onClick={(e) => {
                       if (
@@ -946,6 +890,7 @@ export function ReservationDetailPage() {
                         if (isApprovable) toggleItemSelection(item.id);
                         else if (isDeliverySelectable) toggleDeliveryItemSelection(item.id);
                         else if (isReturnSelectable) toggleReturnItemSelection(item.id);
+                        else if (isInspectSelectable) toggleInspectItemSelection(item.id);
                       }
                     }}
                   >
@@ -959,19 +904,24 @@ export function ReservationDetailPage() {
                                 ? isSelected
                                 : isDeliverySelectable
                                   ? isDeliverySelected
-                                  : isReturnSelected
+                                  : isReturnSelectable
+                                    ? isReturnSelected
+                                    : isInspectSelected
                             }
                             onChange={() => {
                               if (isApprovable) toggleItemSelection(item.id);
                               else if (isDeliverySelectable) toggleDeliveryItemSelection(item.id);
                               else if (isReturnSelectable) toggleReturnItemSelection(item.id);
+                              else if (isInspectSelectable) toggleInspectItemSelection(item.id);
                             }}
                             aria-label={
                               isApprovable
                                 ? `Select ${item.asset.name}`
                                 : isDeliverySelectable
                                   ? `Select ${item.asset.name} for handover`
-                                  : `Select ${item.asset.name} for return`
+                                  : isReturnSelectable
+                                    ? `Select ${item.asset.name} for return`
+                                    : `Select ${item.asset.name} for inspection`
                             }
                             className="reservation-item-select"
                             onClick={(e) => e.stopPropagation()}
@@ -993,71 +943,165 @@ export function ReservationDetailPage() {
 
                         <div className="res-pending-identity">
                           <div className="res-item-copy">
-                            <div className="res-item-name">{item.asset.name}</div>
+                            <div className="res-item-name-row">
+                              <div className="res-item-name">{item.asset.name}</div>
+                              <span className="res-item-area">
+                                {item.asset.managementArea.name}
+                              </span>
+                            </div>
                             <div className="res-item-sub">
-                              {item.asset.managementArea.name}
-                              {isReturnSelectable && ` • Awaiting return (${remainingReturn} units remaining)`}
-                              {isDeliverySelectable && ` • Cleared for handover`}
-                              {isApprovable && ` • Awaiting area clearance`}
+                              {isInspectSelectable
+                                ? `Returned by borrower (${inspectReturnedQty} ${inspectReturnedQty === 1 ? "unit" : "units"})`
+                                : isReturnSelectable
+                                  ? `Awaiting return (${remainingReturn} units remaining)`
+                                  : isDeliverySelectable
+                                    ? `Cleared for handover`
+                                    : `Awaiting area clearance`}
                             </div>
                           </div>
                         </div>
 
-                        <div className="res-pending-quantity">
-                          {isApprovable ? (
-                            <>
+                        {isInspectSelectable ? (
+                          <>
+                            <div className="res-inspect-col res-inspect-col--good" onClick={(e) => e.stopPropagation()}>
                               <input
-                                id={`approve-qty-${item.id}`}
-                                aria-label={`Approve quantity for ${item.asset.name}`}
+                                id={`inspect-good-${item.id}`}
+                                aria-label={`Good quantity for ${item.asset.name}`}
                                 type="number"
-                                min={1}
-                                max={item.quantity}
-                                value={itemQuantities[item.id] ?? item.quantity}
+                                min={0}
+                                max={inspectReturnedQty}
+                                value={inspectionItemStates[item.id]?.quantityReturned ?? inspectReturnedQty}
                                 onChange={(e) => {
-                                  const val = Math.min(
-                                    item.quantity,
-                                    Math.max(1, parseInt(e.target.value) || 1),
-                                  );
-                                  setItemQuantities((prev) => ({ ...prev, [item.id]: val }));
+                                  const val = Math.max(0, parseInt(e.target.value) || 0);
+                                  const currentBroken = inspectionItemStates[item.id]?.quantityBroken ?? 0;
+                                  const currentLost = inspectionItemStates[item.id]?.quantityLost ?? 0;
+                                  const maxGood = Math.max(0, inspectReturnedQty - currentBroken - currentLost);
+                                  const clampedGood = Math.min(maxGood, val);
+                                  setInspectionItemStates((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...(prev[item.id] || { quantityBroken: 0, quantityLost: 0, isVerified: true, description: "" }),
+                                      quantityReturned: clampedGood,
+                                    },
+                                  }));
                                 }}
-                                onClick={(e) => e.stopPropagation()}
                                 className="control"
                               />
-                              <span aria-label={`${item.quantity} total reserved`}>
-                                / {item.quantity}
-                              </span>
-                            </>
-                          ) : isReturnSelectable ? (
-                            <>
+                            </div>
+
+                            <div className="res-inspect-col res-inspect-col--broken" onClick={(e) => e.stopPropagation()}>
                               <input
-                                id={`return-qty-${item.id}`}
-                                aria-label={`Return quantity for ${item.asset.name}`}
+                                id={`inspect-broken-${item.id}`}
+                                aria-label={`Broken quantity for ${item.asset.name}`}
                                 type="number"
-                                min={1}
-                                max={remainingReturn}
-                                value={returnQuantities[item.id] ?? remainingReturn}
+                                min={0}
+                                max={inspectReturnedQty}
+                                value={inspectionItemStates[item.id]?.quantityBroken ?? 0}
                                 onChange={(e) => {
-                                  const val = Math.min(
-                                    remainingReturn,
-                                    Math.max(1, parseInt(e.target.value) || 1),
-                                  );
-                                  setReturnQuantities((prev) => ({ ...prev, [item.id]: val }));
+                                  const val = Math.max(0, parseInt(e.target.value) || 0);
+                                  const currentLost = inspectionItemStates[item.id]?.quantityLost ?? 0;
+                                  const maxBroken = Math.max(0, inspectReturnedQty - currentLost);
+                                  const clampedBroken = Math.min(maxBroken, val);
+                                  const newGood = Math.max(0, inspectReturnedQty - clampedBroken - currentLost);
+                                  setInspectionItemStates((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...(prev[item.id] || { isVerified: true, description: "" }),
+                                      quantityBroken: clampedBroken,
+                                      quantityReturned: newGood,
+                                      quantityLost: currentLost,
+                                    },
+                                  }));
                                 }}
-                                onClick={(e) => e.stopPropagation()}
                                 className="control"
-                                style={{ width: 64, height: 32, textAlign: "center", fontWeight: 700 }}
                               />
-                              <span aria-label={`${remainingReturn} remaining to return`}>
-                                / {remainingReturn}
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <strong>{item.quantity}</strong>
-                              <span>{item.quantity === 1 ? "unit" : "units"}</span>
-                            </>
-                          )}
-                        </div>
+                            </div>
+
+                            <div className="res-inspect-col res-inspect-col--lost" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                id={`inspect-lost-${item.id}`}
+                                aria-label={`Lost quantity for ${item.asset.name}`}
+                                type="number"
+                                min={0}
+                                max={inspectReturnedQty}
+                                value={inspectionItemStates[item.id]?.quantityLost ?? 0}
+                                onChange={(e) => {
+                                  const val = Math.max(0, parseInt(e.target.value) || 0);
+                                  const currentBroken = inspectionItemStates[item.id]?.quantityBroken ?? 0;
+                                  const maxLost = Math.max(0, inspectReturnedQty - currentBroken);
+                                  const clampedLost = Math.min(maxLost, val);
+                                  const newGood = Math.max(0, inspectReturnedQty - currentBroken - clampedLost);
+                                  setInspectionItemStates((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...(prev[item.id] || { isVerified: true, description: "" }),
+                                      quantityLost: clampedLost,
+                                      quantityReturned: newGood,
+                                      quantityBroken: currentBroken,
+                                    },
+                                  }));
+                                }}
+                                className="control"
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="res-pending-quantity">
+                            {isApprovable ? (
+                              <>
+                                <input
+                                  id={`approve-qty-${item.id}`}
+                                  aria-label={`Approve quantity for ${item.asset.name}`}
+                                  type="number"
+                                  min={1}
+                                  max={item.quantity}
+                                  value={itemQuantities[item.id] ?? item.quantity}
+                                  onChange={(e) => {
+                                    const val = Math.min(
+                                      item.quantity,
+                                      Math.max(1, parseInt(e.target.value) || 1),
+                                    );
+                                    setItemQuantities((prev) => ({ ...prev, [item.id]: val }));
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="control"
+                                />
+                                <span aria-label={`${item.quantity} total reserved`}>
+                                  / {item.quantity}
+                                </span>
+                              </>
+                            ) : isReturnSelectable ? (
+                              <>
+                                <input
+                                  id={`return-qty-${item.id}`}
+                                  aria-label={`Return quantity for ${item.asset.name}`}
+                                  type="number"
+                                  min={1}
+                                  max={remainingReturn}
+                                  value={returnQuantities[item.id] ?? remainingReturn}
+                                  onChange={(e) => {
+                                    const val = Math.min(
+                                      remainingReturn,
+                                      Math.max(1, parseInt(e.target.value) || 1),
+                                    );
+                                    setReturnQuantities((prev) => ({ ...prev, [item.id]: val }));
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="control"
+                                  style={{ width: 64, height: 32, textAlign: "center", fontWeight: 700 }}
+                                />
+                                <span aria-label={`${remainingReturn} remaining to return`}>
+                                  / {remainingReturn}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <strong>{item.quantity}</strong>
+                                <span>{item.quantity === 1 ? "unit" : "units"}</span>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </>
                     ) : (
                       <>
@@ -1137,41 +1181,6 @@ export function ReservationDetailPage() {
               })}
             </div>
           </div>
-
-          {/* Return History Slips (If any) */}
-          {reservation.returns.length > 0 && (
-            <div className="res-card">
-              <div className="res-card-header">
-                <h3>
-                  <RotateCcw size={16} />
-                  <span>Return & Inspection Slips</span>
-                </h3>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {reservation.returns.map((ret) => {
-                  const retStatusClass = ret.status.toLowerCase();
-                  return (
-                    <div key={ret.id} style={{ padding: "12px 16px", background: "var(--surface-raised)", borderRadius: 8, border: "1px solid var(--line)", fontSize: 12 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: 700 }}>
-                        <span>Slip ID: {ret.id.slice(0, 8)}</span>
-                        <span className={`res-status-badge res-status-badge--${retStatusClass}`}>
-                          {ret.status}
-                        </span>
-                      </div>
-                      <p style={{ margin: "4px 0 0", color: "var(--ink-faint)" }}>
-                        Submitted at: {formatDate(ret.createdAt, true)} • Returned by: {ret.returnedBy?.name ?? ret.returnedBy?.email ?? "Borrower"}
-                      </p>
-                      {ret.approval?.description && (
-                        <p style={{ margin: "8px 0 0", padding: "8px 10px", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink-soft)" }}>
-                          <strong>Inspector Remarks:</strong> {ret.approval.description}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Right Column (1/3): Participants & Help */}

@@ -704,15 +704,51 @@ Approve/reject เป็นราย item ตาม area permission เมื่
 
 Requester หรือ actor ที่ manage reservation ได้ยกเลิกสถานะ `DRAFT`, `PENDING_APPROVAL`, `PARTIALLY_APPROVED`, `APPROVED` พร้อม reason optional แล้วเปลี่ยน reservation/item/approval ที่เกี่ยวข้องเป็น cancelled/rejected ตาม domain rule เพื่อคืน allocation
 
-## 10. Upload API
+### 9.10 `POST /reservations/:reservationId/delivery-confirm`
 
-### 10.1 `POST /uploads/image`
+เจ้าหน้าที่คลังหรือ Area Manager ยืนยันการส่งมอบอุปกรณ์ (Handover/Pickup):
+1. ตรวจสอบสถานะการจองต้องเป็น `APPROVED` (หรือ `PARTIALLY_APPROVED` ที่มีรายการ approved)
+2. อัปเดตสถานะของ `reservation_items` ที่อนุมัติเป็น `DELIVERED` พร้อมบันทึก `checkedOutBy = actor.id` และ `checkedOutAt = now`
+3. เปลี่ยนสถานะภาพรวมของ `reservations` เป็น `DELIVERY_CONFIRMED`
+4. สถานะจะส่งต่อเข้าสู่กระบวนการใช้งานและการรอส่งคืน (Pending Return)
+
+## 10. Return & Inspection APIs
+
+กระบวนการส่งคืนอุปกรณ์แบ่งเป็น 2 ระยะ (Two-phase return workflow):
+
+```mermaid
+flowchart LR
+    A[DELIVERY_CONFIRMED] -->|1. Borrower submits return slip| B[Return Slip: PENDING]
+    B -->|2. Manager inspects Good/Broken/Lost| C[Return Slip: COMPLETED]
+    C -->|All items returned| D[Reservation: COMPLETED]
+```
+
+### 10.1 `GET /returns` & `GET /returns/:returnId`
+- รองรับการดูรายการสลิปผ่านมุมมอง `view=MINE` (สลิปที่ตนเองส่งคืน), `APPROVALS` (สลิปในพื้นที่ที่ตนดูแล), `ALL` (ผู้ดูแลระบบ)
+- แสดงรายการอุปกรณ์ในสลิป, จำนวนที่ส่งคืน, และผลการตัดสินสภาพ
+
+### 10.2 `POST /reservations/:reservationId/returns`
+- ผู้ยืมหรือทีมงานส่งสลิปเพื่อคืนอุปกรณ์
+- ตรวจสอบว่าจำนวนที่ส่งคืนไม่เกินยอดคงเหลือที่ยังไม่ได้ส่งคืน ($\text{quantityReturned} \le \text{ApprovedQty} - \text{PreviouslyReturnedQty}$)
+- สร้างเรคคอร์ด `returns` ในสถานะ `PENDING`
+
+### 10.3 `POST /reservations/:reservationId/returns/:returnId/decision`
+- ผู้จัดการพื้นที่ตรวจรับสภาพอุปกรณ์และระบุตัวเลข:
+  - **Good (`quantityReturned`)**: อุปกรณ์สภาพดี ไม่ลด `totalQuantity` ในคลัง
+  - **Broken (`quantityBroken`)**: อุปกรณ์ชำรุดเสียหาย บันทึก Transaction `BROKEN` และตัดลดยอดสต็อก `totalQuantity -= Broken` ทันที
+  - **Lost (`quantityLost`)**: อุปกรณ์สูญหาย บันทึก Transaction `LOST` และตัดลดยอดสต็อก `totalQuantity -= Lost` ทันที
+- **Validation Guard**: ผลรวม $\text{Good} + \text{Broken} + \text{Lost}$ ต้องไม่เกินจำนวนอุปกรณ์ที่ระบุในสลิปนั้น หากเกินระบบจะ Reject ด้วย `422 VALIDATION_ERROR`
+- เมื่อทุกรายการในคำขอจองได้รับการตรวจรับครบถ้วน สถานะการจองจะถูกปรับเป็น `COMPLETED` อัตโนมัติ
+
+## 11. Upload API
+
+### 11.1 `POST /uploads/image`
 
 รับ `multipart/form-data` field `file` หนึ่งไฟล์ Fastify จำกัด 10 MiB ตรวจ MIME เป็น image, stream ไป `uploads/assets/{timestamp}-{uuid}.{ext}` และคืน public URL ใต้ `/uploads/assets/` ไฟล์ static ไม่ใช้ `/api/v1`
 
-## 11. Response data ที่ควรรู้
+## 12. Response data ที่ควรรู้
 
-### 11.1 Asset summary
+### 12.1 Asset summary
 
 ```ts
 type AssetSummary = {
@@ -747,7 +783,7 @@ type AssetSummary = {
 };
 ```
 
-### 11.2 List response
+### 12.2 List response
 
 ```ts
 type ListResponse<T> = {
@@ -759,7 +795,7 @@ type ListResponse<T> = {
 };
 ```
 
-## 12. Source-code map
+## 13. Source-code map
 
 | Domain                     | Controller                                                                                             | Algorithm/service                                                                                                                                                                                                                  |
 | -------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -769,5 +805,7 @@ type ListResponse<T> = {
 | Management areas           | [management-areas.controller.ts](../../../backend/src/management-areas/management-areas.controller.ts) | [management-areas.service.ts](../../../backend/src/management-areas/management-areas.service.ts)                                                                                                                                   |
 | Assets/templates/inventory | [assets.controller.ts](../../../backend/src/assets/assets.controller.ts)                               | [assets.service.ts](../../../backend/src/assets/assets.service.ts), [asset-templates.service.ts](../../../backend/src/assets/asset-templates.service.ts), [inventory.service.ts](../../../backend/src/assets/inventory.service.ts) |
 | Reservations               | [reservations.controller.ts](../../../backend/src/reservations/reservations.controller.ts)             | [reservations.service.ts](../../../backend/src/reservations/reservations.service.ts)                                                                                                                                               |
+| Returns & Inspection       | [returns.controller.ts](../../../backend/src/returns/returns.controller.ts)                             | [returns.service.ts](../../../backend/src/returns/returns.service.ts)                                                                                                                                                             |
 
 เมื่อเพิ่ม เปลี่ยน หรือลบ route ต้องอัปเดต endpoint catalog และหัวข้อ algorithm ในเอกสารนี้พร้อมกับ controller/service เพื่อไม่ให้เอกสารคลาดจาก implementation
+

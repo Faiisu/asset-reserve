@@ -256,6 +256,76 @@
         $ref: "#/components/responses/Conflict"
       "422":
         $ref: "#/components/responses/ValidationError"
+/reservations/{reservationId}/delivery-confirm:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+  post:
+    tags: [Reservations]
+    summary: Confirm equipment handover pickup
+    operationId: confirmDelivery
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ConfirmDeliveryRequest" }
+    responses:
+      "201":
+        description: Reservation detail with delivery confirmed status.
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReservationDetail" }
+      "401": { $ref: "#/components/responses/Unauthorized" }
+      "403": { $ref: "#/components/responses/Forbidden" }
+      "404": { $ref: "#/components/responses/NotFound" }
+      "409": { $ref: "#/components/responses/Conflict" }
+      "422": { $ref: "#/components/responses/ValidationError" }
+/reservations/{reservationId}/returns:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+  post:
+    tags: [Reservations]
+    summary: Submit a return slip for equipment drop-off
+    operationId: createReturnSlip
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/CreateReturnRequest" }
+    responses:
+      "201":
+        description: Created return record awaiting inspection.
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReturnDetail" }
+      "401": { $ref: "#/components/responses/Unauthorized" }
+      "403": { $ref: "#/components/responses/Forbidden" }
+      "404": { $ref: "#/components/responses/NotFound" }
+      "409": { $ref: "#/components/responses/Conflict" }
+      "422": { $ref: "#/components/responses/ValidationError" }
+/reservations/{reservationId}/returns/{returnId}/decision:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+    - $ref: "#/components/parameters/ReturnId"
+  post:
+    tags: [Reservations]
+    summary: Approve or reject return slip inspection with Good, Broken, Lost condition breakdown
+    operationId: decideReturnSlip
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ReturnDecisionRequest" }
+    responses:
+      "201":
+        description: Updated return record and completed reservation.
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReturnDetail" }
+      "401": { $ref: "#/components/responses/Unauthorized" }
+      "403": { $ref: "#/components/responses/Forbidden" }
+      "404": { $ref: "#/components/responses/NotFound" }
+      "409": { $ref: "#/components/responses/Conflict" }
+      "422": { $ref: "#/components/responses/ValidationError" }
 /reservations/{reservationId}/cancel:
   parameters:
     - $ref: "#/components/parameters/ReservationId"

@@ -507,6 +507,19 @@ describe("ReservationDetailPage", () => {
     const pendingReturnReservation: ReservationDetail = {
       ...mockReservation,
       status: "RETURN_PENDING",
+      items: [
+        {
+          ...mockReservation.items[0],
+          status: "DELIVERED",
+          returnSummary: {
+            returnedQuantity: 0,
+            brokenQuantity: 0,
+            lostQuantity: 0,
+            pendingReturnQuantity: 2,
+            remainingReturnQuantity: 0,
+          },
+        },
+      ],
       returns: [
         {
           id: "00000000-0000-4000-8000-000000000201",
@@ -572,24 +585,28 @@ describe("ReservationDetailPage", () => {
       </MemoryRouter>,
     );
 
-    // 1. Wait for inspection checklist to appear
+    // 1. Wait for inspection review bar and checklist item to appear
     await waitFor(() => {
       expect(
-        screen.getByText("Inspection Checklist & Restock Manifest"),
+        screen.getByText(/Return Inspection Review/i, { selector: "span" }),
       ).toBeInTheDocument();
+      expect(
+        screen.getByLabelText("Select Stage Camera 4K for inspection"),
+      ).toBeChecked();
+      expect(screen.getByText("Stage Camera 4K")).toBeInTheDocument();
+      expect(screen.getByText("Marketing")).toBeInTheDocument();
     });
 
-    const verifyCheck = screen.getByLabelText("Verify Stage Camera 4K return checklist");
-    expect(verifyCheck).toBeChecked();
-
-    const intactInput = screen.getByLabelText("Intact quantity for Stage Camera 4K");
-    fireEvent.change(intactInput, { target: { value: "1" } });
+    const goodInput = screen.getByLabelText("Good quantity for Stage Camera 4K");
+    expect(goodInput).toBeInTheDocument();
+    fireEvent.change(goodInput, { target: { value: "1" } });
 
     const brokenInput = screen.getByLabelText("Broken quantity for Stage Camera 4K");
+    expect(brokenInput).toBeInTheDocument();
     fireEvent.change(brokenInput, { target: { value: "1" } });
 
-    const conditionNoteInput = screen.getByLabelText("Condition note for Stage Camera 4K");
-    fireEvent.change(conditionNoteInput, { target: { value: "Cable damaged" } });
+    const lostInput = screen.getByLabelText("Lost quantity for Stage Camera 4K");
+    expect(lostInput).toBeInTheDocument();
 
     const remarkInput = screen.getByPlaceholderText(/Inspection remarks \/ condition note/i);
     fireEvent.change(remarkInput, { target: { value: "1 intact, 1 minor cable damage" } });
@@ -609,7 +626,7 @@ describe("ReservationDetailPage", () => {
               quantityReturned: 1,
               quantityBroken: 1,
               quantityLost: 0,
-              description: "Cable damaged",
+              description: undefined,
             },
           ],
           description: "1 intact, 1 minor cable damage",

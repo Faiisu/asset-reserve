@@ -26,6 +26,8 @@ tags:
     description: Picture-free reusable asset metadata.
   - name: Reservations
     description: Reservation details, item approvals, availability conflicts, overlap warnings, and post-approval changes.
+  - name: Returns
+    description: Equipment return slips, drop-off verification, and inspection decision workflow.
   - name: Uploads
     description: Authenticated local image uploads used by asset and user forms.
 security:
@@ -93,8 +95,18 @@ paths:
     $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1change-requests
   /reservations/{reservationId}/change-requests/{changeRequestId}/decision:
     $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1change-requests~1{changeRequestId}~1decision
+  /reservations/{reservationId}/delivery-confirm:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1delivery-confirm
+  /reservations/{reservationId}/returns:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1returns
+  /reservations/{reservationId}/returns/{returnId}/decision:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1returns~1{returnId}~1decision
   /reservations/{reservationId}/cancel:
     $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1cancel
+  /returns:
+    $ref: ./paths/returns.yaml#/~1returns
+  /returns/{returnId}:
+    $ref: ./paths/returns.yaml#/~1returns~1{returnId}
   /uploads/image:
     $ref: ./paths/uploads.yaml#/~1uploads~1image
 components:
@@ -121,6 +133,8 @@ components:
       $ref: ./components/parameters.yaml#/ReservationItemId
     ChangeRequestId:
       $ref: ./components/parameters.yaml#/ChangeRequestId
+    ReturnId:
+      $ref: ./components/parameters.yaml#/ReturnId
     Search:
       $ref: ./components/parameters.yaml#/Search
     Cursor:
@@ -307,6 +321,22 @@ components:
       $ref: ./components/schemas/reservations.yaml#/ReservationChangeRequest
     ReservationDetail:
       $ref: ./components/schemas/reservations.yaml#/ReservationDetail
+    ConfirmDeliveryRequest:
+      $ref: ./components/schemas/reservations.yaml#/ConfirmDeliveryRequest
+    ReturnItemInput:
+      $ref: ./components/schemas/reservations.yaml#/ReturnItemInput
+    CreateReturnRequest:
+      $ref: ./components/schemas/reservations.yaml#/CreateReturnRequest
+    ReturnDecisionRequest:
+      $ref: ./components/schemas/reservations.yaml#/ReturnDecisionRequest
+    ReturnItemDetail:
+      $ref: ./components/schemas/reservations.yaml#/ReturnItemDetail
+    ReturnApprovalDetail:
+      $ref: ./components/schemas/reservations.yaml#/ReturnApprovalDetail
+    ReturnDetail:
+      $ref: ./components/schemas/reservations.yaml#/ReturnDetail
+    ReturnListResponse:
+      $ref: ./components/schemas/reservations.yaml#/ReturnListResponse
     PageInfo:
       $ref: ./components/schemas/common.yaml#/PageInfo
     ErrorDetail:

@@ -24,13 +24,18 @@ const trim = ({ value }: { value: unknown }) =>
 
 const reservationStatuses = [
   "DRAFT",
+  "PENDING",
   "PENDING_APPROVAL",
   "PARTIALLY_APPROVED",
   "APPROVED",
+  "DELIVERY_CONFIRMED",
+  "ACTIVE",
+  "RETURN",
+  "RETURN_PENDING",
+  "RETURN_CONFIRMED",
+  "COMPLETED",
   "REJECTED",
   "CANCELLED",
-  "ACTIVE",
-  "COMPLETED",
 ] as const;
 
 export class ReservationListQueryDto extends SearchPaginationQueryDto {
