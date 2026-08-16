@@ -16,12 +16,6 @@
   .record-form {
     grid-template-columns: minmax(0, 1fr) 250px;
   }
-  .batch-row {
-    grid-template-columns: 28px 1fr 1fr 90px 38px;
-  }
-  .batch-row .field:nth-of-type(3) {
-    grid-column: 2 / 4;
-  }
   .access-overview {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -366,19 +360,13 @@
     width: 100%;
     height: auto;
   }
-  .batch-row {
-    grid-template-columns: 25px minmax(0, 1fr) 38px;
-    align-items: end;
+  .batch-row__header {
+    align-items: stretch;
   }
-  .batch-row .field {
-    grid-column: 2;
-  }
-  .batch-row .icon-button {
-    grid-column: 3;
-    grid-row: 1;
-  }
-  .batch-row__index {
-    grid-row: 1;
+  .batch-row__header .field,
+  .batch-row__field--name,
+  .batch-row__field--qty {
+    flex-basis: 100%;
   }
   .asset-hero {
     padding: 17px;

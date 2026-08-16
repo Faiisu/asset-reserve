@@ -5,9 +5,9 @@ import {
   CopyPlus,
   Plus,
   Save,
+  Star,
   Trash2,
   Upload,
-  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -662,9 +662,19 @@ type BatchRow = {
   key: number;
   name: string;
   description: string;
-  pictureUrl: string;
   quantity: string;
+  // Every photo attached to a row is both a potential thumbnail AND a
+  // recognition reference photo -- same model as the single-asset form, just
+  // duplicated per row. Nothing is uploaded anywhere until Add assets is
+  // clicked (see submit below): thumbnailId picks which one becomes the
+  // asset's pictureUrl.
+  photos: PendingPhoto[];
+  thumbnailId: string | null;
 };
+
+function newBatchRow(key: number): BatchRow {
+  return { key, name: "", description: "", quantity: "1", photos: [], thumbnailId: null };
+}
 
 function BatchAssetForm({
   areas,
@@ -675,10 +685,7 @@ function BatchAssetForm({
 }) {
   const [areaId, setAreaId] = useState(areas[0]?.id ?? "");
   const [description, setDescription] = useState("");
-  const [rows, setRows] = useState<BatchRow[]>([
-    { key: 1, name: "", description: "", pictureUrl: "", quantity: "1" },
-    { key: 2, name: "", description: "", pictureUrl: "", quantity: "1" },
-  ]);
+  const [rows, setRows] = useState<BatchRow[]>([newBatchRow(1), newBatchRow(2)]);
   const [submitting, setSubmitting] = useState(false);
   const [cameraRowKey, setCameraRowKey] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -692,6 +699,34 @@ function BatchAssetForm({
   function update(key: number, values: Partial<BatchRow>) {
     setRows((current) =>
       current.map((row) => (row.key === key ? { ...row, ...values } : row)),
+    );
+  }
+
+  function addRowPhotos(key: number, files: File[]) {
+    if (files.length === 0) return;
+    setRows((current) =>
+      current.map((row) => {
+        if (row.key !== key) return row;
+        const added = files.map((file) => ({ id: crypto.randomUUID(), file }));
+        return {
+          ...row,
+          photos: [...row.photos, ...added],
+          // First photo ever added to a row becomes its thumbnail by default.
+          thumbnailId: row.thumbnailId ?? added[0].id,
+        };
+      }),
+    );
+  }
+
+  function removeRowPhoto(key: number, photoId: string) {
+    setRows((current) =>
+      current.map((row) => {
+        if (row.key !== key) return row;
+        const photos = row.photos.filter((p) => p.id !== photoId);
+        const thumbnailId =
+          row.thumbnailId === photoId ? (photos[0]?.id ?? null) : row.thumbnailId;
+        return { ...row, photos, thumbnailId };
+      }),
     );
   }
 
@@ -717,18 +752,67 @@ function BatchAssetForm({
     setSubmitting(true);
     setError("");
     try {
+      // Resolve each row's chosen thumbnail to a real /uploads/ URL first --
+      // the asset needs a pictureUrl at creation time, independent of
+      // whether the recognition service is reachable.
+      const pictureUrls = await Promise.all(
+        rows.map(async (row) => {
+          const thumb =
+            row.photos.find((p) => p.id === row.thumbnailId) ?? row.photos[0];
+          if (!thumb) return null;
+          const res = await api.uploadImage(thumb.file);
+          return res.url;
+        }),
+      );
+
       const response = await api.createAssets(
-        rows.map((row) => ({
+        rows.map((row, i) => ({
           name: row.name.trim(),
           managementAreaId: areaId,
           description: row.description.trim() || null,
-          pictureUrl: row.pictureUrl.trim() || null,
+          pictureUrl: pictureUrls[i],
           totalQuantity: Number(row.quantity) || 0,
           isActive: true,
         })),
         description.trim() || undefined,
       );
-      onCreated(response.data.map((asset) => asset.id));
+      const created = response.data;
+
+      // Best-effort, per row: register every attached photo with the
+      // recognition service, tracking whichever one was chosen as the
+      // thumbnail. Never blocks/fails asset creation itself -- created
+      // assets and their rows line up by submitted order.
+      await Promise.all(
+        rows.map(async (row, i) => {
+          const assetId = created[i]?.id;
+          if (!assetId || row.photos.length === 0) return;
+          const thumb =
+            row.photos.find((p) => p.id === row.thumbnailId) ?? row.photos[0];
+          let mainPhotoId: string | undefined;
+          for (const photo of row.photos) {
+            try {
+              const newId = await recognitionApi.registerOrAddPhoto(
+                assetId,
+                row.name.trim(),
+                photo.file,
+                photo.file.name || "photo.jpg",
+              );
+              if (thumb && photo.id === thumb.id) mainPhotoId = newId;
+            } catch (caught) {
+              console.warn(`Could not register a photo for "${row.name}":`, caught);
+            }
+          }
+          if (mainPhotoId) {
+            try {
+              await recognitionApi.updateAsset(assetId, { extra: { mainPhotoId } });
+            } catch (caught) {
+              console.warn("Could not save recognition metadata:", caught);
+            }
+          }
+        }),
+      );
+
+      onCreated(created.map((asset) => asset.id));
     } catch (caught) {
       setError(
         caught instanceof ApiClientError
@@ -790,18 +874,7 @@ function BatchAssetForm({
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() =>
-              setRows((current) => [
-                ...current,
-                {
-                  key: Date.now(),
-                  name: "",
-                  description: "",
-                  pictureUrl: "",
-                  quantity: "1",
-                },
-              ])
-            }
+            onClick={() => setRows((current) => [...current, newBatchRow(Date.now())])}
           >
             <Plus size={15} />
             Add another asset
@@ -810,132 +883,94 @@ function BatchAssetForm({
         <div className="batch-rows">
           {rows.map((row, index) => (
             <div className="batch-row" key={row.key}>
-              <span className="batch-row__index">{index + 1}</span>
-              <Field label="Asset name" required>
-                <Input
-                  value={row.name}
-                  onChange={(event) =>
-                    update(row.key, { name: event.target.value })
+              <div className="batch-row__header">
+                <span className="batch-row__index">{index + 1}</span>
+                <Field label="Asset name" required className="batch-row__field--name">
+                  <Input
+                    value={row.name}
+                    onChange={(event) =>
+                      update(row.key, { name: event.target.value })
+                    }
+                    required
+                  />
+                </Field>
+                <Field label="Quantity" className="batch-row__field--qty">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={row.quantity}
+                    onChange={(event) =>
+                      update(row.key, { quantity: event.target.value })
+                    }
+                    required
+                  />
+                </Field>
+                <Field label="Description" className="batch-row__field--description">
+                  <Input
+                    value={row.description}
+                    onChange={(event) =>
+                      update(row.key, { description: event.target.value })
+                    }
+                  />
+                </Field>
+                <button
+                  className="icon-button icon-button--danger"
+                  type="button"
+                  disabled={rows.length === 1}
+                  onClick={() =>
+                    setRows((current) =>
+                      current.filter((item) => item.key !== row.key),
+                    )
                   }
-                  required
-                />
-              </Field>
-              <Field label="Quantity">
-                <Input
-                  type="number"
-                  min={0}
-                  value={row.quantity}
-                  onChange={(event) =>
-                    update(row.key, { quantity: event.target.value })
-                  }
-                  required
-                />
-              </Field>
-              <Field label="Description">
-                <Input
-                  value={row.description}
-                  onChange={(event) =>
-                    update(row.key, { description: event.target.value })
-                  }
-                />
-              </Field>
-              <Field label="Photo">
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "6px",
-                    alignItems: "center",
-                  }}
+                  aria-label={`Remove row ${index + 1}`}
                 >
-                  {row.pictureUrl ? (
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
+                  <Trash2 size={17} />
+                </button>
+              </div>
+
+              <Field label="Photos" hint="First photo is used as the thumbnail -- pick another with the star.">
+                <div className="batch-row__photos">
+                  {row.photos.map((photo) => (
+                    <BatchPhotoThumb
+                      key={photo.id}
+                      file={photo.file}
+                      isThumbnail={row.thumbnailId === photo.id}
+                      onRemove={() => removeRowPhoto(row.key, photo.id)}
+                      onSelectThumbnail={() => update(row.key, { thumbnailId: photo.id })}
+                    />
+                  ))}
+                  <button
+                    className="icon-button"
+                    type="button"
+                    title="Take photo with camera"
+                    aria-label={`Take photo for row ${index + 1}`}
+                    onClick={() => setCameraRowKey(row.key)}
+                  >
+                    <Camera size={16} />
+                  </button>
+                  <label
+                    className="icon-button"
+                    style={{ cursor: "pointer", display: "inline-grid", placeItems: "center" }}
+                    title="Upload image files"
+                    aria-label={`Upload images for row ${index + 1}`}
+                  >
+                    <Upload size={16} />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={(event) => {
+                        // Snapshot before clearing .value -- input.files can
+                        // be a live FileList mutated in place by the reset.
+                        const files = event.target.files ? Array.from(event.target.files) : [];
+                        event.target.value = "";
+                        addRowPhotos(row.key, files);
                       }}
-                    >
-                      <img
-                        src={row.pictureUrl}
-                        alt="Preview"
-                        style={{
-                          width: "36px",
-                          height: "36px",
-                          borderRadius: "7px",
-                          objectFit: "cover",
-                          border: "1px solid var(--line)",
-                        }}
-                      />
-                      <button
-                        className="icon-button icon-button--danger"
-                        type="button"
-                        title="Remove photo"
-                        aria-label={`Remove photo for row ${index + 1}`}
-                        onClick={() => update(row.key, { pictureUrl: "" })}
-                      >
-                        <X size={15} />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        className="icon-button"
-                        type="button"
-                        title="Take photo with camera"
-                        aria-label={`Take photo for row ${index + 1}`}
-                        onClick={() => setCameraRowKey(row.key)}
-                      >
-                        <Camera size={16} />
-                      </button>
-                      <label
-                        className="icon-button"
-                        style={{
-                          cursor: "pointer",
-                          display: "inline-grid",
-                          placeItems: "center",
-                        }}
-                        title="Upload image file"
-                        aria-label={`Upload image for row ${index + 1}`}
-                      >
-                        <Upload size={16} />
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: "none" }}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              try {
-                                const res = await api.uploadImage(file);
-                                update(row.key, { pictureUrl: res.url });
-                              } catch (caught) {
-                                setError(
-                                  caught instanceof Error
-                                    ? caught.message
-                                    : "Upload failed",
-                                );
-                              }
-                            }
-                          }}
-                        />
-                      </label>
-                    </>
-                  )}
+                    />
+                  </label>
                 </div>
               </Field>
-              <button
-                className="icon-button icon-button--danger"
-                type="button"
-                disabled={rows.length === 1}
-                onClick={() =>
-                  setRows((current) =>
-                    current.filter((item) => item.key !== row.key),
-                  )
-                }
-                aria-label={`Remove row ${index + 1}`}
-              >
-                <Trash2 size={17} />
-              </button>
             </div>
           ))}
         </div>
@@ -949,18 +984,92 @@ function BatchAssetForm({
       <CameraCaptureModal
         open={cameraRowKey !== null}
         onClose={() => setCameraRowKey(null)}
-        onCapture={async (file) => {
+        onCapture={(file) => {
           if (cameraRowKey === null) return;
-          try {
-            const res = await api.uploadImage(file);
-            update(cameraRowKey, { pictureUrl: res.url });
-          } catch (caught) {
-            setError(
-              caught instanceof Error ? caught.message : "Image upload failed",
-            );
-          }
+          addRowPhotos(cameraRowKey, [file]);
+          setCameraRowKey(null);
         }}
       />
     </form>
+  );
+}
+
+// Compact per-row photo preview for the batch form -- every photo here is
+// always "pending" (batch rows never have existing/uploaded-already photos),
+// so this only needs a blob-URL preview, not AssetPhotosSection's
+// existing-vs-pending split. Memoized per File instance and revoked on
+// unmount, same leak-avoidance pattern as AssetPhotosSection's version.
+function BatchPhotoThumb({
+  file,
+  isThumbnail,
+  onRemove,
+  onSelectThumbnail,
+}: {
+  file: File;
+  isThumbnail: boolean;
+  onRemove: () => void;
+  onSelectThumbnail: () => void;
+}) {
+  const src = useMemo(() => URL.createObjectURL(file), [file]);
+  useEffect(() => () => URL.revokeObjectURL(src), [src]);
+
+  return (
+    <div style={{ position: "relative", width: "48px", height: "48px" }}>
+      <img
+        src={src}
+        alt="Asset"
+        style={{
+          width: "48px",
+          height: "48px",
+          borderRadius: "7px",
+          objectFit: "cover",
+          border: isThumbnail ? "2px solid var(--blue)" : "1px solid var(--line)",
+        }}
+      />
+      <button
+        type="button"
+        title={isThumbnail ? "Thumbnail photo" : "Use as thumbnail"}
+        aria-label={isThumbnail ? "This is the thumbnail photo" : "Use as thumbnail"}
+        aria-pressed={isThumbnail}
+        onClick={onSelectThumbnail}
+        style={{
+          position: "absolute",
+          top: "-7px",
+          left: "-7px",
+          width: "18px",
+          height: "18px",
+          borderRadius: "50%",
+          background: isThumbnail ? "var(--blue)" : "var(--surface)",
+          color: isThumbnail ? "#fff" : "var(--ink-faint)",
+          border: "1px solid var(--line)",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+          display: "grid",
+          placeItems: "center",
+          cursor: "pointer",
+          padding: 0,
+        }}
+      >
+        <Star size={10} fill={isThumbnail ? "currentColor" : "none"} />
+      </button>
+      <button
+        type="button"
+        className="icon-button icon-button--danger"
+        title="Remove this photo"
+        aria-label="Remove this photo"
+        onClick={onRemove}
+        style={{
+          position: "absolute",
+          top: "-7px",
+          right: "-7px",
+          width: "18px",
+          height: "18px",
+          background: "var(--surface)",
+          borderRadius: "50%",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+        }}
+      >
+        <Trash2 size={11} />
+      </button>
+    </div>
   );
 }
