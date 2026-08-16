@@ -1,10 +1,6 @@
-import { Camera, Trash2, Upload, X } from "lucide-react";
-import { useEffect, useState } from "react";
-import {
-  recognitionApi,
-  RecognitionApiError,
-  type RecognitionPhoto,
-} from "../recognitionApi";
+import { Camera, Trash2, Upload } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { recognitionApi, type RecognitionPhoto } from "../recognitionApi";
 import { Button } from "./ui";
 import { CameraCaptureModal } from "./CameraCaptureModal";
 
@@ -13,68 +9,36 @@ import { CameraCaptureModal } from "./CameraCaptureModal";
 // asset, matched by best score across all of them -- more angles here means
 // more reliable recognition later). Independent state, independent API
 // (recognition-service, not the main backend), on purpose.
+//
+// Fully CONTROLLED by the parent (AssetFormPage): adding/removing a photo
+// here only stages the change locally (onAdd/onRemoveExisting/etc.) -- no
+// network call happens until the parent applies the staged changes on Save,
+// same as every other field on this form. Cancelling/navigating away simply
+// discards the local state, same as the Asset Photo field above it.
 export function RecognitionPhotosSection({
-  assetId,
-  assetName,
+  existingPhotos,
+  pendingAdds,
+  pendingRemoveIds,
+  loading,
+  error,
+  onAdd,
+  onRemoveExisting,
+  onRemovePendingAdd,
 }: {
-  assetId: string;
-  assetName: string;
+  existingPhotos: RecognitionPhoto[];
+  pendingAdds: File[];
+  pendingRemoveIds: Set<string>;
+  loading: boolean;
+  error: string;
+  onAdd: (file: File) => void;
+  onRemoveExisting: (photoId: string) => void;
+  onRemovePendingAdd: (index: number) => void;
 }) {
-  const [photos, setPhotos] = useState<RecognitionPhoto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
-
-  async function reload() {
-    setLoading(true);
-    try {
-      setPhotos(await recognitionApi.listPhotos(assetId));
-      setError("");
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not load recognition photos",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assetId]);
-
-  async function addPhoto(file: File) {
-    setUploading(true);
-    setError("");
-    try {
-      await recognitionApi.registerOrAddPhoto(assetId, assetName, file, file.name || "photo.jpg");
-      await reload();
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not upload recognition photo",
-      );
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  async function removePhoto(photoId: string) {
-    setError("");
-    try {
-      await recognitionApi.deletePhoto(assetId, photoId);
-      await reload();
-    } catch (caught) {
-      if (caught instanceof RecognitionApiError && caught.status === 400) {
-        // Last remaining photo -- the service refuses to leave the asset
-        // with zero reference photos via this endpoint.
-        setError(caught.message);
-      } else {
-        setError(caught instanceof Error ? caught.message : "Could not remove photo");
-      }
-    }
-  }
+  const visibleExisting = existingPhotos.filter(
+    (photo) => !pendingRemoveIds.has(photo.photo_id),
+  );
+  const totalAfterSave = visibleExisting.length + pendingAdds.length;
 
   return (
     <section className="form-section">
@@ -85,7 +49,8 @@ export function RecognitionPhotosSection({
           <p>
             Reference photos used to recognize this asset later (e.g. when it's
             returned). Separate from the Asset Photo above -- add a few
-            different angles for more reliable recognition.
+            different angles for more reliable recognition. Changes here are
+            applied when you click Save changes below.
           </p>
         </div>
       </div>
@@ -107,42 +72,22 @@ export function RecognitionPhotosSection({
             marginBottom: "14px",
           }}
         >
-          {photos.map((photo) => (
-            <div
+          {visibleExisting.map((photo) => (
+            <PhotoThumb
               key={photo.photo_id}
-              style={{ position: "relative", width: "72px", height: "72px" }}
-            >
-              <img
-                src={recognitionApi.imageSrc(photo.image_url)}
-                alt="Recognition reference"
-                style={{
-                  width: "72px",
-                  height: "72px",
-                  borderRadius: "8px",
-                  objectFit: "cover",
-                  border: "1px solid var(--line)",
-                }}
-              />
-              <button
-                type="button"
-                className="icon-button icon-button--danger"
-                title="Remove this reference photo"
-                aria-label="Remove this reference photo"
-                onClick={() => void removePhoto(photo.photo_id)}
-                style={{
-                  position: "absolute",
-                  top: "-8px",
-                  right: "-8px",
-                  background: "var(--surface)",
-                  borderRadius: "50%",
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
-                }}
-              >
-                <Trash2 size={13} />
-              </button>
-            </div>
+              src={recognitionApi.imageSrc(photo.image_url)}
+              onRemove={() => onRemoveExisting(photo.photo_id)}
+              removeLabel="Remove this reference photo"
+            />
           ))}
-          {photos.length === 0 && (
+          {pendingAdds.map((file, index) => (
+            <PendingPhotoThumb
+              key={`pending-${index}-${file.name}-${file.lastModified}`}
+              file={file}
+              onRemove={() => onRemovePendingAdd(index)}
+            />
+          ))}
+          {totalAfterSave === 0 && (
             <p className="field__help">
               No recognition photos yet -- add at least one so this asset can be
               recognized later.
@@ -152,26 +97,20 @@ export function RecognitionPhotosSection({
       )}
 
       <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={uploading}
-          onClick={() => setCameraOpen(true)}
-        >
+        <Button type="button" variant="secondary" onClick={() => setCameraOpen(true)}>
           <Camera size={17} /> Take photo
         </Button>
         <label className="button button--secondary button--md" style={{ cursor: "pointer" }}>
           <Upload size={17} />
-          {uploading ? "Uploading…" : "Upload file"}
+          Upload file
           <input
             type="file"
             accept="image/*"
             style={{ display: "none" }}
-            disabled={uploading}
             onChange={(event) => {
               const file = event.target.files?.[0];
               event.target.value = ""; // allow re-selecting the same file next time
-              if (file) void addPhoto(file);
+              if (file) onAdd(file);
             }}
           />
         </label>
@@ -180,11 +119,91 @@ export function RecognitionPhotosSection({
       <CameraCaptureModal
         open={cameraOpen}
         onClose={() => setCameraOpen(false)}
-        onCapture={async (file) => {
+        onCapture={(file) => {
           setCameraOpen(false);
-          await addPhoto(file);
+          onAdd(file);
         }}
       />
     </section>
+  );
+}
+
+function PendingPhotoThumb({ file, onRemove }: { file: File; onRemove: () => void }) {
+  // Memoized per File instance (not recreated on every re-render) and
+  // released when this thumbnail unmounts (removed, or replaced by a fresh
+  // server-loaded list after Save), so preview blob URLs don't leak.
+  const src = useMemo(() => URL.createObjectURL(file), [file]);
+  useEffect(() => () => URL.revokeObjectURL(src), [src]);
+
+  return (
+    <PhotoThumb
+      src={src}
+      onRemove={onRemove}
+      removeLabel="Cancel adding this reference photo"
+      pending
+    />
+  );
+}
+
+function PhotoThumb({
+  src,
+  onRemove,
+  removeLabel,
+  pending,
+}: {
+  src: string;
+  onRemove: () => void;
+  removeLabel: string;
+  pending?: boolean;
+}) {
+  return (
+    <div style={{ position: "relative", width: "72px", height: "72px" }}>
+      <img
+        src={src}
+        alt="Recognition reference"
+        style={{
+          width: "72px",
+          height: "72px",
+          borderRadius: "8px",
+          objectFit: "cover",
+          border: pending ? "2px dashed var(--blue)" : "1px solid var(--line)",
+        }}
+      />
+      {pending && (
+        <span
+          style={{
+            position: "absolute",
+            bottom: "-8px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            fontSize: "10px",
+            background: "var(--blue)",
+            color: "#fff",
+            borderRadius: "4px",
+            padding: "1px 5px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          new
+        </span>
+      )}
+      <button
+        type="button"
+        className="icon-button icon-button--danger"
+        title={removeLabel}
+        aria-label={removeLabel}
+        onClick={onRemove}
+        style={{
+          position: "absolute",
+          top: "-8px",
+          right: "-8px",
+          background: "var(--surface)",
+          borderRadius: "50%",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+        }}
+      >
+        <Trash2 size={13} />
+      </button>
+    </div>
   );
 }

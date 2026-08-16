@@ -27,7 +27,7 @@ import {
   Select,
   Textarea,
 } from "../components/ui";
-import { recognitionApi } from "../recognitionApi";
+import { recognitionApi, type RecognitionPhoto } from "../recognitionApi";
 import type { AssetDetail, ManagementArea } from "../types";
 
 type FormValue = {
@@ -65,6 +65,17 @@ export function AssetFormPage() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Recognition-feature reference photos (edit page only): staged locally,
+  // same as every other field here -- nothing hits the recognition service
+  // until Save changes is clicked (see syncRecognitionPhotos below).
+  const [recognitionPhotos, setRecognitionPhotos] = useState<RecognitionPhoto[]>([]);
+  const [recognitionLoading, setRecognitionLoading] = useState(false);
+  const [recognitionError, setRecognitionError] = useState("");
+  const [recognitionPendingAdds, setRecognitionPendingAdds] = useState<File[]>([]);
+  const [recognitionPendingRemoveIds, setRecognitionPendingRemoveIds] = useState<Set<string>>(
+    new Set(),
+  );
 
   async function handleImageUpload(file: File) {
     setUploadingImage(true);
@@ -143,6 +154,30 @@ export function AssetFormPage() {
   }, [assetId]);
 
   useEffect(() => {
+    if (!assetId) return;
+    let active = true;
+    setRecognitionLoading(true);
+    recognitionApi
+      .listPhotos(assetId)
+      .then((photos) => {
+        if (active) setRecognitionPhotos(photos);
+      })
+      .catch((caught) => {
+        if (active) {
+          setRecognitionError(
+            caught instanceof Error ? caught.message : "Could not load recognition photos",
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setRecognitionLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [assetId]);
+
+  useEffect(() => {
     if (!editing && visibleAreas.length > 0) {
       setForm((current) => {
         if (
@@ -172,6 +207,52 @@ export function AssetFormPage() {
     return Object.keys(nextFields).length === 0;
   }
 
+  // Applies every staged recognition-photo change in one go, at Save time --
+  // never before. Best-effort throughout, same reasoning as the create-flow
+  // registration below: the recognition service being slow/unreachable, or
+  // one particular photo failing, should never block the asset save itself
+  // (which has already succeeded by the time this runs) or stop the other
+  // staged changes from being attempted.
+  async function syncRecognitionPhotos(assetId: string, name: string) {
+    const failures: string[] = [];
+
+    // A newly attached/replaced main thumbnail also becomes a recognition
+    // reference photo, same as at creation time (removing the thumbnail,
+    // by contrast, does not delete any recognition photos automatically --
+    // those are independent reference photos, not required to mirror it).
+    const newPictureUrl = form.pictureUrl.trim();
+    if (newPictureUrl && newPictureUrl !== (asset?.pictureUrl ?? "")) {
+      try {
+        const file = await recognitionApi.fetchAsFile(newPictureUrl, `${assetId}.jpg`);
+        await recognitionApi.registerOrAddPhoto(assetId, name, file);
+      } catch (caught) {
+        failures.push(caught instanceof Error ? caught.message : "Could not sync the new asset photo");
+      }
+    }
+
+    for (const file of recognitionPendingAdds) {
+      try {
+        await recognitionApi.registerOrAddPhoto(assetId, name, file, file.name || "photo.jpg");
+      } catch (caught) {
+        failures.push(caught instanceof Error ? caught.message : `Could not add ${file.name}`);
+      }
+    }
+
+    for (const photoId of recognitionPendingRemoveIds) {
+      try {
+        await recognitionApi.deletePhoto(assetId, photoId);
+      } catch (caught) {
+        failures.push(caught instanceof Error ? caught.message : "Could not remove a reference photo");
+      }
+    }
+
+    if (failures.length > 0) {
+      console.warn("Recognition photo sync had issues:", failures);
+    }
+    setRecognitionPendingAdds([]);
+    setRecognitionPendingRemoveIds(new Set());
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!validate()) return;
@@ -186,6 +267,7 @@ export function AssetFormPage() {
           pictureUrl: form.pictureUrl.trim() || null,
           expectedUpdatedAt: asset.updatedAt,
         });
+        await syncRecognitionPhotos(asset.id, form.name.trim());
         navigate(`/assets/${asset.id}`, {
           state: { notice: "Asset updated successfully" },
         });
@@ -468,7 +550,26 @@ export function AssetFormPage() {
             </section>
 
             {editing && asset && (
-              <RecognitionPhotosSection assetId={asset.id} assetName={asset.name} />
+              <RecognitionPhotosSection
+                existingPhotos={recognitionPhotos}
+                pendingAdds={recognitionPendingAdds}
+                pendingRemoveIds={recognitionPendingRemoveIds}
+                loading={recognitionLoading}
+                error={recognitionError}
+                onAdd={(file) =>
+                  setRecognitionPendingAdds((current) => [...current, file])
+                }
+                onRemoveExisting={(photoId) =>
+                  setRecognitionPendingRemoveIds(
+                    (current) => new Set(current).add(photoId),
+                  )
+                }
+                onRemovePendingAdd={(index) =>
+                  setRecognitionPendingAdds((current) =>
+                    current.filter((_, i) => i !== index),
+                  )
+                }
+              />
             )}
 
             <div className="form-submit">
