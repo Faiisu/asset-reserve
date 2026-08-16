@@ -1,0 +1,45 @@
+name: asset-reservation-recognition
+
+services:
+  recognition-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      MATCH_THRESHOLD: ${RECOGNITION_MATCH_THRESHOLD:-0.85}
+    # No host port published on purpose: this service has no authentication
+    # of its own, so it must only be reachable from inside the docker
+    # network, via the backend's RecognitionModule. Uncomment temporarily
+    # for local debugging only:
+    # ports:
+    #   - "8000:8000"
+    volumes:
+      - recognition-chroma-data:/app/data/chroma
+      - recognition-images-data:/app/data/images
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    init: true
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  recognition-chroma-data:
+    name: ${RECOGNITION_CHROMA_VOLUME_NAME:-asset-reservation-recognition-chroma-data}
+  recognition-images-data:
+    name: ${RECOGNITION_IMAGES_VOLUME_NAME:-asset-reservation-recognition-images-data}
+
+networks:
+  app-network:
+    external: true
+    name: ${DOCKER_NETWORK_NAME:-asset-reservation-network}

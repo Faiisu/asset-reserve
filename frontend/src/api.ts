@@ -55,7 +55,7 @@ function queryString(
   return text ? `?${text}` : "";
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   const token = getAccessToken();

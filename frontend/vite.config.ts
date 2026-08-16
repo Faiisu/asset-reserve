@@ -15,13 +15,10 @@ export default defineConfig({
         target: process.env.VITE_DEV_API_TARGET ?? "http://localhost:3000",
         changeOrigin: true,
       },
-      // Asset recognition service (recognition-service/) -- separate Python/FastAPI
-      // process, proxied here the same way /api and /uploads are.
-      "/recognition": {
-        target: process.env.VITE_RECOGNITION_API_TARGET ?? "http://localhost:8000",
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/recognition/, ""),
-      },
+      // Asset recognition calls now go through the backend itself
+      // (/api/v1/recognition/*, see backend/src/recognition/), which then
+      // talks to recognition-service internally -- no separate proxy needed
+      // here, the /api rule above already covers it.
     },
   },
   test: {

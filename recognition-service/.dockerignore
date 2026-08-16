@@ -1,0 +1,11 @@
+.venv/
+.cache/
+data/
+__pycache__/
+*.pyc
+.git
+.gitignore
+server.log
+.DS_Store
+demo/
+README.md

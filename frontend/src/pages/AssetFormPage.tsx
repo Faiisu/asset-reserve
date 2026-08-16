@@ -27,7 +27,7 @@ import {
   Select,
   Textarea,
 } from "../components/ui";
-import { recognitionApi, RecognitionApiError, type RecognitionPhoto } from "../recognitionApi";
+import { recognitionApi, type RecognitionPhoto } from "../recognitionApi";
 import type { AssetDetail, ManagementArea } from "../types";
 
 type FormValue = {
@@ -254,7 +254,7 @@ export function AssetFormPage() {
         try {
           await recognitionApi.deletePhoto(assetId, oldMainPhotoId);
         } catch (caught) {
-          if (caught instanceof RecognitionApiError && caught.status === 400) {
+          if (caught instanceof ApiClientError && caught.status === 400) {
             // It really was the asset's only photo and nothing replaced it --
             // remove the whole recognition entry rather than leave an orphan
             // the service won't let us delete piecemeal.

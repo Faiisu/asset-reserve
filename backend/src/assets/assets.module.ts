@@ -10,5 +10,6 @@ import { InventoryService } from "./inventory.service.js";
 @Module({
   controllers: [AssetsController, AssetTemplatesController],
   providers: [AssetsService, InventoryService, AssetTemplatesService],
+  exports: [AssetsService],
 })
 export class AssetsModule {}

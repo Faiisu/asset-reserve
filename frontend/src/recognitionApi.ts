@@ -1,18 +1,21 @@
-// Thin client for the asset recognition service (recognition-service/), a
-// separate Python/FastAPI process reached via the /recognition proxy (see
-// vite.config.ts) -- same pattern as api.ts's /api proxy, kept in its own
-// file/module rather than touching api.ts so the existing API client is
-// untouched.
+// Client for the asset recognition feature. Routed entirely through this
+// app's own backend (/api/v1/recognition/*) rather than the recognition
+// service directly -- that service has no auth of its own by design, so the
+// backend's RecognitionController is the only thing allowed to reach it,
+// same posture as any other internal dependency. Reuses api.ts's own
+// request() helper (auth headers, 401 handling, error envelope parsing) so
+// this behaves identically to the rest of the app rather than reimplementing
+// that logic in parallel.
 //
 // We reuse the main app's own asset UUID as this service's asset_id, so the
-// two systems stay 1:1 without needing a mapping table anywhere. The single
-// extra bit of bookkeeping we need -- "which reference photo, if any, was
-// derived from the main Asset Photo thumbnail" -- is stored in the
-// recognition asset's own `extra` metadata as `{ mainPhotoId: "<photo_id>" }`,
-// rather than anywhere in the main app's database, so that link travels with
-// the recognition asset and needs no schema change on either side.
+// two systems stay 1:1 without needing a mapping table anywhere. The one
+// extra bit of bookkeeping -- "which reference photo, if any, was derived
+// from the main Asset Photo thumbnail" -- is stored in the recognition
+// asset's own `extra` metadata as `{ mainPhotoId: "<photo_id>" }`.
 
-const ROOT = "/recognition/api";
+import { ApiClientError, request } from "./api";
+
+const ROOT = "/recognition";
 
 export type RecognitionPhoto = {
   photo_id: string;
@@ -28,63 +31,37 @@ export type RecognitionAsset = {
   extra: Record<string, unknown>;
 };
 
-export class RecognitionApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-    this.name = "RecognitionApiError";
-  }
-}
-
-async function parseErrorDetail(res: Response): Promise<string> {
-  try {
-    const body = (await res.json()) as { detail?: string };
-    return body.detail ?? res.statusText;
-  } catch {
-    return res.statusText;
-  }
-}
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${ROOT}${path}`, init);
-  if (!res.ok) {
-    throw new RecognitionApiError(res.status, await parseErrorDetail(res));
-  }
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
-}
-
 export const recognitionApi = {
-  /** Full URL prefix for displaying a recognition-service image (image_url
-   * values it returns are already root-relative, e.g. "/api/photos/xxx/image",
-   * so they need the same /recognition proxy prefix to load in the browser). */
+  /** Full URL for displaying a recognition-service image. image_url values
+   * are root-relative (e.g. "/api/photos/xxx/image" or "/photos/xxx/image"
+   * depending on endpoint) -- normalize and route through this app's own
+   * public image-proxy routes. */
   imageSrc(imageUrl: string): string {
-    return `/recognition${imageUrl}`;
+    const path = imageUrl.startsWith("/api/") ? imageUrl.slice(4) : imageUrl;
+    return `/api/v1${ROOT}${path}`;
   },
 
   async getAsset(assetId: string): Promise<RecognitionAsset | null> {
-    const res = await fetch(`${ROOT}/assets/${assetId}`);
-    if (res.status === 404) return null;
-    if (!res.ok) throw new RecognitionApiError(res.status, await parseErrorDetail(res));
-    return (await res.json()) as RecognitionAsset;
+    try {
+      return await request<RecognitionAsset>(`${ROOT}/assets/${assetId}`);
+    } catch (caught) {
+      if (caught instanceof ApiClientError && caught.status === 404) return null;
+      throw caught;
+    }
   },
 
   async listPhotos(assetId: string): Promise<RecognitionPhoto[]> {
-    const res = await fetch(`${ROOT}/assets/${assetId}/photos`);
-    if (res.status === 404) return []; // asset not registered with the recognition service yet
-    if (!res.ok) throw new RecognitionApiError(res.status, await parseErrorDetail(res));
-    return (await res.json()) as RecognitionPhoto[];
+    try {
+      return await request<RecognitionPhoto[]>(`${ROOT}/assets/${assetId}/photos`);
+    } catch (caught) {
+      if (caught instanceof ApiClientError && caught.status === 404) return [];
+      throw caught;
+    }
   },
 
-  /** Renames/replaces the recognition asset's custom metadata (`extra` is
-   * replaced wholesale by the service, not merged -- callers should read the
-   * current value first if they need to preserve other keys). */
   async updateAsset(assetId: string, update: { name?: string; extra?: Record<string, unknown> }): Promise<RecognitionAsset> {
-    return request(`/assets/${assetId}`, {
+    return request(`${ROOT}/assets/${assetId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(update),
     });
   },
@@ -104,7 +81,7 @@ export const recognitionApi = {
     form.append("name", name);
     form.append("asset_id", assetId);
     if (extra) form.append("extra", JSON.stringify(extra));
-    const res = await request<{ photo_id: string }>(`/assets`, { method: "POST", body: form });
+    const res = await request<{ photo_id: string }>(`${ROOT}/assets`, { method: "POST", body: form });
     return res.photo_id;
   },
 
@@ -113,7 +90,7 @@ export const recognitionApi = {
   async addPhoto(assetId: string, file: File | Blob, filename = "photo.jpg"): Promise<string> {
     const form = new FormData();
     form.append("file", file, filename);
-    const res = await request<{ photo_id: string }>(`/assets/${assetId}/photos`, { method: "POST", body: form });
+    const res = await request<{ photo_id: string }>(`${ROOT}/assets/${assetId}/photos`, { method: "POST", body: form });
     return res.photo_id;
   },
 
@@ -130,14 +107,14 @@ export const recognitionApi = {
   },
 
   async deletePhoto(assetId: string, photoId: string): Promise<void> {
-    await request(`/assets/${assetId}/photos/${photoId}`, { method: "DELETE" });
+    await request(`${ROOT}/assets/${assetId}/photos/${photoId}`, { method: "DELETE" });
   },
 
   /** Removes the asset from the recognition service entirely (all reference
    * photos with it) -- used when the last remaining photo is being removed,
    * since the service refuses to delete a lone photo standalone. */
   async deleteAsset(assetId: string): Promise<void> {
-    await request(`/assets/${assetId}`, { method: "DELETE" });
+    await request(`${ROOT}/assets/${assetId}`, { method: "DELETE" });
   },
 
   /** Pulls an already-uploaded image (e.g. the asset's own thumbnail URL from

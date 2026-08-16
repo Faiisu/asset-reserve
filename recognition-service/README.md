@@ -274,17 +274,62 @@ the demo or the store directly.
 ## Integrating into your main app
 
 This service is deliberately stateless-per-request and side-effect-free beyond
-its own vector store, so you can call it however fits your stack:
+its own vector store, so it can be called however fits your stack. What's
+actually implemented in this repo:
 
-- Call it directly as an internal HTTP service from your backend (simplest).
-- Put it behind your API gateway if you want it externally reachable.
-- `asset_id` accepts a caller-supplied value — pass your main app's own asset
-  primary key at registration time so the response maps straight back to your
-  records, no ID-translation table needed.
+- **backend-mediated (what's built):** `backend/src/recognition/` is a thin
+  proxy module -- validates the app's own JWT auth, reuses `AssetsService.get()`
+  for per-asset access control, then forwards to this service internally.
+  The frontend never talks to this service directly; it calls
+  `/api/v1/recognition/*` on the main backend, same as every other feature.
+  This service has **no authentication of its own** by design -- it's not
+  meant to be reachable from anywhere except that one backend module. The two
+  image-serving routes are proxied as public (no auth) on the backend side,
+  matching this app's existing precedent for asset thumbnails (`/uploads/`
+  is also served with no auth check).
+- `asset_id` accepts a caller-supplied value — the integration passes the main
+  app's own asset UUID at registration time, so the two systems stay 1:1
+  without a mapping table. The one extra bit of state that needs to survive
+  between requests (which reference photo mirrors the main app's own asset
+  thumbnail) is stored in this service's own `extra` metadata as
+  `{"mainPhotoId": "<photo_id>"}` — see `frontend/src/recognitionApi.ts` and
+  `AssetFormPage.tsx`'s `syncRecognitionPhotos` for the reconciliation logic.
 
-CORS is wide open (`*`) since this is meant to be called server-to-server or
-from your own frontend; tighten `allow_origins` in [app/main.py](app/main.py) before
-exposing it publicly.
+CORS is wide open (`*`) here, but irrelevant in this deployment shape since
+the browser never calls this service directly.
+
+## Deployment
+
+Follows the same shape as this repo's other services (`database/`, `backend/`,
+`frontend/`): a standalone `docker-compose.yml` here that joins the shared
+external `asset-reservation-network`, same as the others.
+
+```bash
+docker compose -f recognition-service/docker-compose.yml up -d --build
+```
+
+- **No host port is published.** This service has no auth of its own, so it's
+  deliberately unreachable from outside the docker network -- only
+  `backend`'s `RecognitionModule` can reach it (`RECOGNITION_SERVICE_URL` in
+  `backend/.env`, defaults to `http://recognition-service:8000` in Docker).
+  Uncomment the `ports:` block in `docker-compose.yml` if you need to hit it
+  directly for local debugging.
+- **Two named volumes** (`recognition-chroma-data`, `recognition-images-data`)
+  persist the vector index and reference photos across container restarts --
+  this service's actual "memory" lives there, not in Postgres.
+- **Model weights (~430MB: CLIP + detector) are baked into the image at build
+  time**, not downloaded on first request -- the `Dockerfile` runs a warm-up
+  step during `docker build` specifically so the running container never
+  needs outbound internet access. Matters for an on-prem deployment that may
+  not have reliable internet at runtime.
+- CPU-only inference; no GPU required. Image lands around 2-3GB (mostly
+  PyTorch); expect roughly 1-2GB RAM once both models are loaded.
+
+**Not yet done / worth knowing:** these Dockerfile and compose files haven't
+been run through an actual `docker build` in this environment (Docker wasn't
+installed where this was developed) — they were reviewed carefully against
+this repo's existing Dockerfile/compose conventions and the YAML was syntax-
+checked, but treat the first real build as the actual first test.
 
 ## Project layout
 

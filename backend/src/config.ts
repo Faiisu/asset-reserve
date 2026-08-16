@@ -35,4 +35,11 @@ export const appConfig = {
     .map((origin) => origin.trim())
     .filter(Boolean),
   trustProxy: process.env.TRUST_PROXY === "true",
+  // Internal-only asset recognition service (recognition-service/). Never
+  // exposed to the browser directly -- the RecognitionModule is the sole
+  // caller, so this stays a plain internal HTTP dependency, same posture as
+  // the database connection.
+  recognitionServiceUrl: (
+    process.env.RECOGNITION_SERVICE_URL ?? "http://localhost:8000"
+  ).replace(/\/$/, ""),
 };
