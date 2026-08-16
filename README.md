@@ -4,9 +4,45 @@ Modern asset reservation and management system with React frontend, NestJS/Fasti
 
 ---
 
+## 🚀 Production Deployment (Docker Compose)
+
+Deploy the entire stack (**PostgreSQL 17 Database** + **Prisma Migration & Seeding** + **Fastify Backend API** + **Nginx React Frontend**) in fully containerized production mode:
+
+### Deploy All Services
+```bash
+# Using npm
+npm run deploy
+
+# Or using bash (macOS / Linux / WSL)
+./scripts/deploy-all.sh
+
+# Or using Windows PowerShell
+.\scripts\deploy-all.ps1
+
+# Or direct Docker Compose
+docker compose up -d --build
+```
+
+### Deployment Management Commands
+```bash
+# View live container logs
+npm run deploy:logs
+
+# Check running container status
+npm run deploy:ps
+
+# Stop all deployed containers
+npm run deploy:down
+
+# Stop and wipe database volumes
+npm run deploy:clean
+```
+
+---
+
 ## ⚡ Quick Start (Development)
 
-All run and deployment scripts are centralized inside the [`scripts/`](file:///C:/projects/asset-reserve/scripts) directory.
+All run and deployment scripts are centralized inside the [`scripts/`](scripts/) directory.
 
 You can start all services (**Database Docker** + **Backend npm dev** + **Frontend npm dev**) with any of the following:
 
