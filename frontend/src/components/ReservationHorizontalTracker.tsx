@@ -318,6 +318,7 @@ export function ReservationHorizontalTracker({
               type="button"
               onClick={() => setSelectedStep(step)}
               className="res-step-btn"
+              aria-label={`Inspect step ${step.shortLabel}`}
             >
               {/* Step Node Icon */}
               <div

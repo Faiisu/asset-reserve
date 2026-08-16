@@ -97,11 +97,56 @@ const mockReservation: ReservationDetail = {
   updatedAt: "2026-08-16T10:00:00.000Z",
 };
 
+const mockPendingReservation: ReservationDetail = {
+  ...mockReservation,
+  status: "PENDING_APPROVAL",
+  items: [
+    {
+      id: "item-pending-1",
+      quantity: 3,
+      status: "PENDING",
+      asset: {
+        id: "asset-pending-1",
+        name: "Wireless Microphone Kit",
+        description: "Dual channel receiver",
+        pictureUrl: null,
+        isActive: true,
+        managementArea: {
+          id: "area-1",
+          name: "Marketing",
+        },
+        template: null,
+      },
+      approval: null,
+      availability: {
+        assetId: "asset-pending-1",
+        totalQuantity: 10,
+        approvedQuantity: 0,
+        pendingQuantity: 3,
+        availableQuantity: 7,
+        pendingReservationCount: 1,
+      },
+      warnings: [],
+      capabilities: {
+        canApprove: true,
+        canReject: true,
+      },
+      returnSummary: {
+        returnedQuantity: 0,
+        brokenQuantity: 0,
+        lostQuantity: 0,
+        pendingReturnQuantity: 0,
+        remainingReturnQuantity: 3,
+      },
+    },
+  ],
+};
+
 describe("ReservationDetailPage", () => {
   it("renders event details, horizontal tracker, and opens step audit logs on click", async () => {
     vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
 
-    render(
+    const { container } = render(
       <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
         <Routes>
           <Route
@@ -120,8 +165,8 @@ describe("ReservationDetailPage", () => {
     expect(screen.getByText("Stage Camera 4K")).toBeInTheDocument();
     expect(screen.getAllByText("Reservation Status Track")[0]).toBeInTheDocument();
 
-    // 2. Click on the "Approved" step in the horizontal tracker
-    const approvedStepButton = screen.getByRole("button", { name: /Approved/i });
+    // 2. Click on the "Approved" step in the horizontal tracker (.res-step-btn)
+    const approvedStepButton = screen.getByLabelText("Inspect step Approved");
     fireEvent.click(approvedStepButton);
 
     // 3. Verify that the Step Log Modal opened
@@ -136,6 +181,66 @@ describe("ReservationDetailPage", () => {
 
     await waitFor(() => {
       expect(screen.queryByText("Step Metadata & Timeline")).not.toBeInTheDocument();
+    });
+  });
+
+  it("allows Area Manager to select items, adjust approved quantity, and submit batch approval", async () => {
+    vi.spyOn(api, "reservation").mockResolvedValue(mockPendingReservation);
+    const decideSpy = vi.spyOn(api, "decideReservationItems").mockResolvedValue({
+      ...mockPendingReservation,
+      status: "APPROVED",
+      items: [
+        {
+          ...mockPendingReservation.items[0],
+          status: "APPROVED",
+          capabilities: { canApprove: false, canReject: false },
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // 1. Wait for reservation to load and Area Manager Review toolbar to appear
+    await waitFor(() => {
+      expect(screen.getByText(/Area Manager Review/i)).toBeInTheDocument();
+    });
+
+    // 2. Verify checkbox and quantity input box
+    const checkbox = screen.getByLabelText("Select Wireless Microphone Kit");
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox).toBeChecked();
+
+    const qtyInput = screen.getByDisplayValue("3");
+    expect(qtyInput).toBeInTheDocument();
+
+    // Change approved quantity
+    fireEvent.change(qtyInput, { target: { value: "2" } });
+    expect(qtyInput).toHaveValue(2);
+
+    // 3. Type decision remark and click Approve Selected
+    const remarkInput = screen.getByPlaceholderText(/Decision comment \/ remark/i);
+    fireEvent.change(remarkInput, { target: { value: "Approved 2 units for town hall" } });
+
+    const approveButton = screen.getByRole("button", { name: /Approve Selected/i });
+    fireEvent.click(approveButton);
+
+    // 4. Verify API was called with selected items and remark
+    await waitFor(() => {
+      expect(decideSpy).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000101",
+        ["item-pending-1"],
+        "APPROVE",
+        "Approved 2 units for town hall"
+      );
     });
   });
 });

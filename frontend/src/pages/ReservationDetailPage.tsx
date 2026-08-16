@@ -8,8 +8,12 @@ import {
   RotateCcw,
   XCircle,
   Info,
+  CheckCircle,
+  ShieldCheck,
+  Check,
+  X,
 } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
@@ -31,7 +35,7 @@ import type {
 export function ReservationDetailPage() {
   const { reservationId } = useParams<{ reservationId: string }>();
   const navigate = useNavigate();
-  const { session } = useAuth();
+  const { session, hasAreaPermission } = useAuth();
 
   const [reservation, setReservation] = useState<ReservationDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,6 +43,11 @@ export function ReservationDetailPage() {
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Area Manager Approval Selection State
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [approvalComment, setApprovalComment] = useState("");
+  const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
 
   // Return dialog state
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
@@ -53,13 +62,28 @@ export function ReservationDetailPage() {
     try {
       const data = await api.reservation(reservationId);
       setReservation(data);
-      // Initialize return quantities
-      const initialQty: Record<string, number> = {};
+
+      // Initialize return quantities & approvable item quantities
+      const initialReturnQty: Record<string, number> = {};
+      const initialItemQty: Record<string, number> = {};
       data.items.forEach((item) => {
         const remaining = item.returnSummary?.remainingReturnQuantity ?? item.quantity;
-        initialQty[item.id] = remaining > 0 ? remaining : 0;
+        initialReturnQty[item.id] = remaining > 0 ? remaining : 0;
+        initialItemQty[item.id] = item.quantity;
       });
-      setReturnQuantities(initialQty);
+      setReturnQuantities(initialReturnQty);
+      setItemQuantities(initialItemQty);
+
+      // Default select all pending items that actor can approve
+      const approvableIds = data.items
+        .filter(
+          (i) =>
+            i.status === "PENDING" &&
+            (i.capabilities?.canApprove ||
+              hasAreaPermission("reservation:approve", i.asset.managementArea.id))
+        )
+        .map((i) => i.id);
+      setSelectedItemIds(approvableIds);
     } catch (err: any) {
       setError(err.message ?? "Failed to load reservation details.");
     } finally {
@@ -70,6 +94,71 @@ export function ReservationDetailPage() {
   useEffect(() => {
     loadReservation();
   }, [loadReservation]);
+
+  // Approvable items helper
+  const approvableItems = useMemo(() => {
+    if (!reservation) return [];
+    return reservation.items.filter(
+      (i) =>
+        i.status === "PENDING" &&
+        (i.capabilities?.canApprove ||
+          hasAreaPermission("reservation:approve", i.asset.managementArea.id))
+    );
+  }, [reservation, hasAreaPermission]);
+
+  // Toggle selection for a single item
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItemIds((prev) =>
+      prev.includes(itemId)
+        ? prev.filter((id) => id !== itemId)
+        : [...prev, itemId]
+    );
+  };
+
+  // Toggle select all approvable items
+  const toggleSelectAllApprovable = () => {
+    if (selectedItemIds.length === approvableItems.length) {
+      setSelectedItemIds([]);
+    } else {
+      setSelectedItemIds(approvableItems.map((i) => i.id));
+    }
+  };
+
+  // Handle Area Manager Item Decision (Approve / Reject)
+  const handleDecideItems = async (
+    decision: "APPROVE" | "REJECT",
+    targetItemIds?: string[]
+  ) => {
+    if (!reservation) return;
+    const ids = targetItemIds ?? selectedItemIds;
+    if (ids.length === 0) {
+      setActionError("Please select at least one item to decide.");
+      return;
+    }
+
+    setActionLoading(true);
+    setActionError(null);
+    setActionNotice(null);
+
+    try {
+      const updated = await api.decideReservationItems(
+        reservation.id,
+        ids,
+        decision,
+        approvalComment.trim() || undefined
+      );
+      setReservation(updated);
+      setSelectedItemIds([]);
+      setApprovalComment("");
+      setActionNotice(
+        `Successfully ${decision === "APPROVE" ? "approved" : "rejected"} ${ids.length} item(s).`
+      );
+    } catch (err: any) {
+      setActionError(err.message ?? `Failed to ${decision.toLowerCase()} items.`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Handle Delivery Confirm
   const handleConfirmDelivery = async () => {
@@ -298,7 +387,7 @@ export function ReservationDetailPage() {
 
       {/* Main Two-Column Layout */}
       <div className="res-detail-columns">
-        {/* Left Column (2/3): Equipment Manifest & History */}
+        {/* Left Column (2/3): Equipment Manifest & Approvals */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* Equipment Manifest Card */}
           <div className="res-card">
@@ -307,20 +396,129 @@ export function ReservationDetailPage() {
                 <Package size={16} />
                 <span>Reserved Equipment Manifest</span>
               </h2>
-              <span className="res-detail-ref-id">
-                {reservation.items.length} items
-              </span>
+
+              {/* Area Manager Select All Toggle */}
+              {approvableItems.length > 0 && (
+                <label className="approval-select-all">
+                  <input
+                    type="checkbox"
+                    checked={
+                      selectedItemIds.length > 0 &&
+                      selectedItemIds.length === approvableItems.length
+                    }
+                    onChange={toggleSelectAllApprovable}
+                    aria-label="Select all pending assets"
+                  />
+                  <span>Select all pending ({approvableItems.length})</span>
+                </label>
+              )}
             </div>
 
+            {/* 🛡️ AREA MANAGER BATCH DECISION TOOLBAR */}
+            {approvableItems.length > 0 && (
+              <div
+                style={{
+                  background: "var(--surface-raised)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 10,
+                  padding: "12px 16px",
+                  marginBottom: 14,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <ShieldCheck size={18} color="var(--teal)" />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>
+                    Area Manager Review ({selectedItemIds.length} of {approvableItems.length} selected)
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 260, justifyContent: "flex-end" }}>
+                  <input
+                    type="text"
+                    placeholder="Decision comment / remark..."
+                    value={approvalComment}
+                    onChange={(e) => setApprovalComment(e.target.value)}
+                    className="control"
+                    style={{ height: 34, fontSize: 12, maxWidth: 240 }}
+                  />
+
+                  <Button
+                    variant="primary"
+                    disabled={actionLoading || selectedItemIds.length === 0}
+                    onClick={() => handleDecideItems("APPROVE")}
+                    style={{ height: 34, padding: "0 14px", fontSize: 12, gap: 4 }}
+                  >
+                    <Check size={14} />
+                    <span>Approve Selected</span>
+                  </Button>
+
+                  <Button
+                    variant="danger"
+                    disabled={actionLoading || selectedItemIds.length === 0}
+                    onClick={() => handleDecideItems("REJECT")}
+                    style={{ height: 34, padding: "0 14px", fontSize: 12, gap: 4 }}
+                  >
+                    <X size={14} />
+                    <span>Reject</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Equipment Items List */}
             <div className="res-manifest-list">
               {reservation.items.map((item) => {
                 const itemStatusClass = item.status.toLowerCase();
+                const isApprovable =
+                  item.status === "PENDING" &&
+                  (item.capabilities?.canApprove ||
+                    hasAreaPermission("reservation:approve", item.asset.managementArea.id));
+                const isSelected = selectedItemIds.includes(item.id);
+
                 return (
-                  <div key={item.id} className="res-manifest-item">
+                  <div
+                    key={item.id}
+                    className={`res-manifest-item ${
+                      isApprovable ? "reservation-item-card--selectable" : ""
+                    }`}
+                    style={
+                      isSelected
+                        ? { background: "color-mix(in srgb, var(--teal-soft) 25%, var(--surface))" }
+                        : {}
+                    }
+                    onClick={(e) => {
+                      // Toggle checkbox on row click if approvable
+                      if (
+                        isApprovable &&
+                        !(e.target instanceof HTMLInputElement) &&
+                        !(e.target instanceof HTMLButtonElement)
+                      ) {
+                        toggleItemSelection(item.id);
+                      }
+                    }}
+                  >
                     <div className="res-item-info">
+                      {/* Checkbox for Area Manager */}
+                      {isApprovable && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleItemSelection(item.id)}
+                          aria-label={`Select ${item.asset.name}`}
+                          className="reservation-item-select"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      )}
+
                       <div className="res-item-icon">
                         {item.asset.name.slice(0, 2).toUpperCase()}
                       </div>
+
                       <div>
                         <div className="res-item-name">{item.asset.name}</div>
                         <div className="res-item-sub">
@@ -334,13 +532,71 @@ export function ReservationDetailPage() {
                       </div>
                     </div>
 
-                    <div className="res-item-status-col">
-                      <span className="res-item-qty">
-                        Qty: {item.quantity} unit(s)
-                      </span>
-                      <span className={`res-status-badge res-status-badge--${itemStatusClass}`}>
-                        {item.status}
-                      </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                      {/* Quantity Input Box for Approvable Items */}
+                      {isApprovable ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <label style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 600 }}>
+                            Approve Qty:
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={item.quantity}
+                            value={itemQuantities[item.id] ?? item.quantity}
+                            onChange={(e) => {
+                              const val = Math.max(1, parseInt(e.target.value) || 1);
+                              setItemQuantities((prev) => ({ ...prev, [item.id]: val }));
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="control"
+                            style={{ width: 60, height: 32, textAlign: "center", fontWeight: 700, fontSize: 12 }}
+                          />
+                          <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>/ {item.quantity}</span>
+                        </div>
+                      ) : (
+                        <span className="res-item-qty">
+                          Qty: {item.quantity} unit(s)
+                        </span>
+                      )}
+
+                      <div className="res-item-status-col">
+                        <span className={`res-status-badge res-status-badge--${itemStatusClass}`}>
+                          {item.status}
+                        </span>
+
+                        {/* Inline Decision Buttons for single item */}
+                        {isApprovable && (
+                          <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              disabled={actionLoading}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDecideItems("APPROVE", [item.id]);
+                              }}
+                              style={{ height: 26, padding: "0 8px", fontSize: 10, gap: 2 }}
+                            >
+                              <Check size={11} color="var(--green)" />
+                              <span>Approve</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={actionLoading}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDecideItems("REJECT", [item.id]);
+                              }}
+                              style={{ height: 26, padding: "0 8px", fontSize: 10, color: "var(--red)" }}
+                            >
+                              <X size={11} />
+                              <span>Reject</span>
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
