@@ -163,6 +163,10 @@ describe("ReservationDetailPage", () => {
     });
 
     expect(screen.getByText("Stage Camera 4K")).toBeInTheDocument();
+    expect(screen.getByText("All equipment cleared for handover")).toBeInTheDocument();
+    expect(screen.getByText("Handover confirmation (0 of 1 selected)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Select Stage Camera 4K for handover")).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Confirm Handover" })).toBeDisabled();
     expect(screen.getAllByText("Reservation Status Track")[0]).toBeInTheDocument();
 
     // 2. Click on the "Approved" step in the horizontal tracker (.res-step-btn)
@@ -214,12 +218,19 @@ describe("ReservationDetailPage", () => {
       expect(screen.getByText(/Area Manager Review/i)).toBeInTheDocument();
     });
 
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
+    expect(screen.getByLabelText("3 total reserved")).toBeInTheDocument();
+
     // 2. Verify checkbox and quantity input box
     const checkbox = screen.getByLabelText("Select Wireless Microphone Kit");
     expect(checkbox).toBeInTheDocument();
+    expect(checkbox).not.toBeChecked();
+
+    fireEvent.click(checkbox);
     expect(checkbox).toBeChecked();
 
-    const qtyInput = screen.getByDisplayValue("3");
+    const qtyInput = screen.getByLabelText("Approve quantity for Wireless Microphone Kit");
     expect(qtyInput).toBeInTheDocument();
 
     // Change approved quantity
@@ -240,6 +251,57 @@ describe("ReservationDetailPage", () => {
         ["item-pending-1"],
         "APPROVE",
         "Approved 2 units for town hall"
+      );
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Wireless Microphone Kit").closest(".res-manifest-item"),
+      ).toHaveAttribute("data-status", "approved");
+    });
+  });
+
+  it("confirms handover only for explicitly selected authorized items", async () => {
+    vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
+    const confirmSpy = vi.spyOn(api, "confirmDelivery").mockResolvedValue({
+      ...mockReservation,
+      status: "DELIVERY_CONFIRMED",
+      items: mockReservation.items.map((item) => ({
+        ...item,
+        status: "DELIVERED",
+        capabilities: { ...item.capabilities, canConfirmDelivery: false },
+      })),
+      capabilities: { ...mockReservation.capabilities, canConfirmDelivery: false },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const checkbox = await screen.findByLabelText(
+      "Select Stage Camera 4K for handover",
+    );
+    const confirmButton = screen.getByRole("button", {
+      name: "Confirm Handover",
+    });
+    expect(checkbox).not.toBeChecked();
+    expect(confirmButton).toBeDisabled();
+
+    fireEvent.click(checkbox);
+    expect(confirmButton).toBeEnabled();
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(confirmSpy).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000101",
+        ["item-1"],
       );
     });
   });

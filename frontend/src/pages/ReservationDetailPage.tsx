@@ -35,7 +35,7 @@ import type {
 export function ReservationDetailPage() {
   const { reservationId } = useParams<{ reservationId: string }>();
   const navigate = useNavigate();
-  const { session, hasAreaPermission } = useAuth();
+  const { hasAreaPermission } = useAuth();
 
   const [reservation, setReservation] = useState<ReservationDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -46,6 +46,7 @@ export function ReservationDetailPage() {
 
   // Area Manager Approval Selection State
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [selectedDeliveryItemIds, setSelectedDeliveryItemIds] = useState<string[]>([]);
   const [approvalComment, setApprovalComment] = useState("");
   const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
 
@@ -74,16 +75,9 @@ export function ReservationDetailPage() {
       setReturnQuantities(initialReturnQty);
       setItemQuantities(initialItemQty);
 
-      // Default select all pending items that actor can approve
-      const approvableIds = data.items
-        .filter(
-          (i) =>
-            i.status === "PENDING" &&
-            (i.capabilities?.canApprove ||
-              hasAreaPermission("reservation:approve", i.asset.managementArea.id))
-        )
-        .map((i) => i.id);
-      setSelectedItemIds(approvableIds);
+      // Require an explicit selection before an approval decision.
+      setSelectedItemIds([]);
+      setSelectedDeliveryItemIds([]);
     } catch (err: any) {
       setError(err.message ?? "Failed to load reservation details.");
     } finally {
@@ -106,6 +100,15 @@ export function ReservationDetailPage() {
     );
   }, [reservation, hasAreaPermission]);
 
+  const deliverableItems = useMemo(() => {
+    if (!reservation) return [];
+    return reservation.items.filter(
+      (item) =>
+        item.capabilities?.canConfirmDelivery &&
+        ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status),
+    );
+  }, [reservation]);
+
   // Toggle selection for a single item
   const toggleItemSelection = (itemId: string) => {
     setSelectedItemIds((prev) =>
@@ -121,6 +124,22 @@ export function ReservationDetailPage() {
       setSelectedItemIds([]);
     } else {
       setSelectedItemIds(approvableItems.map((i) => i.id));
+    }
+  };
+
+  const toggleDeliveryItemSelection = (itemId: string) => {
+    setSelectedDeliveryItemIds((previous) =>
+      previous.includes(itemId)
+        ? previous.filter((id) => id !== itemId)
+        : [...previous, itemId],
+    );
+  };
+
+  const toggleSelectAllDeliverable = () => {
+    if (selectedDeliveryItemIds.length === deliverableItems.length) {
+      setSelectedDeliveryItemIds([]);
+    } else {
+      setSelectedDeliveryItemIds(deliverableItems.map((item) => item.id));
     }
   };
 
@@ -163,13 +182,23 @@ export function ReservationDetailPage() {
   // Handle Delivery Confirm
   const handleConfirmDelivery = async () => {
     if (!reservation) return;
+    if (selectedDeliveryItemIds.length === 0) {
+      setActionError("Please select at least one item to confirm handover.");
+      return;
+    }
     setActionLoading(true);
     setActionError(null);
     setActionNotice(null);
     try {
-      const updated = await api.confirmDelivery(reservation.id);
+      const updated = await api.confirmDelivery(
+        reservation.id,
+        selectedDeliveryItemIds,
+      );
       setReservation(updated);
-      setActionNotice("Equipment handover confirmed successfully.");
+      setSelectedDeliveryItemIds([]);
+      setActionNotice(
+        `Handover confirmed for ${selectedDeliveryItemIds.length} item(s).`,
+      );
     } catch (err: any) {
       setActionError(err.message ?? "Failed to confirm delivery.");
     } finally {
@@ -253,11 +282,18 @@ export function ReservationDetailPage() {
     );
   }
 
-  const canConfirmDelivery = reservation.capabilities?.canConfirmDelivery;
   const canReturn = reservation.capabilities?.canReturn;
   const canCancel = reservation.capabilities?.canCancel;
 
   const statusClass = reservation.status.toLowerCase();
+  const approvedItemCount = reservation.items.filter(
+    (item) => item.status === "APPROVED",
+  ).length;
+  const startDate = new Date(reservation.startAt);
+  const startMonth = new Intl.DateTimeFormat("en", { month: "short" })
+    .format(startDate)
+    .toUpperCase();
+  const startDay = new Intl.DateTimeFormat("en", { day: "2-digit" }).format(startDate);
 
   return (
     <div className="res-detail-layout">
@@ -286,8 +322,14 @@ export function ReservationDetailPage() {
 
       {/* Hero Header Section */}
       <div className="res-detail-hero">
+        <div className="res-detail-date-stamp" aria-label={`Starts ${formatDate(reservation.startAt, true)}`}>
+          <span>{startMonth}</span>
+          <strong>{startDay}</strong>
+          <small>{startDate.getFullYear()}</small>
+        </div>
         <div className="res-detail-hero-header">
           <div className="res-detail-title-group">
+            <span className="res-detail-kicker">Reservation dispatch</span>
             <div className="res-detail-title-row">
               <h1>{reservation.eventName}</h1>
               <span className={`res-status-badge res-status-badge--${statusClass}`}>
@@ -303,17 +345,6 @@ export function ReservationDetailPage() {
 
           {/* Quick Primary Actions */}
           <div className="res-detail-hero-actions">
-            {canConfirmDelivery && (
-              <Button
-                variant="primary"
-                onClick={handleConfirmDelivery}
-                disabled={actionLoading}
-              >
-                <Truck size={15} />
-                <span>Confirm Delivery (Pickup)</span>
-              </Button>
-            )}
-
             {canReturn && (
               <Button
                 variant="primary"
@@ -343,7 +374,7 @@ export function ReservationDetailPage() {
           <div className="res-detail-meta-item">
             <Calendar size={18} />
             <div>
-              <span className="res-detail-meta-label">Schedule Window</span>
+              <span className="res-detail-meta-label">Starts</span>
               <span className="res-detail-meta-value">
                 {formatDate(reservation.startAt, true)}
               </span>
@@ -353,7 +384,7 @@ export function ReservationDetailPage() {
           <div className="res-detail-meta-item">
             <Clock size={18} />
             <div>
-              <span className="res-detail-meta-label">Duration</span>
+              <span className="res-detail-meta-label">Booking window</span>
               <span className="res-detail-meta-value">
                 {reservationDuration(reservation.startAt, reservation.endAt)}
               </span>
@@ -373,7 +404,7 @@ export function ReservationDetailPage() {
           <div className="res-detail-meta-item">
             <Package size={18} />
             <div>
-              <span className="res-detail-meta-label">Equipment Count</span>
+              <span className="res-detail-meta-label">Equipment</span>
               <span className="res-detail-meta-value">
                 {reservation.items.length} lines ({reservation.items.reduce((acc, it) => acc + it.quantity, 0)} units)
               </span>
@@ -388,17 +419,24 @@ export function ReservationDetailPage() {
       {/* Main Two-Column Layout */}
       <div className="res-detail-columns">
         {/* Left Column (2/3): Equipment Manifest & Approvals */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div className="res-detail-stack">
           {/* Equipment Manifest Card */}
           <div className="res-card">
             <div className="res-card-header">
-              <h2>
-                <Package size={16} />
-                <span>Reserved Equipment Manifest</span>
-              </h2>
+              <div>
+                <h2>
+                  <Package size={16} />
+                  <span>Reserved Equipment Manifest</span>
+                </h2>
+                <p className="res-card-header__supporting">
+                  {approvedItemCount === reservation.items.length
+                    ? "All equipment cleared for handover"
+                    : `${approvedItemCount} of ${reservation.items.length} equipment lines approved`}
+                </p>
+              </div>
 
               {/* Area Manager Select All Toggle */}
-              {approvableItems.length > 0 && (
+              {approvableItems.length > 0 ? (
                 <label className="approval-select-all">
                   <input
                     type="checkbox"
@@ -411,47 +449,46 @@ export function ReservationDetailPage() {
                   />
                   <span>Select all pending ({approvableItems.length})</span>
                 </label>
-              )}
+              ) : deliverableItems.length > 0 ? (
+                <label className="approval-select-all">
+                  <input
+                    type="checkbox"
+                    checked={
+                      selectedDeliveryItemIds.length > 0 &&
+                      selectedDeliveryItemIds.length === deliverableItems.length
+                    }
+                    onChange={toggleSelectAllDeliverable}
+                    aria-label="Select all items for handover"
+                  />
+                  <span>Select all for handover ({deliverableItems.length})</span>
+                </label>
+              ) : null}
             </div>
 
             {/* 🛡️ AREA MANAGER BATCH DECISION TOOLBAR */}
             {approvableItems.length > 0 && (
-              <div
-                style={{
-                  background: "var(--surface-raised)",
-                  border: "1px solid var(--line)",
-                  borderRadius: 10,
-                  padding: "12px 16px",
-                  marginBottom: 14,
-                  display: "flex",
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div className="res-review-bar">
+                <div className="res-review-bar__title">
                   <ShieldCheck size={18} color="var(--teal)" />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>
+                  <span>
                     Area Manager Review ({selectedItemIds.length} of {approvableItems.length} selected)
                   </span>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 260, justifyContent: "flex-end" }}>
+                <div className="res-review-bar__actions">
                   <input
                     type="text"
                     placeholder="Decision comment / remark..."
                     value={approvalComment}
                     onChange={(e) => setApprovalComment(e.target.value)}
                     className="control"
-                    style={{ height: 34, fontSize: 12, maxWidth: 240 }}
+                    aria-label="Decision comment"
                   />
 
                   <Button
                     variant="primary"
                     disabled={actionLoading || selectedItemIds.length === 0}
                     onClick={() => handleDecideItems("APPROVE")}
-                    style={{ height: 34, padding: "0 14px", fontSize: 12, gap: 4 }}
                   >
                     <Check size={14} />
                     <span>Approve Selected</span>
@@ -461,10 +498,30 @@ export function ReservationDetailPage() {
                     variant="danger"
                     disabled={actionLoading || selectedItemIds.length === 0}
                     onClick={() => handleDecideItems("REJECT")}
-                    style={{ height: 34, padding: "0 14px", fontSize: 12, gap: 4 }}
                   >
                     <X size={14} />
                     <span>Reject</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {deliverableItems.length > 0 && (
+              <div className="res-review-bar res-handover-bar">
+                <div className="res-review-bar__title">
+                  <Truck size={18} />
+                  <span>
+                    Handover confirmation ({selectedDeliveryItemIds.length} of {deliverableItems.length} selected)
+                  </span>
+                </div>
+                <div className="res-review-bar__actions">
+                  <Button
+                    variant="primary"
+                    disabled={actionLoading || selectedDeliveryItemIds.length === 0}
+                    onClick={handleConfirmDelivery}
+                  >
+                    <Check size={14} />
+                    <span>Confirm Handover</span>
                   </Button>
                 </div>
               </div>
@@ -479,125 +536,162 @@ export function ReservationDetailPage() {
                   (item.capabilities?.canApprove ||
                     hasAreaPermission("reservation:approve", item.asset.managementArea.id));
                 const isSelected = selectedItemIds.includes(item.id);
+                const isDeliverySelectable = Boolean(
+                  item.capabilities?.canConfirmDelivery &&
+                    ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status),
+                );
+                const isDeliverySelected = selectedDeliveryItemIds.includes(item.id);
+                const isSelectable = isApprovable || isDeliverySelectable;
+                const isApproved = item.status === "APPROVED";
 
                 return (
                   <div
                     key={item.id}
                     className={`res-manifest-item ${
-                      isApprovable ? "reservation-item-card--selectable" : ""
+                      isSelectable ? "reservation-item-card--selectable" : ""
+                    } ${
+                      isDeliverySelectable ? "reservation-item-card--handover" : ""
                     }`}
-                    style={
-                      isSelected
-                        ? { background: "color-mix(in srgb, var(--teal-soft) 25%, var(--surface))" }
-                        : {}
-                    }
+                    data-selected={(isSelected || isDeliverySelected) || undefined}
+                    data-status={itemStatusClass}
                     onClick={(e) => {
-                      // Toggle checkbox on row click if approvable
                       if (
-                        isApprovable &&
+                        isSelectable &&
                         !(e.target instanceof HTMLInputElement) &&
                         !(e.target instanceof HTMLButtonElement)
                       ) {
-                        toggleItemSelection(item.id);
+                        if (isApprovable) toggleItemSelection(item.id);
+                        else toggleDeliveryItemSelection(item.id);
                       }
                     }}
                   >
-                    <div className="res-item-info">
-                      {/* Checkbox for Area Manager */}
-                      {isApprovable && (
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleItemSelection(item.id)}
-                          aria-label={`Select ${item.asset.name}`}
-                          className="reservation-item-select"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      )}
-
-                      <div className="res-item-icon">
-                        {item.asset.name.slice(0, 2).toUpperCase()}
-                      </div>
-
-                      <div>
-                        <div className="res-item-name">{item.asset.name}</div>
-                        <div className="res-item-sub">
-                          Area: {item.asset.managementArea.name}
-                        </div>
-                        {item.approval?.comment && (
-                          <div className="res-item-comment">
-                            Approver note: "{item.approval.comment}"
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                      {/* Quantity Input Box for Approvable Items */}
-                      {isApprovable ? (
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <label style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 600 }}>
-                            Approve Qty:
-                          </label>
+                    {isSelectable ? (
+                      <>
+                        <div className="res-pending-check">
                           <input
-                            type="number"
-                            min={1}
-                            max={item.quantity}
-                            value={itemQuantities[item.id] ?? item.quantity}
-                            onChange={(e) => {
-                              const val = Math.max(1, parseInt(e.target.value) || 1);
-                              setItemQuantities((prev) => ({ ...prev, [item.id]: val }));
-                            }}
+                            type="checkbox"
+                            checked={isApprovable ? isSelected : isDeliverySelected}
+                            onChange={() =>
+                              isApprovable
+                                ? toggleItemSelection(item.id)
+                                : toggleDeliveryItemSelection(item.id)
+                            }
+                            aria-label={
+                              isApprovable
+                                ? `Select ${item.asset.name}`
+                                : `Select ${item.asset.name} for handover`
+                            }
+                            className="reservation-item-select"
                             onClick={(e) => e.stopPropagation()}
-                            className="control"
-                            style={{ width: 60, height: 32, textAlign: "center", fontWeight: 700, fontSize: 12 }}
                           />
-                          <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>/ {item.quantity}</span>
                         </div>
-                      ) : (
-                        <span className="res-item-qty">
-                          Qty: {item.quantity} unit(s)
-                        </span>
-                      )}
 
-                      <div className="res-item-status-col">
-                        <span className={`res-status-badge res-status-badge--${itemStatusClass}`}>
-                          {item.status}
-                        </span>
+                        <div className="res-item-media">
+                          {item.asset.pictureUrl ? (
+                            <img src={item.asset.pictureUrl} alt="" />
+                          ) : (
+                            <span>{item.asset.name.slice(0, 2).toUpperCase()}</span>
+                          )}
+                        </div>
 
-                        {/* Inline Decision Buttons for single item */}
-                        {isApprovable && (
-                          <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              disabled={actionLoading}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDecideItems("APPROVE", [item.id]);
-                              }}
-                              style={{ height: 26, padding: "0 8px", fontSize: 10, gap: 2 }}
-                            >
-                              <Check size={11} color="var(--green)" />
-                              <span>Approve</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={actionLoading}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDecideItems("REJECT", [item.id]);
-                              }}
-                              style={{ height: 26, padding: "0 8px", fontSize: 10, color: "var(--red)" }}
-                            >
-                              <X size={11} />
-                              <span>Reject</span>
-                            </Button>
+                        <div className="res-pending-identity">
+                          <div className="res-item-copy">
+                            <div className="res-item-name">{item.asset.name}</div>
+                            <div className="res-item-sub">{item.asset.managementArea.name}</div>
                           </div>
-                        )}
-                      </div>
-                    </div>
+                        </div>
+
+                        <div className="res-pending-quantity">
+                          {isApprovable ? (
+                            <>
+                              <input
+                                id={`approve-qty-${item.id}`}
+                                aria-label={`Approve quantity for ${item.asset.name}`}
+                                type="number"
+                                min={1}
+                                max={item.quantity}
+                                value={itemQuantities[item.id] ?? item.quantity}
+                                onChange={(e) => {
+                                  const val = Math.min(
+                                    item.quantity,
+                                    Math.max(1, parseInt(e.target.value) || 1),
+                                  );
+                                  setItemQuantities((prev) => ({ ...prev, [item.id]: val }));
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="control"
+                              />
+                              <span aria-label={`${item.quantity} total reserved`}>
+                                / {item.quantity}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <strong>{item.quantity}</strong>
+                              <span>{item.quantity === 1 ? "unit" : "units"}</span>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="res-item-info">
+                          <div className="res-item-media">
+                            {item.asset.pictureUrl ? (
+                              <img src={item.asset.pictureUrl} alt="" />
+                            ) : (
+                              <span>{item.asset.name.slice(0, 2).toUpperCase()}</span>
+                            )}
+                            {isApproved && (
+                              <span className="res-item-media__clearance" aria-hidden="true">
+                                <Check size={10} strokeWidth={3} />
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="res-item-copy">
+                            <div className="res-item-name-row">
+                              <div className="res-item-name">{item.asset.name}</div>
+                              <span className="res-item-area">
+                                {item.asset.managementArea.name}
+                              </span>
+                            </div>
+                            {isApproved && item.approval ? (
+                              <div className="res-item-clearance">
+                                <CheckCircle size={14} />
+                                <div>
+                                  <span>
+                                    Cleared by {item.approval.approver.name ?? item.approval.approver.email}
+                                  </span>
+                                  {item.approval.decidedAt && (
+                                    <small>{formatDate(item.approval.decidedAt, true)}</small>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="res-item-sub">Awaiting area clearance</div>
+                            )}
+                            {item.approval?.comment && (
+                              <blockquote className="res-item-comment">
+                                {item.approval.comment}
+                              </blockquote>
+                            )}
+                          </div>
+                        </div>
+                        <div className="res-item-controls">
+                          <div className="res-item-qty-ticket">
+                            <span>{isApproved ? "Approved qty" : "Quantity"}</span>
+                            <strong>{item.quantity}</strong>
+                            <small>{item.quantity === 1 ? "unit" : "units"}</small>
+                          </div>
+                          <div className="res-item-status-col">
+                            <span className={`res-status-badge res-status-badge--${itemStatusClass}`}>
+                              {isApproved ? "Cleared" : item.status}
+                            </span>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
@@ -641,7 +735,7 @@ export function ReservationDetailPage() {
         </div>
 
         {/* Right Column (1/3): Participants & Help */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <aside className="res-detail-stack">
           {/* Participants Card */}
           <div className="res-card">
             <div className="res-card-header">
@@ -650,27 +744,28 @@ export function ReservationDetailPage() {
                 <span>Event Team & Participants</span>
               </h3>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div className="res-team-list">
+              <div className="res-team-member res-team-member--requester">
                 <Avatar name={reservation.requester.name ?? reservation.requester.email} />
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
+                  <div className="res-team-member__name">
                     {reservation.requester.name ?? "User"}
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
-                    {reservation.requester.email} (Requester)
+                  <div className="res-team-member__meta">
+                    {reservation.requester.email}
                   </div>
                 </div>
+                <span className="res-team-role">Requester</span>
               </div>
 
               {reservation.participants.map((p) => (
-                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 8, borderTop: "1px solid var(--line)" }}>
+                <div key={p.id} className="res-team-member">
                   <Avatar name={p.name ?? p.email} />
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>
+                    <div className="res-team-member__name">
                       {p.name ?? "Participant"}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
+                    <div className="res-team-member__meta">
                       {p.email}
                     </div>
                   </div>
@@ -680,16 +775,16 @@ export function ReservationDetailPage() {
           </div>
 
           {/* Quick Help Card */}
-          <div className="res-card" style={{ background: "color-mix(in srgb, var(--blue-soft) 40%, var(--surface))", borderColor: "color-mix(in srgb, var(--blue) 25%, transparent)" }}>
-            <h4 style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700, color: "var(--blue-dark)", display: "flex", alignItems: "center", gap: 6 }}>
+          <div className="res-card res-help-card">
+            <h4>
               <Info size={16} />
               <span>Reservation Lifecycle Help</span>
             </h4>
-            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--ink-soft)" }}>
+            <p>
               Click on any step in the <strong>Reservation Status Track</strong> above to open detailed audit logs, actor records, and department decisions.
             </p>
           </div>
-        </div>
+        </aside>
       </div>
 
       {/* Return Request Modal */}

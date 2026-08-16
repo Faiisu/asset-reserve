@@ -787,6 +787,89 @@ describe("reservation change requests", () => {
     expect(result.id).toBe(reservationId);
   });
 
+  it.each(["participant", "asset manager"] as const)(
+    "allows an event %s to confirm handover for an authorized item",
+    async (actorKind) => {
+      const approvedReservation = detailRecord("APPROVED");
+      const participantId = "00000000-0000-4000-8000-000000000777";
+      if (actorKind === "participant") {
+        approvedReservation.participants.push({
+          userId: participantId,
+          reservationId,
+          createdAt: new Date("2026-08-15T00:00:00.000Z"),
+          user: { id: participantId, email: "participant@example.com", profile: null },
+        } as never);
+      }
+      const handoverActor: AuthenticatedActor = {
+        user: {
+          id:
+            actorKind === "participant"
+              ? participantId
+              : "00000000-0000-4000-8000-000000000778",
+          email: `${actorKind.replace(" ", "-")}@example.com`,
+          isActive: true,
+          profile: null,
+        },
+        roles: [],
+        effectivePermissions: {
+          global: [],
+          byManagementArea:
+            actorKind === "asset manager"
+              ? [{ managementAreaId: areaId, permissions: ["asset:update"] }]
+              : [],
+        },
+      };
+      const update = vi.fn();
+      const updateMany = vi.fn();
+      const prisma = {
+        reservation: { findUnique: vi.fn().mockResolvedValue(approvedReservation) },
+        $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
+          cb({
+            reservation: { update },
+            reservationItem: {
+              updateMany,
+              findMany: vi.fn().mockResolvedValue([
+                { id: itemId, status: "DELIVERED" },
+              ]),
+            },
+          }),
+        ),
+      } as unknown as PrismaService;
+      const service = new ReservationsService(prisma);
+      vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
+
+      await expect(
+        service.confirmDelivery(handoverActor, reservationId, {
+          itemIds: [itemId],
+        }),
+      ).resolves.toEqual({ id: reservationId });
+      expect(updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: { in: [itemId] }, reservationId } }),
+      );
+    },
+  );
+
+  it("rejects handover confirmation outside the event team and asset manager area", async () => {
+    const approvedReservation = detailRecord("APPROVED");
+    const outsider: AuthenticatedActor = {
+      user: {
+        id: "00000000-0000-4000-8000-000000000779",
+        email: "outsider@example.com",
+        isActive: true,
+        profile: null,
+      },
+      roles: [],
+      effectivePermissions: { global: [], byManagementArea: [] },
+    };
+    const service = new ReservationsService({
+      reservation: { findUnique: vi.fn().mockResolvedValue(approvedReservation) },
+    } as unknown as PrismaService);
+
+    await expect(
+      service.confirmDelivery(outsider, reservationId, { itemIds: [itemId] }),
+    ).rejects.toMatchObject({ status: 403, code: "PERMISSION_DENIED" });
+  });
+
   it("supports partial item delivery confirmation without prematurely advancing event status", async () => {
     const approvedReservation = detailRecord("APPROVED");
     const itemId2 = "00000000-0000-0000-0000-000000000088";
