@@ -13,8 +13,8 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
+import { AssetPhotosSection, type PendingPhoto } from "../components/AssetPhotosSection";
 import { CameraCaptureModal } from "../components/CameraCaptureModal";
-import { RecognitionPhotosSection } from "../components/RecognitionPhotosSection";
 import {
   AssetPicture,
   Breadcrumb,
@@ -34,7 +34,6 @@ type FormValue = {
   name: string;
   managementAreaId: string;
   description: string;
-  pictureUrl: string;
   totalQuantity: string;
   isActive: boolean;
 };
@@ -43,10 +42,17 @@ const emptyForm: FormValue = {
   name: "",
   managementAreaId: "",
   description: "",
-  pictureUrl: "",
   totalQuantity: "1",
   isActive: true,
 };
+
+function pendingIdFromKey(key: string): string | null {
+  return key.startsWith("pending:") ? key.slice("pending:".length) : null;
+}
+
+function existingIdFromKey(key: string): string | null {
+  return key.startsWith("existing:") ? key.slice("existing:".length) : null;
+}
 
 export function AssetFormPage() {
   const { assetId } = useParams();
@@ -60,37 +66,21 @@ export function AssetFormPage() {
   const [mode, setMode] = useState<"single" | "batch">("single");
   const [loading, setLoading] = useState(true);
   const [fields, setFields] = useState<Record<string, string>>({});
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadError, setUploadError] = useState("");
-  const [cameraOpen, setCameraOpen] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Recognition-feature reference photos (edit page only): staged locally,
-  // same as every other field here -- nothing hits the recognition service
-  // until Save changes is clicked (see syncRecognitionPhotos below).
-  const [recognitionPhotos, setRecognitionPhotos] = useState<RecognitionPhoto[]>([]);
-  const [recognitionLoading, setRecognitionLoading] = useState(false);
-  const [recognitionError, setRecognitionError] = useState("");
-  const [recognitionPendingAdds, setRecognitionPendingAdds] = useState<File[]>([]);
-  const [recognitionPendingRemoveIds, setRecognitionPendingRemoveIds] = useState<Set<string>>(
-    new Set(),
-  );
-
-  async function handleImageUpload(file: File) {
-    setUploadingImage(true);
-    setUploadError("");
-    try {
-      const res = await api.uploadImage(file);
-      setForm((prev) => ({ ...prev, pictureUrl: res.url }));
-    } catch (caught) {
-      setUploadError(
-        caught instanceof Error ? caught.message : "Image upload failed",
-      );
-    } finally {
-      setUploadingImage(false);
-    }
-  }
+  // Unified asset-photos state: every photo (batch-uploaded or captured) is
+  // both a potential thumbnail and a recognition reference photo. Staged
+  // locally, same as every other field here -- nothing hits either the main
+  // backend's upload endpoint or the recognition service until Save is
+  // clicked (see resolvePictureUrl / syncAssetPhotos below).
+  const [existingPhotos, setExistingPhotos] = useState<RecognitionPhoto[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [photosError, setPhotosError] = useState("");
+  const [pendingAdds, setPendingAdds] = useState<PendingPhoto[]>([]);
+  const [removedExistingIds, setRemovedExistingIds] = useState<Set<string>>(new Set());
+  const [thumbnailKey, setThumbnailKey] = useState<string | null>(null);
+  const [initialThumbnailKey, setInitialThumbnailKey] = useState<string | null>(null);
 
   const permittedAreaIds = useMemo(() => {
     if (
@@ -132,7 +122,6 @@ export function AssetFormPage() {
             name: detail.name,
             managementAreaId: detail.managementArea.id,
             description: detail.description ?? "",
-            pictureUrl: detail.pictureUrl ?? "",
             totalQuantity: String(detail.totalQuantity),
             isActive: detail.isActive,
           });
@@ -153,29 +142,59 @@ export function AssetFormPage() {
     };
   }, [assetId]);
 
+  // Loads this asset's existing recognition photos + which one is currently
+  // the thumbnail (extra.mainPhotoId), once, when editing. Falls back to the
+  // first photo if mainPhotoId is missing or stale.
   useEffect(() => {
     if (!assetId) return;
     let active = true;
-    setRecognitionLoading(true);
-    recognitionApi
-      .listPhotos(assetId)
-      .then((photos) => {
-        if (active) setRecognitionPhotos(photos);
+    setPhotosLoading(true);
+    Promise.all([recognitionApi.listPhotos(assetId), recognitionApi.getAsset(assetId)])
+      .then(([photos, recognitionAsset]) => {
+        if (!active) return;
+        setExistingPhotos(photos);
+        const mainPhotoId =
+          recognitionAsset && typeof recognitionAsset.extra.mainPhotoId === "string"
+            ? recognitionAsset.extra.mainPhotoId
+            : undefined;
+        const initialKey =
+          mainPhotoId && photos.some((p) => p.photo_id === mainPhotoId)
+            ? `existing:${mainPhotoId}`
+            : photos[0]
+              ? `existing:${photos[0].photo_id}`
+              : null;
+        setThumbnailKey(initialKey);
+        setInitialThumbnailKey(initialKey);
       })
       .catch((caught) => {
         if (active) {
-          setRecognitionError(
-            caught instanceof Error ? caught.message : "Could not load recognition photos",
+          setPhotosError(
+            caught instanceof Error ? caught.message : "Could not load photos",
           );
         }
       })
       .finally(() => {
-        if (active) setRecognitionLoading(false);
+        if (active) setPhotosLoading(false);
       });
     return () => {
       active = false;
     };
   }, [assetId]);
+
+  // Keeps the thumbnail selection valid as photos are added/removed: falls
+  // back to the first remaining photo whenever the current selection no
+  // longer exists (including the very first photo ever added, in create
+  // mode -- this is what makes "first photo = thumbnail" the default).
+  useEffect(() => {
+    const visibleExisting = existingPhotos.filter((p) => !removedExistingIds.has(p.photo_id));
+    const combinedKeys = [
+      ...visibleExisting.map((p) => `existing:${p.photo_id}`),
+      ...pendingAdds.map((p) => `pending:${p.id}`),
+    ];
+    if (thumbnailKey && combinedKeys.includes(thumbnailKey)) return;
+    setThumbnailKey(combinedKeys[0] ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingPhotos, removedExistingIds, pendingAdds]);
 
   useEffect(() => {
     if (!editing && visibleAreas.length > 0) {
@@ -190,6 +209,41 @@ export function AssetFormPage() {
       });
     }
   }, [editing, visibleAreas]);
+
+  // Live preview of the currently-selected thumbnail, before anything is
+  // actually uploaded. Existing photos are just a plain URL; a selected
+  // pending (not-yet-uploaded) file needs a local blob URL, memoized on the
+  // selected File itself and released whenever the selection changes.
+  const selectedPendingFile = useMemo(() => {
+    const id = thumbnailKey ? pendingIdFromKey(thumbnailKey) : null;
+    if (!id) return null;
+    return pendingAdds.find((p) => p.id === id)?.file ?? null;
+  }, [thumbnailKey, pendingAdds]);
+  const selectedPendingPreviewUrl = useMemo(
+    () => (selectedPendingFile ? URL.createObjectURL(selectedPendingFile) : null),
+    [selectedPendingFile],
+  );
+  useEffect(() => {
+    return () => {
+      if (selectedPendingPreviewUrl) URL.revokeObjectURL(selectedPendingPreviewUrl);
+    };
+  }, [selectedPendingPreviewUrl]);
+  const previewSrc = useMemo(() => {
+    if (selectedPendingPreviewUrl) return selectedPendingPreviewUrl;
+    const existingId = thumbnailKey ? existingIdFromKey(thumbnailKey) : null;
+    if (existingId) {
+      const photo = existingPhotos.find((p) => p.photo_id === existingId);
+      if (photo) return recognitionApi.imageSrc(photo.image_url);
+    }
+    return null;
+  }, [selectedPendingPreviewUrl, thumbnailKey, existingPhotos]);
+
+  function handleAddFiles(files: File[]) {
+    setPendingAdds((current) => [
+      ...current,
+      ...files.map((file) => ({ id: crypto.randomUUID(), file })),
+    ]);
+  }
 
   function validate() {
     const nextFields: Record<string, string> = {};
@@ -207,104 +261,107 @@ export function AssetFormPage() {
     return Object.keys(nextFields).length === 0;
   }
 
-  // Applies every staged recognition-photo change in one go, at Save time --
-  // never before. Best-effort throughout, same reasoning as the create-flow
-  // registration below: the recognition service being slow/unreachable, or
-  // one particular photo failing, should never block the asset save itself
-  // (which has already succeeded by the time this runs) or stop the other
-  // staged changes from being attempted.
-  async function syncRecognitionPhotos(assetId: string, name: string) {
+  // Resolves the currently-selected thumbnail into a real pictureUrl the
+  // main backend can store, uploading to /uploads/ only when actually
+  // needed:
+  //  - a newly-added (pending) file -> upload it now, first time.
+  //  - an existing photo the user didn't change -> reuse asset.pictureUrl
+  //    as-is, no redundant re-upload.
+  //  - an existing photo the user just switched TO as the new thumbnail ->
+  //    pull its bytes back from the recognition service and upload fresh
+  //    (the main app keeps its own copy, independent of recognition-service
+  //    uptime, same reasoning as the original single-photo design).
+  async function resolvePictureUrl(): Promise<string | null> {
+    if (!thumbnailKey) return null;
+    const pendingId = pendingIdFromKey(thumbnailKey);
+    if (pendingId) {
+      const pending = pendingAdds.find((p) => p.id === pendingId);
+      if (!pending) return null;
+      const res = await api.uploadImage(pending.file);
+      return res.url;
+    }
+    const existingId = existingIdFromKey(thumbnailKey);
+    if (!existingId) return null;
+    if (editing && thumbnailKey === initialThumbnailKey) {
+      return asset?.pictureUrl ?? null;
+    }
+    const photo = existingPhotos.find((p) => p.photo_id === existingId);
+    if (!photo) return null;
+    const file = await recognitionApi.fetchAsFile(
+      recognitionApi.imageSrc(photo.image_url),
+      `${existingId}.jpg`,
+    );
+    const res = await api.uploadImage(file);
+    return res.url;
+  }
+
+  // Applies every staged photo change in one go, at Save time -- never
+  // before. Best-effort throughout: the recognition service being slow or
+  // unreachable, or one particular photo failing, should never block the
+  // asset save itself (already succeeded by the time this runs) or stop the
+  // other staged changes from being attempted.
+  async function syncAssetPhotos(assetId: string, name: string) {
     const failures: string[] = [];
+    let assetDeleted = false;
 
-    // A newly attached/replaced/removed main thumbnail is reconciled against
-    // whichever recognition reference photo was previously derived from it --
-    // tracked as extra.mainPhotoId on the recognition asset itself, since
-    // that's the one piece of state that needs to survive between edits.
-    // Manually-added photos (via the section below) are never touched here;
-    // this only follows the single photo that mirrors the Asset Photo field.
-    const originalPictureUrl = asset?.pictureUrl ?? "";
-    const newPictureUrl = form.pictureUrl.trim();
-    if (newPictureUrl !== originalPictureUrl) {
-      let existing: Awaited<ReturnType<typeof recognitionApi.getAsset>> = null;
+    // 1. Add new photos FIRST. Order matters: adding before removing means a
+    // removal can never be blocked by "this is the asset's only remaining
+    // photo" when there's really a net gain in photo count.
+    const pendingServerIds = new Map<string, string>();
+    for (const pending of pendingAdds) {
       try {
-        existing = await recognitionApi.getAsset(assetId);
+        const newId = await recognitionApi.registerOrAddPhoto(
+          assetId,
+          name,
+          pending.file,
+          pending.file.name || "photo.jpg",
+        );
+        pendingServerIds.set(pending.id, newId);
       } catch (caught) {
-        failures.push(caught instanceof Error ? caught.message : "Could not check recognition status");
+        failures.push(caught instanceof Error ? caught.message : `Could not add ${pending.file.name}`);
       }
-      const currentExtra = { ...(existing?.extra ?? {}) };
-      const oldMainPhotoId = typeof currentExtra.mainPhotoId === "string" ? currentExtra.mainPhotoId : undefined;
-      let finalMainPhotoId = oldMainPhotoId;
-      let assetDeleted = false;
+    }
 
-      // Register the replacement FIRST (if any), so that removing the old
-      // main photo below is never blocked by "can't delete an asset's only
-      // photo" -- by the time we try, the new one already exists too.
-      if (newPictureUrl) {
-        try {
-          const file = await recognitionApi.fetchAsFile(newPictureUrl, `${assetId}.jpg`);
-          finalMainPhotoId = await recognitionApi.registerOrAddPhoto(assetId, name, file);
-        } catch (caught) {
-          failures.push(caught instanceof Error ? caught.message : "Could not sync the new asset photo");
-        }
-      } else {
-        finalMainPhotoId = undefined;
-      }
-
-      if (oldMainPhotoId && oldMainPhotoId !== finalMainPhotoId) {
-        try {
-          await recognitionApi.deletePhoto(assetId, oldMainPhotoId);
-        } catch (caught) {
-          if (caught instanceof ApiClientError && caught.status === 400) {
-            // It really was the asset's only photo and nothing replaced it --
-            // remove the whole recognition entry rather than leave an orphan
-            // the service won't let us delete piecemeal.
-            try {
-              await recognitionApi.deleteAsset(assetId);
-              assetDeleted = true;
-            } catch (deleteCaught) {
-              failures.push(
-                deleteCaught instanceof Error ? deleteCaught.message : "Could not remove the recognition entry",
-              );
-            }
-          } else {
-            failures.push(caught instanceof Error ? caught.message : "Could not remove the previous main photo reference");
+    // 2. Apply removals.
+    for (const photoId of removedExistingIds) {
+      try {
+        await recognitionApi.deletePhoto(assetId, photoId);
+      } catch (caught) {
+        if (caught instanceof ApiClientError && caught.status === 400) {
+          // Genuinely the only photo left -- remove the whole entry rather
+          // than leave an orphan the service won't delete piecemeal.
+          try {
+            await recognitionApi.deleteAsset(assetId);
+            assetDeleted = true;
+          } catch (deleteCaught) {
+            failures.push(
+              deleteCaught instanceof Error ? deleteCaught.message : "Could not remove the recognition entry",
+            );
           }
+        } else {
+          failures.push(caught instanceof Error ? caught.message : "Could not remove a photo");
         }
       }
+    }
 
-      if (!assetDeleted && finalMainPhotoId !== oldMainPhotoId) {
+    // 3. Resolve and persist the final thumbnail pointer.
+    if (!assetDeleted && thumbnailKey) {
+      const pendingId = pendingIdFromKey(thumbnailKey);
+      const finalPhotoId = pendingId ? pendingServerIds.get(pendingId) : existingIdFromKey(thumbnailKey);
+      if (finalPhotoId) {
         try {
-          const nextExtra = { ...currentExtra };
-          if (finalMainPhotoId) nextExtra.mainPhotoId = finalMainPhotoId;
-          else delete nextExtra.mainPhotoId;
-          await recognitionApi.updateAsset(assetId, { extra: nextExtra });
+          await recognitionApi.updateAsset(assetId, { extra: { mainPhotoId: finalPhotoId } });
         } catch (caught) {
           failures.push(caught instanceof Error ? caught.message : "Could not save recognition metadata");
         }
       }
     }
 
-    for (const file of recognitionPendingAdds) {
-      try {
-        await recognitionApi.registerOrAddPhoto(assetId, name, file, file.name || "photo.jpg");
-      } catch (caught) {
-        failures.push(caught instanceof Error ? caught.message : `Could not add ${file.name}`);
-      }
-    }
-
-    for (const photoId of recognitionPendingRemoveIds) {
-      try {
-        await recognitionApi.deletePhoto(assetId, photoId);
-      } catch (caught) {
-        failures.push(caught instanceof Error ? caught.message : "Could not remove a reference photo");
-      }
-    }
-
     if (failures.length > 0) {
-      console.warn("Recognition photo sync had issues:", failures);
+      console.warn("Asset photo sync had issues:", failures);
     }
-    setRecognitionPendingAdds([]);
-    setRecognitionPendingRemoveIds(new Set());
+    setPendingAdds([]);
+    setRemovedExistingIds(new Set());
   }
 
   async function submit(event: FormEvent) {
@@ -314,48 +371,68 @@ export function AssetFormPage() {
     setError(null);
     try {
       if (editing && asset) {
+        const pictureUrl = await resolvePictureUrl();
         await api.updateAsset(asset.id, {
           name: form.name.trim(),
           managementAreaId: form.managementAreaId,
           description: form.description.trim() || null,
-          pictureUrl: form.pictureUrl.trim() || null,
+          pictureUrl,
           expectedUpdatedAt: asset.updatedAt,
         });
-        await syncRecognitionPhotos(asset.id, form.name.trim());
+        await syncAssetPhotos(asset.id, form.name.trim());
         navigate(`/assets/${asset.id}`, {
           state: { notice: "Asset updated successfully" },
         });
       } else {
+        // The selected thumbnail (if any) needs a real /uploads/ URL before
+        // the asset can be created -- there are no "existing" photos to pick
+        // from yet, so this only ever resolves a pending file.
+        let pictureUrl: string | null = null;
+        const pendingId = thumbnailKey ? pendingIdFromKey(thumbnailKey) : null;
+        if (pendingId) {
+          const pending = pendingAdds.find((p) => p.id === pendingId);
+          if (pending) {
+            const res = await api.uploadImage(pending.file);
+            pictureUrl = res.url;
+          }
+        }
+
         const created = await api.createAsset({
           name: form.name.trim(),
           managementAreaId: form.managementAreaId,
           description: form.description.trim() || null,
-          pictureUrl: form.pictureUrl.trim() || null,
+          pictureUrl,
           totalQuantity: Number(form.totalQuantity) || 0,
           isActive: true,
         });
-        // Best-effort: if a photo was attached, use that same photo to
-        // register this asset with the recognition service too, so it's
-        // ready to recognize without a separate step. Never blocks/fails
-        // asset creation itself -- the recognition service being slow or
-        // unreachable shouldn't stop the user from adding the asset.
-        if (form.pictureUrl.trim()) {
-          try {
-            const file = await recognitionApi.fetchAsFile(
-              form.pictureUrl.trim(),
-              `${created.id}.jpg`,
-            );
-            // Registering fresh here (this asset can't already exist in the
-            // recognition service), so this is always the "first photo" case
-            // -- tracked as extra.mainPhotoId so a later edit-page photo
-            // change/removal can find and reconcile this exact reference
-            // photo (see syncRecognitionPhotos above).
-            const photoId = await recognitionApi.registerAsset(created.id, created.name, file);
-            await recognitionApi.updateAsset(created.id, { extra: { mainPhotoId: photoId } });
-          } catch (caught) {
-            console.warn("Could not register asset with recognition service:", caught);
+
+        // Best-effort: register every attached photo with the recognition
+        // service, tracking whichever one was chosen as the thumbnail.
+        // Never blocks/fails asset creation itself.
+        if (pendingAdds.length > 0) {
+          let mainPhotoId: string | undefined;
+          for (const pending of pendingAdds) {
+            try {
+              const newId = await recognitionApi.registerOrAddPhoto(
+                created.id,
+                created.name,
+                pending.file,
+                pending.file.name || "photo.jpg",
+              );
+              if (thumbnailKey === `pending:${pending.id}`) mainPhotoId = newId;
+            } catch (caught) {
+              console.warn(`Could not register photo ${pending.file.name} with recognition service:`, caught);
+            }
+          }
+          if (mainPhotoId) {
+            try {
+              await recognitionApi.updateAsset(created.id, { extra: { mainPhotoId } });
+            } catch (caught) {
+              console.warn("Could not save recognition metadata:", caught);
+            }
           }
         }
+
         navigate(`/assets/${created.id}`, {
           state: { notice: "New asset created" },
         });
@@ -524,113 +601,22 @@ export function AssetFormPage() {
               </Field>
             </section>
 
-            <section className="form-section">
-              <div className="form-section__heading">
-                <span>02</span>
-                <div>
-                  <h2>Asset Photo</h2>
-                  <p>Take a photo using your camera or upload an image file.</p>
-                </div>
-              </div>
-              <Field label="Photo" error={fields.pictureUrl || uploadError}>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "14px",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {form.pictureUrl && (
-                    <img
-                      src={form.pictureUrl}
-                      alt="Preview"
-                      style={{
-                        width: "60px",
-                        height: "60px",
-                        borderRadius: "8px",
-                        objectFit: "cover",
-                        border: "1px solid var(--line)",
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                      }}
-                    />
-                  )}
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "10px",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={uploadingImage}
-                      onClick={() => setCameraOpen(true)}
-                      style={{ whiteSpace: "nowrap" }}
-                    >
-                      <Camera size={17} /> Take photo
-                    </Button>
-                    <label
-                      className="button button--secondary button--md"
-                      style={{
-                        cursor: "pointer",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      <Upload size={17} />
-                      {uploadingImage ? "Uploading..." : "Upload file"}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        style={{ display: "none" }}
-                        disabled={uploadingImage}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) void handleImageUpload(file);
-                        }}
-                      />
-                    </label>
-                    {form.pictureUrl && (
-                      <Button
-                        type="button"
-                        variant="quiet"
-                        onClick={() =>
-                          setForm((prev) => ({ ...prev, pictureUrl: "" }))
-                        }
-                        style={{ color: "var(--red)", gap: "5px" }}
-                      >
-                        <X size={15} /> Remove photo
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </Field>
-            </section>
-
-            {editing && asset && (
-              <RecognitionPhotosSection
-                existingPhotos={recognitionPhotos}
-                pendingAdds={recognitionPendingAdds}
-                pendingRemoveIds={recognitionPendingRemoveIds}
-                loading={recognitionLoading}
-                error={recognitionError}
-                onAdd={(file) =>
-                  setRecognitionPendingAdds((current) => [...current, file])
-                }
-                onRemoveExisting={(photoId) =>
-                  setRecognitionPendingRemoveIds(
-                    (current) => new Set(current).add(photoId),
-                  )
-                }
-                onRemovePendingAdd={(index) =>
-                  setRecognitionPendingAdds((current) =>
-                    current.filter((_, i) => i !== index),
-                  )
-                }
-              />
-            )}
+            <AssetPhotosSection
+              existingPhotos={existingPhotos}
+              removedExistingIds={removedExistingIds}
+              pendingAdds={pendingAdds}
+              thumbnailKey={thumbnailKey}
+              loading={photosLoading}
+              error={photosError}
+              onAddFiles={handleAddFiles}
+              onRemoveExisting={(photoId) =>
+                setRemovedExistingIds((current) => new Set(current).add(photoId))
+              }
+              onRemovePending={(id) =>
+                setPendingAdds((current) => current.filter((p) => p.id !== id))
+              }
+              onSelectThumbnail={setThumbnailKey}
+            />
 
             <div className="form-submit">
               <Button type="submit" loading={submitting}>
@@ -643,7 +629,7 @@ export function AssetFormPage() {
           <aside className="record-preview">
             <p className="eyebrow">Live preview</p>
             <AssetPicture
-              src={form.pictureUrl || null}
+              src={previewSrc}
               name={form.name || "Asset"}
               large
             />
@@ -668,11 +654,6 @@ export function AssetFormPage() {
           </aside>
         </form>
       )}
-      <CameraCaptureModal
-        open={cameraOpen}
-        onClose={() => setCameraOpen(false)}
-        onCapture={(file) => handleImageUpload(file)}
-      />
     </div>
   );
 }
