@@ -14,6 +14,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
 import { CameraCaptureModal } from "../components/CameraCaptureModal";
+import { RecognitionPhotosSection } from "../components/RecognitionPhotosSection";
 import {
   AssetPicture,
   Breadcrumb,
@@ -26,6 +27,7 @@ import {
   Select,
   Textarea,
 } from "../components/ui";
+import { recognitionApi } from "../recognitionApi";
 import type { AssetDetail, ManagementArea } from "../types";
 
 type FormValue = {
@@ -196,6 +198,22 @@ export function AssetFormPage() {
           totalQuantity: Number(form.totalQuantity) || 0,
           isActive: true,
         });
+        // Best-effort: if a photo was attached, use that same photo to
+        // register this asset with the recognition service too, so it's
+        // ready to recognize without a separate step. Never blocks/fails
+        // asset creation itself -- the recognition service being slow or
+        // unreachable shouldn't stop the user from adding the asset.
+        if (form.pictureUrl.trim()) {
+          try {
+            const file = await recognitionApi.fetchAsFile(
+              form.pictureUrl.trim(),
+              `${created.id}.jpg`,
+            );
+            await recognitionApi.registerOrAddPhoto(created.id, created.name, file);
+          } catch (caught) {
+            console.warn("Could not register asset with recognition service:", caught);
+          }
+        }
         navigate(`/assets/${created.id}`, {
           state: { notice: "New asset created" },
         });
@@ -448,6 +466,10 @@ export function AssetFormPage() {
                 </div>
               </Field>
             </section>
+
+            {editing && asset && (
+              <RecognitionPhotosSection assetId={asset.id} assetName={asset.name} />
+            )}
 
             <div className="form-submit">
               <Button type="submit" loading={submitting}>

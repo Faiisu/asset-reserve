@@ -15,6 +15,13 @@ export default defineConfig({
         target: process.env.VITE_DEV_API_TARGET ?? "http://localhost:3000",
         changeOrigin: true,
       },
+      // Asset recognition service (recognition-service/) -- separate Python/FastAPI
+      // process, proxied here the same way /api and /uploads are.
+      "/recognition": {
+        target: process.env.VITE_RECOGNITION_API_TARGET ?? "http://localhost:8000",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/recognition/, ""),
+      },
     },
   },
   test: {
