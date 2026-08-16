@@ -1,5 +1,5 @@
 import { Camera, Star, Trash2, Upload } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { recognitionApi, type RecognitionPhoto } from "../recognitionApi";
 import { Button } from "./ui";
 import { CameraCaptureModal } from "./CameraCaptureModal";
@@ -146,10 +146,20 @@ function PendingPhotoThumb({
   onRemove: () => void;
   onSelectThumbnail: () => void;
 }) {
-  // Memoized per File instance (not recreated every render) and released
-  // when this thumbnail unmounts, so preview blob URLs don't leak.
-  const src = useMemo(() => URL.createObjectURL(file), [file]);
-  useEffect(() => () => URL.revokeObjectURL(src), [src]);
+  // Create AND revoke the blob URL inside the same effect (not
+  // useMemo+separate-cleanup-effect) so the URL survives React 18
+  // StrictMode's dev-only double-invoke of effects. With the URL created in
+  // useMemo, StrictMode's synthetic mount->cleanup->remount would revoke it
+  // via the cleanup effect without useMemo ever creating a replacement
+  // (it's still memoized on the same `file`), leaving <img> pointing at a
+  // revoked blob URL -- the preview silently fails to load.
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  if (!src) return null;
 
   return (
     <PhotoThumb

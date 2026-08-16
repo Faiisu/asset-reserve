@@ -219,15 +219,20 @@ export function AssetFormPage() {
     if (!id) return null;
     return pendingAdds.find((p) => p.id === id)?.file ?? null;
   }, [thumbnailKey, pendingAdds]);
-  const selectedPendingPreviewUrl = useMemo(
-    () => (selectedPendingFile ? URL.createObjectURL(selectedPendingFile) : null),
-    [selectedPendingFile],
-  );
+  // Create AND revoke inside the same effect (not useMemo + a separate
+  // cleanup effect) so the URL survives React 18 StrictMode's dev-only
+  // double-invoke -- see the matching comment on PendingPhotoThumb in
+  // AssetPhotosSection.tsx for why the useMemo version silently breaks.
+  const [selectedPendingPreviewUrl, setSelectedPendingPreviewUrl] = useState<string | null>(null);
   useEffect(() => {
-    return () => {
-      if (selectedPendingPreviewUrl) URL.revokeObjectURL(selectedPendingPreviewUrl);
-    };
-  }, [selectedPendingPreviewUrl]);
+    if (!selectedPendingFile) {
+      setSelectedPendingPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(selectedPendingFile);
+    setSelectedPendingPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [selectedPendingFile]);
   const previewSrc = useMemo(() => {
     if (selectedPendingPreviewUrl) return selectedPendingPreviewUrl;
     const existingId = thumbnailKey ? existingIdFromKey(thumbnailKey) : null;
@@ -1010,8 +1015,18 @@ function BatchPhotoThumb({
   onRemove: () => void;
   onSelectThumbnail: () => void;
 }) {
-  const src = useMemo(() => URL.createObjectURL(file), [file]);
-  useEffect(() => () => URL.revokeObjectURL(src), [src]);
+  // Create AND revoke the blob URL inside the same effect -- see the
+  // matching comment on AssetPhotosSection's PendingPhotoThumb for why a
+  // useMemo-created URL + separate cleanup effect breaks under React 18
+  // StrictMode's dev-only double-invoke (the preview silently fails to
+  // load because the URL gets revoked with no replacement created).
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  if (!src) return null;
 
   return (
     <div style={{ position: "relative", width: "48px", height: "48px" }}>
