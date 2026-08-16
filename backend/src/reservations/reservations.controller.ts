@@ -11,6 +11,7 @@ import { CurrentActor } from "../auth/auth.decorators.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import {
   CancelReservationDto,
+  ConfirmDeliveryDto,
   CreateReservationChangeRequestDto,
   CreateReservationDto,
   ReservationChangeRequestDecisionDto,
@@ -99,6 +100,15 @@ export class ReservationsController {
       changeRequestId,
       input,
     );
+  }
+
+  @Post(":reservationId/delivery-confirm")
+  confirmDelivery(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Param("reservationId", new ParseUUIDPipe()) reservationId: string,
+    @Body() input?: ConfirmDeliveryDto,
+  ) {
+    return this.reservations.confirmDelivery(actor, reservationId, input);
   }
 
   @Post(":reservationId/cancel")

@@ -30,7 +30,12 @@ const allocatedItemStatuses = ["APPROVED", "PREPARED", "CHECKED_OUT"];
 const allocatedReservationStatuses = [
   "PARTIALLY_APPROVED",
   "APPROVED",
+  "DELIVERY_CONFIRMED",
   "ACTIVE",
+  "RETURN",
+  "RETURN_PENDING",
+  "RETURN_CONFIRMED",
+  "COMPLETED",
 ];
 
 @Injectable()
@@ -69,6 +74,8 @@ export class AssetsService {
       conditions.push({ assetTemplateId: query.templateId });
     if (query.isActive !== undefined)
       conditions.push({ isActive: query.isActive });
+    if (query.status !== undefined)
+      conditions.push({ status: query.status });
     if (query.search) {
       conditions.push({
         OR: [
@@ -196,6 +203,7 @@ export class AssetsService {
       pictureUrl: item.pictureUrl ?? null,
       totalQuantity: item.totalQuantity,
       isActive: item.isActive ?? true,
+      status: item.status ?? (item.isActive === false ? "INACTIVE" : "ACTIVE"),
     }));
     try {
       const rows = await this.prisma.$transaction(
@@ -312,9 +320,15 @@ export class AssetsService {
       input.status === "INACTIVE" ? "asset:delete" : "asset:update",
       current.managementAreaId,
     );
+    const isActive = input.status === "ACTIVE";
+    const status = input.status === "INACTIVE" ? (current.status || "ACTIVE") : input.status;
     const result = await this.prisma.asset.updateMany({
       where: { id: assetId, updatedAt: new Date(input.expectedUpdatedAt) },
-      data: { isActive: input.status === "ACTIVE", updatedAt: new Date() },
+      data: {
+        isActive,
+        status,
+        updatedAt: new Date(),
+      },
     });
     if (!result.count) this.staleWrite();
     return this.getSummary(actor, assetId);
@@ -527,7 +541,11 @@ export class AssetsService {
       allocatedQuantity,
       availableQuantity: Math.max(asset.totalQuantity - allocatedQuantity, 0),
       isActive: asset.isActive,
-      status: asset.isActive ? ("ACTIVE" as const) : ("INACTIVE" as const),
+      status: (asset.status ?? (asset.isActive ? "ACTIVE" : "INACTIVE")) as
+        | "ACTIVE"
+        | "BROKEN"
+        | "LOST"
+        | "INACTIVE",
       assetTemplate: asset.assetTemplate
         ? {
             id: asset.assetTemplate.id,

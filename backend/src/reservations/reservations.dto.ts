@@ -185,3 +185,12 @@ export class CancelReservationDto {
   @MaxLength(2_000)
   reason?: string;
 }
+
+export class ConfirmDeliveryDto {
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  itemIds?: string[];
+}

@@ -623,6 +623,18 @@
     align-items: stretch;
     flex-direction: column-reverse;
   }
+  .reservation-stepper {
+    padding: 16px 14px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .res-step__label {
+    font-size: 9px;
+  }
+  .res-step__circle {
+    width: 28px;
+    height: 28px;
+  }
   .approval-selection-bar {
     align-items: stretch;
     flex-direction: column;

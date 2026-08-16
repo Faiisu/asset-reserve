@@ -5,8 +5,8 @@ model Reservation {
   description String?
   startAt     DateTime @map("start_at") @db.Timestamptz(6)
   endAt       DateTime @map("end_at") @db.Timestamptz(6)
-  /// Supported values: DRAFT, PENDING_APPROVAL, PARTIALLY_APPROVED, APPROVED,
-  /// REJECTED, CANCELLED, ACTIVE, COMPLETED.
+  /// Supported values: DRAFT, PENDING, PENDING_APPROVAL, PARTIALLY_APPROVED, APPROVED,
+  /// DELIVERY_CONFIRMED, ACTIVE, RETURN, RETURN_PENDING, RETURN_CONFIRMED, COMPLETED, REJECTED, CANCELLED.
   status      String   @default("DRAFT") @db.VarChar(30)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -32,7 +32,7 @@ model ReservationItem {
   reservationId String    @map("reservation_id") @db.Uuid
   assetId       String    @map("asset_id") @db.Uuid
   quantity      Int
-  /// Supported values: PENDING, APPROVED, REJECTED, PREPARED, CHECKED_OUT, RETURNED.
+  /// Supported values: PENDING, APPROVED, REJECTED, PREPARED, CHECKED_OUT, DELIVERED, RETURNED.
   status        String    @default("PENDING") @db.VarChar(30)
   preparedBy    String?   @map("prepared_by") @db.Uuid
   preparedAt    DateTime? @map("prepared_at") @db.Timestamptz(6)

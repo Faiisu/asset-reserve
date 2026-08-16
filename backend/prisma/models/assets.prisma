@@ -21,6 +21,8 @@ model Asset {
   pictureUrl       String? @map("picture_url")
   totalQuantity    Int     @default(0) @map("total_quantity")
   isActive         Boolean @default(true) @map("is_active")
+  /// Supported values: ACTIVE, BROKEN, LOST.
+  status           String  @default("ACTIVE") @db.VarChar(20)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)

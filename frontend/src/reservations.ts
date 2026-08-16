@@ -9,13 +9,18 @@ export type RecentReservation = Pick<
 
 export const reservationStatusLabel: Record<ReservationStatus, string> = {
   DRAFT: "Draft",
+  PENDING: "Pending",
   PENDING_APPROVAL: "Pending approval",
   PARTIALLY_APPROVED: "Partially approved",
   APPROVED: "Approved",
+  DELIVERY_CONFIRMED: "Delivery Confirmed",
+  ACTIVE: "Active",
+  RETURN: "Return Pending",
+  RETURN_PENDING: "Return Pending",
+  RETURN_CONFIRMED: "Return Confirmed",
+  COMPLETED: "Completed",
   REJECTED: "Rejected",
   CANCELLED: "Cancelled",
-  ACTIVE: "In use",
-  COMPLETED: "Completed",
 };
 
 export function toLocalDateTime(value: string) {

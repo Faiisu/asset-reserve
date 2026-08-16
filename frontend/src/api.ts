@@ -5,6 +5,7 @@ import type {
   AssetSummary,
   AssetTemplate,
   CreateReservationInput,
+  CreateReturnInput,
   InventoryResult,
   ListResponse,
   ManagementArea,
@@ -14,6 +15,8 @@ import type {
   ReservationChangeData,
   ReservationDetail,
   ReservationSummary,
+  ReturnDecisionInput,
+  ReturnDetail,
   SessionContext,
   UserDetail,
   UserListItem,
@@ -182,6 +185,7 @@ export const api = {
     areaId?: string;
     templateId?: string;
     isActive?: boolean;
+    status?: "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE";
     from?: string;
     to?: string;
     cursor?: string;
@@ -207,7 +211,7 @@ export const api = {
     }),
   updateAssetStatus: (
     assetId: string,
-    status: "ACTIVE" | "INACTIVE",
+    status: "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE",
     expectedUpdatedAt: string,
   ) =>
     request<AssetSummary>(`/assets/${assetId}/status`, {
@@ -344,6 +348,45 @@ export const api = {
       method: "POST",
       body: json({ ...(reason ? { reason } : {}) }),
     }),
+  confirmDelivery: (reservationId: string, itemIds?: string[]) =>
+    request<ReservationDetail>(
+      `/reservations/${reservationId}/delivery-confirm`,
+      {
+        method: "POST",
+        ...(itemIds && itemIds.length > 0
+          ? { body: json({ itemIds }) }
+          : {}),
+      },
+    ),
+  createReturn: (reservationId: string, input: CreateReturnInput) =>
+    request<ReturnDetail>(`/reservations/${reservationId}/returns`, {
+      method: "POST",
+      body: json(input),
+    }),
+  decideReturn: (
+    reservationId: string,
+    returnId: string,
+    input: ReturnDecisionInput,
+  ) =>
+    request<ReturnDetail>(
+      `/reservations/${reservationId}/returns/${returnId}/decision`,
+      {
+        method: "POST",
+        body: json(input),
+      },
+    ),
+  returns: (filters: {
+    view?: "MINE" | "APPROVALS" | "ALL";
+    status?: string;
+    areaId?: string;
+    reservationId?: string;
+    search?: string;
+    cursor?: string;
+    limit?: number;
+  }) =>
+    request<ListResponse<ReturnDetail>>(`/returns${queryString(filters)}`),
+  returnDetail: (returnId: string) =>
+    request<ReturnDetail>(`/returns/${returnId}`),
   uploadImage: (file: File) => {
     const formData = new FormData();
     formData.append("file", file);

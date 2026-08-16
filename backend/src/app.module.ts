@@ -7,6 +7,7 @@ import { AssetsModule } from "./assets/assets.module.js";
 import { DatabaseModule } from "./database/database.module.js";
 import { ManagementAreasModule } from "./management-areas/management-areas.module.js";
 import { ReservationsModule } from "./reservations/reservations.module.js";
+import { ReturnsModule } from "./returns/returns.module.js";
 import { UploadsModule } from "./uploads/uploads.module.js";
 import { UsersModule } from "./users/users.module.js";
 
@@ -20,6 +21,7 @@ import { UsersModule } from "./users/users.module.js";
     UsersModule,
     ManagementAreasModule,
     ReservationsModule,
+    ReturnsModule,
     UploadsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

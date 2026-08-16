@@ -110,6 +110,9 @@ export class UsersService {
 
   async create(input: CreateUserDto) {
     try {
+      const userRole = await this.prisma.role.findUnique({
+        where: { name: "USER" },
+      });
       const user = await this.prisma.user.create({
         data: {
           id: randomUUID(),
@@ -122,6 +125,17 @@ export class UsersService {
               profilePictureUrl: input.profile.profilePictureUrl ?? null,
             },
           },
+          ...(userRole
+            ? {
+                userRoles: {
+                  create: {
+                    id: randomUUID(),
+                    roleId: userRole.id,
+                    managementAreaId: null,
+                  },
+                },
+              }
+            : {}),
         },
         include: userDetailInclude,
       });

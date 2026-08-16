@@ -280,14 +280,32 @@
   background: var(--teal-soft);
   color: var(--teal);
 }
-.status-badge--active .status-badge__dot {
+.status-badge--active .status-badge__dot,
+.status-badge--active > span {
   background: var(--teal);
+}
+.status-badge--broken {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.status-badge--broken .status-badge__dot,
+.status-badge--broken > span {
+  background: var(--amber);
+}
+.status-badge--lost {
+  background: var(--red-soft);
+  color: var(--red);
+}
+.status-badge--lost .status-badge__dot,
+.status-badge--lost > span {
+  background: var(--red);
 }
 .status-badge--inactive {
   background: var(--surface-raised);
   color: var(--ink-faint);
 }
-.status-badge--inactive .status-badge__dot {
+.status-badge--inactive .status-badge__dot,
+.status-badge--inactive > span {
   background: var(--ink-faint);
 }
 .role-badge {

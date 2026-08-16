@@ -117,6 +117,8 @@ export type AssetCapabilities = {
   canAdjustQuantity: boolean;
 };
 
+export type AssetStatus = "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE";
+
 export type AssetSummary = {
   id: string;
   name: string;
@@ -126,7 +128,7 @@ export type AssetSummary = {
   allocatedQuantity: number;
   availableQuantity: number;
   isActive: boolean;
-  status: "ACTIVE" | "INACTIVE";
+  status: AssetStatus;
   assetTemplate: {
     id: string;
     name: string;
@@ -202,16 +204,27 @@ export type InventoryResult = {
 
 export type ReservationStatus =
   | "DRAFT"
+  | "PENDING"
   | "PENDING_APPROVAL"
   | "PARTIALLY_APPROVED"
   | "APPROVED"
-  | "REJECTED"
-  | "CANCELLED"
+  | "DELIVERY_CONFIRMED"
   | "ACTIVE"
-  | "COMPLETED";
+  | "RETURN"
+  | "RETURN_PENDING"
+  | "RETURN_CONFIRMED"
+  | "COMPLETED"
+  | "REJECTED"
+  | "CANCELLED";
 
 export type ReservationItemStatus =
-  "PENDING" | "APPROVED" | "REJECTED" | "PREPARED" | "CHECKED_OUT" | "RETURNED";
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "PREPARED"
+  | "CHECKED_OUT"
+  | "DELIVERED"
+  | "RETURNED";
 
 export type ReservationUser = {
   id: string;
@@ -256,6 +269,14 @@ export type ReservationDetail = {
       managementArea: ManagementAreaRef;
       template: { id: string; name: string } | null;
     };
+    returnSummary?: {
+      returnedQuantity: number;
+      brokenQuantity: number;
+      lostQuantity: number;
+      lostRecoverableQuantity?: number;
+      pendingReturnQuantity: number;
+      remainingReturnQuantity: number;
+    };
     approval: {
       id: string;
       status: "PENDING" | "APPROVED" | "REJECTED";
@@ -280,6 +301,8 @@ export type ReservationDetail = {
     capabilities: {
       canApprove: boolean;
       canReject: boolean;
+      canConfirmDelivery?: boolean;
+      canReturn?: boolean;
     };
   }>;
   changeRequests: Array<{
@@ -292,14 +315,83 @@ export type ReservationDetail = {
     reviewedAt: string | null;
     createdAt: string;
   }>;
-  returns: Array<Record<string, unknown>>;
+  returns: ReturnDetail[];
   capabilities: {
     canSubmit: boolean;
     canRequestChange: boolean;
+    canConfirmDelivery?: boolean;
     canCancel?: boolean;
+    canReturn?: boolean;
   };
   createdAt: string;
   updatedAt: string;
+};
+
+export type ReturnItemDetail = {
+  id: string;
+  reservationItemId: string;
+  assetId: string;
+  assetName: string;
+  managementArea: ManagementAreaRef;
+  quantityReturned: number;
+  quantityBroken: number;
+  quantityLost: number;
+  description: string | null;
+};
+
+export type ReturnDetail = {
+  id: string;
+  reservationId: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
+  returnedAt: string | null;
+  returnedBy: ReservationUser;
+  reservation?: {
+    id: string;
+    eventName: string;
+    requester: ReservationUser;
+  };
+  items: ReturnItemDetail[];
+  approval: {
+    id: string;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    description: string | null;
+    decidedAt: string | null;
+    approver: ReservationUser;
+  } | null;
+  capabilities: {
+    canApprove: boolean;
+    canReject: boolean;
+  };
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateReturnItemInput = {
+  reservationItemId: string;
+  quantityReturned: number;
+  quantityBroken?: number;
+  quantityLost?: number;
+  description?: string | null;
+};
+
+export type CreateReturnInput = {
+  items: CreateReturnItemInput[];
+  note?: string | null;
+  immediateApprove?: boolean;
+};
+
+export type DecideReturnItemInput = {
+  reservationItemId: string;
+  quantityReturned?: number;
+  quantityBroken?: number;
+  quantityLost?: number;
+  description?: string | null;
+};
+
+export type ReturnDecisionInput = {
+  decision: "APPROVE" | "REJECT";
+  items?: DecideReturnItemInput[];
+  description?: string | null;
 };
 
 export type CreateReservationInput = {
@@ -332,6 +424,7 @@ export type ReservationSummary = {
     canSubmit: boolean;
     canRequestChange: boolean;
     canReview: boolean;
+    canConfirmDelivery?: boolean;
     canCancel?: boolean;
   };
   createdAt: string;

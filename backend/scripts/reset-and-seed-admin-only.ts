@@ -56,6 +56,21 @@ const roles = [
   },
 ] as const;
 
+const initialAreas = [
+  {
+    name: "Human Resource",
+    description: "Human Resource management and office assets.",
+  },
+  {
+    name: "Application Engineer",
+    description: "Application Engineer development tools and lab equipment.",
+  },
+  {
+    name: "Marketing",
+    description: "Marketing, event, and media production equipment.",
+  },
+];
+
 async function wipeDatabase(): Promise<void> {
   console.log("Wiping all existing database tables...");
   await prisma.$executeRawUnsafe(`
@@ -115,31 +130,39 @@ async function seedRoles(): Promise<void> {
   console.log("Roles (ADMIN, MANAGER, USER) created.");
 }
 
-async function seedAdmin(): Promise<void> {
-  const email = (
+async function seedAreasAndAccounts(): Promise<void> {
+  const defaultPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD || "00000000";
+  const passwordHash = await hash(defaultPassword, { type: 2 });
+
+  const adminRole = await prisma.role.findUniqueOrThrow({
+    where: { name: "ADMIN" },
+  });
+  const managerRole = await prisma.role.findUniqueOrThrow({
+    where: { name: "MANAGER" },
+  });
+  const userRole = await prisma.role.findUniqueOrThrow({
+    where: { name: "USER" },
+  });
+
+  // 1. Create Admin
+  const adminEmail = (
     process.env.BOOTSTRAP_ADMIN_EMAIL || "admin@example.com"
   ).trim().toLowerCase();
-  const password = process.env.BOOTSTRAP_ADMIN_PASSWORD || "00000000";
-  const name = process.env.BOOTSTRAP_ADMIN_NAME?.trim() || "System Admin";
+  const adminName = process.env.BOOTSTRAP_ADMIN_NAME?.trim() || "System Admin";
 
-  console.log(`Creating Bootstrap Admin account: ${email}...`);
-  const passwordHash = await hash(password, { type: 2 });
+  console.log(`Creating Admin account: ${adminEmail}...`);
   const adminUser = await prisma.user.create({
     data: {
       id: randomUUID(),
-      email,
+      email: adminEmail,
       passwordHash,
       isActive: true,
       profile: {
         create: {
-          name,
+          name: adminName,
         },
       },
     },
-  });
-
-  const adminRole = await prisma.role.findUniqueOrThrow({
-    where: { name: "ADMIN" },
   });
 
   await prisma.userRole.create({
@@ -151,8 +174,137 @@ async function seedAdmin(): Promise<void> {
       assignedBy: adminUser.id,
     },
   });
+  // Default USER role for Admin
+  await prisma.userRole.create({
+    data: {
+      id: randomUUID(),
+      userId: adminUser.id,
+      roleId: userRole.id,
+      managementAreaId: null,
+      assignedBy: adminUser.id,
+    },
+  });
 
-  console.log(`Global admin created: ${email}`);
+  // 2. Create Management Areas
+  console.log("Creating Management Areas...");
+  const createdAreas: Record<string, string> = {};
+  for (const area of initialAreas) {
+    const record = await prisma.managementArea.create({
+      data: {
+        id: randomUUID(),
+        name: area.name,
+        description: area.description,
+      },
+    });
+    createdAreas[area.name] = record.id;
+    console.log(` - Management Area: ${area.name} (${record.id})`);
+  }
+
+  // 3. Create Managers and Assign Areas + Default USER Role
+  const managerAccounts = [
+    {
+      email: "ae@example.com",
+      name: "AE Manager",
+      areaName: "Application Engineer",
+    },
+    {
+      email: "mk@example.com",
+      name: "Marketing Manager",
+      areaName: "Marketing",
+    },
+    {
+      email: "hr@example.com",
+      name: "HR Manager",
+      areaName: "Human Resource",
+    },
+  ];
+
+  for (const mgr of managerAccounts) {
+    console.log(`Creating Manager account: ${mgr.email} for ${mgr.areaName}...`);
+    const user = await prisma.user.create({
+      data: {
+        id: randomUUID(),
+        email: mgr.email,
+        passwordHash,
+        isActive: true,
+        profile: {
+          create: {
+            name: mgr.name,
+          },
+        },
+      },
+    });
+
+    // Area Manager assignment
+    await prisma.userRole.create({
+      data: {
+        id: randomUUID(),
+        userId: user.id,
+        roleId: managerRole.id,
+        managementAreaId: createdAreas[mgr.areaName],
+        assignedBy: adminUser.id,
+      },
+    });
+
+    // Default USER role assignment
+    await prisma.userRole.create({
+      data: {
+        id: randomUUID(),
+        userId: user.id,
+        roleId: userRole.id,
+        managementAreaId: null,
+        assignedBy: adminUser.id,
+      },
+    });
+  }
+
+  // 4. Create General Users (user1 and user2)
+  const generalUsers = [
+    { email: "user1@example.com", name: "User One" },
+    { email: "user2@example.com", name: "User Two" },
+  ];
+
+  for (const u of generalUsers) {
+    console.log(`Creating General User: ${u.email}...`);
+    const createdUser = await prisma.user.create({
+      data: {
+        id: randomUUID(),
+        email: u.email,
+        passwordHash,
+        isActive: true,
+        profile: {
+          create: {
+            name: u.name,
+          },
+        },
+      },
+    });
+
+    await prisma.userRole.create({
+      data: {
+        id: randomUUID(),
+        userId: createdUser.id,
+        roleId: userRole.id,
+        managementAreaId: null,
+        assignedBy: adminUser.id,
+      },
+    });
+  }
+
+  console.log("\n=========================================");
+  console.log("DATABASE RESET & SEED SUMMARY:");
+  console.log("Management Areas:");
+  console.log("  1. Human Resource");
+  console.log("  2. Application Engineer");
+  console.log("  3. Marketing");
+  console.log("\nAccounts (Password: " + defaultPassword + "):");
+  console.log("  - admin@example.com -> Role: ADMIN (Global)");
+  console.log("  - ae@example.com    -> Role: MANAGER (Application Engineer)");
+  console.log("  - mk@example.com    -> Role: MANAGER (Marketing)");
+  console.log("  - hr@example.com    -> Role: MANAGER (Human Resource)");
+  console.log("  - user1@example.com -> Role: USER (General)");
+  console.log("  - user2@example.com -> Role: USER (General)");
+  console.log("=========================================");
 }
 
 async function main() {
@@ -160,8 +312,7 @@ async function main() {
     await wipeDatabase();
     cleanUploads();
     await seedRoles();
-    await seedAdmin();
-    console.log("\nDatabase reset complete! Only 1 Admin user exists.");
+    await seedAreasAndAccounts();
   } catch (error) {
     console.error("Error resetting database:", error);
     process.exit(1);

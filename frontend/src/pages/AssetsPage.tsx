@@ -50,7 +50,7 @@ export function AssetsPage() {
   const [filters, setFilters] = useState<Filters>({
     search: "",
     areaIds: [],
-    statuses: ["active"],
+    statuses: ["ACTIVE"],
   });
   const [draftSearch, setDraftSearch] = useState("");
   const [assets, setAssets] = useState<AssetSummary[]>([]);
@@ -74,9 +74,10 @@ export function AssetsPage() {
         const response = await api.assets({
           search: filters.search || undefined,
           areaId: filters.areaIds.length === 1 ? filters.areaIds[0] : undefined,
-          isActive:
-            filters.statuses.length === 1
-              ? filters.statuses[0] === "active"
+          status:
+            filters.statuses.length === 1 &&
+            ["ACTIVE", "BROKEN", "LOST"].includes(filters.statuses[0].toUpperCase())
+              ? (filters.statuses[0].toUpperCase() as "ACTIVE" | "BROKEN" | "LOST")
               : undefined,
           cursor,
           limit: 20,
@@ -87,10 +88,16 @@ export function AssetsPage() {
             filters.areaIds.includes(asset.managementArea.id),
           );
         }
-        if (filters.statuses.length > 1) {
-          list = list.filter((asset) =>
-            filters.statuses.includes(asset.isActive ? "active" : "inactive"),
-          );
+        if (filters.statuses.length > 0) {
+          list = list.filter((asset) => {
+            const assetStatus = (asset.status || (asset.isActive ? "ACTIVE" : "INACTIVE")).toUpperCase();
+            return filters.statuses.some(
+              (s) =>
+                s.toUpperCase() === assetStatus ||
+                (s.toLowerCase() === "active" && asset.isActive && assetStatus === "ACTIVE") ||
+                (s.toLowerCase() === "inactive" && !asset.isActive),
+            );
+          });
         }
         setAssets((current) =>
           append ? [...current, ...list] : list,
@@ -208,8 +215,10 @@ export function AssetsPage() {
             label="Statuses"
             allLabel="All statuses"
             options={[
-              { value: "active", label: "Active" },
-              { value: "inactive", label: "Inactive" },
+              { value: "ACTIVE", label: "Active" },
+              { value: "BROKEN", label: "Broken" },
+              { value: "LOST", label: "Lost" },
+              { value: "INACTIVE", label: "Inactive" },
             ]}
             selectedValues={filters.statuses}
             onChange={(statuses) =>
@@ -381,7 +390,10 @@ export function AssetsPage() {
                         <small>units</small>
                       </td>
                       <td>
-                        <StatusBadge active={asset.isActive} />
+                        <AssetMasterStatusBadge
+                          status={asset.status}
+                          isActive={asset.isActive}
+                        />
                       </td>
                       <td className="mono table-date">
                         {formatDate(asset.updatedAt)}
@@ -444,7 +456,10 @@ export function AssetsPage() {
                         <small>Total</small>
                         <strong>{asset.totalQuantity}</strong>
                       </span>
-                      <StatusBadge active={asset.isActive} />
+                      <AssetMasterStatusBadge
+                        status={asset.status}
+                        isActive={asset.isActive}
+                      />
                     </div>
                     <Link
                       className="button button--secondary button--sm"
@@ -648,5 +663,45 @@ function AssetTableSkeleton() {
         </div>
       ))}
     </div>
+  );
+}
+
+function AssetMasterStatusBadge({
+  status,
+  isActive,
+}: {
+  status?: string;
+  isActive: boolean;
+}) {
+  const normStatus = (status || (isActive ? "ACTIVE" : "INACTIVE")).toUpperCase();
+  if (!isActive || normStatus === "INACTIVE") {
+    return (
+      <span className="status-badge status-badge--inactive">
+        <span />
+        Disabled
+      </span>
+    );
+  }
+  if (normStatus === "BROKEN") {
+    return (
+      <span className="status-badge status-badge--broken">
+        <span />
+        Broken
+      </span>
+    );
+  }
+  if (normStatus === "LOST") {
+    return (
+      <span className="status-badge status-badge--lost">
+        <span />
+        Lost
+      </span>
+    );
+  }
+  return (
+    <span className="status-badge status-badge--active">
+      <span />
+      Active
+    </span>
   );
 }

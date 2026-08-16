@@ -734,4 +734,117 @@ describe("reservation change requests", () => {
     expect(result.id).toBe(reservationId);
     expect(result.status).toBe("REJECTED");
   });
+
+  it("allows requester to confirm delivery for an approved reservation and auto-advance status", async () => {
+    const approvedReservation = detailRecord("APPROVED");
+    const update = vi.fn();
+    const updateMany = vi.fn();
+    const prisma = {
+      reservation: {
+        findUnique: vi.fn().mockResolvedValue(approvedReservation),
+        update,
+      },
+      reservationItem: {
+        findMany: vi.fn().mockResolvedValue([]),
+        updateMany,
+      },
+      asset: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]),
+      },
+      $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
+        cb({
+          reservation: { update },
+          reservationItem: {
+            findMany: vi
+              .fn()
+              .mockResolvedValue([{ id: itemId, status: "DELIVERED" }]),
+            updateMany,
+          },
+        }),
+      ),
+    } as unknown as PrismaService;
+
+    const service = new ReservationsService(prisma);
+    const result = await service.confirmDelivery(actor, reservationId);
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: reservationId },
+        data: expect.objectContaining({ status: "DELIVERY_CONFIRMED" }),
+      }),
+    );
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: { in: [itemId] },
+          reservationId,
+        },
+        data: expect.objectContaining({ status: "DELIVERED" }),
+      }),
+    );
+    expect(result.id).toBe(reservationId);
+  });
+
+  it("supports partial item delivery confirmation without prematurely advancing event status", async () => {
+    const approvedReservation = detailRecord("APPROVED");
+    const itemId2 = "00000000-0000-0000-0000-000000000088";
+    approvedReservation.items.push({
+      ...approvedReservation.items[0]!,
+      id: itemId2,
+      status: "APPROVED",
+    });
+
+    const update = vi.fn();
+    const updateMany = vi.fn();
+    const prisma = {
+      reservation: {
+        findUnique: vi.fn().mockResolvedValue(approvedReservation),
+        update,
+      },
+      reservationItem: {
+        findMany: vi.fn().mockResolvedValue([]),
+        updateMany,
+      },
+      asset: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]),
+      },
+      $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
+        cb({
+          reservation: { update },
+          reservationItem: {
+            findMany: vi.fn().mockResolvedValue([
+              { id: itemId, status: "DELIVERED" },
+              { id: itemId2, status: "APPROVED" },
+            ]),
+            updateMany,
+          },
+        }),
+      ),
+    } as unknown as PrismaService;
+
+    const service = new ReservationsService(prisma);
+    await service.confirmDelivery(actor, reservationId, { itemIds: [itemId] });
+
+    // Should update the specific item
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: { in: [itemId] },
+          reservationId,
+        },
+        data: expect.objectContaining({ status: "DELIVERED" }),
+      }),
+    );
+    // Should NOT advance status to DELIVERY_CONFIRMED because itemId2 is still APPROVED
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: reservationId },
+        data: expect.not.objectContaining({ status: "DELIVERY_CONFIRMED" }),
+      }),
+    );
+  });
 });

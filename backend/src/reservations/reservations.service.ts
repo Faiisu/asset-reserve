@@ -13,6 +13,7 @@ import {
 } from "../assets/asset-access.js";
 import type {
   CancelReservationDto,
+  ConfirmDeliveryDto,
   CreateReservationChangeRequestDto,
   CreateReservationDto,
   ReservationChangeDataDto,
@@ -27,10 +28,16 @@ import type {
 const allocatedReservationStatuses = [
   "PARTIALLY_APPROVED",
   "APPROVED",
+  "DELIVERY_CONFIRMED",
   "ACTIVE",
+  "RETURN",
+  "RETURN_PENDING",
+  "RETURN_CONFIRMED",
+  "COMPLETED",
 ];
-const allocatedItemStatuses = ["APPROVED", "PREPARED", "CHECKED_OUT"];
+const allocatedItemStatuses = ["APPROVED", "PREPARED", "CHECKED_OUT", "DELIVERED"];
 const editableReservationStatuses = [
+  "PENDING",
   "PENDING_APPROVAL",
   "PARTIALLY_APPROVED",
   "APPROVED",
@@ -59,7 +66,13 @@ const reservationInclude = {
   returns: {
     include: {
       returner: { include: { profile: true } },
-      items: true,
+      items: {
+        include: {
+          reservationItem: {
+            include: { asset: { include: { managementArea: true } } },
+          },
+        },
+      },
       approval: { include: { approver: { include: { profile: true } } } },
     },
     orderBy: { createdAt: "desc" },
@@ -831,6 +844,114 @@ export class ReservationsService {
     return this.get(actor, reservationId);
   }
 
+  async confirmDelivery(
+    actor: AuthenticatedActor,
+    reservationId: string,
+    input?: ConfirmDeliveryDto,
+  ) {
+    const reservation = await this.findDetail(reservationId);
+    this.assertCanManage(actor, reservation);
+    if (
+      !["APPROVED", "PARTIALLY_APPROVED", "DELIVERY_CONFIRMED"].includes(
+        reservation.status,
+      )
+    ) {
+      throw this.invalidStatus(
+        `Cannot confirm delivery for reservation in state "${reservation.status}". Reservation must be approved.`,
+      );
+    }
+
+    const deliverableItemStatuses = ["APPROVED", "PREPARED", "CHECKED_OUT"];
+    const targetItems = reservation.items.filter((item) => {
+      if (input?.itemIds && input.itemIds.length > 0) {
+        return input.itemIds.includes(item.id);
+      }
+      return deliverableItemStatuses.includes(item.status);
+    });
+
+    if (input?.itemIds && input.itemIds.length > 0) {
+      if (targetItems.length !== input.itemIds.length) {
+        throw new ApiException(
+          400,
+          "INVALID_ITEM_SELECTION",
+          "One or more selected items do not belong to this reservation.",
+        );
+      }
+      const invalidStateItems = targetItems.filter(
+        (item) => !deliverableItemStatuses.includes(item.status),
+      );
+      if (invalidStateItems.length > 0) {
+        throw new ApiException(
+          409,
+          "INVALID_ITEM_STATUS",
+          "Only approved equipment can be confirmed for delivery.",
+        );
+      }
+    }
+
+    if (targetItems.length === 0) {
+      throw new ApiException(
+        400,
+        "NO_ITEMS_TO_DELIVER",
+        "There are no approved items waiting for delivery confirmation.",
+      );
+    }
+
+    const deliveredAt = new Date();
+    const itemIdsToDeliver = targetItems.map((item) => item.id);
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Update selected items to DELIVERED
+      await tx.reservationItem.updateMany({
+        where: {
+          id: { in: itemIdsToDeliver },
+          reservationId,
+        },
+        data: {
+          status: "DELIVERED",
+          checkedOutAt: deliveredAt,
+          checkedOutBy: actor.user.id,
+          updatedAt: deliveredAt,
+        },
+      });
+
+      // 2. Check if all approved/active items on the manifest are now DELIVERED or RETURNED
+      const allItems = await tx.reservationItem.findMany({
+        where: { reservationId },
+        select: { id: true, status: true },
+      });
+
+      const approvedOrActiveItems = allItems.filter(
+        (item) => item.status !== "REJECTED" && item.status !== "PENDING",
+      );
+
+      const allDelivered =
+        approvedOrActiveItems.length > 0 &&
+        approvedOrActiveItems.every(
+          (item) => item.status === "DELIVERED" || item.status === "RETURNED",
+        );
+
+      if (allDelivered) {
+        await tx.reservation.update({
+          where: { id: reservationId },
+          data: {
+            status: "DELIVERY_CONFIRMED",
+            updatedAt: deliveredAt,
+          },
+        });
+      } else {
+        await tx.reservation.update({
+          where: { id: reservationId },
+          data: {
+            updatedAt: deliveredAt,
+          },
+        });
+      }
+    });
+
+    return this.get(actor, reservationId);
+  }
+
   async cancel(
     actor: AuthenticatedActor,
     reservationId: string,
@@ -970,6 +1091,7 @@ export class ReservationsService {
         (statusCounts.APPROVED ?? 0) +
         (statusCounts.PREPARED ?? 0) +
         (statusCounts.CHECKED_OUT ?? 0) +
+        (statusCounts.DELIVERED ?? 0) +
         (statusCounts.RETURNED ?? 0),
       rejectedItemCount: statusCounts.REJECTED ?? 0,
       hasPendingChangeRequest: reservation.changeRequests.length > 0,
@@ -982,10 +1104,14 @@ export class ReservationsService {
           editableReservationStatuses.includes(reservation.status) &&
           reservation.changeRequests.length === 0,
         canReview: actionableItems > 0 || canReviewChange,
+        canConfirmDelivery:
+          canManage &&
+          ["APPROVED", "PARTIALLY_APPROVED"].includes(reservation.status),
         canCancel:
           canManage &&
           [
             "DRAFT",
+            "PENDING",
             "PENDING_APPROVAL",
             "PARTIALLY_APPROVED",
             "APPROVED",
@@ -1007,7 +1133,7 @@ export class ReservationsService {
         : [...new Set([...approveAreaIds, ...rejectAreaIds])];
     if (decisionAreaIds === null || decisionAreaIds.length) {
       conditions.push({
-        status: "PENDING_APPROVAL",
+        status: { in: ["PENDING", "PENDING_APPROVAL"] },
         items: {
           some: {
             status: "PENDING",
@@ -1091,23 +1217,95 @@ export class ReservationsService {
       ),
       items: reservation.items.map((item) => {
         const itemAvailability = availability.get(item.assetId)!;
+        const itemReturns = reservation.returns.flatMap((r) =>
+          r.items
+            .filter((ri) => ri.reservationItemId === item.id)
+            .map((ri) => ({
+              returnStatus: r.status,
+              approvalStatus: r.approval?.status,
+              item: ri,
+            })),
+        );
+        const returnedQuantity = itemReturns
+          .filter(
+            (r) =>
+              ["APPROVED", "COMPLETED"].includes(r.returnStatus) ||
+              r.approvalStatus === "APPROVED",
+          )
+          .reduce((sum, r) => sum + r.item.quantityReturned, 0);
+        const brokenQuantity = itemReturns
+          .filter(
+            (r) =>
+              ["APPROVED", "COMPLETED"].includes(r.returnStatus) ||
+              r.approvalStatus === "APPROVED",
+          )
+          .reduce((sum, r) => sum + r.item.quantityBroken, 0);
+        const rawLostQuantity = itemReturns
+          .filter(
+            (r) =>
+              ["APPROVED", "COMPLETED"].includes(r.returnStatus) ||
+              r.approvalStatus === "APPROVED",
+          )
+          .reduce((sum, r) => sum + r.item.quantityLost, 0);
+        const pendingReturnQuantity = itemReturns
+          .filter(
+            (r) =>
+              r.returnStatus === "PENDING" &&
+              r.approvalStatus !== "APPROVED" &&
+              r.approvalStatus !== "REJECTED",
+          )
+          .reduce(
+            (sum, r) =>
+              sum +
+              r.item.quantityReturned +
+              r.item.quantityBroken +
+              r.item.quantityLost,
+            0,
+          );
+        const lostQuantity = Math.max(
+          0,
+          rawLostQuantity -
+            Math.max(
+              0,
+              returnedQuantity +
+                brokenQuantity -
+                (item.quantity - rawLostQuantity),
+            ),
+        );
+        const remainingReturnQuantity = Math.max(
+          0,
+          item.quantity -
+            (returnedQuantity + brokenQuantity + pendingReturnQuantity),
+        );
+
         return {
           id: item.id,
-          quantity: item.quantity,
-          status: item.status,
           asset: {
             id: item.asset.id,
             name: item.asset.name,
             description: item.asset.description,
             pictureUrl: item.asset.pictureUrl,
             isActive: item.asset.isActive,
-            managementArea: item.asset.managementArea,
+            managementArea: {
+              id: item.asset.managementArea.id,
+              name: item.asset.managementArea.name,
+            },
             template: item.asset.assetTemplate
               ? {
                   id: item.asset.assetTemplate.id,
                   name: item.asset.assetTemplate.name,
                 }
               : null,
+          },
+          quantity: item.quantity,
+          status: item.status,
+          returnSummary: {
+            returnedQuantity,
+            brokenQuantity,
+            lostQuantity,
+            lostRecoverableQuantity: lostQuantity,
+            pendingReturnQuantity,
+            remainingReturnQuantity,
           },
           approval: item.approval
             ? {
@@ -1120,12 +1318,11 @@ export class ReservationsService {
             : null,
           availability: itemAvailability,
           warnings:
-            itemAvailability.pendingQuantity > 0
+            itemAvailability.pendingReservationCount > 0
               ? [
                   {
-                    code: "PENDING_RESERVATION_OVERLAP",
-                    message:
-                      "Another unapproved request overlaps this asset and time range.",
+                    code: "PENDING_RESERVATION_OVERLAP" as const,
+                    message: `${itemAvailability.pendingQuantity} unit(s) are requested by ${itemAvailability.pendingReservationCount} other pending reservation(s).`,
                     pendingQuantity: itemAvailability.pendingQuantity,
                     pendingReservationCount:
                       itemAvailability.pendingReservationCount,
@@ -1149,6 +1346,27 @@ export class ReservationsService {
                 "reservation:reject",
                 item.asset.managementAreaId,
               ),
+            canConfirmDelivery:
+              canManage &&
+              [
+                "APPROVED",
+                "PARTIALLY_APPROVED",
+                "DELIVERY_CONFIRMED",
+              ].includes(reservation.status) &&
+              ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status),
+            canReturn:
+              [
+                "DELIVERY_CONFIRMED",
+                "ACTIVE",
+                "RETURN",
+                "RETURN_PENDING",
+                "RETURN_CONFIRMED",
+                "COMPLETED",
+              ].includes(reservation.status) &&
+              item.status !== "REJECTED" &&
+              item.status !== "PENDING" &&
+              item.status !== "APPROVED" &&
+              remainingReturnQuantity > 0,
           },
         };
       }),
@@ -1162,37 +1380,93 @@ export class ReservationsService {
         reviewedAt: request.reviewedAt?.toISOString() ?? null,
         createdAt: request.createdAt.toISOString(),
       })),
-      returns: reservation.returns.map((item) => ({
-        id: item.id,
-        status: item.status,
-        returnedAt: item.returnedAt?.toISOString() ?? null,
-        returnedBy: this.userDto(item.returner),
-        items: item.items,
-        approval: item.approval
-          ? {
-              status: item.approval.status,
-              description: item.approval.description,
-              decidedAt: item.approval.decidedAt?.toISOString() ?? null,
-              approver: this.userDto(item.approval.approver),
-            }
-          : null,
-        createdAt: item.createdAt.toISOString(),
-        updatedAt: item.updatedAt.toISOString(),
-      })),
+      returns: reservation.returns.map((item) => {
+        const canApprove =
+          item.status === "PENDING" &&
+          item.items.every((retItem) =>
+            hasAreaPermission(
+              actor,
+              "return:approve",
+              retItem.reservationItem.asset.managementAreaId,
+            ),
+          );
+        return {
+          id: item.id,
+          reservationId: item.reservationId,
+          status: item.status,
+          returnedAt: item.returnedAt?.toISOString() ?? null,
+          returnedBy: this.userDto(item.returner),
+          items: item.items.map((retItem) => ({
+            id: retItem.id,
+            reservationItemId: retItem.reservationItemId,
+            assetId: retItem.reservationItem.asset.id,
+            assetName: retItem.reservationItem.asset.name,
+            managementArea: {
+              id: retItem.reservationItem.asset.managementArea.id,
+              name: retItem.reservationItem.asset.managementArea.name,
+            },
+            quantityReturned: retItem.quantityReturned,
+            quantityBroken: retItem.quantityBroken,
+            quantityLost: retItem.quantityLost,
+            description: retItem.description,
+          })),
+          approval: item.approval
+            ? {
+                id: item.approval.id,
+                status: item.approval.status,
+                description: item.approval.description,
+                decidedAt: item.approval.decidedAt?.toISOString() ?? null,
+                approver: this.userDto(item.approval.approver),
+              }
+            : null,
+          capabilities: {
+            canApprove,
+            canReject: canApprove,
+          },
+          createdAt: item.createdAt.toISOString(),
+          updatedAt: item.updatedAt.toISOString(),
+        };
+      }),
       capabilities: {
         canSubmit: canManage && reservation.status === "DRAFT",
         canRequestChange:
           reservation.requesterId === actor.user.id &&
           canManage &&
           editableReservationStatuses.includes(reservation.status),
+        canConfirmDelivery:
+          canManage &&
+          [
+            "APPROVED",
+            "PARTIALLY_APPROVED",
+            "DELIVERY_CONFIRMED",
+          ].includes(reservation.status) &&
+          reservation.items.some((item) =>
+            ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status),
+          ),
         canCancel:
           canManage &&
           [
             "DRAFT",
+            "PENDING",
             "PENDING_APPROVAL",
             "PARTIALLY_APPROVED",
             "APPROVED",
           ].includes(reservation.status),
+        canReturn:
+          [
+            "DELIVERY_CONFIRMED",
+            "ACTIVE",
+            "RETURN",
+            "RETURN_PENDING",
+            "RETURN_CONFIRMED",
+            "COMPLETED",
+          ].includes(reservation.status) &&
+          reservation.items.some(
+            (item) =>
+              item.status !== "REJECTED" &&
+              item.status !== "PENDING" &&
+              item.status !== "APPROVED",
+          ),
       },
       createdAt: reservation.createdAt.toISOString(),
       updatedAt: reservation.updatedAt.toISOString(),

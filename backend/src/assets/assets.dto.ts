@@ -42,6 +42,10 @@ export class AssetListQueryDto extends SearchPaginationQueryDto {
   isActive?: boolean;
 
   @IsOptional()
+  @IsIn(["ACTIVE", "BROKEN", "LOST"])
+  status?: "ACTIVE" | "BROKEN" | "LOST";
+
+  @IsOptional()
   @IsISO8601({ strict: true })
   from?: string;
 
@@ -85,6 +89,10 @@ export class CreateAssetDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsIn(["ACTIVE", "BROKEN", "LOST"])
+  status?: "ACTIVE" | "BROKEN" | "LOST";
 }
 
 export class BatchCreateAssetsDto {
@@ -130,13 +138,17 @@ export class UpdateAssetDto {
   @MaxLength(2048)
   pictureUrl?: string | null;
 
+  @IsOptional()
+  @IsIn(["ACTIVE", "BROKEN", "LOST"])
+  status?: "ACTIVE" | "BROKEN" | "LOST";
+
   @IsISO8601({ strict: true })
   expectedUpdatedAt!: string;
 }
 
 export class UpdateAssetStatusDto {
-  @IsIn(["ACTIVE", "INACTIVE"])
-  status!: "ACTIVE" | "INACTIVE";
+  @IsIn(["ACTIVE", "BROKEN", "LOST", "INACTIVE"])
+  status!: "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE";
 
   @IsISO8601({ strict: true })
   expectedUpdatedAt!: string;

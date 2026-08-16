@@ -46,6 +46,7 @@ const statusOptions = [
     value: "REQUEST",
     label: "Request",
     statuses: [
+      "PENDING",
       "PENDING_APPROVAL",
       "DRAFT",
       "PARTIALLY_APPROVED",
@@ -54,7 +55,15 @@ const statusOptions = [
   {
     value: "APPROVE",
     label: "Approve",
-    statuses: ["APPROVED", "ACTIVE", "COMPLETED"] as ReservationStatus[],
+    statuses: [
+      "APPROVED",
+      "DELIVERY_CONFIRMED",
+      "ACTIVE",
+      "RETURN",
+      "RETURN_PENDING",
+      "RETURN_CONFIRMED",
+      "COMPLETED",
+    ] as ReservationStatus[],
   },
   {
     value: "REJECT",

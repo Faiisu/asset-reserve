@@ -57,24 +57,30 @@ const roles = [
 
 const ids = {
   users: {
-    manager: "00000000-0000-4000-8000-000000000101",
-    member: "00000000-0000-4000-8000-000000000102",
-    technician: "00000000-0000-4000-8000-000000000103",
+    admin: "00000000-0000-4000-8000-000000000100",
+    ae: "00000000-0000-4000-8000-000000000101",
+    mk: "00000000-0000-4000-8000-000000000102",
+    hr: "00000000-0000-4000-8000-000000000103",
+    user1: "00000000-0000-4000-8000-000000000104",
+    user2: "00000000-0000-4000-8000-000000000105",
   },
   areas: {
-    media: "00000000-0000-4000-8000-000000000201",
-    events: "00000000-0000-4000-8000-000000000202",
+    hr: "00000000-0000-4000-8000-000000000201",
+    ae: "00000000-0000-4000-8000-000000000202",
+    marketing: "00000000-0000-4000-8000-000000000203",
   },
   templates: {
-    projector: "00000000-0000-4000-8000-000000000301",
-    camera: "00000000-0000-4000-8000-000000000302",
-    audio: "00000000-0000-4000-8000-000000000303",
+    labEquipment: "00000000-0000-4000-8000-000000000301",
+    mediaEquipment: "00000000-0000-4000-8000-000000000302",
+    officeEquipment: "00000000-0000-4000-8000-000000000303",
   },
   assets: {
-    projector: "00000000-0000-4000-8000-000000000401",
-    camera: "00000000-0000-4000-8000-000000000402",
-    speaker: "00000000-0000-4000-8000-000000000403",
-    microphone: "00000000-0000-4000-8000-000000000404",
+    logicAnalyzer: "00000000-0000-4000-8000-000000000401",
+    oscilloscope: "00000000-0000-4000-8000-000000000402",
+    camera: "00000000-0000-4000-8000-000000000403",
+    wirelessMic: "00000000-0000-4000-8000-000000000404",
+    onboardingKit: "00000000-0000-4000-8000-000000000405",
+    ergonomicChair: "00000000-0000-4000-8000-000000000406",
   },
   batch: "00000000-0000-4000-8000-000000000501",
   transactions: [
@@ -82,35 +88,26 @@ const ids = {
     "00000000-0000-4000-8000-000000000512",
     "00000000-0000-4000-8000-000000000513",
     "00000000-0000-4000-8000-000000000514",
+    "00000000-0000-4000-8000-000000000515",
+    "00000000-0000-4000-8000-000000000516",
   ],
-  mockAssets: Array.from(
-    { length: 20 },
-    (_, index) =>
-      `00000000-0000-4000-8000-${String(421 + index).padStart(12, "0")}`,
-  ),
-  mockTransactions: Array.from(
-    { length: 20 },
-    (_, index) =>
-      `00000000-0000-4000-8000-${String(521 + index).padStart(12, "0")}`,
-  ),
   reservations: {
     completed: "00000000-0000-4000-8000-000000000601",
     approved: "00000000-0000-4000-8000-000000000602",
     pending: "00000000-0000-4000-8000-000000000603",
   },
   items: {
-    completedProjector: "00000000-0000-4000-8000-000000000611",
-    completedMicrophone: "00000000-0000-4000-8000-000000000612",
+    completedLogic: "00000000-0000-4000-8000-000000000611",
+    completedKit: "00000000-0000-4000-8000-000000000612",
     approvedCamera: "00000000-0000-4000-8000-000000000613",
-    pendingSpeaker: "00000000-0000-4000-8000-000000000614",
+    pendingOscilloscope: "00000000-0000-4000-8000-000000000614",
   },
   approvals: {
-    completedProjector: "00000000-0000-4000-8000-000000000621",
-    completedMicrophone: "00000000-0000-4000-8000-000000000622",
+    completedLogic: "00000000-0000-4000-8000-000000000621",
+    completedKit: "00000000-0000-4000-8000-000000000622",
     approvedCamera: "00000000-0000-4000-8000-000000000623",
-    pendingSpeaker: "00000000-0000-4000-8000-000000000624",
+    pendingOscilloscope: "00000000-0000-4000-8000-000000000624",
   },
-  changeRequest: "00000000-0000-4000-8000-000000000631",
   return: "00000000-0000-4000-8000-000000000701",
   returnItems: [
     "00000000-0000-4000-8000-000000000711",
@@ -131,29 +128,17 @@ async function seedRoles(): Promise<void> {
 }
 
 async function seedBootstrapAdmin(): Promise<void> {
-  const email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase();
-  const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+  const email = (
+    process.env.BOOTSTRAP_ADMIN_EMAIL || "admin@example.com"
+  ).trim().toLowerCase();
+  const password = process.env.BOOTSTRAP_ADMIN_PASSWORD || "00000000";
   const name = process.env.BOOTSTRAP_ADMIN_NAME?.trim() || "System Admin";
-  if (!email || !password) {
-    console.log("Bootstrap admin credentials not set; admin creation skipped.");
-    return;
-  }
-  if (password.length < 8) {
-    throw new Error(
-      "BOOTSTRAP_ADMIN_PASSWORD must contain at least 8 characters.",
-    );
-  }
 
   let user = await prisma.user.findUnique({ where: { email } });
-  if (user && (!user.isActive || !user.passwordHash)) {
-    throw new Error(
-      "The bootstrap admin email belongs to an inactive or external-only user.",
-    );
-  }
   if (!user) {
     user = await prisma.user.create({
       data: {
-        id: randomUUID(),
+        id: ids.users.admin,
         email,
         passwordHash: await hash(password, { type: 2 }),
         profile: { create: { name } },
@@ -164,15 +149,33 @@ async function seedBootstrapAdmin(): Promise<void> {
   const admin = await prisma.role.findUniqueOrThrow({
     where: { name: "ADMIN" },
   });
-  const assignment = await prisma.userRole.findFirst({
+  const adminAssignment = await prisma.userRole.findFirst({
     where: { userId: user.id, roleId: admin.id, managementAreaId: null },
   });
-  if (!assignment) {
+  if (!adminAssignment) {
     await prisma.userRole.create({
       data: {
         id: randomUUID(),
         userId: user.id,
         roleId: admin.id,
+        managementAreaId: null,
+        assignedBy: user.id,
+      },
+    });
+  }
+
+  const userRole = await prisma.role.findUniqueOrThrow({
+    where: { name: "USER" },
+  });
+  const userAssignment = await prisma.userRole.findFirst({
+    where: { userId: user.id, roleId: userRole.id, managementAreaId: null },
+  });
+  if (!userAssignment) {
+    await prisma.userRole.create({
+      data: {
+        id: randomUUID(),
+        userId: user.id,
+        roleId: userRole.id,
         managementAreaId: null,
         assignedBy: user.id,
       },
@@ -204,32 +207,44 @@ async function seedMockData(): Promise<void> {
     return;
   }
 
-  const password = process.env.MOCK_USER_PASSWORD;
-  if (!password || password.length < 12) {
-    throw new Error("MOCK_USER_PASSWORD must contain at least 12 characters.");
-  }
+  const password = process.env.MOCK_USER_PASSWORD || "password123456";
   const passwordHash = await hash(password, { type: 2 });
+
+  // 1. Create Accounts: ae, mk, hr, user
   const mockUsers = [
     {
-      id: ids.users.manager,
-      email: "manager@example.com",
-      name: "Mali Area Manager",
+      id: ids.users.ae,
+      email: "ae@example.com",
+      name: "AE Manager",
       phoneNumber: "+66 81 000 0101",
     },
     {
-      id: ids.users.member,
-      email: "member@example.com",
-      name: "Narin Project Member",
+      id: ids.users.mk,
+      email: "mk@example.com",
+      name: "Marketing Manager",
       phoneNumber: "+66 81 000 0102",
     },
     {
-      id: ids.users.technician,
-      email: "technician@example.com",
-      name: "Ploy Equipment Technician",
+      id: ids.users.hr,
+      email: "hr@example.com",
+      name: "HR Manager",
       phoneNumber: "+66 81 000 0103",
+    },
+    {
+      id: ids.users.user1,
+      email: "user1@example.com",
+      name: "User One",
+      phoneNumber: "+66 81 000 0104",
+    },
+    {
+      id: ids.users.user2,
+      email: "user2@example.com",
+      name: "User Two",
+      phoneNumber: "+66 81 000 0105",
     },
   ] as const;
 
+  const userMap: Record<string, string> = {};
   for (const userData of mockUsers) {
     const user = await prisma.user.upsert({
       where: { email: userData.email },
@@ -240,6 +255,7 @@ async function seedMockData(): Promise<void> {
         passwordHash,
       },
     });
+    userMap[userData.email] = user.id;
     await prisma.userProfile.upsert({
       where: { userId: user.id },
       update: { name: userData.name, phoneNumber: userData.phoneNumber },
@@ -251,143 +267,188 @@ async function seedMockData(): Promise<void> {
     });
   }
 
-  await prisma.userAuthIdentity.upsert({
-    where: {
-      provider_providerUserId: {
-        provider: "google",
-        providerUserId: "mock-member-google-id",
-      },
-    },
-    update: {},
+  const adminEmail = (
+    process.env.BOOTSTRAP_ADMIN_EMAIL || "admin@example.com"
+  ).trim().toLowerCase();
+  const adminUser = await prisma.user.findUniqueOrThrow({
+    where: { email: adminEmail },
+  });
+
+  // 2. Create Management Areas: Human Resource, Application Engineer, Marketing
+  const hrArea = await prisma.managementArea.upsert({
+    where: { name: "Human Resource" },
+    update: { description: "Human Resource management and office assets." },
     create: {
-      id: "00000000-0000-4000-8000-000000000111",
-      userId: ids.users.member,
-      provider: "google",
-      providerUserId: "mock-member-google-id",
+      id: ids.areas.hr,
+      name: "Human Resource",
+      description: "Human Resource management and office assets.",
     },
   });
 
-  const mediaArea = await prisma.managementArea.upsert({
-    where: { id: ids.areas.media },
-    update: {},
+  const aeArea = await prisma.managementArea.upsert({
+    where: { name: "Application Engineer" },
+    update: { description: "Application Engineer development tools and lab equipment." },
     create: {
-      id: ids.areas.media,
-      name: "Media Lab",
-      description: "Cameras, projectors, and production equipment.",
-    },
-  });
-  const eventsArea = await prisma.managementArea.upsert({
-    where: { id: ids.areas.events },
-    update: {},
-    create: {
-      id: ids.areas.events,
-      name: "Event Support",
-      description: "Shared sound and event equipment.",
+      id: ids.areas.ae,
+      name: "Application Engineer",
+      description: "Application Engineer development tools and lab equipment.",
     },
   });
 
+  const marketingArea = await prisma.managementArea.upsert({
+    where: { name: "Marketing" },
+    update: { description: "Marketing, event, and media production equipment." },
+    create: {
+      id: ids.areas.marketing,
+      name: "Marketing",
+      description: "Marketing, event, and media production equipment.",
+    },
+  });
+
+  // 3. Assign Roles
   const managerRole = await prisma.role.findUniqueOrThrow({
     where: { name: "MANAGER" },
   });
   const userRole = await prisma.role.findUniqueOrThrow({
     where: { name: "USER" },
   });
+
+  // Manager role assignments
   await ensureRoleAssignment({
     id: "00000000-0000-4000-8000-000000000121",
-    userId: ids.users.manager,
+    userId: userMap["ae@example.com"]!,
     roleId: managerRole.id,
-    managementAreaId: mediaArea.id,
-    assignedBy: ids.users.manager,
+    managementAreaId: aeArea.id,
+    assignedBy: adminUser.id,
   });
   await ensureRoleAssignment({
     id: "00000000-0000-4000-8000-000000000122",
-    userId: ids.users.manager,
+    userId: userMap["mk@example.com"]!,
     roleId: managerRole.id,
-    managementAreaId: eventsArea.id,
-    assignedBy: ids.users.manager,
+    managementAreaId: marketingArea.id,
+    assignedBy: adminUser.id,
   });
-  for (const [id, userId] of [
-    ["00000000-0000-4000-8000-000000000123", ids.users.member],
-    ["00000000-0000-4000-8000-000000000124", ids.users.technician],
-  ] as const) {
+  await ensureRoleAssignment({
+    id: "00000000-0000-4000-8000-000000000123",
+    userId: userMap["hr@example.com"]!,
+    roleId: managerRole.id,
+    managementAreaId: hrArea.id,
+    assignedBy: adminUser.id,
+  });
+
+  // Default USER role assignments for every account
+  for (const email of [
+    "ae@example.com",
+    "mk@example.com",
+    "hr@example.com",
+    "user1@example.com",
+    "user2@example.com",
+  ]) {
     await ensureRoleAssignment({
-      id,
-      userId,
+      id: randomUUID(),
+      userId: userMap[email]!,
       roleId: userRole.id,
       managementAreaId: null,
-      assignedBy: ids.users.manager,
+      assignedBy: adminUser.id,
     });
   }
 
+  // 4. Create Templates
   const templates = await Promise.all([
     prisma.assetTemplate.upsert({
-      where: { id: ids.templates.projector },
+      where: { name: "Lab & Testing Gear" },
       update: {},
       create: {
-        id: ids.templates.projector,
-        name: "Projector",
-        description: "Portable projectors and presentation accessories.",
+        id: ids.templates.labEquipment,
+        name: "Lab & Testing Gear",
+        description: "Electronic diagnostic tools and bench instruments.",
       },
     }),
     prisma.assetTemplate.upsert({
-      where: { id: ids.templates.camera },
+      where: { name: "Media & Event Gear" },
       update: {},
       create: {
-        id: ids.templates.camera,
-        name: "Camera",
-        description: "Digital cameras for documentation and media work.",
+        id: ids.templates.mediaEquipment,
+        name: "Media & Event Gear",
+        description: "Cameras, microphones, and production equipment.",
       },
     }),
     prisma.assetTemplate.upsert({
-      where: { id: ids.templates.audio },
+      where: { name: "Office & HR Gear" },
       update: {},
       create: {
-        id: ids.templates.audio,
-        name: "Audio Equipment",
-        description: "Speakers, microphones, and related accessories.",
+        id: ids.templates.officeEquipment,
+        name: "Office & HR Gear",
+        description: "Onboarding hardware and ergonomic office assets.",
       },
     }),
   ]);
-  const [projectorTemplate, cameraTemplate, audioTemplate] = templates;
+  const [labTemplate, mediaTemplate, hrTemplate] = templates;
 
+  // 5. Create Assets
   const assetInputs = [
     {
-      id: ids.assets.projector,
-      assetTemplateId: projectorTemplate.id,
-      managementAreaId: mediaArea.id,
-      name: "Epson EB-FH52 Projector",
-      description: "Full HD portable projector with HDMI cable.",
-      totalQuantity: 6,
-      createdById: ids.users.manager,
+      id: ids.assets.logicAnalyzer,
+      assetTemplateId: labTemplate.id,
+      managementAreaId: aeArea.id,
+      name: "Saleae Logic Pro 16",
+      description: "16-channel USB logic analyzer with probes.",
+      totalQuantity: 5,
+      status: "ACTIVE",
+      createdById: userMap["ae@example.com"]!,
+    },
+    {
+      id: ids.assets.oscilloscope,
+      assetTemplateId: labTemplate.id,
+      managementAreaId: aeArea.id,
+      name: "Rigol 4-Channel Digital Oscilloscope",
+      description: "100MHz digital storage oscilloscope.",
+      totalQuantity: 4,
+      status: "ACTIVE",
+      createdById: userMap["ae@example.com"]!,
     },
     {
       id: ids.assets.camera,
-      assetTemplateId: cameraTemplate.id,
-      managementAreaId: mediaArea.id,
-      name: "Sony Alpha Camera Kit",
-      description: "Mirrorless camera, standard lens, battery, and case.",
-      totalQuantity: 4,
-      createdById: ids.users.manager,
+      assetTemplateId: mediaTemplate.id,
+      managementAreaId: marketingArea.id,
+      name: "Sony Alpha 7 IV Kit",
+      description: "Full-frame mirrorless camera with 24-70mm lens.",
+      totalQuantity: 3,
+      status: "ACTIVE",
+      createdById: userMap["mk@example.com"]!,
     },
     {
-      id: ids.assets.speaker,
-      assetTemplateId: audioTemplate.id,
-      managementAreaId: eventsArea.id,
-      name: "Portable PA Speaker",
-      description: "Battery-powered speaker for small and medium events.",
-      totalQuantity: 8,
-      createdById: ids.users.manager,
+      id: ids.assets.wirelessMic,
+      assetTemplateId: mediaTemplate.id,
+      managementAreaId: marketingArea.id,
+      name: "Rode Wireless GO II Dual Kit",
+      description: "Dual channel compact wireless microphone system.",
+      totalQuantity: 6,
+      status: "ACTIVE",
+      createdById: userMap["mk@example.com"]!,
     },
     {
-      id: ids.assets.microphone,
-      assetTemplateId: audioTemplate.id,
-      managementAreaId: eventsArea.id,
-      name: "Wireless Microphone Set",
-      description: "Dual handheld wireless microphone set.",
-      totalQuantity: 12,
-      createdById: ids.users.manager,
+      id: ids.assets.onboardingKit,
+      assetTemplateId: hrTemplate.id,
+      managementAreaId: hrArea.id,
+      name: "New Hire Onboarding Tech Kit",
+      description: "USB-C multi-port dock, wireless mouse, and keyboard.",
+      totalQuantity: 10,
+      status: "ACTIVE",
+      createdById: userMap["hr@example.com"]!,
+    },
+    {
+      id: ids.assets.ergonomicChair,
+      assetTemplateId: hrTemplate.id,
+      managementAreaId: hrArea.id,
+      name: "Herman Miller Aeron Chair (Trial Unit)",
+      description: "Adjustable ergonomic task chair for assessment.",
+      totalQuantity: 2,
+      status: "ACTIVE",
+      createdById: userMap["hr@example.com"]!,
     },
   ] as const;
+
   for (const asset of assetInputs) {
     await prisma.asset.upsert({
       where: { id: asset.id },
@@ -396,162 +457,17 @@ async function seedMockData(): Promise<void> {
     });
   }
 
-  const mockAssetInputs = [
-    {
-      name: "Canon EOS R6 Camera Kit",
-      description: "Full-frame camera kit for event photography.",
-      totalQuantity: 3,
-      managementAreaId: mediaArea.id,
-      assetTemplateId: cameraTemplate.id,
-    },
-    {
-      name: "Blackmagic Pocket Cinema Camera",
-      description: "Compact cinema camera for production shoots.",
-      totalQuantity: 1,
-      managementAreaId: mediaArea.id,
-      assetTemplateId: cameraTemplate.id,
-    },
-    {
-      name: "DJI Ronin Camera Gimbal",
-      description: "Three-axis stabilizer for handheld video.",
-      totalQuantity: 2,
-      managementAreaId: mediaArea.id,
-      assetTemplateId: cameraTemplate.id,
-    },
-    {
-      name: "Manfrotto Video Tripod",
-      description: "Fluid-head tripod for cameras and recorders.",
-      totalQuantity: 2,
-      managementAreaId: mediaArea.id,
-      assetTemplateId: cameraTemplate.id,
-    },
-    {
-      name: "Aputure LED Light Panel",
-      description: "Bi-color light panel with stand and power adapter.",
-      totalQuantity: 1,
-      managementAreaId: mediaArea.id,
-      assetTemplateId: null,
-    },
-    {
-      name: "Elgato Capture Card",
-      description: "HDMI capture interface for streaming and recording.",
-      totalQuantity: 3,
-      managementAreaId: mediaArea.id,
-      assetTemplateId: null,
-    },
-    {
-      name: "BenQ Conference Projector",
-      description: "Portable projector for meeting rooms and events.",
-      totalQuantity: 5,
-      managementAreaId: mediaArea.id,
-      assetTemplateId: projectorTemplate.id,
-    },
-    {
-      name: "Portable Green Screen",
-      description: "Collapsible chroma-key backdrop with support frame.",
-      totalQuantity: 4,
-      managementAreaId: mediaArea.id,
-      assetTemplateId: null,
-    },
-    {
-      name: "Wireless HDMI Transmitter",
-      description: "Low-latency wireless video transmitter and receiver.",
-      totalQuantity: 4,
-      managementAreaId: mediaArea.id,
-      assetTemplateId: null,
-    },
-    {
-      name: "Camera Teleprompter",
-      description: "Tablet teleprompter for studio and field recording.",
-      totalQuantity: 2,
-      managementAreaId: mediaArea.id,
-      assetTemplateId: cameraTemplate.id,
-    },
-    {
-      name: "Shure Wireless Lavalier Set",
-      description: "Wireless lapel microphone set for presenters.",
-      totalQuantity: 2,
-      managementAreaId: eventsArea.id,
-      assetTemplateId: audioTemplate.id,
-    },
-    {
-      name: "Rode Shotgun Microphone",
-      description: "Directional microphone with shock mount and windscreen.",
-      totalQuantity: 1,
-      managementAreaId: eventsArea.id,
-      assetTemplateId: audioTemplate.id,
-    },
-    {
-      name: "Zoom H6 Audio Recorder",
-      description: "Portable multitrack field recorder with capsules.",
-      totalQuantity: 4,
-      managementAreaId: eventsArea.id,
-      assetTemplateId: audioTemplate.id,
-    },
-    {
-      name: "Yamaha Compact Audio Mixer",
-      description: "Compact mixer for small live productions.",
-      totalQuantity: 5,
-      managementAreaId: eventsArea.id,
-      assetTemplateId: audioTemplate.id,
-    },
-    {
-      name: "JBL Powered Speaker",
-      description: "Powered speaker for event sound reinforcement.",
-      totalQuantity: 3,
-      managementAreaId: eventsArea.id,
-      assetTemplateId: audioTemplate.id,
-    },
-    {
-      name: "Stage Monitor Speaker",
-      description: "Floor monitor for performers and presenters.",
-      totalQuantity: 1,
-      managementAreaId: eventsArea.id,
-      assetTemplateId: audioTemplate.id,
-    },
-    {
-      name: "Event Lighting Bar",
-      description: "Portable LED lighting bar with controller.",
-      totalQuantity: 3,
-      managementAreaId: eventsArea.id,
-      assetTemplateId: null,
-    },
-    {
-      name: "Heavy Duty Microphone Stand",
-      description: "Adjustable boom stand for stage microphones.",
-      totalQuantity: 5,
-      managementAreaId: eventsArea.id,
-      assetTemplateId: audioTemplate.id,
-    },
-    {
-      name: "Extension Cable Reel",
-      description: "Heavy-duty power extension reel for event setups.",
-      totalQuantity: 2,
-      managementAreaId: eventsArea.id,
-      assetTemplateId: null,
-    },
-    {
-      name: "Presentation Clicker",
-      description: "Wireless slide controller with laser pointer.",
-      totalQuantity: 3,
-      managementAreaId: eventsArea.id,
-      assetTemplateId: null,
-    },
-  ].map((asset, index) => ({
-    ...asset,
-    id: ids.mockAssets[index]!,
-    createdById: ids.users.manager,
-  }));
-
+  // 6. Asset Initial Transactions
   await prisma.assetTransactionBatch.upsert({
     where: { id: ids.batch },
     update: {},
     create: {
       id: ids.batch,
-      description: "Initial mock inventory load",
-      performedBy: ids.users.manager,
+      description: "Initial inventory load for AE, Marketing, and HR",
+      performedBy: adminUser.id,
     },
   });
+
   for (const [index, asset] of assetInputs.entries()) {
     await prisma.assetTransaction.upsert({
       where: { id: ids.transactions[index]! },
@@ -566,100 +482,76 @@ async function seedMockData(): Promise<void> {
       },
     });
   }
-  await prisma.$transaction(async (tx) => {
-    await tx.asset.createMany({
-      data: mockAssetInputs,
-      skipDuplicates: true,
-    });
-    await tx.assetTransaction.createMany({
-      data: mockAssetInputs.map((asset, index) => ({
-        id: ids.mockTransactions[index]!,
-        batchId: ids.batch,
-        assetId: asset.id,
-        transactionType: "ADD",
-        quantityDelta: asset.totalQuantity,
-        reason: "Opening balance for extended mock inventory",
-      })),
-      skipDuplicates: true,
-    });
-  });
 
+  // 7. Seed Reservations
   const reservations = [
     {
       id: ids.reservations.completed,
-      eventName: "July Community Workshop",
-      description: "Completed booking with an approved return.",
+      eventName: "Q2 Firmware Testing Session",
+      description: "Completed lab session with logic analyzer return.",
       startAt: new Date("2026-07-20T02:00:00.000Z"),
       endAt: new Date("2026-07-20T10:00:00.000Z"),
       status: "COMPLETED",
     },
     {
       id: ids.reservations.approved,
-      eventName: "September Product Showcase",
-      description: "Approved camera reservation awaiting preparation.",
+      eventName: "Product Launch Video Shoot",
+      description: "Approved camera reservation for marketing content.",
       startAt: new Date("2026-09-10T02:00:00.000Z"),
       endAt: new Date("2026-09-10T11:00:00.000Z"),
       status: "APPROVED",
     },
     {
       id: ids.reservations.pending,
-      eventName: "Team Town Hall",
-      description: "Pending speaker request demonstrating the approval queue.",
+      eventName: "Field Hardware Diagnostics",
+      description: "Pending oscilloscope request awaiting AE manager approval.",
       startAt: new Date("2026-08-25T06:00:00.000Z"),
       endAt: new Date("2026-08-25T10:00:00.000Z"),
       status: "PENDING_APPROVAL",
     },
   ] as const;
+
   for (const reservation of reservations) {
+    const requesterEmail =
+      reservation.id === ids.reservations.pending
+        ? "user2@example.com"
+        : "user1@example.com";
     await prisma.reservation.upsert({
       where: { id: reservation.id },
       update: {},
-      create: { ...reservation, requesterId: ids.users.member },
-    });
-    await prisma.reservationParticipant.upsert({
-      where: {
-        reservationId_userId: {
-          reservationId: reservation.id,
-          userId: ids.users.technician,
-        },
-      },
-      update: {},
-      create: {
-        reservationId: reservation.id,
-        userId: ids.users.technician,
-      },
+      create: { ...reservation, requesterId: userMap[requesterEmail]! },
     });
   }
 
   const completedAt = new Date("2026-07-20T01:00:00.000Z");
   const itemInputs = [
     {
-      id: ids.items.completedProjector,
+      id: ids.items.completedLogic,
       reservationId: ids.reservations.completed,
-      assetId: ids.assets.projector,
+      assetId: ids.assets.logicAnalyzer,
       quantity: 1,
       status: "RETURNED",
-      preparedBy: ids.users.technician,
+      preparedBy: userMap["ae@example.com"]!,
       preparedAt: completedAt,
-      checkedOutBy: ids.users.technician,
+      checkedOutBy: userMap["ae@example.com"]!,
       checkedOutAt: new Date("2026-07-20T01:30:00.000Z"),
     },
     {
-      id: ids.items.completedMicrophone,
+      id: ids.items.completedKit,
       reservationId: ids.reservations.completed,
-      assetId: ids.assets.microphone,
-      quantity: 2,
+      assetId: ids.assets.onboardingKit,
+      quantity: 1,
       status: "RETURNED",
-      preparedBy: ids.users.technician,
+      preparedBy: userMap["hr@example.com"]!,
       preparedAt: completedAt,
-      checkedOutBy: ids.users.technician,
+      checkedOutBy: userMap["hr@example.com"]!,
       checkedOutAt: new Date("2026-07-20T01:30:00.000Z"),
     },
     {
       id: ids.items.approvedCamera,
       reservationId: ids.reservations.approved,
       assetId: ids.assets.camera,
-      quantity: 2,
+      quantity: 1,
       status: "APPROVED",
       preparedBy: null,
       preparedAt: null,
@@ -667,10 +559,10 @@ async function seedMockData(): Promise<void> {
       checkedOutAt: null,
     },
     {
-      id: ids.items.pendingSpeaker,
+      id: ids.items.pendingOscilloscope,
       reservationId: ids.reservations.pending,
-      assetId: ids.assets.speaker,
-      quantity: 2,
+      assetId: ids.assets.oscilloscope,
+      quantity: 1,
       status: "PENDING",
       preparedBy: null,
       preparedAt: null,
@@ -678,6 +570,7 @@ async function seedMockData(): Promise<void> {
       checkedOutAt: null,
     },
   ] as const;
+
   for (const item of itemInputs) {
     await prisma.reservationItem.upsert({
       where: { id: item.id },
@@ -687,27 +580,20 @@ async function seedMockData(): Promise<void> {
   }
 
   const approvalInputs = [
-    [
-      ids.approvals.completedProjector,
-      ids.items.completedProjector,
-      "APPROVED",
-    ],
-    [
-      ids.approvals.completedMicrophone,
-      ids.items.completedMicrophone,
-      "APPROVED",
-    ],
-    [ids.approvals.approvedCamera, ids.items.approvedCamera, "APPROVED"],
-    [ids.approvals.pendingSpeaker, ids.items.pendingSpeaker, "PENDING"],
+    [ids.approvals.completedLogic, ids.items.completedLogic, "APPROVED", userMap["ae@example.com"]!],
+    [ids.approvals.completedKit, ids.items.completedKit, "APPROVED", userMap["hr@example.com"]!],
+    [ids.approvals.approvedCamera, ids.items.approvedCamera, "APPROVED", userMap["mk@example.com"]!],
+    [ids.approvals.pendingOscilloscope, ids.items.pendingOscilloscope, "PENDING", userMap["ae@example.com"]!],
   ] as const;
-  for (const [id, reservationItemId, status] of approvalInputs) {
+
+  for (const [id, reservationItemId, status, approverId] of approvalInputs) {
     await prisma.reservationItemApproval.upsert({
       where: { reservationItemId },
       update: {},
       create: {
         id,
         reservationItemId,
-        approverId: ids.users.manager,
+        approverId,
         status,
         comment:
           status === "PENDING"
@@ -719,35 +605,22 @@ async function seedMockData(): Promise<void> {
     });
   }
 
-  await prisma.reservationChangeRequest.upsert({
-    where: { id: ids.changeRequest },
-    update: {},
-    create: {
-      id: ids.changeRequest,
-      reservationId: ids.reservations.approved,
-      requestedBy: ids.users.member,
-      changeData: { quantity: 2, note: "Added one camera for a second booth" },
-      reason: "Showcase layout expanded after approval.",
-      status: "APPROVED",
-      reviewedBy: ids.users.manager,
-      reviewedAt: new Date("2026-08-14T04:00:00.000Z"),
-    },
-  });
-
+  // 8. Return Record for completed reservation
   await prisma.return.upsert({
     where: { id: ids.return },
     update: {},
     create: {
       id: ids.return,
       reservationId: ids.reservations.completed,
-      returnedBy: ids.users.member,
+      returnedBy: userMap["user1@example.com"]!,
       status: "COMPLETED",
       returnedAt: new Date("2026-07-20T11:00:00.000Z"),
     },
   });
+
   for (const [index, reservationItemId] of [
-    ids.items.completedProjector,
-    ids.items.completedMicrophone,
+    ids.items.completedLogic,
+    ids.items.completedKit,
   ].entries()) {
     await prisma.returnItem.upsert({
       where: { id: ids.returnItems[index]! },
@@ -756,29 +629,41 @@ async function seedMockData(): Promise<void> {
         id: ids.returnItems[index]!,
         returnId: ids.return,
         reservationItemId,
-        quantityReturned: index === 0 ? 1 : 2,
+        quantityReturned: 1,
         quantityBroken: 0,
         quantityLost: 0,
         description: "Returned in good condition.",
       },
     });
   }
+
   await prisma.returnApproval.upsert({
     where: { returnId: ids.return },
     update: {},
     create: {
       id: ids.returnApproval,
       returnId: ids.return,
-      approverId: ids.users.manager,
+      approverId: userMap["ae@example.com"]!,
       status: "APPROVED",
       description: "All returned items inspected and accepted.",
       decidedAt: new Date("2026-07-20T11:30:00.000Z"),
     },
   });
 
-  console.log(
-    "Mock data ready. Login users: manager@example.com, member@example.com, technician@example.com.",
-  );
+  console.log("\n=========================================");
+  console.log("MOCK SEED COMPLETE:");
+  console.log("Management Areas:");
+  console.log("  1. Human Resource");
+  console.log("  2. Application Engineer");
+  console.log("  3. Marketing");
+  console.log("\nAccounts (Password: " + (process.env.MOCK_USER_PASSWORD || "password123456") + " or 00000000):");
+  console.log("  - admin@example.com -> Role: ADMIN (Global)");
+  console.log("  - ae@example.com    -> Role: MANAGER (Application Engineer)");
+  console.log("  - mk@example.com    -> Role: MANAGER (Marketing)");
+  console.log("  - hr@example.com    -> Role: MANAGER (Human Resource)");
+  console.log("  - user1@example.com -> Role: USER (General)");
+  console.log("  - user2@example.com -> Role: USER (General)");
+  console.log("=========================================");
 }
 
 async function seed(): Promise<void> {
