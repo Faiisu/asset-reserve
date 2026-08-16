@@ -148,8 +148,16 @@ try {
     timeout: 15000,
   });
   console.log(`  ${colors.green}✓${colors.reset} Database tables synced with Prisma schema`);
+
+  console.log(`  🌱 Ensuring seed users and initial data are present...`);
+  execSync("npm run seed", {
+    cwd: backendDir,
+    stdio: "ignore",
+    timeout: 15000,
+  });
+  console.log(`  ${colors.green}✓${colors.reset} Seed users and data verified`);
 } catch {
-  console.log(`  ${colors.dim}ℹ️ Prisma db push skipped or database not yet reachable.${colors.reset}`);
+  console.log(`  ${colors.dim}ℹ️ Database sync/seed skipped or database not yet reachable.${colors.reset}`);
 }
 
 // -----------------------------------------------------------------------------

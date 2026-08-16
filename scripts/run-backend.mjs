@@ -57,8 +57,15 @@ try {
     timeout: 10000,
   });
   console.log("✓ Database schema synchronized successfully.");
+  console.log("🌱 Ensuring seed users and initial data are present...");
+  execSync("npm run seed", {
+    cwd: backendDir,
+    stdio: "inherit",
+    timeout: 15000,
+  });
+  console.log("✓ Seed users and data verified.");
 } catch (err) {
-  console.log("ℹ️ Database sync skipped (PostgreSQL might still be starting or unreachable).");
+  console.log("ℹ️ Database sync/seed skipped (PostgreSQL might still be starting or unreachable).");
 }
 
 // 6. Start backend development server
