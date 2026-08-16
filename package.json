@@ -1,0 +1,23 @@
+{
+  "name": "asset-reserve-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/run-all.mjs",
+    "dev:all": "node scripts/run-all.mjs",
+    "dev:db": "node scripts/run-database.mjs",
+    "dev:backend": "node scripts/run-backend.mjs",
+    "dev:frontend": "node scripts/run-frontend.mjs",
+    "db:up": "node scripts/run-database.mjs",
+    "db:down": "docker compose -f database/docker-compose.yml down",
+    "db:logs": "docker compose -f database/docker-compose.yml logs -f postgres",
+    "db:push": "npm --prefix backend run db:push",
+    "db:seed": "npm --prefix backend run seed",
+    "db:reset": "npm --prefix backend run reset:admin",
+    "stop": "node scripts/stop-all.mjs",
+    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "build:all": "npm --prefix backend run build && npm --prefix frontend run build",
+    "test:all": "npm --prefix backend test && npm --prefix frontend test"
+  }
+}

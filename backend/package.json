@@ -8,7 +8,9 @@
     "prebuild": "npm run openapi:bundle",
     "build": "prisma generate && tsc -p tsconfig.build.json",
     "predev": "npm run openapi:bundle",
-    "dev": "prisma generate && (tsc -p tsconfig.build.json --watch --preserveWatchOutput & node --watch dist/src/main.js)",
+    "dev:tsc": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "dev:node": "node --watch dist/src/main.js",
+    "dev": "prisma generate && concurrently -k -p \"[{name}]\" -n \"TSC,NODE\" -c \"blue.bold,green.bold\" \"npm:dev:tsc\" \"npm:dev:node\"",
     "start": "node dist/src/main.js",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -45,6 +47,7 @@
   "devDependencies": {
     "@types/node": "26.2.0",
     "@types/pg": "8.21.0",
+    "concurrently": "^10.0.5",
     "prettier": "3.9.6",
     "prisma": "7.9.1",
     "tsx": "4.23.12",
