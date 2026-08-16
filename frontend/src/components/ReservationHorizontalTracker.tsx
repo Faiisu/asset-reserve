@@ -4,19 +4,13 @@ import {
   Circle,
   Clock3,
   XCircle,
-  AlertTriangle,
   FileText,
   ShieldCheck,
   PackageCheck,
   CalendarDays,
   RotateCcw,
-  User,
   X,
-  ExternalLink,
-  ChevronRight,
-  Info,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { ReservationDetail } from "@/types";
 import { formatDate } from "@/components/ui";
 
@@ -197,7 +191,7 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
         ? "current"
         : "upcoming",
     timestamp: isDeliveredOrBeyond
-      ? formatDate(deliveredAt ?? reservation.updatedAt, true)
+      ? formatDate(deliveredAt, true)
       : isApprovedOrBeyond
         ? "Ready for pickup"
         : "Pending approval",
@@ -209,7 +203,7 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
     icon: PackageCheck,
     logs: [
       { label: "Handover Status", value: isDeliveredOrBeyond ? "Handed over / Confirmed" : "Pending pickup" },
-      { label: "Handover Timestamp", value: isDeliveredOrBeyond ? formatDate(deliveredAt ?? reservation.updatedAt, true) : "Not yet confirmed" },
+      { label: "Handover Timestamp", value: isDeliveredOrBeyond ? formatDate(deliveredAt, true) : "Not yet confirmed" },
       { label: "Recipient / Borrower", value: `${reservation.requester.name ?? "User"} (${reservation.requester.email})` },
       { label: "Delivered Items", value: `${reservation.items.filter(i => i.status === "DELIVERED" || i.status === "RETURNED").length} lines delivered` },
     ],
@@ -300,73 +294,57 @@ export function ReservationHorizontalTracker({
   const [selectedStep, setSelectedStep] = React.useState<StepLogItem | null>(null);
 
   return (
-    <div className={cn("horizontal-tracker bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm", className)}>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <span>Reservation Status Track</span>
-            <span className="text-xs font-normal text-slate-500">(คลิกที่แต่ละขั้นตอนเพื่อดู Log ละเอียด)</span>
-          </h3>
-        </div>
-        <div className="text-xs text-slate-500 font-mono">
+    <div className={`res-horizontal-tracker ${className ?? ""}`}>
+      <div className="res-tracker-header">
+        <h3>
+          <span>Reservation Status Track</span>
+          <small>(คลิกที่แต่ละขั้นตอนเพื่อดู Log ละเอียด)</small>
+        </h3>
+        <span className="res-detail-ref-id">
           ID: {reservation.id.slice(0, 8)}
-        </div>
+        </span>
       </div>
 
       {/* Horizontal Steps Container */}
-      <div className="relative flex items-center justify-between gap-2 overflow-x-auto py-2">
-        {/* Background Connecting Line */}
-        <div className="absolute top-[28px] left-[5%] right-[5%] h-[2px] bg-slate-200 dark:bg-slate-800 -z-0" />
-
-        {steps.map((step, index) => {
+      <div className="res-tracker-steps">
+        {steps.map((step) => {
           const isCompleted = step.status === "completed";
           const isCurrent = step.status === "current";
           const isCancelled = step.status === "cancelled" || step.status === "rejected";
-          const isSelected = selectedStep?.id === step.id;
 
           return (
             <button
               key={step.id}
               type="button"
               onClick={() => setSelectedStep(step)}
-              className={cn(
-                "relative z-10 flex flex-col items-center min-w-[120px] flex-1 group transition-all p-2 rounded-xl border border-transparent hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 focus:outline-none focus:ring-2 focus:ring-blue-500/20",
-                isSelected && "border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/30"
-              )}
+              className="res-step-btn"
             >
               {/* Step Node Icon */}
               <div
-                className={cn(
-                  "w-11 h-11 rounded-full flex items-center justify-center transition-transform group-hover:scale-105 shadow-sm",
-                  isCompleted && "bg-emerald-500 text-white shadow-emerald-500/20",
-                  isCurrent && "bg-amber-500 text-white ring-4 ring-amber-100 dark:ring-amber-950 animate-pulse",
-                  isCancelled && "bg-rose-500 text-white",
-                  step.status === "upcoming" && "bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-300 dark:border-slate-700"
-                )}
+                className={`res-step-node ${
+                  isCompleted ? "res-step-node--completed" :
+                  isCurrent ? "res-step-node--current" :
+                  isCancelled ? "res-step-node--cancelled" :
+                  "res-step-node--upcoming"
+                }`}
               >
                 {isCompleted ? (
-                  <CheckCircle2 className="w-6 h-6" />
+                  <CheckCircle2 size={20} />
                 ) : isCurrent ? (
-                  <Clock3 className="w-6 h-6" />
+                  <Clock3 size={20} />
                 ) : isCancelled ? (
-                  <XCircle className="w-6 h-6" />
+                  <XCircle size={20} />
                 ) : (
-                  <Circle className="w-6 h-6" />
+                  <Circle size={20} />
                 )}
               </div>
 
               {/* Step Labels */}
-              <div className="mt-2.5 text-center">
-                <span className={cn(
-                  "text-xs font-semibold block",
-                  isCompleted && "text-slate-900 dark:text-slate-100",
-                  isCurrent && "text-amber-700 dark:text-amber-400 font-bold",
-                  isCancelled && "text-rose-600 dark:text-rose-400",
-                  step.status === "upcoming" && "text-slate-400"
-                )}>
+              <div className="res-step-text">
+                <span className="res-step-title">
                   {step.shortLabel}
                 </span>
-                <span className="text-[11px] text-slate-500 block truncate max-w-[130px] mt-0.5 font-mono">
+                <span className="res-step-time">
                   {step.timestamp}
                 </span>
               </div>
@@ -377,45 +355,47 @@ export function ReservationHorizontalTracker({
 
       {/* Interactive Step Audit Log Drawer / Modal */}
       {selectedStep && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+        <div className="res-modal-backdrop" onClick={() => setSelectedStep(null)}>
+          <div className="res-modal-card" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
-            <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "w-10 h-10 rounded-xl flex items-center justify-center text-white",
-                  selectedStep.status === "completed" && "bg-emerald-500",
-                  selectedStep.status === "current" && "bg-amber-500",
-                  (selectedStep.status === "cancelled" || selectedStep.status === "rejected") && "bg-rose-500",
-                  selectedStep.status === "upcoming" && "bg-slate-400"
-                )}>
-                  <selectedStep.icon className="w-5 h-5" />
+            <div className="res-modal-header">
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div
+                  className={`res-step-node ${
+                    selectedStep.status === "completed" ? "res-step-node--completed" :
+                    selectedStep.status === "current" ? "res-step-node--current" :
+                    selectedStep.status === "upcoming" ? "res-step-node--upcoming" :
+                    "res-step-node--cancelled"
+                  }`}
+                  style={{ width: 36, height: 36 }}
+                >
+                  <selectedStep.icon size={18} />
                 </div>
                 <div>
-                  <h4 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                    {selectedStep.title}
-                  </h4>
-                  <p className="text-xs text-slate-500">{selectedStep.summary}</p>
+                  <h4>{selectedStep.title}</h4>
+                  <p style={{ margin: 0, fontSize: 12, color: "var(--ink-soft)" }}>{selectedStep.summary}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedStep(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                style={{ background: "transparent", border: 0, cursor: "pointer", color: "var(--ink-faint)" }}
               >
-                <X className="w-5 h-5" />
+                <X size={18} />
               </button>
             </div>
 
             {/* Modal Body: Audit Log Entries */}
-            <div className="py-4 max-h-[60vh] overflow-y-auto space-y-4">
-              <div className="space-y-2">
-                <h5 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Step Metadata & Timeline</h5>
-                <div className="grid grid-cols-1 gap-2 bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+            <div className="res-modal-body">
+              <div style={{ marginBottom: 14 }}>
+                <h5 style={{ margin: "0 0 8px", fontSize: 11, textTransform: "uppercase", color: "var(--ink-faint)", letterSpacing: "0.05em" }}>
+                  Step Metadata & Timeline
+                </h5>
+                <div className="res-log-grid">
                   {selectedStep.logs.map((log, idx) => (
-                    <div key={idx} className="flex items-baseline justify-between gap-4 py-1 border-b border-slate-200/50 dark:border-slate-700/50 last:border-0">
-                      <span className="font-medium text-slate-500 dark:text-slate-400 shrink-0">{log.label}:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">{log.value}</span>
+                    <div key={idx} className="res-log-row">
+                      <span className="res-log-label">{log.label}:</span>
+                      <span className="res-log-val">{log.value}</span>
                     </div>
                   ))}
                 </div>
@@ -423,30 +403,31 @@ export function ReservationHorizontalTracker({
 
               {/* Items Breakdown (If applicable to approvals/returns) */}
               {selectedStep.itemsOverview && selectedStep.itemsOverview.length > 0 && (
-                <div className="space-y-2">
-                  <h5 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Line Items & Decisions</h5>
-                  <div className="space-y-2">
+                <div>
+                  <h5 style={{ margin: "0 0 8px", fontSize: 11, textTransform: "uppercase", color: "var(--ink-faint)", letterSpacing: "0.05em" }}>
+                    Line Items & Decisions
+                  </h5>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {selectedStep.itemsOverview.map((item, idx) => (
-                      <div key={idx} className="p-3 bg-white dark:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
-                        <div className="flex items-center justify-between font-semibold text-slate-900 dark:text-slate-100">
+                      <div key={idx} style={{ padding: "10px 14px", background: "var(--surface-raised)", border: "1px solid var(--line)", borderRadius: 8, fontSize: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: 700, color: "var(--ink)" }}>
                           <span>{item.assetName} × {item.quantity}</span>
-                          <span className={cn(
-                            "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
-                            item.approvalStatus === "APPROVED" && "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-                            item.approvalStatus === "REJECTED" && "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
-                            item.approvalStatus === "PENDING" && "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                          )}>
+                          <span className={`res-status-badge ${
+                            item.approvalStatus === "APPROVED" ? "res-status-badge--approved" :
+                            item.approvalStatus === "REJECTED" ? "res-status-badge--rejected" :
+                            "res-status-badge--pending_approval"
+                          }`}>
                             {item.approvalStatus}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
+                        <div style={{ display: "flex", justifyContent: "space-between", color: "var(--ink-faint)", fontSize: 11, marginTop: 4 }}>
                           <span>Area: {item.areaName}</span>
                           <span>Approver: {item.approverName}</span>
                         </div>
                         {item.comment && (
-                          <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 p-1.5 rounded">
+                          <div style={{ marginTop: 6, fontSize: 11, color: "var(--ink-soft)", background: "var(--surface)", padding: "4px 8px", borderRadius: 4, border: "1px solid var(--line)" }}>
                             💬 "{item.comment}"
-                          </p>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -456,11 +437,11 @@ export function ReservationHorizontalTracker({
             </div>
 
             {/* Modal Footer */}
-            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+            <div className="res-modal-footer">
               <button
                 type="button"
                 onClick={() => setSelectedStep(null)}
-                className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-lg hover:bg-slate-800 transition"
+                className="button button--secondary button--sm"
               >
                 Close Log Inspector
               </button>

@@ -2,17 +2,11 @@ import {
   ArrowLeft,
   Calendar,
   Clock,
-  MapPin,
   Package,
   User,
-  CheckCircle2,
-  AlertCircle,
   Truck,
   RotateCcw,
   XCircle,
-  FileEdit,
-  ShieldAlert,
-  Download,
   Info,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
@@ -37,7 +31,7 @@ import type {
 export function ReservationDetailPage() {
   const { reservationId } = useParams<{ reservationId: string }>();
   const navigate = useNavigate();
-  const { session, hasPermission, hasAreaPermission } = useAuth();
+  const { session } = useAuth();
 
   const [reservation, setReservation] = useState<ReservationDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -153,7 +147,7 @@ export function ReservationDetailPage() {
 
   if (loading) {
     return (
-      <div className="reservation-detail-page p-8 max-w-6xl mx-auto">
+      <div className="res-detail-layout">
         <LoadingState label="Loading reservation details..." />
       </div>
     );
@@ -161,7 +155,7 @@ export function ReservationDetailPage() {
 
   if (error || !reservation) {
     return (
-      <div className="reservation-detail-page p-8 max-w-6xl mx-auto">
+      <div className="res-detail-layout">
         <ErrorState
           error={error ?? "Could not find the requested reservation."}
           onRetry={loadReservation}
@@ -170,24 +164,21 @@ export function ReservationDetailPage() {
     );
   }
 
-  const isRequester = session?.user?.id === reservation.requester.id;
   const canConfirmDelivery = reservation.capabilities?.canConfirmDelivery;
   const canReturn = reservation.capabilities?.canReturn;
   const canCancel = reservation.capabilities?.canCancel;
-  const canRequestChange = reservation.capabilities?.canRequestChange;
+
+  const statusClass = reservation.status.toLowerCase();
 
   return (
-    <div className="reservation-detail-page p-6 max-w-6xl mx-auto space-y-6">
+    <div className="res-detail-layout">
       {/* Top Breadcrumb / Navigation */}
-      <div className="flex items-center justify-between">
-        <Link
-          to="/reservations"
-          className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition"
-        >
-          <ArrowLeft className="w-4 h-4" />
+      <div className="res-detail-top-nav">
+        <Link to="/reservations" className="res-detail-back-link">
+          <ArrowLeft size={16} />
           <span>Back to Reservations</span>
         </Link>
-        <span className="text-xs font-mono text-slate-400">
+        <span className="res-detail-ref-id">
           Ref: {reservation.id}
         </span>
       </div>
@@ -205,41 +196,31 @@ export function ReservationDetailPage() {
       )}
 
       {/* Hero Header Section */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-                {reservation.eventName}
-              </h1>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-                reservation.status === "APPROVED" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" :
-                reservation.status === "DELIVERY_CONFIRMED" ? "bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300" :
-                reservation.status === "ACTIVE" ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" :
-                reservation.status === "COMPLETED" ? "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300" :
-                reservation.status === "PENDING_APPROVAL" ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" :
-                "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-              }`}>
+      <div className="res-detail-hero">
+        <div className="res-detail-hero-header">
+          <div className="res-detail-title-group">
+            <div className="res-detail-title-row">
+              <h1>{reservation.eventName}</h1>
+              <span className={`res-status-badge res-status-badge--${statusClass}`}>
                 {reservationStatusLabel[reservation.status] ?? reservation.status}
               </span>
             </div>
             {reservation.description && (
-              <p className="text-sm text-slate-500 dark:text-slate-400">
+              <p className="res-detail-description">
                 {reservation.description}
               </p>
             )}
           </div>
 
           {/* Quick Primary Actions */}
-          <div className="flex items-center gap-2">
+          <div className="res-detail-hero-actions">
             {canConfirmDelivery && (
               <Button
                 variant="primary"
                 onClick={handleConfirmDelivery}
                 disabled={actionLoading}
-                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
               >
-                <Truck className="w-4 h-4" />
+                <Truck size={15} />
                 <span>Confirm Delivery (Pickup)</span>
               </Button>
             )}
@@ -249,9 +230,8 @@ export function ReservationDetailPage() {
                 variant="primary"
                 onClick={() => setIsReturnModalOpen(true)}
                 disabled={actionLoading}
-                className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
               >
-                <RotateCcw className="w-4 h-4" />
+                <RotateCcw size={15} />
                 <span>Return Gear</span>
               </Button>
             )}
@@ -261,9 +241,8 @@ export function ReservationDetailPage() {
                 variant="danger"
                 onClick={handleCancelReservation}
                 disabled={actionLoading}
-                className="gap-2"
               >
-                <XCircle className="w-4 h-4" />
+                <XCircle size={15} />
                 <span>Cancel</span>
               </Button>
             )}
@@ -271,42 +250,42 @@ export function ReservationDetailPage() {
         </div>
 
         {/* Key Info Meta Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 text-xs">
-          <div className="flex items-center gap-2.5">
-            <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+        <div className="res-detail-meta-grid">
+          <div className="res-detail-meta-item">
+            <Calendar size={18} />
             <div>
-              <span className="text-slate-400 block">Schedule Window</span>
-              <span className="font-medium text-slate-700 dark:text-slate-200">
+              <span className="res-detail-meta-label">Schedule Window</span>
+              <span className="res-detail-meta-value">
                 {formatDate(reservation.startAt, true)}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <Clock className="w-4 h-4 text-slate-400 shrink-0" />
+          <div className="res-detail-meta-item">
+            <Clock size={18} />
             <div>
-              <span className="text-slate-400 block">Duration</span>
-              <span className="font-medium text-slate-700 dark:text-slate-200">
+              <span className="res-detail-meta-label">Duration</span>
+              <span className="res-detail-meta-value">
                 {reservationDuration(reservation.startAt, reservation.endAt)}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <User className="w-4 h-4 text-slate-400 shrink-0" />
+          <div className="res-detail-meta-item">
+            <User size={18} />
             <div>
-              <span className="text-slate-400 block">Requester</span>
-              <span className="font-medium text-slate-700 dark:text-slate-200">
+              <span className="res-detail-meta-label">Requester</span>
+              <span className="res-detail-meta-value">
                 {reservation.requester.name ?? reservation.requester.email}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <Package className="w-4 h-4 text-slate-400 shrink-0" />
+          <div className="res-detail-meta-item">
+            <Package size={18} />
             <div>
-              <span className="text-slate-400 block">Equipment Count</span>
-              <span className="font-medium text-slate-700 dark:text-slate-200">
+              <span className="res-detail-meta-label">Equipment Count</span>
+              <span className="res-detail-meta-value">
                 {reservation.items.length} lines ({reservation.items.reduce((acc, it) => acc + it.quantity, 0)} units)
               </span>
             </div>
@@ -318,209 +297,216 @@ export function ReservationDetailPage() {
       <ReservationHorizontalTracker reservation={reservation} />
 
       {/* Main Two-Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="res-detail-columns">
         {/* Left Column (2/3): Equipment Manifest & History */}
-        <div className="lg:col-span-2 space-y-6">
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* Equipment Manifest Card */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <Package className="w-4 h-4 text-slate-500" />
+          <div className="res-card">
+            <div className="res-card-header">
+              <h2>
+                <Package size={16} />
                 <span>Reserved Equipment Manifest</span>
               </h2>
-              <span className="text-xs text-slate-500 font-mono">
+              <span className="res-detail-ref-id">
                 {reservation.items.length} items
               </span>
             </div>
 
-            <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden">
-              {reservation.items.map((item) => (
-                <div
-                  key={item.id}
-                  className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 font-bold text-xs shrink-0">
-                      {item.asset.name.slice(0, 2).toUpperCase()}
+            <div className="res-manifest-list">
+              {reservation.items.map((item) => {
+                const itemStatusClass = item.status.toLowerCase();
+                return (
+                  <div key={item.id} className="res-manifest-item">
+                    <div className="res-item-info">
+                      <div className="res-item-icon">
+                        {item.asset.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="res-item-name">{item.asset.name}</div>
+                        <div className="res-item-sub">
+                          Area: {item.asset.managementArea.name}
+                        </div>
+                        {item.approval?.comment && (
+                          <div className="res-item-comment">
+                            Approver note: "{item.approval.comment}"
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                        {item.asset.name}
-                      </h4>
-                      <p className="text-xs text-slate-500">
-                        Area: {item.asset.managementArea.name}
-                      </p>
-                      {item.approval?.comment && (
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded">
-                          Approver note: "{item.approval.comment}"
-                        </p>
-                      )}
-                    </div>
-                  </div>
 
-                  <div className="flex sm:flex-col items-end justify-between sm:justify-center gap-1 shrink-0">
-                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                      Qty: {item.quantity} unit(s)
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                      item.status === "APPROVED" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" :
-                      item.status === "DELIVERED" ? "bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300" :
-                      item.status === "RETURNED" ? "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300" :
-                      item.status === "REJECTED" ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300" :
-                      "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                    }`}>
-                      {item.status}
-                    </span>
+                    <div className="res-item-status-col">
+                      <span className="res-item-qty">
+                        Qty: {item.quantity} unit(s)
+                      </span>
+                      <span className={`res-status-badge res-status-badge--${itemStatusClass}`}>
+                        {item.status}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           {/* Return History Slips (If any) */}
           {reservation.returns.length > 0 && (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-                <RotateCcw className="w-4 h-4 text-blue-500" />
-                <span>Return & Inspection Slips</span>
-              </h3>
-              <div className="space-y-3">
-                {reservation.returns.map((ret) => (
-                  <div key={ret.id} className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-800 text-xs">
-                    <div className="flex items-center justify-between font-semibold">
-                      <span>Slip ID: {ret.id.slice(0, 8)}</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                        ret.status === "COMPLETED" || ret.status === "APPROVED" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" :
-                        "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                      }`}>
-                        {ret.status}
-                      </span>
-                    </div>
-                    <p className="text-slate-500 mt-1">
-                      Submitted at: {formatDate(ret.createdAt, true)}
-                    </p>
-                    {ret.approval?.description && (
-                      <p className="text-slate-600 dark:text-slate-300 mt-2 bg-white dark:bg-slate-900 p-2 rounded border border-slate-200/50">
-                        <strong>Inspector Remarks:</strong> {ret.approval.description}
+            <div className="res-card">
+              <div className="res-card-header">
+                <h3>
+                  <RotateCcw size={16} />
+                  <span>Return & Inspection Slips</span>
+                </h3>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {reservation.returns.map((ret) => {
+                  const retStatusClass = ret.status.toLowerCase();
+                  return (
+                    <div key={ret.id} style={{ padding: "12px 16px", background: "var(--surface-raised)", borderRadius: 8, border: "1px solid var(--line)", fontSize: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: 700 }}>
+                        <span>Slip ID: {ret.id.slice(0, 8)}</span>
+                        <span className={`res-status-badge res-status-badge--${retStatusClass}`}>
+                          {ret.status}
+                        </span>
+                      </div>
+                      <p style={{ margin: "4px 0 0", color: "var(--ink-faint)" }}>
+                        Submitted at: {formatDate(ret.createdAt, true)}
                       </p>
-                    )}
-                  </div>
-                ))}
+                      {ret.approval?.description && (
+                        <p style={{ margin: "8px 0 0", padding: "8px 10px", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink-soft)" }}>
+                          <strong>Inspector Remarks:</strong> {ret.approval.description}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
         </div>
 
-        {/* Right Column (1/3): Participants & Timeline Meta */}
-        <div className="space-y-6">
+        {/* Right Column (1/3): Participants & Help */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* Participants Card */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-              <User className="w-4 h-4 text-slate-500" />
-              <span>Event Team & Participants</span>
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
+          <div className="res-card">
+            <div className="res-card-header">
+              <h3>
+                <User size={16} />
+                <span>Event Team & Participants</span>
+              </h3>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <Avatar name={reservation.requester.name ?? reservation.requester.email} />
                 <div>
-                  <p className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
                     {reservation.requester.name ?? "User"}
-                  </p>
-                  <p className="text-[11px] text-slate-500">
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
                     {reservation.requester.email} (Requester)
-                  </p>
+                  </div>
                 </div>
               </div>
 
               {reservation.participants.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 8, borderTop: "1px solid var(--line)" }}>
                   <Avatar name={p.name ?? p.email} />
                   <div>
-                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>
                       {p.name ?? "Participant"}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
                       {p.email}
-                    </p>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Quick Help / Instructions Card */}
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-5 shadow-sm text-xs space-y-3">
-            <h4 className="font-bold flex items-center gap-1.5 text-amber-400">
-              <Info className="w-4 h-4" />
+          {/* Quick Help Card */}
+          <div className="res-card" style={{ background: "color-mix(in srgb, var(--blue-soft) 40%, var(--surface))", borderColor: "color-mix(in srgb, var(--blue) 25%, transparent)" }}>
+            <h4 style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700, color: "var(--blue-dark)", display: "flex", alignItems: "center", gap: 6 }}>
+              <Info size={16} />
               <span>Reservation Lifecycle Help</span>
             </h4>
-            <p className="text-slate-300 leading-relaxed">
+            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--ink-soft)" }}>
               คลิกที่แต่ละขั้นตอนใน <strong>Reservation Status Track</strong> ด้านบนเพื่อเปิดดูบันทึก Audit Logs และการตัดสินใจของแต่ละแผนกอย่างละเอียด
             </p>
-            <div className="pt-2 border-t border-slate-700/60 text-[11px] text-slate-400">
-              Created: {formatDate(reservation.createdAt, true)}
-            </div>
           </div>
         </div>
       </div>
 
       {/* Return Request Modal */}
       {isReturnModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <RotateCcw className="w-5 h-5 text-blue-600" />
-              <span>Submit Return Request Slip</span>
-            </h3>
-            <p className="text-xs text-slate-500">
-              Specify the quantities of equipment you are physically dropping off at the equipment room:
-            </p>
+        <div className="res-modal-backdrop" onClick={() => setIsReturnModalOpen(false)}>
+          <div className="res-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="res-modal-header">
+              <h4 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <RotateCcw size={18} color="var(--blue)" />
+                <span>Submit Return Request Slip</span>
+              </h4>
+              <button
+                type="button"
+                onClick={() => setIsReturnModalOpen(false)}
+                style={{ background: "transparent", border: 0, cursor: "pointer", color: "var(--ink-faint)" }}
+              >
+                ✕
+              </button>
+            </div>
 
-            <form onSubmit={handleReturnSubmit} className="space-y-4">
-              <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-1">
-                {reservation.items.map((item) => {
-                  const remaining = item.returnSummary?.remainingReturnQuantity ?? item.quantity;
-                  if (remaining <= 0) return null;
+            <form onSubmit={handleReturnSubmit}>
+              <div className="res-modal-body">
+                <p style={{ fontSize: 12, color: "var(--ink-soft)", margin: "0 0 14px" }}>
+                  Specify the quantities of equipment you are physically dropping off at the equipment room:
+                </p>
 
-                  return (
-                    <div key={item.id} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs">
-                      <div>
-                        <span className="font-bold text-slate-800 dark:text-slate-200 block">{item.asset.name}</span>
-                        <span className="text-slate-400">Available to return: max {remaining}</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+                  {reservation.items.map((item) => {
+                    const remaining = item.returnSummary?.remainingReturnQuantity ?? item.quantity;
+                    if (remaining <= 0) return null;
+
+                    return (
+                      <div key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "var(--surface-raised)", border: "1px solid var(--line)", borderRadius: 8, fontSize: 12 }}>
+                        <div>
+                          <span style={{ fontWeight: 700, color: "var(--ink)", display: "block" }}>{item.asset.name}</span>
+                          <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>Available to return: max {remaining}</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <label style={{ fontSize: 11, color: "var(--ink-faint)" }}>Qty:</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={remaining}
+                            value={returnQuantities[item.id] ?? 0}
+                            onChange={(e) => {
+                              const val = Math.max(0, Math.min(remaining, parseInt(e.target.value) || 0));
+                              setReturnQuantities((prev) => ({ ...prev, [item.id]: val }));
+                            }}
+                            className="control"
+                            style={{ width: 70, height: 32, textAlign: "center", fontWeight: 700 }}
+                          />
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-slate-500 text-[11px]">Qty:</label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={remaining}
-                          value={returnQuantities[item.id] ?? 0}
-                          onChange={(e) => {
-                            const val = Math.max(0, Math.min(remaining, parseInt(e.target.value) || 0));
-                            setReturnQuantities((prev) => ({ ...prev, [item.id]: val }));
-                          }}
-                          className="w-16 h-8 text-center font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-xs"
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink)", marginBottom: 6 }}>
+                    Drop-off Location / Return Note:
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={returnNote}
+                    onChange={(e) => setReturnNote(e.target.value)}
+                    placeholder="e.g. Placed back in Marketing Cabinet B"
+                    className="control"
+                    style={{ width: "100%", padding: "8px 12px", fontSize: 12, minHeight: 60 }}
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Drop-off Location / Return Note:
-                </label>
-                <textarea
-                  rows={2}
-                  value={returnNote}
-                  onChange={(e) => setReturnNote(e.target.value)}
-                  placeholder="e.g. Placed back in Marketing Cabinet B"
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="res-modal-footer">
                 <Button
                   type="button"
                   variant="secondary"
@@ -532,7 +518,6 @@ export function ReservationDetailPage() {
                   type="submit"
                   variant="primary"
                   disabled={actionLoading}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   {actionLoading ? "Submitting..." : "Submit Return Slip"}
                 </Button>
