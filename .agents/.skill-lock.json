@@ -1,0 +1,100 @@
+{
+  "version": 3,
+  "skills": {
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel-labs/skills.git",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "skillFolderHash": "3013fdeb8a11b10b1eb795ec3ae8bfca38f7c26d",
+      "installedAt": "2026-06-11T08:08:44.071Z",
+      "updatedAt": "2026-06-11T08:08:44.071Z"
+    },
+    "project-documentation": {
+      "source": "jiffies/project-documentation-skill",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/jiffies/project-documentation-skill.git",
+      "skillPath": "SKILL.md",
+      "skillFolderHash": "627a06ab869dc75c2e7843d9feff2b22f8f1a7f9",
+      "installedAt": "2026-06-11T13:37:21.827Z",
+      "updatedAt": "2026-06-11T13:37:36.229Z"
+    },
+    "design-lab": {
+      "source": "0xdesign/design-plugin",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/0xdesign/design-plugin.git",
+      "skillPath": "design-and-refine/skills/design-lab/SKILL.md",
+      "skillFolderHash": "3927a8ee902fd53db0b9afe639da1b04437afd4d",
+      "installedAt": "2026-07-14T13:55:54.429Z",
+      "updatedAt": "2026-07-14T13:55:54.429Z"
+    },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/anthropics/skills.git",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "skillFolderHash": "0d5b74a14bdf3ebcd64f352d06376a2ef05ed296",
+      "pluginName": "example-skills",
+      "installedAt": "2026-07-18T12:35:04.183Z",
+      "updatedAt": "2026-07-18T12:35:04.183Z"
+    },
+    "improve-codebase-architecture": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git",
+      "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
+      "skillFolderHash": "bce229692e60dff3462e49bc5e774e83bef348e6",
+      "pluginName": "mattpocock-skills",
+      "installedAt": "2026-07-18T17:32:33.531Z",
+      "updatedAt": "2026-07-18T17:32:33.531Z"
+    },
+    "grill-with-docs": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git",
+      "skillPath": "skills/engineering/grill-with-docs/SKILL.md",
+      "skillFolderHash": "5fdcdeedf2d0c73b3ecb1da0a464dd885590f8d6",
+      "pluginName": "mattpocock-skills",
+      "installedAt": "2026-07-18T17:32:33.533Z",
+      "updatedAt": "2026-07-18T17:32:33.533Z"
+    },
+    "supabase-postgres-best-practices": {
+      "source": "supabase/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/supabase/agent-skills.git",
+      "skillPath": "skills/supabase-postgres-best-practices/SKILL.md",
+      "skillFolderHash": "27bde25111c4cd5e6f803fc9db5fbffe27bb26cf",
+      "pluginName": "postgres-best-practices",
+      "installedAt": "2026-08-14T17:33:34.769Z",
+      "updatedAt": "2026-08-14T17:33:34.769Z"
+    },
+    "supabase": {
+      "source": "supabase/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/supabase/agent-skills.git",
+      "skillPath": "skills/supabase/SKILL.md",
+      "skillFolderHash": "3c890031c3df7b4ea2561bd3a452a94df0e9a53d",
+      "pluginName": "supabase",
+      "installedAt": "2026-08-14T17:33:34.772Z",
+      "updatedAt": "2026-08-14T17:33:34.772Z"
+    }
+  },
+  "dismissed": {
+    "findSkillsPrompt": true
+  },
+  "lastSelectedAgents": [
+    "amp",
+    "antigravity",
+    "antigravity-cli",
+    "cline",
+    "codex",
+    "cursor",
+    "deepagents",
+    "gemini-cli",
+    "github-copilot",
+    "kimi-code-cli",
+    "opencode",
+    "warp",
+    "zed"
+  ]
+}
