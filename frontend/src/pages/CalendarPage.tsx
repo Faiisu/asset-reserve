@@ -120,7 +120,6 @@ export function CalendarPage() {
   const [assetBrowserView, setAssetBrowserView] = useState<"list" | "grid">(
     "grid",
   );
-  const [calendarHeight, setCalendarHeight] = useState<number | null>(null);
   const [eventMenu, setEventMenu] = useState<EventMenu>(null);
   const [cancelTarget, setCancelTarget] = useState<ReservationSummary | null>(
     null,
@@ -140,7 +139,6 @@ export function CalendarPage() {
   const [miniCalendarOpen, setMiniCalendarOpen] = useState(false);
   const miniCalendarRef = useRef<HTMLDivElement>(null);
   const reservePanel = useRef<HTMLElement>(null);
-  const calendarFrame = useRef<HTMLDivElement>(null);
   const calendarScrollRef = useRef<HTMLDivElement>(null);
   const eventMenuRef = useRef<HTMLElement>(null);
   const requestSequence = useRef(0);
@@ -238,20 +236,6 @@ export function CalendarPage() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [miniCalendarOpen]);
-
-  useEffect(() => {
-    if (!canCreate || typeof ResizeObserver === "undefined") return;
-    const frame = calendarFrame.current;
-    if (!frame) return;
-    const updateHeight = () => {
-      const nextHeight = Math.round(frame.getBoundingClientRect().height);
-      if (nextHeight > 0) setCalendarHeight(nextHeight);
-    };
-    updateHeight();
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(frame);
-    return () => observer.disconnect();
-  }, [canCreate, error]);
 
   useEffect(() => {
     if (!canCreate) return;
@@ -705,64 +689,6 @@ export function CalendarPage() {
 
   return (
     <div className="page-stack calendar-page">
-      <section className="calendar-controls" aria-label="Calendar controls">
-        <div className="calendar-month-control">
-          <div className="calendar-month-control__buttons">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={goToToday}
-            >
-              Today
-            </Button>
-            <div className="calendar-mini-picker" ref={miniCalendarRef}>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setMiniCalendarOpen((prev) => !prev)}
-                aria-haspopup="dialog"
-                aria-expanded={miniCalendarOpen}
-                aria-label="Select date from mini calendar"
-              >
-                <CalendarDays size={15} /> Select date
-              </Button>
-              {miniCalendarOpen && (
-                <MiniCalendarPopover
-                  initialMonth={visibleMonth}
-                  onSelectDate={handlePickDate}
-                  onClose={() => setMiniCalendarOpen(false)}
-                />
-              )}
-            </div>
-          </div>
-          <div aria-live="polite">
-            <span>{headerMonth.getFullYear()}</span>
-            <h2>{formatMonth(headerMonth)}</h2>
-          </div>
-        </div>
-
-        <div className="calendar-filters">
-          <span>
-            <Filter size={14} /> Filters
-          </span>
-          <WorkspaceCheckboxFilter
-            areas={areas}
-            selectedIds={selectedAreaIds}
-            onChange={setSelectedAreaIds}
-          />
-          <CheckboxDropdownFilter
-            label="Statuses"
-            allLabel="All statuses"
-            options={statusOptions}
-            selectedValues={selectedStatuses}
-            onChange={setSelectedStatuses}
-            ariaLabel="Filter statuses"
-          />
-        </div>
-      </section>
-
       <div
         className={cx(
           "calendar-workspace",
@@ -770,10 +696,68 @@ export function CalendarPage() {
         )}
       >
         <div className="calendar-workspace__rail">
+          <section className="calendar-controls" aria-label="Calendar controls">
+            <div className="calendar-month-control">
+              <div className="calendar-month-control__buttons">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={goToToday}
+                >
+                  Today
+                </Button>
+                <div className="calendar-mini-picker" ref={miniCalendarRef}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setMiniCalendarOpen((prev) => !prev)}
+                    aria-haspopup="dialog"
+                    aria-expanded={miniCalendarOpen}
+                    aria-label="Select date from mini calendar"
+                  >
+                    <CalendarDays size={15} /> Select date
+                  </Button>
+                  {miniCalendarOpen && (
+                    <MiniCalendarPopover
+                      initialMonth={visibleMonth}
+                      onSelectDate={handlePickDate}
+                      onClose={() => setMiniCalendarOpen(false)}
+                    />
+                  )}
+                </div>
+              </div>
+              <div aria-live="polite">
+                <span>{headerMonth.getFullYear()}</span>
+                <h2>{formatMonth(headerMonth)}</h2>
+              </div>
+            </div>
+
+            <div className="calendar-filters">
+              <span>
+                <Filter size={14} /> Filters
+              </span>
+              <WorkspaceCheckboxFilter
+                areas={areas}
+                selectedIds={selectedAreaIds}
+                onChange={setSelectedAreaIds}
+              />
+              <CheckboxDropdownFilter
+                label="Statuses"
+                allLabel="All statuses"
+                options={statusOptions}
+                selectedValues={selectedStatuses}
+                onChange={setSelectedStatuses}
+                ariaLabel="Filter statuses"
+              />
+            </div>
+          </section>
+
           {error ? (
             <ErrorState error={error} onRetry={() => void load()} />
           ) : (
-            <div className="calendar-frame" ref={calendarFrame}>
+            <div className="calendar-frame">
               <div
                 className="calendar-scroll"
                 ref={calendarScrollRef}
@@ -830,7 +814,6 @@ export function CalendarPage() {
             ref={reservePanel}
             className="calendar-reserve-panel"
             aria-label="Asset picker"
-            style={calendarHeight ? { height: calendarHeight } : undefined}
           >
             <header className="calendar-reserve-panel__header">
               <span className="calendar-reserve-panel__icon" aria-hidden>
@@ -1230,6 +1213,13 @@ function CalendarAssetOption({
   onToggle: (asset: AssetSummary) => void;
 }) {
   const fullyBooked = scheduleSelected && asset.availableQuantity <= 0;
+  const isFull =
+    scheduleSelected && asset.availableQuantity >= asset.totalQuantity;
+  const isPartial =
+    scheduleSelected &&
+    asset.availableQuantity > 0 &&
+    asset.availableQuantity < asset.totalQuantity;
+
   return (
     <button
       type="button"
@@ -1249,6 +1239,8 @@ function CalendarAssetOption({
           {asset.managementArea.name} ·{" "}
           <em
             className={cx(
+              isFull && "calendar-asset-option__availability--full",
+              isPartial && "calendar-asset-option__availability--partial",
               fullyBooked && "calendar-asset-option__availability--none",
             )}
           >

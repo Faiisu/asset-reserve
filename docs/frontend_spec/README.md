@@ -28,6 +28,7 @@
 | Pages  | [Returns](pages/returns.md)                                  | Partial return และ return approval             |
 | Pages  | [Administration](pages/admin.md)                             | Users, roles และ management areas              |
 | Detail | [Access control](detail/access-control.md)                   | Role, permission และ management-area scope     |
+| Detail | [Design System & UI Baseline](detail/design-system.md)       | Typography, Colors, Availability Badges, [Interactive HTML Guide](design-system.html) |
 | Detail | [Application shell](detail/application-shell.md)             | Navigation, visual language และ accessibility  |
 | Detail | [Status reference](detail/status-reference.md)               | Status ที่ frontend รองรับ                     |
 | Detail | [Frontend data contracts](detail/frontend-data-contracts.md) | TypeScript DTO contracts                       |
@@ -39,6 +40,7 @@
 ```text
 docs/frontend_spec/
 ├── README.md
+├── design-system.html
 ├── pages/
 │   ├── README.md
 │   ├── login.md
@@ -49,6 +51,7 @@ docs/frontend_spec/
 │   └── admin.md
 └── detail/
     ├── README.md
+    ├── design-system.md
     ├── access-control.md
     ├── application-shell.md
     ├── status-reference.md
