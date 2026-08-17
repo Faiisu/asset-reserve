@@ -13,12 +13,14 @@ import {
   Check,
   X,
   ClipboardCheck,
+  Printer,
 } from "lucide-react";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { ReservationHorizontalTracker } from "../components/ReservationHorizontalTracker";
+import { ReservationPrintDocument } from "../components/ReservationPrintDocument";
 import {
   Avatar,
   Button,
@@ -52,6 +54,7 @@ export function ReservationDetailPage() {
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
 
   // Selection states for manifest actions
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
@@ -177,6 +180,22 @@ export function ReservationDetailPage() {
       ) ?? null
     );
   }, [reservation, hasAreaPermission]);
+
+  // Print PDF is available only when return is approved or partially approved
+  const canPrintPdf = useMemo(() => {
+    if (!reservation) return false;
+    return (
+      ["RETURN_CONFIRMED", "COMPLETED"].includes(reservation.status) ||
+      Boolean(
+        reservation.returns?.some(
+          (ret) =>
+            ret.status === "APPROVED" ||
+            ret.status === "COMPLETED" ||
+            ret.approval?.status === "APPROVED"
+        )
+      )
+    );
+  }, [reservation]);
 
   // Toggle selection for approval
   const toggleItemSelection = (itemId: string) => {
@@ -516,6 +535,19 @@ export function ReservationDetailPage() {
 
           {/* Quick Primary Actions */}
           <div className="res-detail-hero-actions">
+            {canPrintPdf && (
+              <Button
+                variant="secondary"
+                onClick={() => setShowPrintModal(true)}
+                disabled={actionLoading}
+                id="print-reservation-btn"
+                title="Print complete reservation & return slip (PDF)"
+              >
+                <Printer size={15} />
+                <span>Print / PDF</span>
+              </Button>
+            )}
+
             {returnableItems.length > 0 && (
               <Button
                 variant="primary"
@@ -1242,6 +1274,15 @@ export function ReservationDetailPage() {
           </div>
         </aside>
       </div>
+
+      {/* Interactive Print Preview Modal & Print Document */}
+      {canPrintPdf && showPrintModal && (
+        <ReservationPrintDocument
+          reservation={reservation}
+          onClose={() => setShowPrintModal(false)}
+          isModal
+        />
+      )}
     </div>
   );
 }

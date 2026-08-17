@@ -632,4 +632,186 @@ describe("ReservationDetailPage", () => {
       );
     });
   });
+
+  it("does not show Print / PDF button when reservation return is not yet approved or partially approved", async () => {
+    vi.spyOn(api, "reservation").mockResolvedValue(mockReservation); // status is "APPROVED"
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Verify Print button is NOT rendered when return is not yet approved
+    await waitFor(() => {
+      expect(screen.getByText("Quarterly Town Hall Stream")).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: /Print \/ PDF/i })).not.toBeInTheDocument();
+  });
+
+  it("opens the hard paper print preview modal on return approved state (COMPLETED) and calls window.print", async () => {
+    const returnApprovedReservation: ReservationDetail = {
+      ...mockReservation,
+      status: "COMPLETED",
+      returns: [
+        {
+          id: "00000000-0000-4000-8000-000000000201",
+          reservationId: mockReservation.id,
+          status: "APPROVED",
+          returnedAt: "2026-09-02T10:00:00.000Z",
+          returnedBy: mockReservation.requester,
+          items: [],
+          approval: {
+            id: "ret-app-1",
+            status: "APPROVED",
+            description: "All returned units intact",
+            decidedAt: "2026-09-02T11:00:00.000Z",
+            approver: mockReservation.requester,
+          },
+          capabilities: { canApprove: false, canReject: false },
+          createdAt: "2026-09-02T10:00:00.000Z",
+          updatedAt: "2026-09-02T11:00:00.000Z",
+        },
+      ],
+    };
+
+    vi.spyOn(api, "reservation").mockResolvedValue(returnApprovedReservation);
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => {});
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Verify Print button is present in hero actions when return is approved
+    const printBtn = await screen.findByRole("button", { name: /Print \/ PDF/i });
+    expect(printBtn).toBeInTheDocument();
+
+    // Click to open Print Preview modal
+    fireEvent.click(printBtn);
+
+    // Verify modal and sheet elements
+    expect(screen.getByText("Official Manifest Document Preview")).toBeInTheDocument();
+    expect(screen.getByText("EQUIPMENT DISPATCH & RETURN MANIFEST")).toBeInTheDocument();
+    expect(screen.getByText("RES-00000000")).toBeInTheDocument();
+    expect(screen.getByText("Reservation & Event Overview")).toBeInTheDocument();
+    expect(screen.getByText("Chain of Custody & Formal Sign-Off")).toBeInTheDocument();
+
+    // Click Print / Save PDF action inside the preview toolbar
+    const printActionBtn = screen.getByRole("button", { name: /Print \/ Save PDF/i });
+    fireEvent.click(printActionBtn);
+    expect(printSpy).toHaveBeenCalled();
+
+    // Close preview modal
+    const closeBtn = screen.getByLabelText("Close document preview");
+    fireEvent.click(closeBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Official Manifest Document Preview")).not.toBeInTheDocument();
+    });
+
+    printSpy.mockRestore();
+  });
+
+  it("renders complete return inspection details, breakages, and restock clearance on printable manifest", async () => {
+    const completedReturnReservation: ReservationDetail = {
+      ...mockReservation,
+      status: "COMPLETED",
+      items: [
+        {
+          ...mockReservation.items[0],
+          status: "RETURNED",
+          returnSummary: {
+            returnedQuantity: 2,
+            brokenQuantity: 1,
+            lostQuantity: 0,
+            pendingReturnQuantity: 0,
+            remainingReturnQuantity: 0,
+          },
+        },
+      ],
+      returns: [
+        {
+          id: "00000000-0000-4000-8000-000000000201",
+          reservationId: mockReservation.id,
+          status: "COMPLETED",
+          returnedAt: "2026-09-02T10:00:00.000Z",
+          returnedBy: {
+            id: "00000000-0000-4000-8000-000000000001",
+            email: "owner@example.com",
+            name: "Event Owner",
+            profilePictureUrl: null,
+          },
+          items: [
+            {
+              id: "ret-item-1",
+              reservationItemId: "item-1",
+              assetId: "asset-1",
+              assetName: "Stage Camera 4K",
+              quantityReturned: 1,
+              quantityBroken: 1,
+              quantityLost: 0,
+              description: "1 unit intact, 1 unit broken lens hood",
+              managementArea: { id: "area-1", name: "Marketing" },
+            },
+          ],
+          approval: {
+            id: "ret-app-1",
+            status: "APPROVED",
+            description: "Restocked functional unit to locker. Logged broken hood for repair.",
+            decidedAt: "2026-09-02T11:00:00.000Z",
+            approver: {
+              id: "mgr-1",
+              name: "Equipment Custodian",
+              email: "custodian@example.com",
+              profilePictureUrl: null,
+            },
+          },
+          capabilities: { canApprove: false, canReject: false },
+          createdAt: "2026-09-02T10:00:00.000Z",
+          updatedAt: "2026-09-02T11:00:00.000Z",
+        },
+      ],
+    };
+
+    vi.spyOn(api, "reservation").mockResolvedValue(completedReturnReservation);
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const printBtn = await screen.findByRole("button", { name: /Print \/ PDF/i });
+    fireEvent.click(printBtn);
+
+    // Verify Complete Return Details on the printable sheet
+    expect(screen.getByText("Return Slip #1:")).toBeInTheDocument();
+    expect(screen.getByText("RET-00000000")).toBeInTheDocument();
+    expect(screen.getByText("CLEARED & RESTOCKED TO INVENTORY")).toBeInTheDocument();
+    expect(screen.getByText(/1 unit intact, 1 unit broken lens hood/i)).toBeInTheDocument();
+    expect(screen.getByText(/Restocked functional unit to locker/i)).toBeInTheDocument();
+
+    // Verify 4 Sign-off roles
+    expect(screen.getByText("1. Requester / Borrower")).toBeInTheDocument();
+    expect(screen.getByText("2. Area Custodian / Approver")).toBeInTheDocument();
+    expect(screen.getByText("3. Dispatch Officer")).toBeInTheDocument();
+    expect(screen.getByText("4. Return Receiving Inspector")).toBeInTheDocument();
+  });
 });
