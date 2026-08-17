@@ -184,6 +184,25 @@
   background: color-mix(in srgb, var(--blue) 12%, var(--surface));
   border-color: color-mix(in srgb, var(--blue) 55%, transparent);
 }
+.calendar-only-mine-toggle__icon {
+  flex-shrink: 0;
+  transition: transform 150ms ease;
+}
+.calendar-only-mine-toggle:hover:not(:disabled) .calendar-only-mine-toggle__icon {
+  transform: scale(1.08);
+}
+.calendar-only-mine-toggle__indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #ffffff;
+  margin-left: 2px;
+  flex-shrink: 0;
+}
 .calendar-filter-btn__badge {
   display: inline-flex;
   align-items: center;

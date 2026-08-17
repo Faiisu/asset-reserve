@@ -63,7 +63,8 @@
   .calendar-only-mine-toggle {
     flex: 1;
   }
-  .calendar-filter-btn {
+  .calendar-filter-btn,
+  .calendar-only-mine-toggle {
     width: 100%;
     justify-content: center;
   }

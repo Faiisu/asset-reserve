@@ -14,6 +14,7 @@ import {
   PackageSearch,
   Plus,
   Search,
+  User,
   X,
   XCircle,
 } from "lucide-react";
@@ -987,15 +988,27 @@ export function CalendarPage() {
                   )}
                   onClick={() => setOnlyMine((prev) => !prev)}
                   aria-pressed={onlyMine}
-                  aria-label="Show only my reservations"
+                  aria-label={
+                    onlyMine
+                      ? "Showing only my reservations. Click to show all reservations."
+                      : "Filter to only my reservations"
+                  }
                   title={
                     onlyMine
-                      ? "Showing only my reservations"
-                      : "Showing all reservations"
+                      ? "Showing only my reservations (click to show all)"
+                      : "Filter to only my reservations"
                   }
                 >
-                  <Eye size={13} />
-                  {onlyMine ? "Only mine" : "All reservations"}
+                  <User size={13} className="calendar-only-mine-toggle__icon" />
+                  <span>Only mine</span>
+                  {onlyMine && (
+                    <span
+                      className="calendar-only-mine-toggle__indicator"
+                      aria-hidden="true"
+                    >
+                      <Check size={11} strokeWidth={2.5} />
+                    </span>
+                  )}
                 </button>
               )}
             </div>

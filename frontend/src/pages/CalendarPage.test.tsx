@@ -567,6 +567,47 @@ describe("CalendarPage", () => {
     expect(reserveButton).toHaveAttribute("aria-disabled", "true");
     expect(reserveButton).toHaveClass("button--disabled");
   });
+
+  it("toggles between all reservations and only mine using the Only mine button", async () => {
+    const listSpy = vi.spyOn(api, "reservations").mockResolvedValue({
+      data: [],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <CalendarPage />
+      </MemoryRouter>,
+    );
+
+    const toggleBtn = await screen.findByRole("button", {
+      name: /Filter to only my reservations/i,
+    });
+    expect(toggleBtn).toBeInTheDocument();
+    expect(toggleBtn).toHaveTextContent("Only mine");
+    expect(toggleBtn).toHaveAttribute("aria-pressed", "false");
+    expect(toggleBtn).not.toHaveClass("calendar-only-mine-toggle--active");
+
+    // Click to toggle "Only mine" ON
+    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute("aria-pressed", "true");
+    expect(toggleBtn).toHaveClass("calendar-only-mine-toggle--active");
+    expect(listSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        view: "MINE",
+      }),
+    );
+
+    // Click to toggle "Only mine" OFF
+    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute("aria-pressed", "false");
+    expect(toggleBtn).not.toHaveClass("calendar-only-mine-toggle--active");
+    expect(listSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        view: "ALL",
+      }),
+    );
+  });
 });
 
 function LocationProbe() {
