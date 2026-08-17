@@ -11,7 +11,10 @@
 > match against at creation), and the callback's "connect" branch became
 > the *only* way a Google identity is ever linked, not just a Phase C
 > stub. Phase C (Calendar sync) is still designed below and not started;
-> it can still reuse the shipped `/connect` flow as planned.
+> it can still reuse the shipped `/connect` flow as planned. For the
+> dev/deploy toggle and the actual Google Cloud Console setup steps (local
+> testing and real customer deployment), see
+> [`google-oauth-setup.md`](./google-oauth-setup.md) instead of this doc.
 
 ## Context
 
