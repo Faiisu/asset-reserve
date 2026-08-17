@@ -23,19 +23,40 @@
 
 ---
 
-## 2. Asset Availability Color Coding
+## 2. Asset Option Cards & Availability Badge Rules
 
-สำหรับ Choose Assets และการแสดงสถานะจำนวนคงเหลือของทรัพย์สิน:
+ข้อกำหนดขนาดและสีสำหรับการเลือกอุปกรณ์ (Choose Assets / Asset Picker) และป้ายสถานะความพร้อม (Availability Badges):
 
-- 🟢 **Green (Full Stock)** (`.calendar-asset-option__availability--full`):
+### 2.1 Asset Option Card Size & Layout Rules
+- **Container (`.calendar-asset-option`, `.asset-card`)**:
+  - `min-height`: `84px` (Calendar option) / `74px` (Compose picker `.asset-picker__item`)
+  - `padding`: `12px 14px` (Calendar) / `10px 12px` (Compose)
+  - `border-radius`: `12px`
+  - `display`: `grid` with `grid-template-columns: 58px minmax(0, 1fr) 22px;` และ `gap: 13px`
+  - `transition`: `all 140ms ease` (Hover: `transform: translateY(-1px)`, `box-shadow: 0 4px 12px rgba(16, 33, 58, 0.05)`)
+- **Asset Thumbnail (`.asset-picture`, `.asset-thumb`)**:
+  - ขนาดมาตรฐาน: `58px × 58px` (aspect-ratio 1:1, `object-fit: cover`)
+  - `border-radius`: `10px` (`border: 1px solid var(--line)`)
+  - Placeholder Icon (`Archive`): ขนาด `28px` (และ Hero ขนาดใหญ่ `180px × 180px` ใช้ไอคอน `48px`)
+- **Typography & Labels**:
+  - **Asset Title (`strong`)**: Instrument Sans `14px – 14.5px`, `font-weight: 650`, `line-height: 1.35`
+  - **Area / Subtitle (`small`)**: Instrument Sans `11.5px – 12px`, `font-weight: 450–500`, `color: var(--ink-soft)`
+
+### 2.2 Availability Badge Rules & Color Coding
+- **Badge Format (`.qty-badge`, `.calendar-asset-option__availability--*`)**:
+  - `padding`: `3px 8px`, `border-radius: 5px`
+  - `font-family`: `var(--mono)` (IBM Plex Mono)
+  - `font-size`: `11px`, `font-weight: 700`
+- 🟢 **Green (Full Stock)** (`.qty-badge--full`, `.calendar-asset-option__availability--full`):
   - ใช้งานเมื่อ: `availableQuantity === totalQuantity` (เช่น `10 of 10`)
   - Color: `color: var(--green); background: var(--green-soft);`
-- 🟡 **Yellow / Amber (Partial Stock)** (`.calendar-asset-option__availability--partial`):
+- 🟡 **Yellow / Amber (Partial Stock)** (`.qty-badge--partial`, `.calendar-asset-option__availability--partial`):
   - ใช้งานเมื่อ: `availableQuantity > 0 && availableQuantity < totalQuantity` (เช่น `9 of 10`, `3 of 4`)
   - Color: `color: var(--amber); background: var(--amber-soft);`
-- 🔴 **Red (Zero Stock / Fully Booked)** (`.calendar-asset-option__availability--none`):
+- 🔴 **Red (Zero Stock / Fully Booked)** (`.qty-badge--none`, `.calendar-asset-option__availability--none`):
   - ใช้งานเมื่อ: `availableQuantity <= 0` (เช่น `0 of 10` หรือ `Fully booked`)
   - Color: `color: var(--red); background: var(--red-soft);`
+  - Card State: การ์ดจะถูกปิดการใช้งาน (`opacity: 0.55 - 0.6`, `border-style: dashed`, `cursor: not-allowed`)
 
 ---
 
@@ -117,7 +138,7 @@
    - **โครงสร้าง**:
      - `.page-header` + `.toolbar` (Search, Area filter, Status dropdown)
      - `.selection-bar` แสดงเมื่อมีแถวถูกเลือกสำหรับ batch operations
-     - `.data-table-wrap` (Table headers แบบ mono uppercase 9px, thumbnail 44px, status badges, actions)
+     - `.data-table-wrap` (Table headers แบบ mono uppercase 10px, thumbnail 58px, status badges, actions)
      - `.load-more` สำหรับ pagination
 
 3. **Entity Detail & Lifecycle Review Pattern** (เช่น `AssetDetailPage`, `ReservationDetailPage`):

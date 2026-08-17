@@ -51,7 +51,7 @@ const reservationInclude = {
   },
   items: {
     include: {
-      asset: { include: { managementArea: true, assetTemplate: true } },
+      asset: { include: { managementArea: true } },
       approval: { include: { approver: { include: { profile: true } } } },
     },
     orderBy: { createdAt: "asc" },
@@ -1315,12 +1315,6 @@ export class ReservationsService {
               id: item.asset.managementArea.id,
               name: item.asset.managementArea.name,
             },
-            template: item.asset.assetTemplate
-              ? {
-                  id: item.asset.assetTemplate.id,
-                  name: item.asset.assetTemplate.name,
-                }
-              : null,
           },
           quantity: item.quantity,
           status: item.status,

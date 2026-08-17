@@ -38,7 +38,7 @@ describe("API client", () => {
     );
 
     const error = await api
-      .createTemplate({ name: "" })
+      .assets({})
       .catch((caught) => caught);
 
     expect(error).toBeInstanceOf(ApiClientError);

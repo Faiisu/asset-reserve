@@ -164,12 +164,12 @@
 }
 .reservation-list-row {
   position: relative;
-  min-height: 154px;
-  padding: 20px 21px;
+  min-height: 168px;
+  padding: 22px 24px;
   display: grid;
-  grid-template-columns: 54px 20px minmax(0, 1fr) auto;
+  grid-template-columns: 62px 20px minmax(0, 1fr) auto;
   align-items: stretch;
-  gap: 13px;
+  gap: 16px;
   border-bottom: 1px solid var(--line);
   transition: background 160ms ease;
 }
@@ -192,15 +192,17 @@
 .reservation-list-date small {
   color: var(--ink-faint);
   font-family: var(--mono);
-  font-size: 8px;
+  font-size: 9px;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .reservation-list-date strong {
-  margin: 2px 0;
+  margin: 3px 0;
   color: var(--ink);
   font-family: var(--mono);
-  font-size: 25px;
+  font-size: 28px;
+  font-weight: 700;
   line-height: 1;
 }
 .reservation-list-track {
@@ -248,7 +250,8 @@
   margin: 0;
   overflow: hidden;
   color: var(--ink);
-  font-size: 17px;
+  font-size: 18px;
+  font-weight: 700;
   letter-spacing: -0.025em;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -258,12 +261,12 @@
   color: var(--ink-faint);
 }
 .reservation-list-status {
-  padding: 4px 7px;
+  padding: 5px 10px;
   border-radius: 99px;
   background: var(--surface-raised);
   color: var(--ink-faint);
-  font-size: 9px;
-  font-weight: 650;
+  font-size: 11px;
+  font-weight: 700;
   white-space: nowrap;
 }
 .reservation-list-status--approved,
@@ -287,41 +290,44 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 18px;
+  gap: 10px 20px;
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 12px;
+  font-weight: 500;
 }
 .reservation-list-meta > span {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
 .reservation-list-meta .avatar {
-  width: 23px;
-  height: 23px;
-  font-size: 7px;
+  width: 26px;
+  height: 26px;
+  font-size: 9px;
 }
 .reservation-list-areas {
   margin-top: 12px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 6px;
 }
 .reservation-list-areas > span {
-  padding: 4px 6px;
+  padding: 5px 8px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 6px;
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: 550;
 }
 .reservation-list-areas small {
-  margin-left: 5px;
+  margin-left: 6px;
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: 500;
 }
 .reservation-progress {
-  height: 3px;
+  height: 4px;
   margin-top: 14px;
   display: flex;
   gap: 2px;

@@ -33,7 +33,6 @@ type AssetSummary = {
   totalQuantity: number;
   availableQuantity: number;
   isActive: boolean;
-  assetTemplate: { id: string; name: string } | null;
   managementArea: { id: string; name: string };
   createdAt: string;
   updatedAt: string;

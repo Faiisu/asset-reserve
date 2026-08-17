@@ -3,7 +3,6 @@ import type {
   AssetDetail,
   AssetInput,
   AssetSummary,
-  AssetTemplate,
   CreateReservationInput,
   CreateReturnInput,
   InventoryResult,
@@ -183,7 +182,6 @@ export const api = {
   assets: (filters: {
     search?: string;
     areaId?: string;
-    templateId?: string;
     isActive?: boolean;
     status?: "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE";
     from?: string;
@@ -240,37 +238,6 @@ export const api = {
         body: json({ items, description }),
       },
     ),
-  saveAssetTemplate: (
-    assetId: string,
-    input: { name?: string; description?: string | null },
-  ) =>
-    request<AssetTemplate>(`/assets/${assetId}/template`, {
-      method: "POST",
-      body: json(input),
-    }),
-
-  templates: (search = "") =>
-    request<ListResponse<AssetTemplate>>(
-      `/asset-templates${queryString({ search, limit: 100 })}`,
-    ),
-  createTemplate: (input: { name: string; description?: string | null }) =>
-    request<AssetTemplate>("/asset-templates", {
-      method: "POST",
-      body: json(input),
-    }),
-  updateTemplate: (
-    templateId: string,
-    input: {
-      name?: string;
-      description?: string | null;
-      expectedUpdatedAt: string;
-    },
-  ) =>
-    request<AssetTemplate>(`/asset-templates/${templateId}`, {
-      method: "PATCH",
-      body: json(input),
-    }),
-
   createReservation: (input: CreateReservationInput) =>
     request<ReservationDetail>("/reservations", {
       method: "POST",

@@ -30,7 +30,6 @@ const returnDetailInclude = {
           asset: {
             include: {
               managementArea: true,
-              assetTemplate: true,
             },
           },
         },

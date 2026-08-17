@@ -35,7 +35,7 @@ Responsive:
 ### Assets/ledger
 
 - Asset list แสดง total และ available quantity
-- สร้าง asset ด้วย management area และ optional template ได้
+- สร้าง asset ด้วย management area ได้
 - ชื่อ asset ซ้ำใน management area เดียวกันถูกปฏิเสธ
 - Deactivate แล้ว asset ไม่สามารถถูกเพิ่มใน reservation ใหม่
 - Adjustment หลาย line บันทึกเป็น batch เดียว

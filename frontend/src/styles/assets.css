@@ -366,32 +366,34 @@
 .reservation-list {
   margin-top: 15px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 .reservation-list article {
-  padding: 10px;
+  padding: 13px 15px;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
 }
 .reservation-list strong,
 .reservation-list span {
   display: block;
 }
 .reservation-list strong {
-  font-size: 12px;
+  font-size: 13.5px;
+  font-weight: 650;
 }
 .reservation-list span {
-  margin-top: 2px;
+  margin-top: 3px;
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 11px;
 }
 .reservation-list b {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 700;
 }
 .ledger-card {
   overflow: hidden;

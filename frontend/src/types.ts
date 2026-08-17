@@ -103,14 +103,6 @@ export type UserDetail = {
   updatedAt: string;
 };
 
-export type AssetTemplate = {
-  id: string;
-  name: string;
-  description: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type AssetCapabilities = {
   canEdit: boolean;
   canDeactivate: boolean;
@@ -129,11 +121,6 @@ export type AssetSummary = {
   availableQuantity: number;
   isActive: boolean;
   status: AssetStatus;
-  assetTemplate: {
-    id: string;
-    name: string;
-    description: string | null;
-  } | null;
   managementArea: ManagementAreaRef;
   owner: {
     id: string;
@@ -180,7 +167,6 @@ export type AssetDetail = AssetSummary & {
 export type AssetInput = {
   name: string;
   managementAreaId: string;
-  assetTemplateId?: string | null;
   description?: string | null;
   pictureUrl?: string | null;
   totalQuantity: number;
@@ -267,7 +253,6 @@ export type ReservationDetail = {
       pictureUrl: string | null;
       isActive: boolean;
       managementArea: ManagementAreaRef;
-      template: { id: string; name: string } | null;
     };
     returnSummary?: {
       returnedQuantity: number;

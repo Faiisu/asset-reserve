@@ -8,12 +8,19 @@ Asset เป็นทรัพย์สินชนิดหนึ่งใน m
 
 ### Asset list
 
+**View Tabs (`.asset-view-tabs`):**
+- **All assets** (`view === "ALL"`): แสดงรายการทรัพย์สินทั้งหมดที่ผู้ใช้มีสิทธิ์เข้าถึงใน management areas
+- **My assets** (`view === "MINE"`): แสดงเฉพาะทรัพย์สินที่ผู้ใช้เป็นผู้สร้าง/เจ้าของ (`asset.owner.id === session.user.id`) หรือมีสิทธิ์จัดการ/แก้ไข (`asset:update` / `asset:delete`)
+
+**Sorting:**
+- จัดเรียงตามบทบาทและสิทธิ์ของผู้ใช้ โดยแสดง **Editable assets ก่อน** (ทรัพย์สินที่แก้ไข/จัดการจำนวนได้) ตามด้วย Read-only assets
+- ภายในกลุ่มเดียวกัน จัดเรียงตาม `updatedAt` ล่าสุดก่อน
+
 แสดง:
 
 - pictureUrl หรือ placeholder
 - name
 - description
-- AssetTemplate.name ถ้ามี
 - ManagementArea.name
 - totalQuantity
 - computed availableQuantity จาก API
@@ -23,8 +30,7 @@ Filter:
 
 - Search จาก name/description
 - Management area
-- Asset template
-- Active/inactive
+- Statuses (Active, Broken, Lost, Inactive)
 
 ชื่อ asset ต้อง unique ภายใน management area เดียวกัน
 
@@ -33,7 +39,6 @@ Filter:
 แสดง:
 
 - รูป ชื่อ และคำอธิบาย
-- Template
 - Management area
 - Total quantity
 - Available quantity ที่ backend คำนวณ
@@ -53,7 +58,6 @@ Field:
 | ---------------- | -------- | -------------------------------------------------- |
 | name             | Yes      | สูงสุด 150 ตัวอักษร และ unique ต่อ management area |
 | managementAreaId | Yes      | ต้องอยู่ใน scope ของ actor                         |
-| assetTemplateId  | No       | เลือกจาก AssetTemplate                             |
 | description      | No       | Text                                               |
 | pictureUrl       | No       | URL จาก `POST /uploads/image`, file picker หรือ camera capture |
 | totalQuantity    | Yes      | จำนวนเต็มตั้งแต่ 0                                 |
@@ -62,19 +66,6 @@ Field:
 First draft upload รูปเข้า local backend storage โดยตรง รองรับ file picker และ camera capture, จำกัดหนึ่งไฟล์ไม่เกิน 10 MiB ต่อ request และเก็บ URL ใน `Asset.pictureUrl`
 
 Deactivate ใช้ Asset.isActive=false ไม่ hard delete เพื่อรักษา relation และ ledger
-
-### Asset templates
-
-> Backend API implement แล้ว แต่ frontend route `/admin/templates` redirect ไป `/admin/areas` และ form สร้าง asset ปัจจุบันยังไม่เปิด template picker
-
-Admin/Manager สามารถ:
-
-- ดู template
-- สร้าง template ด้วย name และ description
-- แก้ไข template
-- เลือก template ตอนสร้าง asset
-
-ชื่อ AssetTemplate ต้อง unique ทั้งระบบ
 
 ## Inventory ledger
 

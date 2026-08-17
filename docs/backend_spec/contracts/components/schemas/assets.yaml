@@ -3,23 +3,6 @@ AssetStatus:
   enum:
     - ACTIVE
     - INACTIVE
-AssetTemplateRef:
-  type: object
-  required:
-    - id
-    - name
-    - description
-  properties:
-    id:
-      type: string
-      format: uuid
-    name:
-      type: string
-      maxLength: 150
-    description:
-      type:
-        - string
-        - "null"
 AssetOwner:
   type: object
   required:
@@ -68,7 +51,6 @@ AssetSummary:
     - availableQuantity
     - isActive
     - status
-    - assetTemplate
     - managementArea
     - owner
     - capabilities
@@ -107,10 +89,6 @@ AssetSummary:
       type: boolean
     status:
       $ref: "#/components/schemas/AssetStatus"
-    assetTemplate:
-      oneOf:
-        - $ref: "#/components/schemas/AssetTemplateRef"
-        - type: "null"
     managementArea:
       $ref: "#/components/schemas/ManagementAreaRef"
     owner:
@@ -273,11 +251,6 @@ CreateAssetRequest:
     managementAreaId:
       type: string
       format: uuid
-    assetTemplateId:
-      type:
-        - string
-        - "null"
-      format: uuid
     description:
       type:
         - string
@@ -340,11 +313,6 @@ UpdateAssetRequest:
       maxLength: 150
     managementAreaId:
       type: string
-      format: uuid
-    assetTemplateId:
-      type:
-        - string
-        - "null"
       format: uuid
     description:
       type:

@@ -128,7 +128,6 @@ Backend ใช้ modular monolith โดยแบ่ง module ตาม busine
 | UsersModule                | User, profile และ active state                                     |
 | AccessControlModule        | Role, permissions และ ManagementArea scope                         |
 | ManagementAreasModule      | Management area lookup/administration                              |
-| AssetTemplatesModule       | Asset template CRUD                                                |
 | AssetsModule               | Asset CRUD, availability summary และ active state                  |
 | InventoryModule            | AssetTransactionBatch, AssetTransaction และ atomic quantity update |
 | ReservationsModule         | Reservation, items, participants, availability และ lifecycle       |

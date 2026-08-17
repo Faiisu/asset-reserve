@@ -46,7 +46,6 @@ const mockReservation: ReservationDetail = {
           id: "area-1",
           name: "Marketing",
         },
-        template: null,
       },
       approval: {
         id: "app-1",
@@ -115,7 +114,6 @@ const mockPendingReservation: ReservationDetail = {
           id: "area-1",
           name: "Marketing",
         },
-        template: null,
       },
       approval: null,
       availability: {

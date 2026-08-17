@@ -4,6 +4,7 @@ import { hash } from "argon2";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { PrismaClient } from "../generated/prisma/client.js";
+import { ensureSeedImages, seedImages } from "./seed-images.js";
 
 config({ path: join(import.meta.dirname, "../.env") });
 
@@ -61,6 +62,7 @@ const ids = {
     ae: "00000000-0000-4000-8000-000000000101",
     mk: "00000000-0000-4000-8000-000000000102",
     hr: "00000000-0000-4000-8000-000000000103",
+    wh: "00000000-0000-4000-8000-000000000106",
     user1: "00000000-0000-4000-8000-000000000104",
     user2: "00000000-0000-4000-8000-000000000105",
   },
@@ -68,11 +70,7 @@ const ids = {
     hr: "00000000-0000-4000-8000-000000000201",
     ae: "00000000-0000-4000-8000-000000000202",
     marketing: "00000000-0000-4000-8000-000000000203",
-  },
-  templates: {
-    labEquipment: "00000000-0000-4000-8000-000000000301",
-    mediaEquipment: "00000000-0000-4000-8000-000000000302",
-    officeEquipment: "00000000-0000-4000-8000-000000000303",
+    warehouse: "00000000-0000-4000-8000-000000000204",
   },
   assets: {
     logicAnalyzer: "00000000-0000-4000-8000-000000000401",
@@ -81,6 +79,10 @@ const ids = {
     wirelessMic: "00000000-0000-4000-8000-000000000404",
     onboardingKit: "00000000-0000-4000-8000-000000000405",
     ergonomicChair: "00000000-0000-4000-8000-000000000406",
+    palletJack: "00000000-0000-4000-8000-000000000407",
+    handTruck: "00000000-0000-4000-8000-000000000408",
+    barcodeScanner: "00000000-0000-4000-8000-000000000409",
+    platformCart: "00000000-0000-4000-8000-000000000410",
   },
   batch: "00000000-0000-4000-8000-000000000501",
   transactions: [
@@ -90,6 +92,10 @@ const ids = {
     "00000000-0000-4000-8000-000000000514",
     "00000000-0000-4000-8000-000000000515",
     "00000000-0000-4000-8000-000000000516",
+    "00000000-0000-4000-8000-000000000517",
+    "00000000-0000-4000-8000-000000000518",
+    "00000000-0000-4000-8000-000000000519",
+    "00000000-0000-4000-8000-000000000520",
   ],
   reservations: {
     completed: "00000000-0000-4000-8000-000000000601",
@@ -231,6 +237,12 @@ async function seedMockData(): Promise<void> {
       phoneNumber: "+66 81 000 0103",
     },
     {
+      id: ids.users.wh,
+      email: "wh@example.com",
+      name: "Warehouse Manager",
+      phoneNumber: "+66 81 000 0106",
+    },
+    {
       id: ids.users.user1,
       email: "user1@example.com",
       name: "User One",
@@ -274,7 +286,7 @@ async function seedMockData(): Promise<void> {
     where: { email: adminEmail },
   });
 
-  // 2. Create Management Areas: Human Resource, Application Engineer, Marketing
+  // 2. Create Management Areas: Human Resource, Application Engineer, Marketing, Warehouse
   const hrArea = await prisma.managementArea.upsert({
     where: { name: "Human Resource" },
     update: { description: "Human Resource management and office assets." },
@@ -302,6 +314,16 @@ async function seedMockData(): Promise<void> {
       id: ids.areas.marketing,
       name: "Marketing",
       description: "Marketing, event, and media production equipment.",
+    },
+  });
+
+  const warehouseArea = await prisma.managementArea.upsert({
+    where: { name: "Warehouse" },
+    update: { description: "Warehouse storage, logistics, and heavy handling equipment." },
+    create: {
+      id: ids.areas.warehouse,
+      name: "Warehouse",
+      description: "Warehouse storage, logistics, and heavy handling equipment.",
     },
   });
 
@@ -335,12 +357,20 @@ async function seedMockData(): Promise<void> {
     managementAreaId: hrArea.id,
     assignedBy: adminUser.id,
   });
+  await ensureRoleAssignment({
+    id: "00000000-0000-4000-8000-000000000124",
+    userId: userMap["wh@example.com"]!,
+    roleId: managerRole.id,
+    managementAreaId: warehouseArea.id,
+    assignedBy: adminUser.id,
+  });
 
   // Default USER role assignments for every account
   for (const email of [
     "ae@example.com",
     "mk@example.com",
     "hr@example.com",
+    "wh@example.com",
     "user1@example.com",
     "user2@example.com",
   ]) {
@@ -353,99 +383,110 @@ async function seedMockData(): Promise<void> {
     });
   }
 
-  // 4. Create Templates
-  const templates = await Promise.all([
-    prisma.assetTemplate.upsert({
-      where: { name: "Lab & Testing Gear" },
-      update: {},
-      create: {
-        id: ids.templates.labEquipment,
-        name: "Lab & Testing Gear",
-        description: "Electronic diagnostic tools and bench instruments.",
-      },
-    }),
-    prisma.assetTemplate.upsert({
-      where: { name: "Media & Event Gear" },
-      update: {},
-      create: {
-        id: ids.templates.mediaEquipment,
-        name: "Media & Event Gear",
-        description: "Cameras, microphones, and production equipment.",
-      },
-    }),
-    prisma.assetTemplate.upsert({
-      where: { name: "Office & HR Gear" },
-      update: {},
-      create: {
-        id: ids.templates.officeEquipment,
-        name: "Office & HR Gear",
-        description: "Onboarding hardware and ergonomic office assets.",
-      },
-    }),
-  ]);
-  const [labTemplate, mediaTemplate, hrTemplate] = templates;
+  // Ensure sample images are created in uploads/assets directory
+  ensureSeedImages(join(import.meta.dirname, "../uploads/assets"));
 
-  // 5. Create Assets
+  // 4. Create Assets
   const assetInputs = [
     {
       id: ids.assets.logicAnalyzer,
-      assetTemplateId: labTemplate.id,
       managementAreaId: aeArea.id,
       name: "Saleae Logic Pro 16",
       description: "16-channel USB logic analyzer with probes.",
+      pictureUrl: seedImages.logicAnalyzer.url,
       totalQuantity: 5,
       status: "ACTIVE",
       createdById: userMap["ae@example.com"]!,
     },
     {
       id: ids.assets.oscilloscope,
-      assetTemplateId: labTemplate.id,
       managementAreaId: aeArea.id,
       name: "Rigol 4-Channel Digital Oscilloscope",
       description: "100MHz digital storage oscilloscope.",
+      pictureUrl: seedImages.oscilloscope.url,
       totalQuantity: 4,
       status: "ACTIVE",
       createdById: userMap["ae@example.com"]!,
     },
     {
       id: ids.assets.camera,
-      assetTemplateId: mediaTemplate.id,
       managementAreaId: marketingArea.id,
       name: "Sony Alpha 7 IV Kit",
       description: "Full-frame mirrorless camera with 24-70mm lens.",
+      pictureUrl: seedImages.camera.url,
       totalQuantity: 3,
       status: "ACTIVE",
       createdById: userMap["mk@example.com"]!,
     },
     {
       id: ids.assets.wirelessMic,
-      assetTemplateId: mediaTemplate.id,
       managementAreaId: marketingArea.id,
       name: "Rode Wireless GO II Dual Kit",
       description: "Dual channel compact wireless microphone system.",
+      pictureUrl: seedImages.wirelessMic.url,
       totalQuantity: 6,
       status: "ACTIVE",
       createdById: userMap["mk@example.com"]!,
     },
     {
       id: ids.assets.onboardingKit,
-      assetTemplateId: hrTemplate.id,
       managementAreaId: hrArea.id,
       name: "New Hire Onboarding Tech Kit",
       description: "USB-C multi-port dock, wireless mouse, and keyboard.",
+      pictureUrl: seedImages.onboardingKit.url,
       totalQuantity: 10,
       status: "ACTIVE",
       createdById: userMap["hr@example.com"]!,
     },
     {
       id: ids.assets.ergonomicChair,
-      assetTemplateId: hrTemplate.id,
       managementAreaId: hrArea.id,
       name: "Herman Miller Aeron Chair (Trial Unit)",
       description: "Adjustable ergonomic task chair for assessment.",
+      pictureUrl: seedImages.ergonomicChair.url,
       totalQuantity: 2,
       status: "ACTIVE",
       createdById: userMap["hr@example.com"]!,
+    },
+    {
+      id: ids.assets.palletJack,
+      managementAreaId: warehouseArea.id,
+      name: "Electric Pallet Jack 2.5T",
+      description: "Heavy-duty electric powered pallet truck for warehouse logistics.",
+      pictureUrl: seedImages.palletJack.url,
+      totalQuantity: 3,
+      status: "ACTIVE",
+      createdById: userMap["wh@example.com"]!,
+    },
+    {
+      id: ids.assets.handTruck,
+      managementAreaId: warehouseArea.id,
+      name: "Heavy-Duty Hand Truck 300kg",
+      description: "Dual-handle industrial sack barrow with pneumatic wheels.",
+      pictureUrl: seedImages.handTruck.url,
+      totalQuantity: 6,
+      status: "ACTIVE",
+      createdById: userMap["wh@example.com"]!,
+    },
+    {
+      id: ids.assets.barcodeScanner,
+      managementAreaId: warehouseArea.id,
+      name: "Zebra Industrial Barcode Scanner",
+      description: "Rugged wireless barcode and QR code scanner gun with charging cradle.",
+      pictureUrl: seedImages.barcodeScanner.url,
+      totalQuantity: 8,
+      status: "ACTIVE",
+      createdById: userMap["wh@example.com"]!,
+    },
+    {
+      id: ids.assets.platformCart,
+      managementAreaId: warehouseArea.id,
+      name: "Foldable Platform Trolley Cart",
+      description: "300kg capacity steel platform trolley with folding handle.",
+      pictureUrl: seedImages.platformCart.url,
+      totalQuantity: 4,
+      status: "ACTIVE",
+      createdById: userMap["wh@example.com"]!,
     },
   ] as const;
 
@@ -463,7 +504,7 @@ async function seedMockData(): Promise<void> {
     update: {},
     create: {
       id: ids.batch,
-      description: "Initial inventory load for AE, Marketing, and HR",
+      description: "Initial inventory load for AE, Marketing, HR, and Warehouse",
       performedBy: adminUser.id,
     },
   });
@@ -656,11 +697,13 @@ async function seedMockData(): Promise<void> {
   console.log("  1. Human Resource");
   console.log("  2. Application Engineer");
   console.log("  3. Marketing");
+  console.log("  4. Warehouse");
   console.log("\nAccounts (Password: " + (process.env.MOCK_USER_PASSWORD || "password123456") + " or 00000000):");
   console.log("  - admin@example.com -> Role: ADMIN (Global)");
   console.log("  - ae@example.com    -> Role: MANAGER (Application Engineer)");
   console.log("  - mk@example.com    -> Role: MANAGER (Marketing)");
   console.log("  - hr@example.com    -> Role: MANAGER (Human Resource)");
+  console.log("  - wh@example.com    -> Role: MANAGER (Warehouse)");
   console.log("  - user1@example.com -> Role: USER (General)");
   console.log("  - user2@example.com -> Role: USER (General)");
   console.log("=========================================");

@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Asset Reservation API
   version: 1.4.0
-  description: Contract-first API for authentication, access control, users, management areas, assets, inventory, uploads, asset templates, and reservations.
+  description: Contract-first API for authentication, access control, users, management areas, assets, inventory, uploads, and reservations.
 servers:
   - url: /api/v1
 tags:
@@ -22,8 +22,6 @@ tags:
     description: Scoped asset lookup, creation, editing, status, and soft removal.
   - name: Inventory
     description: Atomic audited quantity adjustments.
-  - name: Asset Templates
-    description: Picture-free reusable asset metadata.
   - name: Reservations
     description: Reservation details, item approvals, availability conflicts, overlap warnings, and post-approval changes.
   - name: Returns
@@ -71,16 +69,10 @@ paths:
     $ref: ./paths/assets.yaml#/~1assets~1{assetId}
   /assets/{assetId}/status:
     $ref: ./paths/assets.yaml#/~1assets~1{assetId}~1status
-  /assets/{assetId}/template:
-    $ref: ./paths/assets.yaml#/~1assets~1{assetId}~1template
   /assets/inventory/batch-add:
     $ref: ./paths/inventory.yaml#/~1assets~1inventory~1batch-add
   /assets/inventory/batch-remove:
     $ref: ./paths/inventory.yaml#/~1assets~1inventory~1batch-remove
-  /asset-templates:
-    $ref: ./paths/asset-templates.yaml#/~1asset-templates
-  /asset-templates/{templateId}:
-    $ref: ./paths/asset-templates.yaml#/~1asset-templates~1{templateId}
   /reservations:
     $ref: ./paths/reservations.yaml#/~1reservations
   /reservations/{reservationId}:
@@ -125,8 +117,6 @@ components:
       $ref: ./components/parameters.yaml#/ManagementAreaId
     AssetId:
       $ref: ./components/parameters.yaml#/AssetId
-    TemplateId:
-      $ref: ./components/parameters.yaml#/TemplateId
     ReservationId:
       $ref: ./components/parameters.yaml#/ReservationId
     ReservationItemId:
@@ -219,8 +209,6 @@ components:
       $ref: ./components/schemas/users.yaml#/AssignRoleRequest
     AssetStatus:
       $ref: ./components/schemas/assets.yaml#/AssetStatus
-    AssetTemplateRef:
-      $ref: ./components/schemas/assets.yaml#/AssetTemplateRef
     AssetOwner:
       $ref: ./components/schemas/assets.yaml#/AssetOwner
     AssetCapabilities:
@@ -269,16 +257,6 @@ components:
       $ref: ./components/schemas/inventory.yaml#/InventoryResultItem
     InventoryBatchResponse:
       $ref: ./components/schemas/inventory.yaml#/InventoryBatchResponse
-    AssetTemplate:
-      $ref: ./components/schemas/asset-templates.yaml#/AssetTemplate
-    AssetTemplateListResponse:
-      $ref: ./components/schemas/asset-templates.yaml#/AssetTemplateListResponse
-    CreateAssetTemplateRequest:
-      $ref: ./components/schemas/asset-templates.yaml#/CreateAssetTemplateRequest
-    UpdateAssetTemplateRequest:
-      $ref: ./components/schemas/asset-templates.yaml#/UpdateAssetTemplateRequest
-    SaveAssetAsTemplateRequest:
-      $ref: ./components/schemas/asset-templates.yaml#/SaveAssetAsTemplateRequest
     ReservationStatus:
       $ref: ./components/schemas/reservations.yaml#/ReservationStatus
     ReservationItemStatus:

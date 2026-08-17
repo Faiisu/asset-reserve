@@ -364,11 +364,11 @@ function ReservationListRow({
               {reservationStatusLabel[reservation.status]}
             </span>
           </div>
-          <ChevronRight size={19} />
+          <ChevronRight size={22} />
         </div>
         <div className="reservation-list-meta">
           <span>
-            <Clock3 size={14} /> {formatDate(reservation.startAt, true)} ·{" "}
+            <Clock3 size={16} /> {formatDate(reservation.startAt, true)} ·{" "}
             {reservationDuration(reservation.startAt, reservation.endAt)}
           </span>
           <span>

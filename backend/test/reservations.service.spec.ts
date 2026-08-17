@@ -63,7 +63,6 @@ function detailRecord(status = "PENDING_APPROVAL") {
         updatedAt: new Date("2026-08-15T00:00:00.000Z"),
         asset: {
           id: assetId,
-          assetTemplateId: null,
           managementAreaId: areaId,
           createdById: actorId,
           name: "Projector",
@@ -80,7 +79,6 @@ function detailRecord(status = "PENDING_APPROVAL") {
             createdAt: new Date("2026-08-15T00:00:00.000Z"),
             updatedAt: new Date("2026-08-15T00:00:00.000Z"),
           },
-          assetTemplate: null,
         },
         approval: null,
       },

@@ -37,7 +37,7 @@ flowchart TB
 | --- | --- | --- | --- |
 | `/login` | `LoginPage` | email/password login, field/API error, callback ไป path เดิม, redirect session ที่ login แล้ว | Public |
 | `/calendar` | `CalendarPage` | continuous month calendar, Today/date picker, status/workspace filters, event minibox, asset picker search/list/grid, date-range drag/keyboard selection, prefill reservation, approve/reject pending items, cancel reservation | Login; create controlsต้องมี `reservation:create`; review/cancel ใช้ capabilities จาก API |
-| `/assets` | `AssetsPage` | search, workspace/template/status filters, list/card responsive views, cursor load-more, multi-select, batch stock add/remove, batch disable | `asset:view`; action ตาม `asset:create`, per-asset capabilities |
+| `/assets` | `AssetsPage` | search, workspace/status filters, list/card responsive views, cursor load-more, multi-select, batch stock add/remove, batch disable | `asset:view`; action ตาม `asset:create`, per-asset capabilities |
 | `/assets/new` | `AssetFormPage` | single/batch create, workspace selection, quantity/description, preview, upload file, camera capture, remove/replace photo | `asset:create` ในอย่างน้อยหนึ่ง area |
 | `/asset/new` | Redirect | compatibility redirect ไป `/assets/new` | Login |
 | `/assets/:assetId` | `AssetDetailPage` | metadata/owner/edit policy, allocations, ledger, activate/deactivate, single stock add/remove | visibility และ capabilities จาก API |
@@ -48,7 +48,6 @@ flowchart TB
 | `/admin/areas` | `ManagementAreasPage` | search/list, create, edit, delete confirmation | navigation และ mutation UI จำกัด Global ADMIN |
 | `/admin/access` | `AccessPage` | permission catalog grouped by resource, role selection, create role, edit description/permissions, dirty-state save | Global ADMIN |
 | `/admin/users` | `UsersPage` | search/status/role/area filters, detail drawer, create account with optional uploaded/camera photo, enable/disable, assign/remove scoped roles | global `user:create`, `user:disable`, หรือ `role:assign` ตาม action |
-| `/admin/templates` | Redirect | redirect ไป `/admin/areas`; `TemplatesPage` ยังอยู่ใน source แต่ไม่ได้ register เป็น route | Login |
 
 ## Shared application features
 
@@ -65,7 +64,6 @@ flowchart TB
 - Return creation, partial return และ return approval ไม่มี route/page/API client แม้ Prisma/spec วาง roadmap ไว้
 - Lifecycle actions PREPARED, CHECKED_OUT และ RETURNED ยังไม่มี frontend command
 - External identity buttons ไม่มีใน `LoginPage`; login ปัจจุบันเป็น email/password เท่านั้น
-- Asset template page เดิมไม่ reachable และ create asset form ปัจจุบันไม่ได้เปิด template picker
 - ไม่มี standalone inventory-adjustment route; การปรับยอดทำจาก asset list/detail
 
 ## Data flow
@@ -97,4 +95,4 @@ sequenceDiagram
 
 ## Verification map
 
-Vitest coverage มีสำหรับ API/auth และหน้า Login, Access, Management Areas, Assets, Asset Form, Calendar, Reservation Create/List/Detail ส่วน `AssetDetailPage`, `UsersPage`, shared shell/UI และ unreachable `TemplatesPage` ยังไม่มี page-level test โดยตรง จึงต้องพึ่ง TypeScript build และ manual/runtime verification เพิ่มเติม
+Vitest coverage มีสำหรับ API/auth และหน้า Login, Access, Management Areas, Assets, Asset Form, Calendar, Reservation Create/List/Detail ส่วน `AssetDetailPage`, `UsersPage` และ shared shell/UI ยังไม่มี page-level test โดยตรง จึงต้องพึ่ง TypeScript build และ manual/runtime verification เพิ่มเติม

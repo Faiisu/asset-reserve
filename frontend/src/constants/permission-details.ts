@@ -20,11 +20,10 @@ export const PERMISSION_DETAILS: Record<string, PermissionDetail> = {
     scopeLabel: "Area Scoped / Global",
     summary: "Allows registering new equipment and physical assets into inventory.",
     details:
-      "Enables adding new equipment to authorized management areas, specifying titles, specifications, asset templates, uploading photos, and setting initial quantity balances.",
+      "Enables adding new equipment to authorized management areas, specifying titles, specifications, uploading photos, and setting initial quantity balances.",
     capabilities: [
       "Register new assets into managed areas",
       "Upload equipment photos and technical specifications",
-      "Link items to standardized asset templates",
     ],
     example:
       "A Media Lab officer adds two new Sony Alpha 7 IV camera kits to the equipment inventory.",

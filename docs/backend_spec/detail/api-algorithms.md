@@ -149,10 +149,6 @@ Error กลางที่พบบ่อย:
 | PATCH  | `/assets/:assetId`                                                       | Scoped `asset:update`                          | แก้ asset detail           |
 | PATCH  | `/assets/:assetId/status`                                                | Scoped `asset:update` หรือ `asset:delete`      | เปลี่ยน status             |
 | DELETE | `/assets/:assetId`                                                       | Scoped `asset:delete`                          | Soft delete asset          |
-| POST   | `/assets/:assetId/template`                                              | Scoped `asset:create`                          | บันทึก asset เป็น template |
-| GET    | `/asset-templates`                                                       | `asset:view` ในอย่างน้อยหนึ่ง scope            | ค้นหา template             |
-| POST   | `/asset-templates`                                                       | `asset:create` ในอย่างน้อยหนึ่ง scope          | สร้าง template             |
-| PATCH  | `/asset-templates/:templateId`                                           | `asset:update` ในอย่างน้อยหนึ่ง scope          | แก้ template               |
 | POST   | `/reservations`                                                          | Scoped `reservation:create` ทุก asset area     | สร้าง reservation          |
 | GET    | `/reservations`                                                          | Requester/participant หรือ scoped operator     | ค้นหาและ list reservations |
 | GET    | `/reservations/:reservationId`                                           | Requester/participant หรือ scoped operator     | อ่าน reservation detail    |
@@ -418,15 +414,15 @@ Global ADMIN เท่านั้น ปฏิเสธเมื่อ area ย
 
 สถานะสำเร็จ: `200 OK`  
 Authorization: Scoped `asset:view`  
-Query: `search?`, `areaId?`, `templateId?`, `isActive?`, `cursor?`, `limit?`
+Query: `search?`, `areaId?`, `isActive?`, `cursor?`, `limit?`
 
 Algorithm:
 
 1. หา area ที่ actor มี `asset:view`; global permission หมายถึงทุก area
 2. ถ้าไม่มี view permission เลย ตอบ `403 PERMISSION_DENIED`
 3. ถ้าระบุ `areaId` ที่อยู่นอก scope ตอบ `403`
-4. สร้าง filter จาก area scope, template, status, search และ cursor
-5. Query assets `limit + 1` พร้อม template, management area และ owner
+4. สร้าง filter จาก area scope, status, search และ cursor
+5. Query assets `limit + 1` พร้อม management area และ owner
 6. Query allocated quantities ของ asset ทั้งหน้าแบบ `GROUP BY assetId` ครั้งเดียว เพื่อหลีกเลี่ยง N+1
 7. คำนวณ available quantity/capabilities และคืน `{ data, pageInfo }`
 
@@ -434,7 +430,7 @@ Algorithm:
 
 สถานะสำเร็จ: `201 Created`  
 Authorization: Scoped `asset:create` ของ management area  
-Input: `name`, `managementAreaId`, `assetTemplateId?`, `description?`, `pictureUrl?`, `totalQuantity`, `isActive?`
+Input: `name`, `managementAreaId`, `description?`, `pictureUrl?`, `totalQuantity`, `isActive?`
 
 Algorithm:
 
@@ -454,7 +450,7 @@ Algorithm:
 
 1. ปฏิเสธชื่อ asset ซ้ำภายใน management area เดียวกันใน request
 2. ตรวจ `asset:create` ทีละ item ก่อนเขียนข้อมูล
-3. Query ตรวจ management areas และ templates ทั้งหมดแบบ batch
+3. Query ตรวจ management areas ทั้งหมดแบบ batch
 4. เตรียม UUID, owner และ default `isActive = true`
 5. เปิด Serializable transaction
 6. Insert assets ทั้งหมดด้วย `createMany`
@@ -546,7 +542,7 @@ Authorization: Scoped `asset:view`
 
 Algorithm:
 
-1. Query asset พร้อม template, area, owner, reservation items ที่ยัง allocate quantity และ ledger 50 รายการล่าสุด
+1. Query asset พร้อม area, owner, reservation items ที่ยัง allocate quantity และ ledger 50 รายการล่าสุด
 2. ถ้าไม่พบตอบ `404 ASSET_NOT_FOUND`
 3. ตรวจ `asset:view` ใน area หลังทราบ scope ของ asset
 4. รวม allocated quantity และคำนวณ available quantity
@@ -557,7 +553,7 @@ Algorithm:
 
 สถานะสำเร็จ: `200 OK`  
 Authorization: Scoped `asset:update`  
-Input: field ที่แก้ได้อย่างน้อยหนึ่งค่าจาก `name`, `managementAreaId`, `assetTemplateId`, `description`, `pictureUrl` และต้องมี `expectedUpdatedAt`
+Input: field ที่แก้ได้อย่างน้อยหนึ่งค่าจาก `name`, `managementAreaId`, `description`, `pictureUrl` และต้องมี `expectedUpdatedAt`
 
 Algorithm:
 
@@ -565,7 +561,7 @@ Algorithm:
 2. ตรวจ `asset:update` ใน area เดิม
 3. ถ้าย้าย area ให้ตรวจ `asset:update` ใน area ใหม่ด้วย
 4. ตรวจว่ามี editable field อย่างน้อยหนึ่งค่า
-5. ตรวจ management area และ template reference
+5. ตรวจ management area reference
 6. Update เฉพาะ field ที่ส่งมาพร้อม optimistic concurrency
 7. ถ้าชื่อซ้ำใน area ตอบ `409 ASSET_NAME_ALREADY_EXISTS`; ถ้า stale ตอบ `409 STALE_WRITE`
 8. โหลด summary และ available quantity ล่าสุดกลับไป
@@ -597,68 +593,7 @@ Algorithm:
 3. Update `isActive = false` และ `updatedAt`; ไม่มี hard delete และ endpoint นี้ไม่ใช้ `expectedUpdatedAt`
 4. คืน asset summary ที่ status เป็น `INACTIVE`
 
-### 7.13 `POST /assets/:assetId/template`
-
-สถานะสำเร็จ: `201 Created`  
-Authorization: Scoped `asset:create` ใน area ของ source asset  
-Input optional: `name?`, `description?`
-
-Algorithm:
-
-1. โหลดเฉพาะ name, description และ management area ของ source asset
-2. ถ้าไม่พบตอบ `404 ASSET_NOT_FOUND`
-3. ตรวจ `asset:create` ใน area นั้น
-4. ใช้ input override ถ้ามี มิฉะนั้น copy name/description จาก asset
-5. สร้าง template UUID ใหม่
-6. ไม่ copy `pictureUrl`, quantity, owner, status หรือ management area
-7. ถ้าชื่อ template ซ้ำทั้งระบบ ตอบ `409 ASSET_TEMPLATE_NAME_ALREADY_EXISTS`
-
-## 8. Asset template APIs
-
-Template มีเพียง name/description และใช้ร่วมกันทั้งระบบ จึงไม่มี picture หรือ management-area ownership
-
-### 8.1 `GET /asset-templates`
-
-สถานะสำเร็จ: `200 OK`  
-Authorization: ต้องมี `asset:view` ใน global หรืออย่างน้อยหนึ่ง area  
-Query: `search?`, `cursor?`, `limit?`
-
-Algorithm:
-
-1. ตรวจว่า actor มี `asset:view` อย่างน้อยหนึ่ง scope
-2. Decode cursor และค้น name/description แบบ case-insensitive
-3. Query `limit + 1` เรียง `createdAt DESC, id DESC`
-4. คืน template DTO และ `pageInfo`
-
-### 8.2 `POST /asset-templates`
-
-สถานะสำเร็จ: `201 Created`  
-Authorization: ต้องมี `asset:create` ใน global หรืออย่างน้อยหนึ่ง area  
-Input: `name`, `description?`
-
-Algorithm:
-
-1. Trim/validate name และ description
-2. สร้าง UUID และ insert template
-3. ถ้าชื่อซ้ำทั้งระบบ ตอบ `409 ASSET_TEMPLATE_NAME_ALREADY_EXISTS`
-4. คืน template พร้อม timestamps
-
-### 8.3 `PATCH /asset-templates/:templateId`
-
-สถานะสำเร็จ: `200 OK`  
-Authorization: ต้องมี `asset:update` ใน global หรืออย่างน้อยหนึ่ง area  
-Input: `name?`, `description?`, `expectedUpdatedAt`
-
-Algorithm:
-
-1. บังคับให้ส่ง editable field อย่างน้อยหนึ่งค่า
-2. ค้น template; ถ้าไม่พบตอบ `404 ASSET_TEMPLATE_NOT_FOUND`
-3. Update field ที่ส่งมาด้วย optimistic concurrency
-4. ถ้าชื่อซ้ำตอบ `409 ASSET_TEMPLATE_NAME_ALREADY_EXISTS`
-5. ถ้า timestamp ไม่ตรงตอบ `409 STALE_WRITE`
-6. โหลดและคืน template ล่าสุด
-
-## 9. Reservation APIs
+## 8. Reservation APIs
 
 Availability ใช้ช่วงเวลาแบบ half-open: overlap เมื่อ `existing.startAt < requested.endAt` และ `existing.endAt > requested.startAt` ดังนั้นรายการที่จบตรงเวลาเริ่มของอีกรายการไม่ชนกัน
 
@@ -761,11 +696,6 @@ type AssetSummary = {
   availableQuantity: number;
   isActive: boolean;
   status: "ACTIVE" | "INACTIVE";
-  assetTemplate: {
-    id: string;
-    name: string;
-    description: string | null;
-  } | null;
   managementArea: { id: string; name: string };
   owner: {
     id: string;
@@ -783,7 +713,7 @@ type AssetSummary = {
 };
 ```
 
-### 12.2 List response
+### 11.2 List response
 
 ```ts
 type ListResponse<T> = {
@@ -795,7 +725,7 @@ type ListResponse<T> = {
 };
 ```
 
-## 13. Source-code map
+## 12. Source-code map
 
 | Domain                     | Controller                                                                                             | Algorithm/service                                                                                                                                                                                                                  |
 | -------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -803,7 +733,7 @@ type ListResponse<T> = {
 | Permission/role            | [access-control.controller.ts](../../../backend/src/access-control/access-control.controller.ts)       | [access-control.service.ts](../../../backend/src/access-control/access-control.service.ts)                                                                                                                                         |
 | Users/assignments          | [users.controller.ts](../../../backend/src/users/users.controller.ts)                                  | [users.service.ts](../../../backend/src/users/users.service.ts)                                                                                                                                                                    |
 | Management areas           | [management-areas.controller.ts](../../../backend/src/management-areas/management-areas.controller.ts) | [management-areas.service.ts](../../../backend/src/management-areas/management-areas.service.ts)                                                                                                                                   |
-| Assets/templates/inventory | [assets.controller.ts](../../../backend/src/assets/assets.controller.ts)                               | [assets.service.ts](../../../backend/src/assets/assets.service.ts), [asset-templates.service.ts](../../../backend/src/assets/asset-templates.service.ts), [inventory.service.ts](../../../backend/src/assets/inventory.service.ts) |
+| Assets/inventory           | [assets.controller.ts](../../../backend/src/assets/assets.controller.ts)                               | [assets.service.ts](../../../backend/src/assets/assets.service.ts), [inventory.service.ts](../../../backend/src/assets/inventory.service.ts)                                                                                     |
 | Reservations               | [reservations.controller.ts](../../../backend/src/reservations/reservations.controller.ts)             | [reservations.service.ts](../../../backend/src/reservations/reservations.service.ts)                                                                                                                                               |
 | Returns & Inspection       | [returns.controller.ts](../../../backend/src/returns/returns.controller.ts)                             | [returns.service.ts](../../../backend/src/returns/returns.service.ts)                                                                                                                                                             |
 

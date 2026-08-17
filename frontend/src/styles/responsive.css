@@ -282,12 +282,12 @@
   }
   .asset-card-list {
     display: grid;
-    gap: 9px;
+    gap: 12px;
   }
   .asset-card {
-    padding: 13px;
+    padding: 16px 18px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 13px;
     background: var(--surface);
   }
   .asset-card--selectable {
@@ -302,30 +302,41 @@
   .asset-card__body {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 14px;
+  }
+  .asset-card__body input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    accent-color: var(--teal);
+    cursor: pointer;
   }
   .asset-card__info strong,
   .asset-card__info span {
     display: block;
   }
+  .asset-card__info strong {
+    font-size: 15px;
+    font-weight: 650;
+  }
   .asset-card__info span {
-    margin-top: 2px;
+    margin-top: 3px;
     color: var(--ink-faint);
-    font-size: 10px;
+    font-size: 12px;
   }
   .asset-card__footer {
-    margin-top: 12px;
-    padding-top: 10px;
+    margin-top: 14px;
+    padding-top: 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 14px;
     border-top: 1px solid var(--line);
   }
   .asset-card__numbers {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
   }
   .asset-card__numbers > span small,
   .asset-card__numbers > span strong {
@@ -333,11 +344,14 @@
   }
   .asset-card__numbers small {
     color: var(--ink-faint);
-    font-size: 9px;
+    font-size: 10px;
+    font-weight: 600;
   }
   .asset-card__numbers strong {
     margin-top: 2px;
     font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 700;
   }
   .form-grid--2,
   .form-grid--3 {
@@ -519,9 +533,11 @@
   .reservation-reference-form {
     grid-template-columns: 1fr;
   }
+  .asset-view-tabs,
   .reservation-view-tabs {
     overflow-x: auto;
   }
+  .asset-view-tabs button,
   .reservation-view-tabs button {
     flex: 0 0 auto;
   }

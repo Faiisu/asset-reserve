@@ -9,7 +9,7 @@ Authentication, session, user และ role management ต้องอ้าง
 | Operation                   | Input สำคัญ                            | Output/ข้อกำหนด                                 |
 | --------------------------- | -------------------------------------- | ----------------------------------------------- |
 | Login/session               | email/password หรือ provider           | SessionUser และ secure session                  |
-| List assets                 | search, area, template, active, cursor | AssetSummary พร้อม availableQuantity            |
+| List assets                 | search, area, active, cursor           | AssetSummary พร้อม availableQuantity            |
 | Asset availability          | assetIds, startAt, endAt               | availableQuantity และ conflict reason           |
 | Create/update asset         | Prisma-aligned fields                  | Validation และ updated Asset                    |
 | Inventory adjustment        | description, transaction lines         | Batch, transactions และยอดใหม่แบบ atomic        |
@@ -20,7 +20,7 @@ Authentication, session, user และ role management ต้องอ้าง
 | Create change request       | reservationId, reason, changeData      | Pending change request                          |
 | Create return               | reservationId, return items            | Return status PENDING                           |
 | Decide return               | returnId, decision, description        | ReturnApproval และ updated lifecycle            |
-| Users/roles/areas/templates | scoped payload                         | Guarded CRUD ตาม permission                     |
+| Users/roles/areas           | scoped payload                         | Guarded CRUD ตาม permission                     |
 
 Error shape แนะนำ:
 

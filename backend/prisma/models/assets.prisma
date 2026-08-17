@@ -1,19 +1,5 @@
-model AssetTemplate {
-  id          String  @id @db.Uuid
-  name        String  @unique @db.VarChar(150)
-  description String?
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
-
-  assets Asset[]
-
-  @@map("asset_templates")
-}
-
 model Asset {
   id               String  @id @db.Uuid
-  assetTemplateId  String? @map("asset_template_id") @db.Uuid
   managementAreaId String  @map("management_area_id") @db.Uuid
   createdById      String? @map("created_by") @db.Uuid
   name             String  @db.VarChar(150)
@@ -27,7 +13,6 @@ model Asset {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  assetTemplate     AssetTemplate?     @relation(fields: [assetTemplateId], references: [id])
   managementArea    ManagementArea     @relation(fields: [managementAreaId], references: [id])
   createdBy         User?              @relation("AssetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   assetTransactions AssetTransaction[]
@@ -35,7 +20,6 @@ model Asset {
 
   // Database CHECK required by the source specification: total_quantity >= 0.
   @@unique([managementAreaId, name])
-  @@index([assetTemplateId])
   @@index([createdById])
   @@index([managementAreaId, isActive])
   @@map("assets")

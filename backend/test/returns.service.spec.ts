@@ -110,7 +110,6 @@ function sampleReservation(status = "APPROVED") {
         updatedAt: new Date("2026-08-15T00:00:00.000Z"),
         asset: {
           id: assetId,
-          assetTemplateId: null,
           managementAreaId: areaId,
           createdById: requesterId,
           name: "Camera",
@@ -127,7 +126,6 @@ function sampleReservation(status = "APPROVED") {
             createdAt: new Date("2026-08-15T00:00:00.000Z"),
             updatedAt: new Date("2026-08-15T00:00:00.000Z"),
           },
-          assetTemplate: null,
         },
         returnItems: [],
       },
@@ -185,7 +183,6 @@ function sampleReturnRecord(status = "PENDING") {
             name: "Camera",
             managementAreaId: areaId,
             managementArea: { id: areaId, name: "Media Lab" },
-            assetTemplate: null,
           },
         },
       },

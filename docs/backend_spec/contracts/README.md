@@ -43,7 +43,6 @@ npm run openapi:bundle
 | Users           | `paths/users.yaml`           | `components/schemas/users.yaml`           |
 | Assets          | `paths/assets.yaml`          | `components/schemas/assets.yaml`          |
 | Inventory       | `paths/inventory.yaml`       | `components/schemas/inventory.yaml`       |
-| Asset templates | `paths/asset-templates.yaml` | `components/schemas/asset-templates.yaml` |
 | Reservations    | `paths/reservations.yaml`    | `components/schemas/reservations.yaml`    |
 | Management areas| `paths/management-areas.yaml` | `components/schemas/access-control.yaml`  |
 | Uploads         | `paths/uploads.yaml`         | inline multipart/response schemas         |

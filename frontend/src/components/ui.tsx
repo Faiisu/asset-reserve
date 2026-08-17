@@ -531,7 +531,7 @@ export function AssetPicture({
       )}
       aria-label={`No image for ${name}`}
     >
-      <Archive size={large ? 38 : 20} />
+      <Archive size={large ? 48 : 28} />
     </span>
   );
 }

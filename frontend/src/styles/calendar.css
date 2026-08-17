@@ -876,14 +876,14 @@
 }
 .calendar-asset-option {
   width: 100%;
-  min-height: 80px;
-  padding: 10px 12px;
+  min-height: 84px;
+  padding: 12px 14px;
   display: grid;
-  grid-template-columns: 60px minmax(0, 1fr) 22px;
+  grid-template-columns: 58px minmax(0, 1fr) 22px;
   align-items: center;
-  gap: 12px;
+  gap: 13px;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: 12px;
   background: var(--surface);
   color: var(--ink);
   text-align: left;
@@ -920,9 +920,9 @@
   opacity: 0.45;
 }
 .calendar-asset-option .asset-picture {
-  width: 60px;
-  height: 60px;
-  border-radius: 8px;
+  width: 58px;
+  height: 58px;
+  border-radius: 10px;
   border: 1px solid var(--line);
   object-fit: cover;
   flex-shrink: 0;

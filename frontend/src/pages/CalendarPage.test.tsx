@@ -25,7 +25,6 @@ const asset: AssetSummary = {
   availableQuantity: 3,
   isActive: true,
   status: "ACTIVE",
-  assetTemplate: null,
   managementArea: { id: "area-1", name: "Production" },
   owner: null,
   capabilities: {
@@ -96,7 +95,6 @@ const pendingReservationDetail: ReservationDetail = {
         pictureUrl: null,
         isActive: true,
         managementArea: asset.managementArea,
-        template: null,
       },
       approval: null,
       availability: {

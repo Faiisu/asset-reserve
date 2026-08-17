@@ -2,11 +2,13 @@ import {
   ArchiveX,
   ArrowDownToLine,
   ArrowUpFromLine,
+  Boxes,
   Eye,
   Filter,
   Plus,
   Search,
   SlidersHorizontal,
+  UserRound,
 } from "lucide-react";
 import {
   useCallback,
@@ -38,6 +40,8 @@ import {
 } from "../components/ui";
 import type { AssetSummary, ManagementArea } from "../types";
 
+type AssetView = "ALL" | "MINE";
+
 interface Filters {
   search: string;
   areaIds: string[];
@@ -45,7 +49,8 @@ interface Filters {
 }
 
 export function AssetsPage() {
-  const { hasPermission } = useAuth();
+  const { session, hasPermission, hasAreaPermission } = useAuth();
+  const [view, setView] = useState<AssetView>("ALL");
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [filters, setFilters] = useState<Filters>({
     search: "",
@@ -65,6 +70,48 @@ export function AssetsPage() {
   >(null);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [notice, setNotice] = useState("");
+
+  const isAssetEditable = useCallback(
+    (asset: AssetSummary) =>
+      Boolean(
+        asset.capabilities.canEdit ||
+        asset.capabilities.canAdjustQuantity ||
+        asset.capabilities.canDeactivate ||
+        (hasAreaPermission &&
+          hasAreaPermission("asset:update", asset.managementArea.id)) ||
+        (hasAreaPermission &&
+          hasAreaPermission("asset:delete", asset.managementArea.id)),
+      ),
+    [hasAreaPermission],
+  );
+
+  const isMyAsset = useCallback(
+    (asset: AssetSummary) => {
+      const isOwner = Boolean(
+        session?.user?.id && asset.owner?.id === session.user.id,
+      );
+      const isEditable = isAssetEditable(asset);
+      return isOwner || isEditable;
+    },
+    [session?.user?.id, isAssetEditable],
+  );
+
+  const displayAssets = useMemo(() => {
+    let filtered = assets;
+    if (view === "MINE") {
+      filtered = filtered.filter(isMyAsset);
+    }
+    return [...filtered].sort((a, b) => {
+      const aEditable = isAssetEditable(a);
+      const bEditable = isAssetEditable(b);
+      if (aEditable && !bEditable) return -1;
+      if (!aEditable && bEditable) return 1;
+      const dateA = new Date(a.updatedAt).getTime();
+      const dateB = new Date(b.updatedAt).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+      return a.name.localeCompare(b.name);
+    });
+  }, [assets, isAssetEditable, isMyAsset, view]);
 
   const load = useCallback(
     async (cursor?: string, append = false) => {
@@ -127,10 +174,10 @@ export function AssetsPage() {
   }, []);
 
   const selectedAssets = useMemo(
-    () => assets.filter((asset) => selected.includes(asset.id)),
-    [assets, selected],
+    () => displayAssets.filter((asset) => selected.includes(asset.id)),
+    [displayAssets, selected],
   );
-  const selectable = assets.filter(
+  const selectable = displayAssets.filter(
     (asset) =>
       asset.capabilities.canAdjustQuantity || asset.capabilities.canDeactivate,
   );
@@ -185,6 +232,38 @@ export function AssetsPage() {
     <div className="page-stack">
       {notice && <Notice>{notice}</Notice>}
 
+      <div
+        className="asset-view-tabs"
+        role="tablist"
+        aria-label="Asset view"
+      >
+        <button
+          role="tab"
+          aria-selected={view === "ALL"}
+          className={cx(view === "ALL" && "is-active")}
+          onClick={() => setView("ALL")}
+        >
+          <Boxes size={16} /> All assets
+        </button>
+        <button
+          role="tab"
+          aria-selected={view === "MINE"}
+          className={cx(view === "MINE" && "is-active")}
+          onClick={() => setView("MINE")}
+        >
+          <UserRound size={16} /> My assets
+        </button>
+        {hasPermission("asset:create") && (
+          <Link
+            style={{ marginLeft: "auto" }}
+            className="button button--primary button--sm"
+            to="/assets/new"
+          >
+            <Plus size={16} /> Add asset
+          </Link>
+        )}
+      </div>
+
       <section className="toolbar" aria-label="Asset filters">
         <form className="search-box" onSubmit={submitSearch}>
           <Search size={18} aria-hidden />
@@ -230,15 +309,6 @@ export function AssetsPage() {
             ariaLabel="Filter statuses"
           />
         </div>
-        {hasPermission("asset:create") && (
-          <Link
-            className="button button--primary button--md"
-            to="/assets/new"
-          >
-            <Plus size={17} />
-            Add asset
-          </Link>
-        )}
       </section>
 
       {selected.length > 0 && (
@@ -289,13 +359,17 @@ export function AssetsPage() {
         <AssetTableSkeleton />
       ) : error ? (
         <ErrorState error={error} onRetry={() => void load()} />
-      ) : assets.length === 0 ? (
+      ) : displayAssets.length === 0 ? (
         <EmptyState
-          title="No assets found"
+          title={
+            view === "MINE" ? "No managed assets found" : "No assets found"
+          }
           description={
-            filters.search || filters.areaIds.length > 0
-              ? "Try changing your search or filters."
-              : "Start by adding the first asset in your area."
+            view === "MINE"
+              ? "You do not own or manage any assets matching the current filters."
+              : filters.search || filters.areaIds.length > 0
+                ? "Try changing your search or filters."
+                : "Start by adding the first asset in your area."
           }
           action={
             hasPermission("asset:create") ? (
@@ -333,7 +407,7 @@ export function AssetsPage() {
                 </tr>
               </thead>
               <tbody>
-                {assets.map((asset) => {
+                {displayAssets.map((asset) => {
                   const isSelectable =
                     asset.capabilities.canAdjustQuantity ||
                     asset.capabilities.canDeactivate;
@@ -403,7 +477,7 @@ export function AssetsPage() {
                           className="button button--secondary button--sm"
                           to={`/assets/${asset.id}`}
                         >
-                          <Eye size={15} /> View
+                          <Eye size={17} /> View
                         </Link>
                       </td>
                     </tr>
@@ -413,7 +487,7 @@ export function AssetsPage() {
             </table>
           </div>
           <div className="asset-card-list">
-            {assets.map((asset) => {
+            {displayAssets.map((asset) => {
               const isSelectable =
                 asset.capabilities.canAdjustQuantity ||
                 asset.capabilities.canDeactivate;
@@ -465,7 +539,7 @@ export function AssetsPage() {
                       className="button button--secondary button--sm"
                       to={`/assets/${asset.id}`}
                     >
-                      <Eye size={15} /> View
+                      <Eye size={17} /> View
                     </Link>
                   </div>
                 </article>

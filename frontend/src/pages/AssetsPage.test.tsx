@@ -27,7 +27,6 @@ const mockAsset: AssetSummary = {
   isActive: true,
   status: "ACTIVE",
   managementArea: mockArea,
-  assetTemplate: null,
   owner: null,
   capabilities: {
     canEdit: true,
@@ -79,13 +78,56 @@ describe("AssetsPage", () => {
     expect(row).not.toHaveClass("asset-table-row--selected");
   });
 
-  it("renders empty state cleanly without crashing", async () => {
+  it("sorts asset list so editable assets appear before non-editable assets", async () => {
+    const readOnlyAsset: AssetSummary = {
+      id: "asset-ro",
+      name: "AAA View Only Camera",
+      description: "Read only",
+      pictureUrl: null,
+      totalQuantity: 2,
+      allocatedQuantity: 0,
+      availableQuantity: 2,
+      isActive: true,
+      status: "ACTIVE",
+      managementArea: mockArea,
+      owner: null,
+      capabilities: {
+        canEdit: false,
+        canAdjustQuantity: false,
+        canDeactivate: false,
+      },
+      createdAt: "2026-08-15T00:00:00.000Z",
+      updatedAt: "2026-08-15T00:00:00.000Z",
+    };
+
+    const editableAsset: AssetSummary = {
+      id: "asset-ed",
+      name: "ZZZ Editable Microphone",
+      description: "Editable",
+      pictureUrl: null,
+      totalQuantity: 10,
+      allocatedQuantity: 0,
+      availableQuantity: 10,
+      isActive: true,
+      status: "ACTIVE",
+      managementArea: mockArea,
+      owner: null,
+      capabilities: {
+        canEdit: true,
+        canAdjustQuantity: true,
+        canDeactivate: true,
+      },
+      createdAt: "2026-08-14T00:00:00.000Z",
+      updatedAt: "2026-08-14T00:00:00.000Z",
+    };
+
     vi.spyOn(api, "areas").mockResolvedValue({
       data: [mockArea],
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
+    // API returns read-only asset first
     vi.spyOn(api, "assets").mockResolvedValue({
-      data: [],
+      data: [readOnlyAsset, editableAsset],
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
 
@@ -95,6 +137,93 @@ describe("AssetsPage", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("No assets found")).toBeInTheDocument();
+    const editableElements = await screen.findAllByText(/ZZZ Editable Microphone/);
+    expect(editableElements.length).toBeGreaterThan(0);
+
+    const rows = screen.getAllByRole("row");
+    // Row 0 is the table header <thead><tr>...</tr></thead>
+    // Row 1 should be the editable asset
+    // Row 2 should be the read-only asset
+    expect(rows[1]).toHaveTextContent("ZZZ Editable Microphone");
+    expect(rows[2]).toHaveTextContent("AAA View Only Camera");
+  });
+
+  it("switches between All assets and My assets tabs", async () => {
+    const otherAsset: AssetSummary = {
+      id: "asset-other",
+      name: "AAA Other Team Camera",
+      description: "Read only other asset",
+      pictureUrl: null,
+      totalQuantity: 2,
+      allocatedQuantity: 0,
+      availableQuantity: 2,
+      isActive: true,
+      status: "ACTIVE",
+      managementArea: mockArea,
+      owner: {
+        id: "user-other",
+        email: "other@example.com",
+        name: "Other User",
+        profilePictureUrl: null,
+      },
+      capabilities: {
+        canEdit: false,
+        canAdjustQuantity: false,
+        canDeactivate: false,
+      },
+      createdAt: "2026-08-15T00:00:00.000Z",
+      updatedAt: "2026-08-15T00:00:00.000Z",
+    };
+
+    const myAsset: AssetSummary = {
+      id: "asset-my",
+      name: "ZZZ My Managed Asset",
+      description: "My managed asset",
+      pictureUrl: null,
+      totalQuantity: 10,
+      allocatedQuantity: 0,
+      availableQuantity: 10,
+      isActive: true,
+      status: "ACTIVE",
+      managementArea: mockArea,
+      owner: null,
+      capabilities: {
+        canEdit: true,
+        canAdjustQuantity: true,
+        canDeactivate: true,
+      },
+      createdAt: "2026-08-14T00:00:00.000Z",
+      updatedAt: "2026-08-14T00:00:00.000Z",
+    };
+
+    vi.spyOn(api, "areas").mockResolvedValue({
+      data: [mockArea],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+    vi.spyOn(api, "assets").mockResolvedValue({
+      data: [otherAsset, myAsset],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <AssetsPage />
+      </MemoryRouter>,
+    );
+
+    expect((await screen.findAllByText("ZZZ My Managed Asset")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("AAA Other Team Camera").length).toBeGreaterThan(0);
+
+    const myTab = screen.getByRole("tab", { name: /my assets/i });
+    fireEvent.click(myTab);
+
+    expect(screen.getAllByText("ZZZ My Managed Asset").length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("AAA Other Team Camera")).toHaveLength(0);
+
+    const allTab = screen.getByRole("tab", { name: /all assets/i });
+    fireEvent.click(allTab);
+
+    expect(screen.getAllByText("ZZZ My Managed Asset").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("AAA Other Team Camera").length).toBeGreaterThan(0);
   });
 });

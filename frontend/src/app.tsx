@@ -54,7 +54,6 @@ export function App() {
         <Route path="admin/access" element={<AccessPage />} />
         <Route path="admin/users" element={<UsersPage />} />
         <Route path="admin/areas" element={<ManagementAreasPage />} />
-        <Route path="admin/templates" element={<Navigate to="/admin/areas" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
