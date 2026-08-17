@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth";
 import { AppShell } from "./components/AppShell";
 import { AccessPage } from "./pages/AccessPage";
+import { ApprovalRequestsPage } from "./pages/ApprovalRequestsPage";
 import { AssetDetailPage } from "./pages/AssetDetailPage";
 import { AssetFormPage } from "./pages/AssetFormPage";
 import { AssetsPage } from "./pages/AssetsPage";
@@ -46,6 +47,7 @@ export function App() {
         <Route path="assets/:assetId" element={<AssetDetailPage />} />
         <Route path="assets/:assetId/edit" element={<AssetFormPage />} />
         <Route path="reservations" element={<ReservationsPage />} />
+        <Route path="approvals" element={<ApprovalRequestsPage />} />
         <Route path="reservations/new" element={<ReservationCreatePage />} />
         <Route
           path="reservations/:reservationId"

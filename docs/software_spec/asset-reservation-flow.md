@@ -182,7 +182,15 @@ if (requestedQuantity > availableQuantity) {
 | :---: | :--- | :---: | :--- | :--- | :--- |
 | **1** | `/api/v1/reservations` | `POST` | User (`reservation:create`) | `{ eventName, startAt, endAt, items, participantIds }` | `DRAFT` / `PENDING_APPROVAL` |
 | **2** | `/api/v1/reservations/:id/items/decision` | `POST` | Area Manager (`reservation:approve`) | `{ itemIds: [...], decision: 'APPROVE' \| 'REJECT', comment? }` | Items: `APPROVED`/`REJECTED`<br>Res: `APPROVED` |
-| **3** | `/api/v1/reservations/:id/delivery-confirm` | `POST` | Requester / Staff | `{ itemIds?: [...] }` | Items: `DELIVERED`<br>Res: `DELIVERY_CONFIRMED` |
-| **4** | `/api/v1/reservations/:id/returns` | `POST` | Requester / Participant | `{ items: [{ reservationItemId, quantityReturned }], note? }` | Return: `PENDING`<br>Res: `RETURN_PENDING` |
-| **5** | `/api/v1/returns/:returnId/decision` | `POST` | Area Manager (`return:approve`) | `{ decision: 'APPROVE' \| 'REJECT', items: [{ reservationItemId, quantityReturned, quantityBroken, quantityLost, description? }], description? }` | Return: `COMPLETED`<br>Res: `COMPLETED` |
+| **3** | `/api/v1/reservations/:id/delivery-confirm` | `POST` | Requester / Staff | `{ itemIds?: [...], photoUrls?: [...], itemPhotos?: [{ itemId, photoUrl }], note? }` | Items: `DELIVERED`<br>Res: `DELIVERY_CONFIRMED` |
+| **4** | `/api/v1/reservations/:id/returns` | `POST` | Requester / Participant | `{ items: [{ reservationItemId, quantityReturned, photoUrl? }], photoUrls?: [...], note? }` | Return: `PENDING`<br>Res: `RETURN_PENDING` |
+| **5** | `/api/v1/reservations/:id/returns/:returnId/decision` | `POST` | Area Manager (`return:approve`) | `{ decision: 'APPROVE' \| 'REJECT', items: [{ reservationItemId, quantityReturned, quantityBroken, quantityLost, photoUrl?, description? }], description? }` | Return: `COMPLETED`<br>Res: `COMPLETED` |
 | **—** | `/api/v1/reservations/:id/cancel` | `POST` | Requester / Admin | `{ reason? }` | `CANCELLED` |
+
+---
+
+## 8. Proof Photos & Image System Specification
+
+For detailed database schemas, entity relationship diagrams (ERDs), sequence diagrams, and frontend modal architecture regarding photographic evidence at Handover and Return, see:
+👉 **[`reservation-proof-photos-system.md`](./reservation-proof-photos-system.md)**
+

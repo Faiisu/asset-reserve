@@ -107,6 +107,7 @@ export function Select({
 export type FilterOption = {
   value: string;
   label: string;
+  colorClass?: string;
 };
 
 export function CheckboxDropdownFilter({
@@ -237,6 +238,15 @@ export function CheckboxDropdownFilter({
                     onChange={() => toggleValue(option.value)}
                     aria-label={option.label}
                   />
+                  {option.colorClass ? (
+                    <i
+                      className={cx(
+                        "workspace-filter-checkbox-item__swatch",
+                        option.colorClass,
+                      )}
+                      aria-hidden
+                    />
+                  ) : null}
                   <span className="workspace-filter-checkbox-item__name">
                     {option.label}
                   </span>

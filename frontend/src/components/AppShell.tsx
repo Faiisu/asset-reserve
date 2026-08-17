@@ -20,6 +20,7 @@ const titles: Array<[string, string]> = [
   ["/reservations/new", "New reservation"],
   ["/reservations/", "Reservation details"],
   ["/reservations", "Reservations"],
+  ["/approvals", "Approval request"],
   ["/assets/new", "Add asset"],
   ["/assets/", "Asset details"],
   ["/assets", "Asset registry"],
@@ -72,9 +73,16 @@ export function AppShell() {
       show: [
         "reservation:create",
         "reservation:update",
-        "reservation:approve",
-        "reservation:reject",
+        "reservation:view",
       ].some((permission) => hasPermission(permission as "reservation:create")),
+    },
+    {
+      to: "/approvals",
+      label: "Approval request",
+      icon: ShieldCheck,
+      show:
+        hasPermission("reservation:approve") ||
+        hasPermission("reservation:reject"),
     },
     {
       to: "/admin/areas",

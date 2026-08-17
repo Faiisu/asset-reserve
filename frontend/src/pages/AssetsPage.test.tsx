@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { api } from "../api";
 import type { AssetSummary } from "../types";
@@ -281,23 +281,24 @@ describe("AssetsPage", () => {
       </MemoryRouter>,
     );
 
-    // Initial filter is ACTIVE
+    // Initial filter shows all assets
     expect((await screen.findAllByText("Active Asset")).length).toBeGreaterThan(0);
-    expect(screen.queryByText("Broken Asset")).not.toBeInTheDocument();
-    expect(screen.queryByText("Lost Asset")).not.toBeInTheDocument();
-    expect(screen.queryByText("Inactive Asset")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Broken Asset").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Lost Asset").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Inactive Asset").length).toBeGreaterThan(0);
 
     // Open status filter dropdown and toggle Broken
     const statusBtn = screen.getByLabelText("Filter statuses");
     fireEvent.click(statusBtn);
 
-    fireEvent.click(screen.getByText("Broken"));
+    const popover = screen.getByRole("listbox");
+    fireEvent.click(within(popover).getByText("Broken"));
 
-    // Now both Active and Broken should appear
+    // Now only Broken should appear
     await waitFor(() => {
-      expect(screen.getAllByText("Active Asset").length).toBeGreaterThan(0);
       expect(screen.getAllByText("Broken Asset").length).toBeGreaterThan(0);
     });
+    expect(screen.queryAllByText("Active Asset")).toHaveLength(0);
     expect(screen.queryAllByText("Lost Asset")).toHaveLength(0);
     expect(screen.queryAllByText("Inactive Asset")).toHaveLength(0);
   });

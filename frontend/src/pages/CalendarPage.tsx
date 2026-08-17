@@ -53,45 +53,40 @@ import type {
 } from "../types";
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const statusOptions = [
-  {
-    value: "REQUEST",
-    label: "Request",
-    statuses: [
-      "PENDING",
-      "PENDING_APPROVAL",
-      "DRAFT",
-      "PARTIALLY_APPROVED",
-    ] as ReservationStatus[],
-    colorClass: "calendar-legend__pending_approval",
-  },
-  {
-    value: "APPROVE",
-    label: "Approve",
-    statuses: [
-      "APPROVED",
-      "DELIVERY_CONFIRMED",
-      "ACTIVE",
-      "RETURN",
-      "RETURN_PENDING",
-      "RETURN_CONFIRMED",
-      "COMPLETED",
-    ] as ReservationStatus[],
-    colorClass: "calendar-legend__approved",
-  },
-  {
-    value: "REJECT",
-    label: "Reject",
-    statuses: ["REJECTED"] as ReservationStatus[],
-    colorClass: "calendar-legend__rejected",
-  },
-  {
-    value: "CANCEL",
-    label: "Cancel",
-    statuses: ["CANCELLED"] as ReservationStatus[],
-    colorClass: "calendar-legend__cancelled",
-  },
-];
+const STATUS_COLOR_CLASS: Record<ReservationStatus, string> = {
+  DRAFT: "calendar-legend__draft",
+  PENDING_APPROVAL: "calendar-legend__pending_approval",
+  PARTIALLY_APPROVED: "calendar-legend__partially_approved",
+  APPROVED: "calendar-legend__approved",
+  DELIVERY_CONFIRMED: "calendar-legend__delivery_confirmed",
+  RETURN_PENDING: "calendar-legend__return_pending",
+  RETURN_CONFIRMED: "calendar-legend__return_confirmed",
+  COMPLETED: "calendar-legend__completed",
+  REJECTED: "calendar-legend__rejected",
+  CANCELLED: "calendar-legend__cancelled",
+};
+
+const STATUS_OPTION_STATUSES: Record<ReservationStatus, ReservationStatus[]> = {
+  DRAFT: ["DRAFT"],
+  PENDING_APPROVAL: ["PENDING_APPROVAL"],
+  PARTIALLY_APPROVED: ["PARTIALLY_APPROVED"],
+  APPROVED: ["APPROVED"],
+  DELIVERY_CONFIRMED: ["DELIVERY_CONFIRMED"],
+  RETURN_PENDING: ["RETURN_PENDING"],
+  RETURN_CONFIRMED: ["RETURN_CONFIRMED"],
+  COMPLETED: ["COMPLETED"],
+  REJECTED: ["REJECTED"],
+  CANCELLED: ["CANCELLED"],
+};
+
+const statusOptions = (Object.keys(STATUS_COLOR_CLASS) as ReservationStatus[]).map(
+  (status) => ({
+    value: status,
+    label: reservationStatusLabel[status],
+    statuses: STATUS_OPTION_STATUSES[status],
+    colorClass: STATUS_COLOR_CLASS[status],
+  }),
+);
 
 type DateSelection = { anchor: Date; focus: Date };
 
@@ -113,11 +108,13 @@ type EventMenu = {
 export function CalendarPage() {
   const { hasPermission, hasAreaPermission } = useAuth();
   const canCreate = hasPermission("reservation:create");
+  const canViewOthers = hasPermission("reservation:view");
   const baseMonth = useMemo(() => startOfMonth(new Date()), []);
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
   const [monthOffsets, setMonthOffsets] = useState({ before: 0, after: 4 });
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [selectedAreaIds, setSelectedAreaIds] = useState<string[]>([]);
+  const [onlyMine, setOnlyMine] = useState(false);
   const [areas, setAreas] = useState<ManagementArea[]>([]);
   const [reservations, setReservations] = useState<ReservationSummary[]>([]);
   const [assets, setAssets] = useState<AssetSummary[]>([]);
@@ -324,7 +321,7 @@ export function CalendarPage() {
       );
       do {
         const response = await api.reservations({
-          view: "ALL",
+          view: canViewOthers && !onlyMine ? "ALL" : "MINE",
           status: allowedStatuses.length === 1 ? allowedStatuses[0] : undefined,
           areaId: selectedAreaIds.length === 1 ? selectedAreaIds[0] : undefined,
           from: gridStart.toISOString(),
@@ -360,7 +357,7 @@ export function CalendarPage() {
     } finally {
       if (requestId === requestSequence.current) setLoading(false);
     }
-  }, [gridEnd, gridStart, selectedAreaIds, selectedStatuses]);
+  }, [gridEnd, gridStart, selectedAreaIds, selectedStatuses, canViewOthers, onlyMine]);
 
   useEffect(() => {
     void load();
@@ -390,6 +387,12 @@ export function CalendarPage() {
         Number(right.availableQuantity <= 0)
       );
     });
+  const now = new Date(Date.now() - 60_000);
+  const isPastSelection = selectedSchedule
+    ? selectedSchedule.startAt.getTime() < now.getTime() ||
+      selectedSchedule.endAt.getTime() < now.getTime()
+    : false;
+  const canProceedToReserve = Boolean(selectedRange) && !isPastSelection;
   const createUrl = selectedRange
     ? reservationCreateUrl(
         selectedRange.start,
@@ -485,7 +488,9 @@ export function CalendarPage() {
     if (!dragging.current || !canCreate) return;
     setVisibleMonth(startOfMonth(date));
     setSelection((current) =>
-      current ? { ...current, focus: date } : { anchor: date, focus: date },
+      current
+        ? { ...current, focus: date }
+        : { anchor: date, focus: date },
     );
   }
 
@@ -760,6 +765,23 @@ export function CalendarPage() {
                 onChange={setSelectedStatuses}
                 ariaLabel="Filter statuses"
               />
+              {canViewOthers && (
+                <button
+                  id="calendar-only-mine-toggle"
+                  type="button"
+                  className={cx(
+                    "calendar-only-mine-toggle",
+                    onlyMine && "calendar-only-mine-toggle--active",
+                  )}
+                  onClick={() => setOnlyMine((prev) => !prev)}
+                  aria-pressed={onlyMine}
+                  aria-label="Show only my reservations"
+                  title={onlyMine ? "Showing only my reservations" : "Showing all reservations"}
+                >
+                  <Eye size={13} />
+                  {onlyMine ? "Only mine" : "All reservations"}
+                </button>
+              )}
             </div>
           </section>
 
@@ -922,19 +944,21 @@ export function CalendarPage() {
                 </span>
                 <small>
                   {selectedRange
-                    ? "Availability matches the selected schedule."
+                    ? isPastSelection
+                      ? "Past dates cannot be reserved."
+                      : "Availability matches the selected schedule."
                     : "Choose dates to check availability and continue."}
                 </small>
               </div>
               <Link
                 className={cx(
                   "button button--primary button--md",
-                  !selectedRange && "button--disabled",
+                  !canProceedToReserve && "button--disabled",
                 )}
                 to={createUrl}
-                aria-disabled={!selectedRange}
+                aria-disabled={!canProceedToReserve}
                 onClick={(event) => {
-                  if (!selectedRange) event.preventDefault();
+                  if (!canProceedToReserve) event.preventDefault();
                 }}
               >
                 {selectedAssets.length
@@ -1113,6 +1137,7 @@ function CalendarWeek({
             : false;
           const isFirstOfMonth = date.getDate() === 1;
           const isFirstOfActiveMonth = isFirstOfMonth && !isOutsideMonth;
+          const isPast = date < startOfDay(new Date());
           return (
             <div
               key={dateKey(date)}
@@ -1120,6 +1145,7 @@ function CalendarWeek({
                 "calendar-day",
                 isOutsideMonth && "calendar-day--outside",
                 isToday(date) && "calendar-day--today",
+                isPast && "calendar-day--past",
                 isSelected && "calendar-day--selected",
                 canCreate && "calendar-day--selectable",
                 isFirstOfMonth && "calendar-day--first-of-month",
@@ -1652,9 +1678,25 @@ function reservationCreateUrl(
 
 function reservationSchedule(startDay: Date, endDay: Date) {
   const startAt = new Date(startDay);
-  startAt.setHours(9, 0, 0, 0);
+  const now = new Date();
+  if (isToday(startDay)) {
+    const nextHour = new Date(now.getTime() + 60 * 60_000);
+    nextHour.setMinutes(0, 0, 0);
+    startAt.setTime(
+      Math.max(nextHour.getTime(), new Date(startDay).setHours(9, 0, 0, 0)),
+    );
+  } else {
+    startAt.setHours(9, 0, 0, 0);
+  }
   const endAt = new Date(endDay);
-  endAt.setHours(17, 0, 0, 0);
+  if (isToday(endDay) && endAt.getTime() <= startAt.getTime()) {
+    endAt.setTime(startAt.getTime() + 4 * 60 * 60_000);
+  } else {
+    endAt.setHours(17, 0, 0, 0);
+  }
+  if (endAt <= startAt) {
+    endAt.setTime(startAt.getTime() + 2 * 60 * 60_000);
+  }
   return { startAt, endAt };
 }
 

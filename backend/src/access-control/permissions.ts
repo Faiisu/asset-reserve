@@ -20,6 +20,12 @@ export const PERMISSION_CATALOG = [
   ],
   ["reservation:create", "reservation", "create", "Create reservations."],
   [
+    "reservation:view",
+    "reservation",
+    "view",
+    "View reservations created by other users (scoped to area or globally).",
+  ],
+  [
     "reservation:update",
     "reservation",
     "update",

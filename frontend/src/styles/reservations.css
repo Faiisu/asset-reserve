@@ -285,6 +285,18 @@
   background: var(--red-soft);
   color: var(--red);
 }
+.reservation-list-participant-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--blue) 12%, var(--surface));
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .reservation-list-meta {
   margin-top: 13px;
   display: flex;

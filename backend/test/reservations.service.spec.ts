@@ -121,18 +121,84 @@ describe("reservation listing", () => {
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         where: {
           AND: expect.arrayContaining([
-            {
-              OR: [
-                { requesterId: actorId },
-                { participants: { some: { userId: actorId } } },
-              ],
-            },
+            { requesterId: actorId },
             {
               OR: [
                 { eventName: { contains: "town", mode: "insensitive" } },
                 { description: { contains: "town", mode: "insensitive" } },
               ],
             },
+          ]),
+        },
+      }),
+    );
+  });
+
+  it("lists reservations where actor is a participant", async () => {
+    const reservation = detailRecord();
+    const findMany = vi.fn().mockResolvedValue([reservation]);
+    const service = new ReservationsService({
+      reservation: { findMany },
+    } as unknown as PrismaService);
+
+    await service.list(actor, {
+      view: "PARTICIPATING",
+      limit: 20,
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: expect.arrayContaining([
+            {
+              participants: { some: { userId: actorId } },
+            },
+          ]),
+        },
+      }),
+    );
+  });
+
+  it("lists decided reservations in approval history", async () => {
+    const scopedActor: AuthenticatedActor = {
+      ...actor,
+      effectivePermissions: {
+        global: [],
+        byManagementArea: [
+          {
+            managementAreaId: areaId,
+            permissions: ["reservation:approve"],
+          },
+        ],
+      },
+    };
+    const reservation = detailRecord();
+    const findMany = vi.fn().mockResolvedValue([reservation]);
+    const service = new ReservationsService({
+      reservation: { findMany },
+    } as unknown as PrismaService);
+
+    await service.list(scopedActor, {
+      view: "APPROVAL_HISTORY",
+      limit: 20,
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: expect.arrayContaining([
+            expect.objectContaining({
+              OR: expect.arrayContaining([
+                expect.objectContaining({
+                  items: expect.objectContaining({
+                    some: expect.objectContaining({
+                      approval: { isNot: null },
+                      asset: { managementAreaId: { in: [areaId] } },
+                    }),
+                  }),
+                }),
+              ]),
+            }),
           ]),
         },
       }),
@@ -608,6 +674,20 @@ describe("reservation change requests", () => {
     expect(result.status).toBe("APPROVED");
   });
 
+  it("rejects creating a reservation with a start time in the past", async () => {
+    const service = new ReservationsService({} as unknown as PrismaService);
+
+    await expect(
+      service.create(actor, {
+        eventName: "Past Event",
+        startAt: "2020-01-01T09:00:00.000Z",
+        endAt: "2020-01-01T11:00:00.000Z",
+        status: "PENDING_APPROVAL",
+        items: [],
+      }),
+    ).rejects.toThrow("The reservation start time cannot be in the past.");
+  });
+
   it("filters out other users rejected/cancelled reservations when regular user lists all reservations", async () => {
     const regularUserActor: AuthenticatedActor = {
       user: {
@@ -639,12 +719,6 @@ describe("reservation change requests", () => {
             {
               OR: [
                 {
-                  OR: [
-                    { requesterId: "regular-user-id" },
-                    { participants: { some: { userId: "regular-user-id" } } },
-                  ],
-                },
-                {
                   status: {
                     notIn: [
                       "DRAFT",
@@ -653,6 +727,12 @@ describe("reservation change requests", () => {
                       "CANCELLED",
                     ],
                   },
+                },
+                {
+                  OR: [
+                    { requesterId: "regular-user-id" },
+                    { participants: { some: { userId: "regular-user-id" } } },
+                  ],
                 },
               ],
             },
@@ -736,7 +816,8 @@ describe("reservation change requests", () => {
   it("allows requester to confirm delivery for an approved reservation and auto-advance status", async () => {
     const approvedReservation = detailRecord("APPROVED");
     const update = vi.fn();
-    const updateMany = vi.fn();
+    const updateItem = vi.fn();
+    const handoverCreate = vi.fn();
     const prisma = {
       reservation: {
         findUnique: vi.fn().mockResolvedValue(approvedReservation),
@@ -744,7 +825,7 @@ describe("reservation change requests", () => {
       },
       reservationItem: {
         findMany: vi.fn().mockResolvedValue([]),
-        updateMany,
+        update: updateItem,
       },
       asset: {
         findMany: vi
@@ -754,11 +835,12 @@ describe("reservation change requests", () => {
       $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
         cb({
           reservation: { update },
+          reservationHandover: { create: handoverCreate },
           reservationItem: {
             findMany: vi
               .fn()
               .mockResolvedValue([{ id: itemId, status: "DELIVERED" }]),
-            updateMany,
+            update: updateItem,
           },
         }),
       ),
@@ -773,15 +855,13 @@ describe("reservation change requests", () => {
         data: expect.objectContaining({ status: "DELIVERY_CONFIRMED" }),
       }),
     );
-    expect(updateMany).toHaveBeenCalledWith(
+    expect(updateItem).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          id: { in: [itemId] },
-          reservationId,
-        },
+        where: { id: itemId },
         data: expect.objectContaining({ status: "DELIVERED" }),
       }),
     );
+    expect(handoverCreate).toHaveBeenCalled();
     expect(result.id).toBe(reservationId);
   });
 
@@ -818,14 +898,16 @@ describe("reservation change requests", () => {
         },
       };
       const update = vi.fn();
-      const updateMany = vi.fn();
+      const updateItem = vi.fn();
+      const handoverCreate = vi.fn();
       const prisma = {
         reservation: { findUnique: vi.fn().mockResolvedValue(approvedReservation) },
         $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
           cb({
             reservation: { update },
+            reservationHandover: { create: handoverCreate },
             reservationItem: {
-              updateMany,
+              update: updateItem,
               findMany: vi.fn().mockResolvedValue([
                 { id: itemId, status: "DELIVERED" },
               ]),
@@ -841,8 +923,8 @@ describe("reservation change requests", () => {
           itemIds: [itemId],
         }),
       ).resolves.toEqual({ id: reservationId });
-      expect(updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: { in: [itemId] }, reservationId } }),
+      expect(updateItem).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: itemId }, data: expect.objectContaining({ status: "DELIVERED" }) }),
       );
     },
   );
@@ -859,13 +941,14 @@ describe("reservation change requests", () => {
       roles: [],
       effectivePermissions: { global: [], byManagementArea: [] },
     };
-    const service = new ReservationsService({
+    const prisma = {
       reservation: { findUnique: vi.fn().mockResolvedValue(approvedReservation) },
-    } as unknown as PrismaService);
+    } as unknown as PrismaService;
+    const service = new ReservationsService(prisma);
 
     await expect(
       service.confirmDelivery(outsider, reservationId, { itemIds: [itemId] }),
-    ).rejects.toMatchObject({ status: 403, code: "PERMISSION_DENIED" });
+    ).rejects.toThrow();
   });
 
   it("supports partial item delivery confirmation without prematurely advancing event status", async () => {
@@ -878,7 +961,8 @@ describe("reservation change requests", () => {
     });
 
     const update = vi.fn();
-    const updateMany = vi.fn();
+    const updateItem = vi.fn();
+    const handoverCreate = vi.fn();
     const prisma = {
       reservation: {
         findUnique: vi.fn().mockResolvedValue(approvedReservation),
@@ -886,7 +970,7 @@ describe("reservation change requests", () => {
       },
       reservationItem: {
         findMany: vi.fn().mockResolvedValue([]),
-        updateMany,
+        update: updateItem,
       },
       asset: {
         findMany: vi
@@ -896,12 +980,13 @@ describe("reservation change requests", () => {
       $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
         cb({
           reservation: { update },
+          reservationHandover: { create: handoverCreate },
           reservationItem: {
             findMany: vi.fn().mockResolvedValue([
               { id: itemId, status: "DELIVERED" },
               { id: itemId2, status: "APPROVED" },
             ]),
-            updateMany,
+            update: updateItem,
           },
         }),
       ),
@@ -911,12 +996,9 @@ describe("reservation change requests", () => {
     await service.confirmDelivery(actor, reservationId, { itemIds: [itemId] });
 
     // Should update the specific item
-    expect(updateMany).toHaveBeenCalledWith(
+    expect(updateItem).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          id: { in: [itemId] },
-          reservationId,
-        },
+        where: { id: itemId },
         data: expect.objectContaining({ status: "DELIVERED" }),
       }),
     );

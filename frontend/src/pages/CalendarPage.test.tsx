@@ -520,15 +520,45 @@ describe("CalendarPage", () => {
     expect(trigger).toHaveTextContent("Production");
     expect(trigger).toHaveTextContent("1");
 
-    // Test Status Filter dropdown
+    // Test Status Filter dropdown (individual statuses, matching event colors)
     const statusTrigger = screen.getByRole("button", { name: "Filter statuses" });
     expect(statusTrigger).toBeInTheDocument();
     expect(screen.getByText("All statuses")).toBeInTheDocument();
     fireEvent.click(statusTrigger);
-    const approvedCheckbox = screen.getByRole("checkbox", { name: "Approve" });
+    const approvedCheckbox = screen.getByRole("checkbox", { name: "Approved" });
     fireEvent.click(approvedCheckbox);
     expect(approvedCheckbox).toBeChecked();
-    expect(statusTrigger).toHaveTextContent("Approve");
+    expect(statusTrigger).toHaveTextContent("Approved");
+  });
+
+  it("allows selecting past dates to view information while disabling the reserve button", async () => {
+    vi.spyOn(api, "reservations").mockResolvedValue({
+      data: [],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <CalendarPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText("Loading visible reservations")).toBeNull(),
+    );
+
+    const pastDay = screen.getByRole("button", {
+      name: /Saturday, August 1, 2026/i,
+    });
+    fireEvent.pointerDown(pastDay, { button: 0 });
+    fireEvent.pointerUp(pastDay);
+
+    expect(
+      screen.getByText("Past dates cannot be reserved."),
+    ).toBeInTheDocument();
+    const reserveButton = screen.getByRole("link", { name: /Create event/i });
+    expect(reserveButton).toHaveAttribute("aria-disabled", "true");
+    expect(reserveButton).toHaveClass("button--disabled");
   });
 });
 

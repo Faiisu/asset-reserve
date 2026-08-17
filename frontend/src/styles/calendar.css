@@ -158,6 +158,36 @@
   width: auto;
   min-width: 150px;
 }
+.calendar-only-mine-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
+  min-height: 42px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-faint);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease, color 150ms ease, background 150ms ease;
+  white-space: nowrap;
+  user-select: none;
+}
+.calendar-only-mine-toggle:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.calendar-only-mine-toggle--active {
+  background: color-mix(in srgb, var(--blue) 8%, var(--surface));
+  color: var(--blue);
+  border-color: color-mix(in srgb, var(--blue) 40%, transparent);
+}
+.calendar-only-mine-toggle--active:hover {
+  background: color-mix(in srgb, var(--blue) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--blue) 55%, transparent);
+}
 .calendar-workspace {
   flex: 1;
   min-height: 0;
@@ -263,6 +293,13 @@
 }
 .calendar-day--outside {
   background: color-mix(in srgb, var(--surface-raised) 78%, var(--surface));
+}
+.calendar-day--past {
+  background: color-mix(in srgb, var(--surface-raised) 45%, var(--surface));
+  opacity: 0.88;
+}
+.calendar-day--past .calendar-day__number {
+  color: var(--ink-faint);
 }
 .calendar-day--first-of-month {
   border-left: 2px solid color-mix(in srgb, var(--blue) 35%, var(--line));
@@ -408,13 +445,18 @@
 }
 .calendar-event--draft,
 .calendar-event-menu--draft {
-  --event-color: var(--ink-soft);
-  --event-soft: var(--surface-raised);
+  --event-color: var(--slate);
+  --event-soft: var(--slate-soft);
 }
 .calendar-event--cancelled,
 .calendar-event-menu--cancelled {
-  --event-color: var(--ink-faint);
-  --event-soft: color-mix(in srgb, var(--ink-faint) 11%, var(--surface));
+  --event-color: var(--amber-dark);
+  --event-soft: var(--amber-soft);
+}
+.calendar-event--pending,
+.calendar-event-menu--pending {
+  --event-color: var(--cyan);
+  --event-soft: var(--cyan-soft);
 }
 .calendar-event--pending_approval,
 .calendar-event-menu--pending_approval {
@@ -428,6 +470,11 @@
 }
 .calendar-event--approved,
 .calendar-event-menu--approved {
+  --event-color: var(--green);
+  --event-soft: var(--green-soft);
+}
+.calendar-event--delivery_confirmed,
+.calendar-event-menu--delivery_confirmed {
   --event-color: var(--teal);
   --event-soft: var(--teal-soft);
 }
@@ -441,9 +488,21 @@
   --event-color: var(--blue);
   --event-soft: var(--blue-soft);
 }
+.calendar-event--return,
+.calendar-event--return_pending,
+.calendar-event-menu--return,
+.calendar-event-menu--return_pending {
+  --event-color: var(--orange);
+  --event-soft: var(--orange-soft);
+}
+.calendar-event--return_confirmed,
+.calendar-event-menu--return_confirmed {
+  --event-color: var(--emerald);
+  --event-soft: var(--emerald-soft);
+}
 .calendar-event--completed,
 .calendar-event-menu--completed {
-  --event-color: var(--green);
+  --event-color: var(--green-dark);
   --event-soft: var(--green-soft);
 }
 .calendar-event-menu {
@@ -640,10 +699,13 @@
   background: var(--legend-color);
 }
 .calendar-legend__draft {
-  --legend-color: var(--ink-soft);
+  --legend-color: var(--slate);
 }
 .calendar-legend__cancelled {
-  --legend-color: var(--ink-faint);
+  --legend-color: var(--amber-dark);
+}
+.calendar-legend__pending {
+  --legend-color: var(--cyan);
 }
 .calendar-legend__pending_approval {
   --legend-color: var(--amber);
@@ -652,6 +714,9 @@
   --legend-color: var(--purple);
 }
 .calendar-legend__approved {
+  --legend-color: var(--green);
+}
+.calendar-legend__delivery_confirmed {
   --legend-color: var(--teal);
 }
 .calendar-legend__rejected {
@@ -660,8 +725,15 @@
 .calendar-legend__active {
   --legend-color: var(--blue);
 }
+.calendar-legend__return,
+.calendar-legend__return_pending {
+  --legend-color: var(--orange);
+}
+.calendar-legend__return_confirmed {
+  --legend-color: var(--emerald);
+}
 .calendar-legend__completed {
-  --legend-color: var(--green);
+  --legend-color: var(--green-dark);
 }
 .calendar-reserve-panel {
   height: 100%;

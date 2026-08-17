@@ -3,6 +3,7 @@ import type {
   AssetDetail,
   AssetInput,
   AssetSummary,
+  ConfirmDeliveryInput,
   CreateReservationInput,
   CreateReturnInput,
   InventoryResult,
@@ -244,7 +245,7 @@ export const api = {
       body: json(input),
     }),
   reservations: (filters: {
-    view?: "MINE" | "APPROVALS" | "ALL";
+    view?: "MINE" | "PARTICIPATING" | "APPROVALS" | "APPROVAL_HISTORY" | "ALL";
     status?: string;
     areaId?: string;
     search?: string;
@@ -315,16 +316,19 @@ export const api = {
       method: "POST",
       body: json({ ...(reason ? { reason } : {}) }),
     }),
-  confirmDelivery: (reservationId: string, itemIds?: string[]) =>
-    request<ReservationDetail>(
+  confirmDelivery: (
+    reservationId: string,
+    input?: ConfirmDeliveryInput | string[],
+  ) => {
+    const payload = Array.isArray(input) ? { itemIds: input } : input;
+    return request<ReservationDetail>(
       `/reservations/${reservationId}/delivery-confirm`,
       {
         method: "POST",
-        ...(itemIds && itemIds.length > 0
-          ? { body: json({ itemIds }) }
-          : {}),
+        ...(payload ? { body: json(payload) } : {}),
       },
-    ),
+    );
+  },
   createReturn: (reservationId: string, input: CreateReturnInput) =>
     request<ReturnDetail>(`/reservations/${reservationId}/returns`, {
       method: "POST",

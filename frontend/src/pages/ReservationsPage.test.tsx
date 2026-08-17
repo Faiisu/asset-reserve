@@ -39,7 +39,7 @@ const reservation: ReservationSummary = {
 };
 
 describe("ReservationsPage", () => {
-  it("loads my reservations and switches to the approval queue", async () => {
+  it("loads my reservations and switches to the participate tab", async () => {
     vi.spyOn(api, "areas").mockResolvedValue({
       data: [],
       pageInfo: { nextCursor: null, hasNextPage: false },
@@ -60,12 +60,11 @@ describe("ReservationsPage", () => {
       expect.objectContaining({ view: "MINE", limit: 20 }),
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: /approval queue/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /participate/i }));
     await waitFor(() =>
       expect(listSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ view: "APPROVALS", limit: 20 }),
+        expect.objectContaining({ view: "PARTICIPATING", limit: 20 }),
       ),
     );
-    expect(screen.getByLabelText("2 decisions waiting")).toBeInTheDocument();
   });
 });

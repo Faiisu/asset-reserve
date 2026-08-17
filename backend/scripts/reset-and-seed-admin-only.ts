@@ -26,6 +26,7 @@ const roles = [
       "asset:update",
       "asset:delete",
       "reservation:create",
+      "reservation:view",
       "reservation:update",
       "reservation:approve",
       "reservation:reject",
@@ -43,6 +44,7 @@ const roles = [
       "asset:view",
       "asset:update",
       "reservation:create",
+      "reservation:view",
       "reservation:update",
       "reservation:approve",
       "reservation:reject",
@@ -52,6 +54,7 @@ const roles = [
   {
     name: "USER",
     description: "View assets and manage their own reservations.",
+    // No reservation:view — regular users can only see their own reservations.
     permissions: ["asset:view", "reservation:create", "reservation:update"],
   },
 ] as const;

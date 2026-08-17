@@ -8,6 +8,7 @@ import {
   Search,
   ShieldCheck,
   UserRound,
+  Users,
 } from "lucide-react";
 import {
   useCallback,
@@ -39,16 +40,15 @@ import type {
   ReservationSummary,
 } from "../types";
 
-type ReservationView = "MINE" | "APPROVALS";
+type ReservationView = "MINE" | "PARTICIPATING";
 
 const statusOptions = [
   {
     value: "REQUEST",
     label: "Request",
     statuses: [
-      "PENDING",
-      "PENDING_APPROVAL",
       "DRAFT",
+      "PENDING_APPROVAL",
       "PARTIALLY_APPROVED",
     ] as ReservationStatus[],
   },
@@ -58,8 +58,6 @@ const statusOptions = [
     statuses: [
       "APPROVED",
       "DELIVERY_CONFIRMED",
-      "ACTIVE",
-      "RETURN",
       "RETURN_PENDING",
       "RETURN_CONFIRMED",
       "COMPLETED",
@@ -80,11 +78,7 @@ const statusOptions = [
 export function ReservationsPage() {
   const { hasPermission } = useAuth();
   const canCreate = hasPermission("reservation:create");
-  const canReview =
-    hasPermission("reservation:approve") || hasPermission("reservation:reject");
-  const [view, setView] = useState<ReservationView>(
-    canCreate ? "MINE" : canReview ? "APPROVALS" : "MINE",
-  );
+  const [view, setView] = useState<ReservationView>("MINE");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
@@ -184,16 +178,14 @@ export function ReservationsPage() {
         >
           <UserRound size={16} /> My reservations
         </button>
-        {canReview && (
-          <button
-            role="tab"
-            aria-selected={view === "APPROVALS"}
-            className={cx(view === "APPROVALS" && "is-active")}
-            onClick={() => setView("APPROVALS")}
-          >
-            <ShieldCheck size={16} /> Approval queue
-          </button>
-        )}
+        <button
+          role="tab"
+          aria-selected={view === "PARTICIPATING"}
+          className={cx(view === "PARTICIPATING" && "is-active")}
+          onClick={() => setView("PARTICIPATING")}
+        >
+          <Users size={16} /> Participate
+        </button>
         {canCreate && (
           <Link
             style={{ marginLeft: "auto" }}
@@ -204,23 +196,6 @@ export function ReservationsPage() {
           </Link>
         )}
       </div>
-
-      {view === "APPROVALS" && (
-        <section className="review-lane-banner">
-          <span>
-            <ShieldCheck size={22} />
-          </span>
-          <div>
-            <p className="eyebrow eyebrow--light">Review lane</p>
-            <strong>
-              Only reservations needing a decision from your areas appear here.
-            </strong>
-          </div>
-          <small>
-            Open an event to approve assets or review a requested edit.
-          </small>
-        </section>
-      )}
 
       <section className="reservation-list-toolbar">
         <form className="reservation-list-search" onSubmit={submitSearch}>
@@ -277,17 +252,17 @@ export function ReservationsPage() {
       ) : items.length === 0 ? (
         <EmptyState
           title={
-            view === "APPROVALS"
-              ? "Your approval queue is clear"
-              : "No reservations match this view"
+            view === "PARTICIPATING"
+              ? "No participated reservations"
+              : "No reservations found"
           }
           description={
-            view === "APPROVALS"
-              ? "New requests from your management areas will appear here."
-              : "Adjust the filters or create a new reservation to begin."
+            view === "PARTICIPATING"
+              ? "Reservations where you are added as a participant will appear here."
+              : "Adjust your search filters or draft a new reservation to begin."
           }
           action={
-            canCreate && view !== "APPROVALS" ? (
+            canCreate && view === "MINE" ? (
               <Link
                 className="button button--primary button--md"
                 to="/reservations/new"
@@ -304,7 +279,6 @@ export function ReservationsPage() {
               <ReservationListRow
                 reservation={reservation}
                 key={reservation.id}
-                reviewView={view === "APPROVALS"}
               />
             ))}
           </div>
@@ -327,11 +301,13 @@ export function ReservationsPage() {
 
 function ReservationListRow({
   reservation,
-  reviewView,
 }: {
   reservation: ReservationSummary;
-  reviewView: boolean;
 }) {
+  const { session } = useAuth();
+  const isParticipant =
+    Boolean(session?.user?.id) &&
+    reservation.requester.id !== session?.user?.id;
   const start = new Date(reservation.startAt);
   const total = Math.max(1, reservation.itemCount);
   return (
@@ -363,6 +339,11 @@ function ReservationListRow({
             >
               {reservationStatusLabel[reservation.status]}
             </span>
+            {isParticipant && (
+              <span className="reservation-list-participant-tag">
+                <Users size={12} /> Participant
+              </span>
+            )}
           </div>
           <ChevronRight size={22} />
         </div>
@@ -413,22 +394,21 @@ function ReservationListRow({
           )}
         </div>
       </div>
-      {(reviewView || reservation.pendingDecisionCount > 0) &&
-        reservation.pendingDecisionCount > 0 && (
-          <div
-            className="reservation-decision-flag"
-            aria-label={`${reservation.pendingDecisionCount} ${reservation.pendingDecisionCount === 1 ? "decision" : "decisions"} waiting`}
-          >
-            <Inbox size={16} />
-            <span aria-hidden>
-              <strong>{reservation.pendingDecisionCount}</strong>{" "}
-              {reservation.pendingDecisionCount === 1
-                ? "decision"
-                : "decisions"}{" "}
-              waiting
-            </span>
-          </div>
-        )}
+      {reservation.pendingDecisionCount > 0 && (
+        <div
+          className="reservation-decision-flag"
+          aria-label={`${reservation.pendingDecisionCount} ${reservation.pendingDecisionCount === 1 ? "decision" : "decisions"} waiting`}
+        >
+          <Inbox size={16} />
+          <span aria-hidden>
+            <strong>{reservation.pendingDecisionCount}</strong>{" "}
+            {reservation.pendingDecisionCount === 1
+              ? "decision"
+              : "decisions"}{" "}
+            waiting
+          </span>
+        </div>
+      )}
     </Link>
   );
 }

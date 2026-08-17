@@ -249,6 +249,11 @@ export function ReservationCreatePage() {
       setFields({ endAt: "End time must be later than start time." });
       return;
     }
+    const now = new Date(Date.now() - 60_000);
+    if (new Date(startAt) < now) {
+      setFields({ startAt: "Reservation start time cannot be in the past." });
+      return;
+    }
     setSubmitting(status);
     try {
       const result = await api.createReservation({
@@ -361,6 +366,7 @@ export function ReservationCreatePage() {
                 <Input
                   type="datetime-local"
                   value={startAt}
+                  min={toLocalDateTime(new Date().toISOString())}
                   onChange={(event) => setStartAt(event.target.value)}
                   required
                 />
@@ -369,7 +375,7 @@ export function ReservationCreatePage() {
                 <Input
                   type="datetime-local"
                   value={endAt}
-                  min={startAt}
+                  min={startAt || toLocalDateTime(new Date().toISOString())}
                   onChange={(event) => setEndAt(event.target.value)}
                   required
                 />

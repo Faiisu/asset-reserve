@@ -66,7 +66,7 @@ export function AssetsPage() {
   const [filters, setFilters] = useState<Filters>({
     search: "",
     areaIds: [],
-    statuses: ["ACTIVE"],
+    statuses: [],
   });
   const [draftSearch, setDraftSearch] = useState("");
   const [assets, setAssets] = useState<AssetSummary[]>([]);
