@@ -59,7 +59,17 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
   app.setGlobalPrefix("api/v1");
   app.enableCors({ origin: appConfig.corsOrigins, credentials: false });
-  await app.register(helmet);
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      // useDefaults: true (the default) keeps every other directive at
+      // helmet's stock value -- only img-src is widened, to let a
+      // linked Google account's profile picture (served from
+      // *.googleusercontent.com, not this origin) actually render.
+      directives: {
+        imgSrc: [`'self'`, "data:", "https://*.googleusercontent.com"],
+      },
+    },
+  });
 
   await app.register(fastifyMultipart, {
     limits: {
