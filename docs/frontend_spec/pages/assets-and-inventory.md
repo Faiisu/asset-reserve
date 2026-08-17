@@ -56,7 +56,7 @@ Field:
 
 | Field            | Required | Rule                                               |
 | ---------------- | -------- | -------------------------------------------------- |
-| name             | Yes      | สูงสุด 150 ตัวอักษร และ unique ต่อ management area |
+| name             | Yes      | สูงสุด 40 ตัวอักษร และ unique ต่อ management area  |
 | managementAreaId | Yes      | ต้องอยู่ใน scope ของ actor                         |
 | description      | No       | Text                                               |
 | pictureUrl       | No       | URL จาก `POST /uploads/image`, file picker หรือ camera capture |

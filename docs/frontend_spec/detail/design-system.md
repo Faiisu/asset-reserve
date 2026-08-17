@@ -88,16 +88,33 @@
 
 ---
 
-## 4. Page Section Layout Patterns
+## 4. Page Section Layout Patterns & Standardized Padding Scale
+
+### 4.1 Standardized Spacing & Padding Scale
+
+ระบบใช้ Spacing Scale มาตรฐานตาม 4px/8px Grid เพื่อให้ทุกหน้าและการ์ดทุกประเภทมี Padding และ Gap ที่เป็นระบบ ไม่เกิดค่าแปลกแยก (Arbitrary values):
+
+| Category | Token / Value | Border Radius | Usage |
+| :--- | :--- | :--- | :--- |
+| **Page Canvas** | `--page-padding-x: 32px`<br>`--page-padding-y: 28px`<br>`--page-padding-bottom: 56px` | — | คอนเทนเนอร์หลัก `.content` (Desktop: `1560px`, Tablet: `24px`, Mobile: `16px`) |
+| **Page Stack Gap** | `--page-stack-gap: 24px` | — | ระยะห่างระหว่าง Section ใน `.page-stack` (Mobile: `20px`) |
+| **Hero Card** | `padding: 24px 28px` | `16px` (`--card-radius-hero`) | `.asset-hero`, `.res-detail-hero` |
+| **Major Section / Form Card** | `padding: 24px` | `14px` (`--card-radius-lg`) | `.form-section`, `.reservation-compose`, `.res-card`, `.detail-card`, `.permission-editor`, `.dialog` |
+| **Medium Card / Tile** | `padding: 20px` | `12px` (`--card-radius-md`) | `.metric-card`, `.record-preview`, `.batch-summary-panel`, `.quantity-board`, `.person-card`, `.access-overview > div` |
+| **Bar / Toolbar** | `padding: 12px 16px` | `12px` (`--card-radius-md`) | `.toolbar`, `.reservation-list-toolbar`, `.selection-bar`, `.calendar-controls` |
+| **List Row / Item** | `padding: 14px 18px` / `16px` | `10px` | `.res-manifest-item`, `.permission-item`, `.batch-row`, `.role-list__item` |
+| **Micro Chip / Badge** | `padding: 3px 8px` / `4px 10px` | `5px` / `999px` | Availability badges, status badges, mono counters |
+
+### 4.2 Page Section Patterns
 
 | Pattern | Selector / Container | Layout Type | Usage & Purpose |
 | :--- | :--- | :--- | :--- |
-| **Page Stack** | `.page-stack` | Flex Column, `gap: 24px` | คอนเทนเนอร์หลักของทุกหน้า (Form pages ใช้ `.page-stack--form` กำหนด `max-width: 1320px`) |
-| **Page Header** | `.page-header` | Flex Space-Between, `align-items: flex-end` | ส่วนหัวของหน้า ประกอบด้วย Breadcrumb, H1 Title, Description และ Action buttons ทางขวา |
-| **Filter Toolbar** | `.toolbar` | Flex `min-height: 66px`, `gap: 12px`, Border & Surface | แถบเครื่องมือสำหรับค้นหา (`.search-box`), Dropdown filters และปุ่ม Action |
-| **2-Column Split Workspace** | `.calendar-workspace`, `.record-form` | Grid `minmax(0, 1fr) [320px-360px]`, `gap: 12px` | หน้ารายการแบบ 2 คอลัมน์ (เช่น Calendar board ซ้าย + Choose assets manifest ขวา) |
-| **Data Table Wrap** | `.data-table-wrap`, `.data-table` | Bordered Card + HTML Table | ตารางข้อมูลหลัก (Header mono uppercase 9px, Row hover effect, Status chips, Checkbox) |
-| **Card / Panel** | `.card`, `.panel`, `.demo-box` | Surface Card, Border `1px solid var(--line)`, Radius `14px` | การ์ดแยกกลุ่มเนื้อหา พร้อมส่วนหัว Eyebrow + H2/H3 |
+| **Page Stack** | `.page-stack` | Flex Column, `gap: 24px` | คอนเทนเนอร์หลักของทุกหน้า (Form pages ใช้ `.page-stack--form` กำหนด `max-width: 1100px`) |
+| **Page Header** | `.page-header` | Flex Space-Between, `align-items: flex-end`, `gap: 24px` | ส่วนหัวของหน้า ประกอบด้วย Breadcrumb, H1 Title, Description และ Action buttons ทางขวา |
+| **Filter Toolbar** | `.toolbar` | Flex `min-height: 60px`, `padding: 12px 16px`, `gap: 12px` | แถบเครื่องมือสำหรับค้นหา (`.search-box`), Dropdown filters และปุ่ม Action |
+| **2-Column Split Workspace** | `.calendar-workspace`, `.record-form` | Grid `minmax(0, 1fr) [300px-360px]`, `gap: 16px-24px` | หน้ารายการแบบ 2 คอลัมน์ (เช่น Calendar board ซ้าย + Choose assets manifest ขวา) |
+| **Data Table Wrap** | `.data-table-wrap`, `.data-table` | Bordered Card + HTML Table | ตารางข้อมูลหลัก (Header mono uppercase 10px, Row hover effect, Status chips, Checkbox) |
+| **Card / Panel** | `.card`, `.panel`, `.form-section` | Surface Card, Border `1px solid var(--line)`, Radius `14px` | การ์ดแยกกลุ่มเนื้อหา พร้อมส่วนหัว Eyebrow + H2/H3 |
 | **Notice & Alert Banners** | `.notice`, `.error-state` | Flex `padding: 12px 16px`, Radius `9px` | แถบแจ้งเตือนสถานะ (Teal: Success/Info, Amber: Warning, Red: Error) |
 
 ---
@@ -150,8 +167,8 @@
 4. **Compose & Multi-Step Form Pattern** (เช่น `ReservationCreatePage`, `AssetFormPage`):
    - **เป้าหมาย**: สร้างหรือแก้ไขข้อมูล รองรับการกรอกข้อมูลและเลือกอุปกรณ์แบบ interactive
    - **โครงสร้าง**:
-     - Form container (`.page-stack--form` max-width 1320px)
-     - Split Form Workspace: ด้านซ้ายเป็น Form Inputs / Schedule Date Pickers / Batch Row Editor; ด้านขวาเป็น Live Manifest Summary & Validation
+      - Form container (`.reservation-page`, max-width 1040px)
+      - Form Workspace: Form Inputs / Schedule Date Pickers / Asset Picker & Selected Manifest Editor พร้อม Actions (Save draft / Send for approval)
 
 5. **Administration & Matrix Pattern** (เช่น `AccessPage`, `ManagementAreasPage`):
    - **เป้าหมาย**: กำหนดสิทธิ์ Role-Permission matrix และโครงสร้าง Management Area

@@ -28,6 +28,36 @@
   --shadow: 0 12px 35px rgba(16, 33, 58, 0.08);
   --radius: 14px;
   --mono: "IBM Plex Mono", monospace;
+
+  /* Standard Spacing & Layout Tokens */
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 20px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 48px;
+
+  /* Standard Page Canvas & Gutters */
+  --page-max-width: 1560px;
+  --page-padding-x: 32px;
+  --page-padding-y: 28px;
+  --page-padding-bottom: 56px;
+  --page-stack-gap: 24px;
+
+  /* Standard Card & Section Padding Tokens */
+  --card-padding-hero: 24px 28px;
+  --card-padding-lg: 24px;
+  --card-padding-md: 20px;
+  --card-padding-sm: 16px;
+  --card-padding-xs: 12px;
+
+  /* Standard Card & Section Radii */
+  --card-radius-hero: 16px;
+  --card-radius-lg: 14px;
+  --card-radius-md: 12px;
+  --card-radius-sm: 8px;
 }
 
 :root[data-theme="dark"] {
@@ -635,7 +665,7 @@ code {
   z-index: 15;
   top: 0;
   height: 60px;
-  padding: 0 28px;
+  padding: 0 var(--page-padding-x);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -740,13 +770,14 @@ code {
 }
 .content {
   width: 100%;
-  max-width: 1540px;
+  max-width: var(--page-max-width);
   margin: 0 auto;
-  padding: 28px 32px 60px;
+  padding: var(--page-padding-y) var(--page-padding-x) var(--page-padding-bottom);
+  box-sizing: border-box;
 }
 .content:has(.calendar-page) {
-  padding: 12px 24px 14px;
-  max-width: 1600px;
+  padding: 20px var(--page-padding-x) 24px;
+  max-width: var(--page-max-width);
 }
 .mobile-nav {
   display: none;

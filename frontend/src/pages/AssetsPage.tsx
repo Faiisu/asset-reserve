@@ -48,6 +48,17 @@ interface Filters {
   statuses: string[];
 }
 
+export function getNormalizedAssetStatus(asset: {
+  status?: string | null;
+  isActive: boolean;
+}): "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE" {
+  const s = (asset.status ?? "").toUpperCase();
+  if (s === "BROKEN") return "BROKEN";
+  if (s === "LOST") return "LOST";
+  if (!asset.isActive || s === "INACTIVE") return "INACTIVE";
+  return "ACTIVE";
+}
+
 export function AssetsPage() {
   const { session, hasPermission, hasAreaPermission } = useAuth();
   const [view, setView] = useState<AssetView>("ALL");
@@ -118,16 +129,32 @@ export function AssetsPage() {
       append ? setLoadingMore(true) : setLoading(true);
       setError(null);
       try {
+        const singleStatus =
+          filters.statuses.length === 1
+            ? filters.statuses[0].toUpperCase()
+            : undefined;
+
+        let apiStatus: "ACTIVE" | "BROKEN" | "LOST" | undefined = undefined;
+        let apiIsActive: boolean | undefined = undefined;
+
+        if (singleStatus === "ACTIVE") {
+          apiStatus = "ACTIVE";
+          apiIsActive = true;
+        } else if (singleStatus === "BROKEN") {
+          apiStatus = "BROKEN";
+        } else if (singleStatus === "LOST") {
+          apiStatus = "LOST";
+        } else if (singleStatus === "INACTIVE") {
+          apiIsActive = false;
+        }
+
         const response = await api.assets({
           search: filters.search || undefined,
           areaId: filters.areaIds.length === 1 ? filters.areaIds[0] : undefined,
-          status:
-            filters.statuses.length === 1 &&
-            ["ACTIVE", "BROKEN", "LOST"].includes(filters.statuses[0].toUpperCase())
-              ? (filters.statuses[0].toUpperCase() as "ACTIVE" | "BROKEN" | "LOST")
-              : undefined,
+          status: apiStatus,
+          isActive: apiIsActive,
           cursor,
-          limit: 20,
+          limit: 50,
         });
         let list = response.data;
         if (filters.areaIds.length > 1) {
@@ -136,14 +163,12 @@ export function AssetsPage() {
           );
         }
         if (filters.statuses.length > 0) {
+          const selectedStatuses = new Set(
+            filters.statuses.map((s) => s.toUpperCase()),
+          );
           list = list.filter((asset) => {
-            const assetStatus = (asset.status || (asset.isActive ? "ACTIVE" : "INACTIVE")).toUpperCase();
-            return filters.statuses.some(
-              (s) =>
-                s.toUpperCase() === assetStatus ||
-                (s.toLowerCase() === "active" && asset.isActive && assetStatus === "ACTIVE") ||
-                (s.toLowerCase() === "inactive" && !asset.isActive),
-            );
+            const assetStatus = getNormalizedAssetStatus(asset);
+            return selectedStatuses.has(assetStatus);
           });
         }
         setAssets((current) =>
@@ -744,18 +769,10 @@ function AssetMasterStatusBadge({
   status,
   isActive,
 }: {
-  status?: string;
+  status?: string | null;
   isActive: boolean;
 }) {
-  const normStatus = (status || (isActive ? "ACTIVE" : "INACTIVE")).toUpperCase();
-  if (!isActive || normStatus === "INACTIVE") {
-    return (
-      <span className="status-badge status-badge--inactive">
-        <span />
-        Disabled
-      </span>
-    );
-  }
+  const normStatus = getNormalizedAssetStatus({ status, isActive });
   if (normStatus === "BROKEN") {
     return (
       <span className="status-badge status-badge--broken">
@@ -769,6 +786,14 @@ function AssetMasterStatusBadge({
       <span className="status-badge status-badge--lost">
         <span />
         Lost
+      </span>
+    );
+  }
+  if (normStatus === "INACTIVE") {
+    return (
+      <span className="status-badge status-badge--inactive">
+        <span />
+        Inactive
       </span>
     );
   }

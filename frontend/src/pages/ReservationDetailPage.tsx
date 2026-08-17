@@ -438,7 +438,7 @@ export function ReservationDetailPage() {
 
   if (loading) {
     return (
-      <div className="res-detail-layout">
+      <div className="page-stack res-detail-layout">
         <LoadingState label="Loading reservation details..." />
       </div>
     );
@@ -446,7 +446,7 @@ export function ReservationDetailPage() {
 
   if (error || !reservation) {
     return (
-      <div className="res-detail-layout">
+      <div className="page-stack res-detail-layout">
         <ErrorState
           error={error ?? "Could not find the requested reservation."}
           onRetry={loadReservation}
@@ -467,7 +467,7 @@ export function ReservationDetailPage() {
   const startDay = new Intl.DateTimeFormat("en", { day: "2-digit" }).format(startDate);
 
   return (
-    <div className="res-detail-layout">
+    <div className="page-stack res-detail-layout">
       {/* Top Breadcrumb / Navigation */}
       <div className="res-detail-top-nav">
         <Link to="/reservations" className="res-detail-back-link">
