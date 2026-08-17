@@ -914,7 +914,10 @@ export function CalendarPage() {
               </button>
             </div>
 
-            <div className="calendar-asset-list" aria-live="polite">
+            <div
+              className="calendar-asset-list data-table-wrap"
+              aria-live="polite"
+            >
               {loadingAssets ? (
                 <div className="calendar-asset-list__message">
                   <LoaderCircle className="spin" size={19} />
@@ -1061,6 +1064,7 @@ export function CalendarPage() {
             className={cx(
               "calendar-asset-browser__results",
               `calendar-asset-browser__results--${assetBrowserView}`,
+              assetBrowserView === "list" && "data-table-wrap",
             )}
             aria-live="polite"
           >
@@ -1274,10 +1278,15 @@ function CalendarAssetOption({
       onClick={() => onToggle(asset)}
     >
       <AssetPicture src={asset.pictureUrl} name={asset.name} />
-      <span>
-        <strong>{asset.name}</strong>
-        <small>
-          {asset.managementArea.name} ·{" "}
+      <span className="calendar-asset-option__content">
+        <strong title={asset.name}>{asset.name}</strong>
+        <span className="calendar-asset-option__meta">
+          <span
+            className="calendar-asset-option__area"
+            title={asset.managementArea.name}
+          >
+            {asset.managementArea.name}
+          </span>
           <em
             className={cx(
               isFull && "calendar-asset-option__availability--full",
@@ -1291,7 +1300,7 @@ function CalendarAssetOption({
                 ? "Fully booked"
                 : `${asset.availableQuantity} of ${asset.totalQuantity}`}
           </em>
-        </small>
+        </span>
       </span>
       <i aria-hidden>{selected ? <Check size={14} /> : null}</i>
     </button>
