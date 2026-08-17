@@ -21,6 +21,20 @@ describe("MicrosoftCallbackQueryDto", () => {
     expect(errors).toEqual([]);
   });
 
+  it("accepts client_info and clientdata, which MSAL's client_info=1 request param causes Microsoft to echo back on the real callback", async () => {
+    const instance = plainToInstance(MicrosoftCallbackQueryDto, {
+      code: "M.C123_BAY.2.U.abcdef",
+      state: "signed-state-token",
+      client_info: "eyJ1aWQiOiJhYmMiLCJ1dGlkIjoiZGVmIn0",
+      clientdata: "1",
+    });
+    const errors = await validate(instance, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+    expect(errors).toEqual([]);
+  });
+
   it("accepts the error + error_description shape Microsoft sends on consent denial", async () => {
     const instance = plainToInstance(MicrosoftCallbackQueryDto, {
       error: "access_denied",

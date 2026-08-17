@@ -24,4 +24,13 @@ export class MicrosoftCallbackQueryDto {
 
   @Allow()
   error_description?: string;
+
+  // MSAL requests client_info=1 (part of the outgoing auth URL) and
+  // Microsoft echoes it -- plus a "clientdata"/clidata-style param --
+  // back on the callback redirect. Not something we read, just whitelist it.
+  @Allow()
+  client_info?: string;
+
+  @Allow()
+  clientdata?: string;
 }
