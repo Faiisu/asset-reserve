@@ -4,6 +4,7 @@ import { Prisma } from "../../generated/prisma/client.js";
 import { normalizePermissions } from "../access-control/permissions.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import { ApiException } from "../common/api-exception.js";
+import { AssetLifecycleEvents } from "../common/asset-lifecycle.events.js";
 import { decodeCursor, pageInfo } from "../common/pagination.js";
 import { PrismaService } from "../database/prisma.service.js";
 import {
@@ -38,7 +39,10 @@ const allocatedReservationStatuses = [
 
 @Injectable()
 export class AssetsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly lifecycle: AssetLifecycleEvents,
+  ) {}
 
   async list(actor: AuthenticatedActor, query: AssetListQueryDto) {
     const availabilityRange = this.availabilityRange(query.from, query.to);
@@ -329,6 +333,9 @@ export class AssetsService {
       },
     });
     if (!result.count) this.staleWrite();
+    if (current.isActive !== isActive) {
+      this.lifecycle.emitActiveChanged({ assetId, isActive });
+    }
     return this.getSummary(actor, assetId);
   }
 
@@ -339,6 +346,9 @@ export class AssetsService {
       where: { id: assetId },
       data: { isActive: false, updatedAt: new Date() },
     });
+    if (current.isActive) {
+      this.lifecycle.emitActiveChanged({ assetId, isActive: false });
+    }
     return this.getSummary(actor, assetId);
   }
 
@@ -378,6 +388,14 @@ export class AssetsService {
         if (!result.count) this.staleWrite();
       }
     });
+    // Emit only after the transaction actually commits -- staleWrite()
+    // throwing partway through would otherwise leave earlier emits
+    // announcing a change that got rolled back.
+    for (const asset of current) {
+      if (asset.isActive) {
+        this.lifecycle.emitActiveChanged({ assetId: asset.id, isActive: false });
+      }
+    }
     return { data: ids.map((id) => ({ id, status: "INACTIVE" as const })) };
   }
 

@@ -74,6 +74,65 @@ export class RecognitionService {
     return this.relay(res);
   }
 
+  /**
+   * PATCH .../assets/:assetId, but merges `extra` with whatever is currently
+   * stored server-side first. The recognition-service's own PATCH contract
+   * *replaces* extra wholesale (see recognition-service/app/schemas.py) --
+   * fine for a single direct caller, but this proxy has two independent
+   * writers of extra (the frontend's mainPhotoId tracking, and
+   * RecognitionLifecycleListener's disabled flag), and a raw passthrough
+   * would let either one silently wipe out the other's key. Merging here,
+   * once, means neither caller needs to know about the other.
+   */
+  async updateAssetMergingExtra(
+    assetId: string,
+    body: { name?: string; extra?: Record<string, unknown> },
+  ): Promise<unknown> {
+    if (body.extra === undefined) {
+      return this.patchJson(`/assets/${assetId}`, body);
+    }
+    const current = await this.getOrNull(`/assets/${assetId}`);
+    const currentExtra = this.extractExtra(current);
+    return this.patchJson(`/assets/${assetId}`, {
+      ...(body.name !== undefined ? { name: body.name } : {}),
+      extra: { ...currentExtra, ...body.extra },
+    });
+  }
+
+  private extractExtra(asset: unknown): Record<string, unknown> {
+    if (
+      asset &&
+      typeof asset === "object" &&
+      "extra" in asset &&
+      asset.extra &&
+      typeof asset.extra === "object"
+    ) {
+      return asset.extra as Record<string, unknown>;
+    }
+    return {};
+  }
+
+  /**
+   * Best-effort: hide/unhide an asset from recognition matching, mirroring
+   * the main app's asset active-status. Never throws -- this runs as a side
+   * effect of that status change (see RecognitionLifecycleListener) and
+   * must not fail or block it just because the recognition service is
+   * slow/unreachable, or because this particular asset was never registered
+   * there in the first place (common -- not every asset has recognition
+   * photos, and a 404 here just means there's nothing to disable).
+   */
+  async setDisabled(assetId: string, disabled: boolean): Promise<void> {
+    try {
+      await this.patchJson(`/assets/${assetId}/disabled`, { disabled });
+    } catch (error) {
+      if (error instanceof ApiException && error.getStatus() === 404) return;
+      console.warn(
+        `[recognition] could not set disabled=${disabled} for asset ${assetId}:`,
+        error,
+      );
+    }
+  }
+
   async patchJson(path: string, body: unknown): Promise<unknown> {
     let res: globalThis.Response;
     try {

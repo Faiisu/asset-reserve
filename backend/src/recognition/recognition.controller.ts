@@ -91,7 +91,7 @@ export class RecognitionController {
     @Body() body: UpdateRecognitionAssetDto,
   ) {
     await this.assets.get(actor, assetId);
-    return this.recognition.patchJson(`/assets/${assetId}`, body);
+    return this.recognition.updateAssetMergingExtra(assetId, body);
   }
 
   @Get("assets/:assetId")

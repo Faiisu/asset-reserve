@@ -12,6 +12,10 @@ class AssetOut(BaseModel):
     photo_count: int
     image_url: Optional[str] = None
     extra: dict[str, Any] = Field(default_factory=dict)
+    disabled: bool = Field(
+        False,
+        description="True if this asset is hidden from recognition matching (extra.disabled, surfaced here for convenience). Photos/embeddings are untouched either way.",
+    )
 
 
 class PhotoOut(BaseModel):
@@ -34,6 +38,13 @@ class RegisterResponse(BaseModel):
 class AssetUpdate(BaseModel):
     name: Optional[str] = Field(None, description="New name for the asset")
     extra: Optional[dict[str, Any]] = Field(None, description="Replaces the asset's custom metadata entirely (not merged)")
+
+
+class SetDisabledRequest(BaseModel):
+    disabled: bool = Field(
+        ...,
+        description="True to hide this asset from recognition matching; false to make it recognizable again. Reference photos and embeddings are preserved either way, so re-enabling is instant with no re-registration needed.",
+    )
 
 
 class MatchOut(BaseModel):

@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AuthenticatedActor } from "../src/auth/auth.types.js";
 import { AssetsService } from "../src/assets/assets.service.js";
+import { AssetLifecycleEvents } from "../src/common/asset-lifecycle.events.js";
 import type { PrismaService } from "../src/database/prisma.service.js";
+
+// None of the specs below exercise deactivate/updateStatus, so a real
+// AssetLifecycleEvents (no listeners attached) is enough -- it just needs
+// to exist for the constructor.
+const lifecycle = new AssetLifecycleEvents();
 
 const assetId = "00000000-0000-4000-8000-000000000201";
 const actor: AuthenticatedActor = {
@@ -46,7 +52,7 @@ describe("time-based asset availability", () => {
     const service = new AssetsService({
       asset: { findMany: vi.fn().mockResolvedValue([asset]) },
       reservationItem: { groupBy },
-    } as unknown as PrismaService);
+    } as unknown as PrismaService, lifecycle);
 
     const result = await service.list(actor, {
       limit: 20,
@@ -77,7 +83,7 @@ describe("time-based asset availability", () => {
     const service = new AssetsService({
       asset: { findMany: vi.fn().mockResolvedValue([asset]) },
       reservationItem: { groupBy },
-    } as unknown as PrismaService);
+    } as unknown as PrismaService, lifecycle);
 
     const result = await service.list(actor, {
       limit: 20,
@@ -93,7 +99,7 @@ describe("time-based asset availability", () => {
   });
 
   it("requires both ends of the availability range", async () => {
-    const service = new AssetsService({} as PrismaService);
+    const service = new AssetsService({} as PrismaService, lifecycle);
 
     await expect(
       service.list(actor, {

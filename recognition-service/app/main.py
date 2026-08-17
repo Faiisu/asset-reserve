@@ -10,6 +10,10 @@ Core endpoints, meant to be called by a main application's backend:
                                             from different sides.
   PATCH  /api/assets/{asset_id}         -- rename an asset and/or replace its custom
                                             metadata (no photo involved).
+  PATCH  /api/assets/{asset_id}/disabled -- hide/unhide an asset from recognition
+                                            matching without touching its photos --
+                                            meant to mirror the main app's asset
+                                            active/inactive status.
 
   POST /api/recognize        -- single dominant asset in the photo (fast path).
   POST /api/recognize/multi  -- photo may contain several assets; detects candidate
@@ -45,6 +49,7 @@ from app.schemas import (
     PhotoOut,
     RecognizeResponse,
     RegisterResponse,
+    SetDisabledRequest,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -118,6 +123,7 @@ def _asset_to_out(a: dict) -> AssetOut:
         photo_count=a["photo_count"],
         image_url=_photo_image_url(a.get("cover_photo_id")),
         extra=a["extra"],
+        disabled=bool(a["extra"].get("disabled", False)),
     )
 
 
@@ -242,6 +248,19 @@ def update_asset(asset_id: str, update: AssetUpdate):
     if not store.asset_exists(asset_id):
         raise HTTPException(status_code=404, detail="Asset not found")
     store.update_asset(asset_id, name=update.name, extra=update.extra)
+    return _asset_to_out(store.get_asset(asset_id))
+
+
+@app.patch("/api/assets/{asset_id}/disabled", response_model=AssetOut)
+def set_asset_disabled(asset_id: str, update: SetDisabledRequest):
+    """Hide or unhide an asset from recognition matching (/api/recognize,
+    /api/recognize/multi) without touching its photos or embeddings -- meant
+    to be called by the main app when an asset's active status changes
+    (deactivated, marked broken/lost, or reactivated). Re-enabling is
+    instant and lossless since nothing was ever deleted."""
+    if not store.asset_exists(asset_id):
+        raise HTTPException(status_code=404, detail="Asset not found")
+    store.set_asset_disabled(asset_id, update.disabled)
     return _asset_to_out(store.get_asset(asset_id))
 
 

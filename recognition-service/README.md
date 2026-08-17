@@ -171,6 +171,29 @@ curl -X PATCH http://localhost:8000/api/assets/a6b68017-... \
 \*at least one of the two must be present, or it 400s. 404s if the asset
 doesn't exist. Returns the updated `AssetOut`.
 
+### `PATCH /api/assets/{asset_id}/disabled` — hide/unhide from recognition
+
+Hides (or unhides) an asset from `/api/recognize` and `/api/recognize/multi`
+matching, without touching its photos or embeddings. Meant to mirror the main
+app's asset active/inactive status: deactivate the asset there, this asset
+stops being recognizable; reactivate it, and it's recognizable again
+instantly — nothing was ever deleted, so there's no re-registration needed.
+
+```bash
+curl -X PATCH http://localhost:8000/api/assets/a6b68017-.../disabled \
+  -H "Content-Type: application/json" \
+  -d '{"disabled": true}'
+```
+
+| field | required | description |
+|---|---|---|
+| `disabled` | yes | `true` to hide from matching, `false` to make recognizable again |
+
+404s if the asset doesn't exist. Returns the updated `AssetOut` (also exposes
+`disabled` as a top-level convenience field, alongside `extra.disabled`).
+Bookkeeping endpoints (`GET /api/assets`, `GET /api/assets/{id}`) still show
+disabled assets — only matching skips them.
+
 ### `POST /api/recognize` — recognize a returned asset (single dominant object)
 
 Borrower uploads a photo assumed to show one asset. Compares it against every
@@ -255,6 +278,7 @@ object, same as calling `/api/recognize`.
 | `POST` | `/api/assets` | Register a new asset from its first photo (+ optional `extra` metadata) |
 | `POST` | `/api/assets/{asset_id}/photos` | Add another reference photo to an existing asset |
 | `PATCH` | `/api/assets/{asset_id}` | Rename an asset and/or replace its `extra` metadata |
+| `PATCH` | `/api/assets/{asset_id}/disabled` | Hide/unhide an asset from recognition matching (photos untouched) |
 | `DELETE` | `/api/assets/{asset_id}` | Delete an asset and all its reference photos |
 | `GET` | `/api/assets` | List all assets (name, `photo_count`, cover image, `extra`) |
 | `GET` | `/api/assets/{asset_id}` | Get one asset |

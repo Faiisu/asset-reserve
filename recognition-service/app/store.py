@@ -105,22 +105,30 @@ def get_asset_photos(asset_id: str) -> list[dict[str, Any]]:
 
 def query_similar(embedding, top_k: int = 5) -> list[AssetMatch]:
     """Compare against every stored reference photo, then collapse to one
-    best-scoring result per asset (an asset can have several photos hit)."""
+    best-scoring result per asset (an asset can have several photos hit).
+    Assets with extra.disabled=true (see set_asset_disabled) are skipped
+    entirely -- their photos/embeddings stay in the index untouched, they
+    just never surface as a match while disabled."""
     total_photos = _collection.count()
     if total_photos == 0:
         return []
     # Over-fetch raw photo hits since several may belong to the same asset.
+    # Note: disabled assets are filtered out AFTER this fetch, so in a
+    # collection with many disabled assets this over-fetch heuristic can
+    # under-fill top_k -- an accepted tradeoff of the existing approximate
+    # (not exhaustive) search strategy, not something new to this change.
     n = min(total_photos, max(top_k * 6, 20))
     result = _collection.query(
         query_embeddings=[embedding.tolist()],
         n_results=n,
     )
     best_per_asset: dict[str, AssetMatch] = {}
-    photo_counts: dict[str, int] = {}
     for photo_id, distance, meta in zip(result["ids"][0], result["distances"][0], result["metadatas"][0]):
+        extra = json.loads(meta.get("extra") or "{}")
+        if extra.get("disabled"):
+            continue
         asset_id = meta.get("asset_id", "")
         similarity = 1.0 - distance  # Chroma cosine space: distance = 1 - cosine_similarity
-        photo_counts[asset_id] = photo_counts.get(asset_id, 0) + 1
         existing = best_per_asset.get(asset_id)
         if existing is None or similarity > existing.similarity:
             best_per_asset[asset_id] = AssetMatch(
@@ -131,7 +139,7 @@ def query_similar(embedding, top_k: int = 5) -> list[AssetMatch]:
                 matched_photo_id=photo_id,
                 image_path=meta.get("image_path") or None,
                 photo_count=0,  # filled in below (total photos for the asset, not just hits)
-                extra=json.loads(meta.get("extra") or "{}"),
+                extra=extra,
             )
     # photo_count should reflect the asset's total registered photos, not just how
     # many showed up in this particular query's hit list.
@@ -212,6 +220,20 @@ def update_asset(asset_id: str, name: Optional[str] = None, extra: Optional[dict
         )
     _collection.update(ids=ids, metadatas=metadatas)
     return True
+
+
+def set_asset_disabled(asset_id: str, disabled: bool) -> bool:
+    """Hide (or unhide) an asset from recognition matching without touching
+    its photos or embeddings -- re-enabling later is an instant, lossless
+    flip, not a re-registration. Merges just the `disabled` key into the
+    asset's existing `extra` rather than going through update_asset's
+    replace-everything contract directly, so this can never clobber other
+    extra keys (e.g. mainPhotoId) and vice versa."""
+    asset = get_asset(asset_id)
+    if asset is None:
+        return False
+    merged_extra = {**asset["extra"], "disabled": disabled}
+    return update_asset(asset_id, extra=merged_extra)
 
 
 def delete_asset(asset_id: str) -> bool:
