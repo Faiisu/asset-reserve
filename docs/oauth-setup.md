@@ -79,6 +79,28 @@ FRONTEND_BASE_URL=http://localhost:5173
 
 ### 2.B Microsoft
 
+**Prerequisite: getting into the Azure Portal.** App Registrations live in Microsoft Entra ID
+(formerly Azure AD), part of Azure. If you've never used Azure with this Microsoft account
+before, two things trip people up:
+
+- **Is this free?** Yes, for what we need. Azure bundles two unrelated things under one signup
+  flow: (1) **Entra ID / App Registrations** — creating an app, a client secret, redirect URIs —
+  is free forever, no subscription, no expiration; (2) **Azure's paid cloud services** (VMs,
+  databases, storage) — this is what the "free trial" ($200 credit for 30 days) is actually for,
+  and we don't touch any of it. Microsoft does **not** auto-charge your card when that 30-day
+  trial ends — you'd just lose access to trial-only paid resources (which you never used) until
+  you actively choose to upgrade. The card Microsoft asks for during signup is for identity
+  verification only, not a payment authorization.
+- **"AADSTS16000: User account ... does not exist in tenant ..." when signing into
+  portal.azure.com.** This means your personal account got routed into an org's Azure tenant it
+  has no access to (often a stale cached tenant context from a different account signed in
+  before). Fix: open a **private/incognito browser window**, go directly to
+  `https://portal.azure.com/`, and make sure you're signing in with the exact account you intend
+  to use (look for "Use another account" if it tries to auto-continue with a cached one). If it
+  still fails, the account likely has no Azure tenant of its own yet — complete the free signup
+  at [azure.microsoft.com/free](https://azure.microsoft.com/free/) with that same account first,
+  which provisions one, then retry the portal.
+
 **Create the App Registration:**
 1. [portal.azure.com](https://portal.azure.com) → **App registrations → New registration**.
 2. **Supported account types** — this is the one decision Google doesn't have an equivalent of:
