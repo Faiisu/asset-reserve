@@ -19,8 +19,14 @@ export class EmailLifecycleListener implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.events.onSubmitted((event) => void this.email.sendReservationSubmitted(event));
-    this.events.onDecided((event) => void this.email.sendReservationDecided(event));
-    this.events.onReturnDecided((event) => void this.email.sendReturnDecided(event));
+    this.events.onSubmitted(
+      (event) => void this.email.sendReservationSubmitted(event),
+    );
+    this.events.onDecided(
+      (event) => void this.email.sendReservationDecided(event),
+    );
+    this.events.onReturnDecided(
+      (event) => void this.email.sendReturnDecided(event),
+    );
   }
 }

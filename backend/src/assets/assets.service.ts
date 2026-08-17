@@ -25,7 +25,12 @@ const assetInclude = {
   createdBy: { include: { profile: true } },
 } satisfies Prisma.AssetInclude;
 
-const allocatedItemStatuses = ["APPROVED", "PREPARED", "CHECKED_OUT", "DELIVERED"];
+const allocatedItemStatuses = [
+  "APPROVED",
+  "PREPARED",
+  "CHECKED_OUT",
+  "DELIVERED",
+];
 const allocatedReservationStatuses = [
   "PARTIALLY_APPROVED",
   "APPROVED",
@@ -69,8 +74,7 @@ export class AssetsService {
     if (query.areaId) conditions.push({ managementAreaId: query.areaId });
     if (query.isActive !== undefined)
       conditions.push({ isActive: query.isActive });
-    if (query.status !== undefined)
-      conditions.push({ status: query.status });
+    if (query.status !== undefined) conditions.push({ status: query.status });
     if (query.search) {
       conditions.push({
         OR: [
@@ -308,7 +312,8 @@ export class AssetsService {
       current.managementAreaId,
     );
     const isActive = input.status === "ACTIVE";
-    const status = input.status === "INACTIVE" ? (current.status || "ACTIVE") : input.status;
+    const status =
+      input.status === "INACTIVE" ? current.status || "ACTIVE" : input.status;
     const result = await this.prisma.asset.updateMany({
       where: { id: assetId, updatedAt: new Date(input.expectedUpdatedAt) },
       data: {
@@ -502,10 +507,7 @@ export class AssetsService {
       availableQuantity: Math.max(asset.totalQuantity - allocatedQuantity, 0),
       isActive: asset.isActive,
       status: (asset.status ?? (asset.isActive ? "ACTIVE" : "INACTIVE")) as
-        | "ACTIVE"
-        | "BROKEN"
-        | "LOST"
-        | "INACTIVE",
+        "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE",
       managementArea: {
         id: asset.managementArea.id,
         name: asset.managementArea.name,

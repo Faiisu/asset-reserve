@@ -149,7 +149,11 @@ export class ReturnsService {
       const search = query.search.trim();
       conditions.push({
         OR: [
-          { reservation: { eventName: { contains: search, mode: "insensitive" } } },
+          {
+            reservation: {
+              eventName: { contains: search, mode: "insensitive" },
+            },
+          },
           {
             items: {
               some: {
@@ -182,7 +186,7 @@ export class ReturnsService {
 
     const hasNextPage = rows.length > limit;
     const data = hasNextPage ? rows.slice(0, limit) : rows;
-    const nextCursor = hasNextPage ? data[data.length - 1]?.id ?? null : null;
+    const nextCursor = hasNextPage ? (data[data.length - 1]?.id ?? null) : null;
 
     return {
       data: data.map((record) => this.returnDto(actor, record)),
@@ -196,7 +200,11 @@ export class ReturnsService {
       include: returnDetailInclude,
     });
     if (!record) {
-      throw new ApiException(404, "RETURN_NOT_FOUND", "The return was not found.");
+      throw new ApiException(
+        404,
+        "RETURN_NOT_FOUND",
+        "The return was not found.",
+      );
     }
     return this.returnDto(actor, record);
   }
@@ -241,7 +249,10 @@ export class ReturnsService {
       "COMPLETED",
     ];
     const isPastEndAt = new Date() >= new Date(reservation.endAt);
-    if (!allowedReservationStatuses.includes(reservation.status) && !isPastEndAt) {
+    if (
+      !allowedReservationStatuses.includes(reservation.status) &&
+      !isPastEndAt
+    ) {
       throw new ApiException(
         409,
         "INVALID_STATUS",
@@ -279,7 +290,9 @@ export class ReturnsService {
           404,
           "RESERVATION_ITEM_NOT_FOUND",
           `Reservation item ${line.reservationItemId} not found in this reservation.`,
-          { [`items.${i}.reservationItemId`]: "Item not found in reservation." },
+          {
+            [`items.${i}.reservationItemId`]: "Item not found in reservation.",
+          },
         );
       }
 
@@ -799,7 +812,8 @@ export class ReturnsService {
       await this.logActivity(tx, {
         reservationId,
         actorId: actor.user.id,
-        action: input.decision === "APPROVE" ? "RETURN_APPROVED" : "RETURN_REJECTED",
+        action:
+          input.decision === "APPROVE" ? "RETURN_APPROVED" : "RETURN_REJECTED",
         entityType: "RETURN",
         entityId: returnId,
         details: { description: input.description ?? null },

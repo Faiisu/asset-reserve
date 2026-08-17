@@ -14,7 +14,10 @@ import {
   ValidateIf,
   ValidateNested,
 } from "class-validator";
-import { SearchPaginationQueryDto, parseOptionalBoolean } from "../common/dto.js";
+import {
+  SearchPaginationQueryDto,
+  parseOptionalBoolean,
+} from "../common/dto.js";
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === "string" ? value.trim() : value;

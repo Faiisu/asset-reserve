@@ -35,7 +35,12 @@ const allocatedReservationStatuses = [
   "RETURN_CONFIRMED",
   "COMPLETED",
 ];
-const allocatedItemStatuses = ["APPROVED", "PREPARED", "CHECKED_OUT", "DELIVERED"];
+const allocatedItemStatuses = [
+  "APPROVED",
+  "PREPARED",
+  "CHECKED_OUT",
+  "DELIVERED",
+];
 const editableReservationStatuses = [
   "PENDING_APPROVAL",
   "PARTIALLY_APPROVED",
@@ -443,8 +448,11 @@ export class ReservationsService {
       details: { status: nextStatus },
     });
     if (nextStatus === "PENDING_APPROVAL") {
-      const managementAreaIds = [...new Set(assets.map((a) => a.managementAreaId))];
-      const approverRecipients = await this.findApproverRecipients(managementAreaIds);
+      const managementAreaIds = [
+        ...new Set(assets.map((a) => a.managementAreaId)),
+      ];
+      const approverRecipients =
+        await this.findApproverRecipients(managementAreaIds);
       this.reservationEvents.emitSubmitted({
         reservationId,
         eventName: reservation.eventName,
@@ -452,7 +460,9 @@ export class ReservationsService {
         endAt: reservation.endAt,
         requester: {
           email: reservation.requester.email,
-          name: reservation.requester.profile?.name ?? reservation.requester.username,
+          name:
+            reservation.requester.profile?.name ??
+            reservation.requester.username,
         },
         approverRecipients,
       });
@@ -463,14 +473,21 @@ export class ReservationsService {
   private async findApproverRecipients(managementAreaIds: string[]) {
     const assignments = await this.prisma.userRole.findMany({
       where: {
-        OR: [{ managementAreaId: null }, { managementAreaId: { in: managementAreaIds } }],
+        OR: [
+          { managementAreaId: null },
+          { managementAreaId: { in: managementAreaIds } },
+        ],
       },
       include: { role: true, user: { include: { profile: true } } },
     });
     const recipients = new Map<string, { email: string; name: string }>();
     for (const assignment of assignments) {
       if (!assignment.user.isActive) continue;
-      if (!normalizePermissions(assignment.role.permissions).includes("reservation:approve")) {
+      if (
+        !normalizePermissions(assignment.role.permissions).includes(
+          "reservation:approve",
+        )
+      ) {
         continue;
       }
       // Not every approver has linked Google yet (email is only populated
@@ -1678,15 +1695,18 @@ export class ReservationsService {
                 item.asset.managementAreaId,
               ),
             canConfirmDelivery:
-              [
-                "APPROVED",
-                "PARTIALLY_APPROVED",
-                "DELIVERY_CONFIRMED",
-              ].includes(reservation.status) &&
+              ["APPROVED", "PARTIALLY_APPROVED", "DELIVERY_CONFIRMED"].includes(
+                reservation.status,
+              ) &&
               ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status) &&
               this.canConfirmDeliveryItem(actor, reservation, item),
             canReturn:
-              ["DELIVERY_CONFIRMED", "RETURN_PENDING", "RETURN_CONFIRMED", "COMPLETED"].includes(reservation.status) &&
+              [
+                "DELIVERY_CONFIRMED",
+                "RETURN_PENDING",
+                "RETURN_CONFIRMED",
+                "COMPLETED",
+              ].includes(reservation.status) &&
               item.status !== "REJECTED" &&
               item.status !== "PENDING" &&
               item.status !== "APPROVED" &&
@@ -1771,14 +1791,13 @@ export class ReservationsService {
           canManage &&
           editableReservationStatuses.includes(reservation.status),
         canConfirmDelivery:
-          [
-            "APPROVED",
-            "PARTIALLY_APPROVED",
-            "DELIVERY_CONFIRMED",
-          ].includes(reservation.status) &&
-          reservation.items.some((item) =>
-            ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status) &&
-            this.canConfirmDeliveryItem(actor, reservation, item),
+          ["APPROVED", "PARTIALLY_APPROVED", "DELIVERY_CONFIRMED"].includes(
+            reservation.status,
+          ) &&
+          reservation.items.some(
+            (item) =>
+              ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status) &&
+              this.canConfirmDeliveryItem(actor, reservation, item),
           ),
         canCancel:
           canManage &&
@@ -1790,11 +1809,11 @@ export class ReservationsService {
           ].includes(reservation.status),
         canReturn:
           [
-              "DELIVERY_CONFIRMED",
-              "RETURN_PENDING",
-              "RETURN_CONFIRMED",
-              "COMPLETED",
-            ].includes(reservation.status) &&
+            "DELIVERY_CONFIRMED",
+            "RETURN_PENDING",
+            "RETURN_CONFIRMED",
+            "COMPLETED",
+          ].includes(reservation.status) &&
           reservation.items.some(
             (item) =>
               item.status !== "REJECTED" &&
@@ -1802,15 +1821,17 @@ export class ReservationsService {
               item.status !== "APPROVED",
           ),
       },
-      activityLogs: ((reservation as any).activityLogs ?? []).map((log: any) => ({
-        id: log.id,
-        action: log.action,
-        entityType: log.entityType,
-        entityId: log.entityId,
-        details: log.details,
-        actor: this.userDto(log.actor),
-        createdAt: log.createdAt.toISOString(),
-      })),
+      activityLogs: ((reservation as any).activityLogs ?? []).map(
+        (log: any) => ({
+          id: log.id,
+          action: log.action,
+          entityType: log.entityType,
+          entityId: log.entityId,
+          details: log.details,
+          actor: this.userDto(log.actor),
+          createdAt: log.createdAt.toISOString(),
+        }),
+      ),
       createdAt: reservation.createdAt.toISOString(),
       updatedAt: reservation.updatedAt.toISOString(),
     };

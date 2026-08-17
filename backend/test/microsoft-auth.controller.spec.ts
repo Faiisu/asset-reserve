@@ -7,7 +7,9 @@ import type { PrismaService } from "../src/database/prisma.service.js";
 import type { MicrosoftCallbackQueryDto } from "../src/microsoft-auth/microsoft-auth.dto.js";
 
 function fakeReply() {
-  return { redirect: vi.fn() } as unknown as FastifyReply & { redirect: ReturnType<typeof vi.fn> };
+  return { redirect: vi.fn() } as unknown as FastifyReply & {
+    redirect: ReturnType<typeof vi.fn>;
+  };
 }
 
 const identity = {
@@ -20,7 +22,9 @@ const identity = {
 
 function fakeSession(overrides: Partial<Record<string, unknown>> = {}) {
   return {
-    verifyState: vi.fn().mockResolvedValue({ purpose: "connect", userId: "user-1" }),
+    verifyState: vi
+      .fn()
+      .mockResolvedValue({ purpose: "connect", userId: "user-1" }),
     issueSession: vi.fn(),
     signState: vi.fn(),
     ...overrides,
@@ -30,7 +34,10 @@ function fakeSession(overrides: Partial<Record<string, unknown>> = {}) {
 beforeEach(() => {
   vi.stubEnv("MICROSOFT_CLIENT_ID", "test-client-id");
   vi.stubEnv("MICROSOFT_CLIENT_SECRET", "test-client-secret");
-  vi.stubEnv("MICROSOFT_REDIRECT_URI", "http://localhost:3000/api/v1/auth/microsoft/callback");
+  vi.stubEnv(
+    "MICROSOFT_REDIRECT_URI",
+    "http://localhost:3000/api/v1/auth/microsoft/callback",
+  );
   vi.stubEnv("FRONTEND_BASE_URL", "http://localhost:5173");
 });
 
@@ -54,7 +61,11 @@ describe("MicrosoftAuthController.callback -- connect purpose", () => {
       userProfile: { findUnique: findUniqueProfile, create: createProfile },
     } as unknown as PrismaService;
 
-    const controller = new MicrosoftAuthController(microsoftAuth, session, prisma);
+    const controller = new MicrosoftAuthController(
+      microsoftAuth,
+      session,
+      prisma,
+    );
     const reply = fakeReply();
     await controller.callback(
       { code: "auth-code", state: "signed-state" } as MicrosoftCallbackQueryDto,
@@ -94,10 +105,17 @@ describe("MicrosoftAuthController.callback -- connect purpose", () => {
     const prisma = {
       userAuthIdentity: { upsert },
       user: { updateMany, create: vi.fn() },
-      userProfile: { findUnique: vi.fn().mockResolvedValue({ userId: "user-1" }), create: vi.fn() },
+      userProfile: {
+        findUnique: vi.fn().mockResolvedValue({ userId: "user-1" }),
+        create: vi.fn(),
+      },
     } as unknown as PrismaService;
 
-    const controller = new MicrosoftAuthController(microsoftAuth, session, prisma);
+    const controller = new MicrosoftAuthController(
+      microsoftAuth,
+      session,
+      prisma,
+    );
     const reply = fakeReply();
     await controller.callback(
       { code: "auth-code", state: "signed-state" } as MicrosoftCallbackQueryDto,
@@ -116,12 +134,18 @@ describe("MicrosoftAuthController.callback -- connect purpose", () => {
     } as unknown as MicrosoftAuthService;
     const session = fakeSession();
     const prisma = {
-      userAuthIdentity: { upsert: vi.fn().mockRejectedValue({ code: "P2002" }) },
+      userAuthIdentity: {
+        upsert: vi.fn().mockRejectedValue({ code: "P2002" }),
+      },
       user: { updateMany: vi.fn(), create: vi.fn() },
       userProfile: { findUnique: vi.fn(), create: vi.fn() },
     } as unknown as PrismaService;
 
-    const controller = new MicrosoftAuthController(microsoftAuth, session, prisma);
+    const controller = new MicrosoftAuthController(
+      microsoftAuth,
+      session,
+      prisma,
+    );
     const reply = fakeReply();
     await controller.callback(
       { code: "auth-code", state: "signed-state" } as MicrosoftCallbackQueryDto,
@@ -146,12 +170,18 @@ describe("MicrosoftAuthController.callback -- login purpose", () => {
     });
     const prisma = {
       userAuthIdentity: {
-        findUnique: vi.fn().mockResolvedValue({ userId: "user-2", provider: "microsoft" }),
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ userId: "user-2", provider: "microsoft" }),
       },
       user: { create: vi.fn() },
     } as unknown as PrismaService;
 
-    const controller = new MicrosoftAuthController(microsoftAuth, session, prisma);
+    const controller = new MicrosoftAuthController(
+      microsoftAuth,
+      session,
+      prisma,
+    );
     const reply = fakeReply();
     await controller.callback(
       { code: "auth-code", state: "signed-state" } as MicrosoftCallbackQueryDto,
@@ -170,13 +200,19 @@ describe("MicrosoftAuthController.callback -- login purpose", () => {
     const microsoftAuth = {
       exchangeCode: vi.fn().mockResolvedValue(identity),
     } as unknown as MicrosoftAuthService;
-    const session = fakeSession({ verifyState: vi.fn().mockResolvedValue({ purpose: "login" }) });
+    const session = fakeSession({
+      verifyState: vi.fn().mockResolvedValue({ purpose: "login" }),
+    });
     const prisma = {
       userAuthIdentity: { findUnique: vi.fn().mockResolvedValue(null) },
       user: { create: vi.fn() },
     } as unknown as PrismaService;
 
-    const controller = new MicrosoftAuthController(microsoftAuth, session, prisma);
+    const controller = new MicrosoftAuthController(
+      microsoftAuth,
+      session,
+      prisma,
+    );
     const reply = fakeReply();
     await controller.callback(
       { code: "auth-code", state: "signed-state" } as MicrosoftCallbackQueryDto,
@@ -201,12 +237,18 @@ describe("MicrosoftAuthController.callback -- login purpose", () => {
     });
     const prisma = {
       userAuthIdentity: {
-        findUnique: vi.fn().mockResolvedValue({ userId: "user-3", provider: "microsoft" }),
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ userId: "user-3", provider: "microsoft" }),
       },
       user: { create: vi.fn() },
     } as unknown as PrismaService;
 
-    const controller = new MicrosoftAuthController(microsoftAuth, session, prisma);
+    const controller = new MicrosoftAuthController(
+      microsoftAuth,
+      session,
+      prisma,
+    );
     const reply = fakeReply();
     await controller.callback(
       { code: "auth-code", state: "signed-state" } as MicrosoftCallbackQueryDto,
@@ -222,13 +264,22 @@ describe("MicrosoftAuthController.callback -- login purpose", () => {
 
 describe("MicrosoftAuthController.callback -- shared failure paths", () => {
   it("redirects to login when Microsoft reports an error (consent denied)", async () => {
-    const microsoftAuth = { exchangeCode: vi.fn() } as unknown as MicrosoftAuthService;
+    const microsoftAuth = {
+      exchangeCode: vi.fn(),
+    } as unknown as MicrosoftAuthService;
     const session = fakeSession();
     const prisma = {} as PrismaService;
-    const controller = new MicrosoftAuthController(microsoftAuth, session, prisma);
+    const controller = new MicrosoftAuthController(
+      microsoftAuth,
+      session,
+      prisma,
+    );
     const reply = fakeReply();
 
-    await controller.callback({ error: "access_denied" } as MicrosoftCallbackQueryDto, reply);
+    await controller.callback(
+      { error: "access_denied" } as MicrosoftCallbackQueryDto,
+      reply,
+    );
 
     expect(reply.redirect).toHaveBeenCalledWith(
       "http://localhost:5173/login?microsoftError=microsoft_failed",
@@ -238,10 +289,18 @@ describe("MicrosoftAuthController.callback -- shared failure paths", () => {
   });
 
   it("redirects to login when the signed state fails verification", async () => {
-    const microsoftAuth = { exchangeCode: vi.fn() } as unknown as MicrosoftAuthService;
-    const session = fakeSession({ verifyState: vi.fn().mockRejectedValue(new Error("expired")) });
+    const microsoftAuth = {
+      exchangeCode: vi.fn(),
+    } as unknown as MicrosoftAuthService;
+    const session = fakeSession({
+      verifyState: vi.fn().mockRejectedValue(new Error("expired")),
+    });
     const prisma = {} as PrismaService;
-    const controller = new MicrosoftAuthController(microsoftAuth, session, prisma);
+    const controller = new MicrosoftAuthController(
+      microsoftAuth,
+      session,
+      prisma,
+    );
     const reply = fakeReply();
 
     await controller.callback(

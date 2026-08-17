@@ -273,7 +273,9 @@ describe("ReturnsService", () => {
           },
         ],
       }),
-    ).rejects.toThrow(/Cannot create return for a reservation with status APPROVED/);
+    ).rejects.toThrow(
+      /Cannot create return for a reservation with status APPROVED/,
+    );
   });
 
   it("rejects return quantity exceeding remaining unreturned units", async () => {
@@ -282,7 +284,9 @@ describe("ReturnsService", () => {
       reservation: {
         findUnique: vi.fn().mockResolvedValue(reservation),
       },
-      $transaction: vi.fn().mockImplementation(async (callback) => callback(prismaMock)),
+      $transaction: vi
+        .fn()
+        .mockImplementation(async (callback) => callback(prismaMock)),
     } as unknown as PrismaService;
 
     const service = new ReturnsService(prismaMock, reservationEvents);
@@ -316,7 +320,9 @@ describe("ReturnsService", () => {
     };
 
     const updateReturn = vi.fn().mockResolvedValue(updatedReturnRecord);
-    const upsertApproval = vi.fn().mockResolvedValue(updatedReturnRecord.approval);
+    const upsertApproval = vi
+      .fn()
+      .mockResolvedValue(updatedReturnRecord.approval);
     const createBatch = vi.fn().mockResolvedValue({ id: "batch-1" });
     const createTransaction = vi.fn().mockResolvedValue({});
     const updateItem = vi.fn().mockResolvedValue({});
@@ -328,9 +334,9 @@ describe("ReturnsService", () => {
         quantityLost: 0,
       },
     ]);
-    const findReservationItems = vi.fn().mockResolvedValue([
-      { id: itemId, status: "RETURNED" },
-    ]);
+    const findReservationItems = vi
+      .fn()
+      .mockResolvedValue([{ id: itemId, status: "RETURNED" }]);
 
     const prismaMock = {
       return: {
@@ -360,10 +366,15 @@ describe("ReturnsService", () => {
     const returnDecidedSpy = vi.fn();
     events.onReturnDecided(returnDecidedSpy);
     const service = new ReturnsService(prismaMock, events);
-    const result = await service.decide(areaManagerActor, reservationId, returnId, {
-      decision: "APPROVE",
-      description: "Looks good",
-    });
+    const result = await service.decide(
+      areaManagerActor,
+      reservationId,
+      returnId,
+      {
+        decision: "APPROVE",
+        description: "Looks good",
+      },
+    );
 
     expect(result.status).toBe("COMPLETED");
     expect(updateReservation).toHaveBeenCalledWith(
@@ -373,7 +384,11 @@ describe("ReturnsService", () => {
       }),
     );
     expect(returnDecidedSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ reservationId, returnId, decision: "APPROVED" }),
+      expect.objectContaining({
+        reservationId,
+        returnId,
+        decision: "APPROVED",
+      }),
     );
   });
 
@@ -391,7 +406,9 @@ describe("ReturnsService", () => {
       service.decide(otherAreaManagerActor, reservationId, returnId, {
         decision: "APPROVE",
       }),
-    ).rejects.toThrow(/You do not have the return:approve permission for this management area/);
+    ).rejects.toThrow(
+      /You do not have the return:approve permission for this management area/,
+    );
   });
 
   it("allows returning and recovering a previously lost item when found", async () => {
@@ -476,7 +493,9 @@ describe("ReturnsService", () => {
     const updateAsset = vi.fn().mockResolvedValue({});
     const updateReturn = vi.fn().mockResolvedValue(updatedReturnRecord);
     const updateReturnItem = vi.fn().mockResolvedValue({});
-    const upsertApproval = vi.fn().mockResolvedValue(updatedReturnRecord.approval);
+    const upsertApproval = vi
+      .fn()
+      .mockResolvedValue(updatedReturnRecord.approval);
     const createBatch = vi.fn().mockResolvedValue({ id: "batch-1" });
     const createTransaction = vi.fn().mockResolvedValue({});
     const updateItem = vi.fn().mockResolvedValue({});
@@ -488,9 +507,9 @@ describe("ReturnsService", () => {
         quantityLost: 1,
       },
     ]);
-    const findReservationItems = vi.fn().mockResolvedValue([
-      { id: itemId, status: "RETURNED" },
-    ]);
+    const findReservationItems = vi
+      .fn()
+      .mockResolvedValue([{ id: itemId, status: "RETURNED" }]);
 
     const prismaMock = {
       return: {
@@ -518,19 +537,24 @@ describe("ReturnsService", () => {
     } as unknown as PrismaService;
 
     const service = new ReturnsService(prismaMock, reservationEvents);
-    const result = await service.decide(areaManagerActor, reservationId, returnId, {
-      decision: "APPROVE",
-      items: [
-        {
-          reservationItemId: itemId,
-          quantityReturned: 0,
-          quantityBroken: 1,
-          quantityLost: 1,
-          description: "1 broken lens, 1 lost tripod",
-        },
-      ],
-      description: "1 broken, 1 lost",
-    });
+    const result = await service.decide(
+      areaManagerActor,
+      reservationId,
+      returnId,
+      {
+        decision: "APPROVE",
+        items: [
+          {
+            reservationItemId: itemId,
+            quantityReturned: 0,
+            quantityBroken: 1,
+            quantityLost: 1,
+            description: "1 broken lens, 1 lost tripod",
+          },
+        ],
+        description: "1 broken, 1 lost",
+      },
+    );
 
     expect(result.status).toBe("COMPLETED");
     expect(updateAsset).toHaveBeenCalledWith(
@@ -549,7 +573,9 @@ describe("ReturnsService", () => {
       return: {
         findFirst: vi.fn().mockResolvedValue(returnRecord),
       },
-      $transaction: vi.fn().mockImplementation(async (callback) => callback(prismaMock)),
+      $transaction: vi
+        .fn()
+        .mockImplementation(async (callback) => callback(prismaMock)),
     } as unknown as PrismaService;
 
     const service = new ReturnsService(prismaMock, reservationEvents);
@@ -568,4 +594,3 @@ describe("ReturnsService", () => {
     ).rejects.toThrow(/cannot exceed the returned quantity/);
   });
 });
-

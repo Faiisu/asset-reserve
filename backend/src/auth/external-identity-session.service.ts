@@ -42,7 +42,10 @@ export class ExternalIdentitySessionService {
   async issueSession(userId: string) {
     const session = await this.sessions.getActor(userId);
     if (!session) return null;
-    const accessToken = await this.jwt.signAsync({ sub: userId, jti: randomUUID() });
+    const accessToken = await this.jwt.signAsync({
+      sub: userId,
+      jti: randomUUID(),
+    });
     return {
       accessToken,
       tokenType: "Bearer" as const,

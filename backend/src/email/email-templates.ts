@@ -13,7 +13,10 @@ import type {
 export type EmailContent = { subject: string; html: string };
 
 function formatDateRange(startAt: Date, endAt: Date): string {
-  const opts: Intl.DateTimeFormatOptions = { dateStyle: "medium", timeStyle: "short" };
+  const opts: Intl.DateTimeFormatOptions = {
+    dateStyle: "medium",
+    timeStyle: "short",
+  };
   return `${startAt.toLocaleString("en-US", opts)} – ${endAt.toLocaleString("en-US", opts)}`;
 }
 
@@ -29,7 +32,9 @@ function wrap(title: string, bodyHtml: string): string {
   `.trim();
 }
 
-export function reservationSubmittedEmail(event: ReservationSubmittedEvent): EmailContent {
+export function reservationSubmittedEmail(
+  event: ReservationSubmittedEvent,
+): EmailContent {
   const subject = `Reservation awaiting your decision: ${event.eventName}`;
   const html = wrap(
     "A reservation needs your decision",
@@ -43,18 +48,24 @@ export function reservationSubmittedEmail(event: ReservationSubmittedEvent): Ema
   return { subject, html };
 }
 
-export function reservationDecidedEmail(event: ReservationDecidedEvent): EmailContent {
+export function reservationDecidedEmail(
+  event: ReservationDecidedEvent,
+): EmailContent {
   const approved = event.decision === "APPROVE";
   const subject = approved
     ? `Reservation approved: ${event.eventName}`
     : `Reservation rejected: ${event.eventName}`;
   const html = wrap(
-    approved ? "Your reservation was approved" : "Your reservation was rejected",
+    approved
+      ? "Your reservation was approved"
+      : "Your reservation was rejected",
     `
       <p>Your reservation "<strong>${event.eventName}</strong>" ${
         approved
           ? "has been approved" +
-            (event.status === "PARTIALLY_APPROVED" ? " in part -- some items are still pending or were rejected." : ".")
+            (event.status === "PARTIALLY_APPROVED"
+              ? " in part -- some items are still pending or were rejected."
+              : ".")
           : "was rejected."
       }</p>
       <p>When: ${formatDateRange(event.startAt, event.endAt)}</p>

@@ -25,7 +25,11 @@ export class MicrosoftAuthService {
     redirectUri: string,
   ): Promise<ExternalIdentity> {
     const client = createMsalClient();
-    const result = await client.acquireTokenByCode({ code, scopes, redirectUri });
+    const result = await client.acquireTokenByCode({
+      code,
+      scopes,
+      redirectUri,
+    });
     const account = result.account;
     if (!account) {
       throw new Error("Microsoft did not return account information.");

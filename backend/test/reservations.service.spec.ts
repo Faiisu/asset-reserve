@@ -102,9 +102,12 @@ describe("reservation listing", () => {
   it("lists reservations involving the actor with cursor pagination", async () => {
     const reservation = detailRecord();
     const findMany = vi.fn().mockResolvedValue([reservation]);
-    const service = new ReservationsService({
-      reservation: { findMany },
-    } as unknown as PrismaService, reservationEvents);
+    const service = new ReservationsService(
+      {
+        reservation: { findMany },
+      } as unknown as PrismaService,
+      reservationEvents,
+    );
 
     const result = await service.list(actor, {
       view: "MINE",
@@ -230,9 +233,12 @@ describe("reservation listing", () => {
     };
     const reservation = detailRecord();
     const findMany = vi.fn().mockResolvedValue([reservation]);
-    const service = new ReservationsService({
-      reservation: { findMany },
-    } as unknown as PrismaService, reservationEvents);
+    const service = new ReservationsService(
+      {
+        reservation: { findMany },
+      } as unknown as PrismaService,
+      reservationEvents,
+    );
 
     const result = await service.list(scopedActor, {
       view: "APPROVALS",
@@ -251,9 +257,12 @@ describe("reservation listing", () => {
 
   it("returns an empty approval queue without decision permissions", async () => {
     const findMany = vi.fn();
-    const service = new ReservationsService({
-      reservation: { findMany },
-    } as unknown as PrismaService, reservationEvents);
+    const service = new ReservationsService(
+      {
+        reservation: { findMany },
+      } as unknown as PrismaService,
+      reservationEvents,
+    );
 
     const result = await service.list(
       {
@@ -466,7 +475,11 @@ describe("reservation availability", () => {
     ).resolves.toBe(detail);
 
     expect(decidedSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ reservationId, status: "APPROVED", decision: "APPROVE" }),
+      expect.objectContaining({
+        reservationId,
+        status: "APPROVED",
+        decision: "APPROVE",
+      }),
     );
     expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
     expect(itemUpdateMany).toHaveBeenCalledWith(
@@ -736,9 +749,12 @@ describe("reservation change requests", () => {
       },
     };
     const findMany = vi.fn().mockResolvedValue([]);
-    const service = new ReservationsService({
-      reservation: { findMany },
-    } as unknown as PrismaService, reservationEvents);
+    const service = new ReservationsService(
+      {
+        reservation: { findMany },
+      } as unknown as PrismaService,
+      reservationEvents,
+    );
 
     await service.list(regularUserActor, {
       view: "ALL",
@@ -793,11 +809,14 @@ describe("reservation change requests", () => {
       },
     };
     const pendingReservation = detailRecord("PENDING_APPROVAL");
-    const service = new ReservationsService({
-      reservation: {
-        findUnique: vi.fn().mockResolvedValue(pendingReservation),
-      },
-    } as unknown as PrismaService, reservationEvents);
+    const service = new ReservationsService(
+      {
+        reservation: {
+          findUnique: vi.fn().mockResolvedValue(pendingReservation),
+        },
+      } as unknown as PrismaService,
+      reservationEvents,
+    );
 
     await expect(service.get(regularUserActor, reservationId)).rejects.toThrow(
       "You do not have permission to perform this reservation action.",
@@ -822,11 +841,14 @@ describe("reservation change requests", () => {
       },
     };
     const rejectedReservation = detailRecord("REJECTED");
-    const service = new ReservationsService({
-      reservation: {
-        findUnique: vi.fn().mockResolvedValue(rejectedReservation),
-      },
-    } as unknown as PrismaService, reservationEvents);
+    const service = new ReservationsService(
+      {
+        reservation: {
+          findUnique: vi.fn().mockResolvedValue(rejectedReservation),
+        },
+      } as unknown as PrismaService,
+      reservationEvents,
+    );
 
     await expect(service.get(regularUserActor, reservationId)).rejects.toThrow(
       "You do not have permission to perform this reservation action.",
@@ -835,17 +857,20 @@ describe("reservation change requests", () => {
 
   it("allows requester to view their own rejected reservation detail", async () => {
     const rejectedReservation = detailRecord("REJECTED");
-    const service = new ReservationsService({
-      reservation: {
-        findUnique: vi.fn().mockResolvedValue(rejectedReservation),
-      },
-      asset: {
-        findMany: vi
-          .fn()
-          .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]),
-      },
-      reservationItem: { findMany: vi.fn().mockResolvedValue([]) },
-    } as unknown as PrismaService, reservationEvents);
+    const service = new ReservationsService(
+      {
+        reservation: {
+          findUnique: vi.fn().mockResolvedValue(rejectedReservation),
+        },
+        asset: {
+          findMany: vi
+            .fn()
+            .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]),
+        },
+        reservationItem: { findMany: vi.fn().mockResolvedValue([]) },
+      } as unknown as PrismaService,
+      reservationEvents,
+    );
 
     const result = await service.get(actor, reservationId);
     expect(result.id).toBe(reservationId);
@@ -914,7 +939,11 @@ describe("reservation change requests", () => {
           userId: participantId,
           reservationId,
           createdAt: new Date("2026-08-15T00:00:00.000Z"),
-          user: { id: participantId, email: "participant@example.com", profile: null },
+          user: {
+            id: participantId,
+            email: "participant@example.com",
+            profile: null,
+          },
         } as never);
       }
       const handoverActor: AuthenticatedActor = {
@@ -943,22 +972,26 @@ describe("reservation change requests", () => {
       const updateItem = vi.fn();
       const handoverCreate = vi.fn();
       const prisma = {
-        reservation: { findUnique: vi.fn().mockResolvedValue(approvedReservation) },
+        reservation: {
+          findUnique: vi.fn().mockResolvedValue(approvedReservation),
+        },
         $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
           cb({
             reservation: { update },
             reservationHandover: { create: handoverCreate },
             reservationItem: {
               update: updateItem,
-              findMany: vi.fn().mockResolvedValue([
-                { id: itemId, status: "DELIVERED" },
-              ]),
+              findMany: vi
+                .fn()
+                .mockResolvedValue([{ id: itemId, status: "DELIVERED" }]),
             },
           }),
         ),
       } as unknown as PrismaService;
       const service = new ReservationsService(prisma, reservationEvents);
-      vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
+      vi.spyOn(service, "get").mockResolvedValue({
+        id: reservationId,
+      } as never);
 
       await expect(
         service.confirmDelivery(handoverActor, reservationId, {
@@ -966,7 +999,10 @@ describe("reservation change requests", () => {
         }),
       ).resolves.toEqual({ id: reservationId });
       expect(updateItem).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: itemId }, data: expect.objectContaining({ status: "DELIVERED" }) }),
+        expect.objectContaining({
+          where: { id: itemId },
+          data: expect.objectContaining({ status: "DELIVERED" }),
+        }),
       );
     },
   );
@@ -987,7 +1023,9 @@ describe("reservation change requests", () => {
       effectivePermissions: { global: [], byManagementArea: [] },
     };
     const prisma = {
-      reservation: { findUnique: vi.fn().mockResolvedValue(approvedReservation) },
+      reservation: {
+        findUnique: vi.fn().mockResolvedValue(approvedReservation),
+      },
     } as unknown as PrismaService;
     const service = new ReservationsService(prisma, reservationEvents);
 
@@ -1061,7 +1099,9 @@ describe("reservation lifecycle events", () => {
   it("submit() resolves approvers with reservation:approve in the affected area and emits submitted", async () => {
     const reservation = detailRecord("DRAFT");
     const findUnique = vi.fn().mockResolvedValue(reservation);
-    const assetFindMany = vi.fn().mockResolvedValue([{ id: assetId, totalQuantity: 2 }]);
+    const assetFindMany = vi
+      .fn()
+      .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]);
     const reservationItemFindMany = vi.fn().mockResolvedValue([]); // no overlapping bookings
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const userRoleFindMany = vi.fn().mockResolvedValue([
@@ -1118,7 +1158,9 @@ describe("reservation lifecycle events", () => {
       expect.objectContaining({
         reservationId,
         eventName: reservation.eventName,
-        approverRecipients: [{ email: "approver@example.com", name: "Area Approver" }],
+        approverRecipients: [
+          { email: "approver@example.com", name: "Area Approver" },
+        ],
       }),
     );
   });
@@ -1126,7 +1168,9 @@ describe("reservation lifecycle events", () => {
   it("submit() dedupes approvers by id and skips those with no email on file", async () => {
     const reservation = detailRecord("DRAFT");
     const findUnique = vi.fn().mockResolvedValue(reservation);
-    const assetFindMany = vi.fn().mockResolvedValue([{ id: assetId, totalQuantity: 2 }]);
+    const assetFindMany = vi
+      .fn()
+      .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]);
     const reservationItemFindMany = vi.fn().mockResolvedValue([]);
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const userRoleFindMany = vi.fn().mockResolvedValue([
@@ -1183,7 +1227,9 @@ describe("reservation lifecycle events", () => {
 
     expect(submittedSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        approverRecipients: [{ email: "dup@example.com", name: "Dup Approver" }],
+        approverRecipients: [
+          { email: "dup@example.com", name: "Dup Approver" },
+        ],
       }),
     );
   });
@@ -1221,13 +1267,12 @@ describe("reservation lifecycle events", () => {
       reservation: { findUnique, update },
       reservationItem: { updateMany: itemUpdateMany },
       reservationChangeRequest: { updateMany: changeRequestUpdateMany },
-      $transaction: vi.fn(
-        async (work: (client: unknown) => Promise<unknown>) =>
-          work({
-            reservation: { update },
-            reservationItem: { updateMany: itemUpdateMany },
-            reservationChangeRequest: { updateMany: changeRequestUpdateMany },
-          }),
+      $transaction: vi.fn(async (work: (client: unknown) => Promise<unknown>) =>
+        work({
+          reservation: { update },
+          reservationItem: { updateMany: itemUpdateMany },
+          reservationChangeRequest: { updateMany: changeRequestUpdateMany },
+        }),
       ),
     } as unknown as PrismaService;
     const events = new ReservationLifecycleEvents();
@@ -1238,6 +1283,9 @@ describe("reservation lifecycle events", () => {
 
     await service.cancel(actor, reservationId);
 
-    expect(cancelledSpy).toHaveBeenCalledWith({ reservationId, requesterId: actorId });
+    expect(cancelledSpy).toHaveBeenCalledWith({
+      reservationId,
+      requesterId: actorId,
+    });
   });
 });

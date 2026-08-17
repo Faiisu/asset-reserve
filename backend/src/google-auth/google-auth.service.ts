@@ -11,7 +11,11 @@ import { createOAuth2Client } from "./google-oauth-client.js";
  */
 @Injectable()
 export class GoogleAuthService {
-  buildAuthUrl(scope: string[], state: string, options: { forceConsent?: boolean } = {}): string {
+  buildAuthUrl(
+    scope: string[],
+    state: string,
+    options: { forceConsent?: boolean } = {},
+  ): string {
     const client = createOAuth2Client();
     return client.generateAuthUrl({
       access_type: "offline",

@@ -14,5 +14,9 @@ export function createOAuth2Client(): OAuth2Client {
   if (!config) {
     throw new Error("Google sign-in is not configured.");
   }
-  return new OAuth2Client(config.clientId, config.clientSecret, config.redirectUri);
+  return new OAuth2Client(
+    config.clientId,
+    config.clientSecret,
+    config.redirectUri,
+  );
 }

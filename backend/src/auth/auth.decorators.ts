@@ -16,7 +16,8 @@ export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 // session-management routes a not-yet-linked user still needs (logout,
 // "who am I", session check) so they aren't completely trapped.
 export const SKIP_ACCOUNT_LINK_KEY = "skipAccountLinkCheck";
-export const SkipAccountLinkCheck = () => SetMetadata(SKIP_ACCOUNT_LINK_KEY, true);
+export const SkipAccountLinkCheck = () =>
+  SetMetadata(SKIP_ACCOUNT_LINK_KEY, true);
 
 export type AccessRequirement =
   | { kind: "globalAdmin" }

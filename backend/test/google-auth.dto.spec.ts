@@ -13,7 +13,8 @@ describe("GoogleCallbackQueryDto", () => {
   it("accepts a real Google callback query string without validation errors", async () => {
     const instance = plainToInstance(GoogleCallbackQueryDto, {
       code: "4/0Adeu5B...",
-      scope: "email profile openid https://www.googleapis.com/auth/userinfo.email",
+      scope:
+        "email profile openid https://www.googleapis.com/auth/userinfo.email",
       authuser: "0",
       prompt: "consent",
       state: "signed-state-token",

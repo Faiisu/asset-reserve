@@ -111,7 +111,9 @@ export class NotificationSettingsService {
       throw new ApiException(
         502,
         "TEST_EMAIL_FAILED",
-        error instanceof Error ? error.message : "Could not send the test email.",
+        error instanceof Error
+          ? error.message
+          : "Could not send the test email.",
       );
     }
   }

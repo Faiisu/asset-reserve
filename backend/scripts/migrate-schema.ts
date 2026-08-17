@@ -17,7 +17,9 @@ async function main() {
   await prisma.$executeRawUnsafe(`
     ALTER TABLE "assets" ADD COLUMN IF NOT EXISTS "status" VARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
   `);
-  console.log("Migration applied successfully: assets.status column added/verified.");
+  console.log(
+    "Migration applied successfully: assets.status column added/verified.",
+  );
 }
 
 main()

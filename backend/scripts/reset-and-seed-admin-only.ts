@@ -151,9 +151,9 @@ async function seedAreasAndAccounts(): Promise<void> {
   });
 
   // 1. Create Admin
-  const adminEmail = (
-    process.env.BOOTSTRAP_ADMIN_EMAIL || "admin@example.com"
-  ).trim().toLowerCase();
+  const adminEmail = (process.env.BOOTSTRAP_ADMIN_EMAIL || "admin@example.com")
+    .trim()
+    .toLowerCase();
   const adminName = process.env.BOOTSTRAP_ADMIN_NAME?.trim() || "System Admin";
 
   console.log(`Creating Admin account: ${adminEmail}...`);
@@ -232,7 +232,9 @@ async function seedAreasAndAccounts(): Promise<void> {
   ];
 
   for (const mgr of managerAccounts) {
-    console.log(`Creating Manager account: ${mgr.email} for ${mgr.areaName}...`);
+    console.log(
+      `Creating Manager account: ${mgr.email} for ${mgr.areaName}...`,
+    );
     const user = await prisma.user.create({
       data: {
         id: randomUUID(),

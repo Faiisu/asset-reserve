@@ -40,7 +40,8 @@ export class CreateUserDto {
   )
   @IsString()
   @Matches(/^[a-z0-9._-]{3,50}$/, {
-    message: "username must be 3-50 characters: letters, numbers, dots, underscores, or hyphens.",
+    message:
+      "username must be 3-50 characters: letters, numbers, dots, underscores, or hyphens.",
   })
   username!: string;
 

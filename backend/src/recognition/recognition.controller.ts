@@ -16,13 +16,20 @@ import { CurrentActor, Public } from "../auth/auth.decorators.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import { ApiException } from "../common/api-exception.js";
 import { UpdateRecognitionAssetDto } from "./recognition.dto.js";
-import { RecognitionService, type UploadedFilePart } from "./recognition.service.js";
+import {
+  RecognitionService,
+  type UploadedFilePart,
+} from "./recognition.service.js";
 
 async function readMultipart(
   req: FastifyRequest,
 ): Promise<{ file?: UploadedFilePart; fields: Record<string, string> }> {
   if (!req.isMultipart()) {
-    throw new ApiException(400, "INVALID_MULTIPART", "Request must be multipart/form-data.");
+    throw new ApiException(
+      400,
+      "INVALID_MULTIPART",
+      "Request must be multipart/form-data.",
+    );
   }
   let file: UploadedFilePart | undefined;
   const fields: Record<string, string> = {};
@@ -61,7 +68,10 @@ export class RecognitionController {
   ) {}
 
   @Post("assets")
-  async registerAsset(@CurrentActor() actor: AuthenticatedActor, @Req() req: FastifyRequest) {
+  async registerAsset(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Req() req: FastifyRequest,
+  ) {
     const { file, fields } = await readMultipart(req);
     if (fields.asset_id) {
       await this.assets.get(actor, fields.asset_id);
@@ -81,7 +91,11 @@ export class RecognitionController {
   ) {
     await this.assets.get(actor, assetId);
     const { file } = await readMultipart(req);
-    return this.recognition.postMultipart(`/assets/${assetId}/photos`, file, {});
+    return this.recognition.postMultipart(
+      `/assets/${assetId}/photos`,
+      file,
+      {},
+    );
   }
 
   @Patch("assets/:assetId")
@@ -102,7 +116,11 @@ export class RecognitionController {
     await this.assets.get(actor, assetId);
     const result = await this.recognition.getOrNull(`/assets/${assetId}`);
     if (result === null) {
-      throw new ApiException(404, "NOT_FOUND", "This asset has no recognition data yet.");
+      throw new ApiException(
+        404,
+        "NOT_FOUND",
+        "This asset has no recognition data yet.",
+      );
     }
     return result;
   }
@@ -113,7 +131,9 @@ export class RecognitionController {
     @Param("assetId", new ParseUUIDPipe()) assetId: string,
   ) {
     await this.assets.get(actor, assetId);
-    const result = await this.recognition.getOrNull(`/assets/${assetId}/photos`);
+    const result = await this.recognition.getOrNull(
+      `/assets/${assetId}/photos`,
+    );
     return result ?? [];
   }
 
@@ -138,20 +158,33 @@ export class RecognitionController {
 
   @Public()
   @Get("assets/:assetId/image")
-  async getAssetImage(@Param("assetId") assetId: string, @Res() reply: FastifyReply) {
-    const { buffer, contentType } = await this.recognition.getImage(`/assets/${assetId}/image`);
+  async getAssetImage(
+    @Param("assetId") assetId: string,
+    @Res() reply: FastifyReply,
+  ) {
+    const { buffer, contentType } = await this.recognition.getImage(
+      `/assets/${assetId}/image`,
+    );
     reply.header("Content-Type", contentType).send(buffer);
   }
 
   @Public()
   @Get("photos/:photoId/image")
-  async getPhotoImage(@Param("photoId") photoId: string, @Res() reply: FastifyReply) {
-    const { buffer, contentType } = await this.recognition.getImage(`/photos/${photoId}/image`);
+  async getPhotoImage(
+    @Param("photoId") photoId: string,
+    @Res() reply: FastifyReply,
+  ) {
+    const { buffer, contentType } = await this.recognition.getImage(
+      `/photos/${photoId}/image`,
+    );
     reply.header("Content-Type", contentType).send(buffer);
   }
 
   @Post("recognize")
-  async recognize(@CurrentActor() _actor: AuthenticatedActor, @Req() req: FastifyRequest) {
+  async recognize(
+    @CurrentActor() _actor: AuthenticatedActor,
+    @Req() req: FastifyRequest,
+  ) {
     const { file, fields } = await readMultipart(req);
     return this.recognition.postMultipart("/recognize", file, {
       threshold: fields.threshold,
@@ -160,7 +193,10 @@ export class RecognitionController {
   }
 
   @Post("recognize/multi")
-  async recognizeMulti(@CurrentActor() _actor: AuthenticatedActor, @Req() req: FastifyRequest) {
+  async recognizeMulti(
+    @CurrentActor() _actor: AuthenticatedActor,
+    @Req() req: FastifyRequest,
+  ) {
     const { file, fields } = await readMultipart(req);
     return this.recognition.postMultipart("/recognize/multi", file, {
       threshold: fields.threshold,
