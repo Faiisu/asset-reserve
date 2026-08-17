@@ -49,13 +49,20 @@ services:
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
       # Optional -- Google Sign-In / mandatory account linking stays
       # disabled (no gate, "Continue with Google" link not functional)
-      # unless all three GOOGLE_* are set. See
-      # docs/google-integrations-plan.md for the Cloud Console setup.
+      # unless all three GOOGLE_* are set. See docs/oauth-setup.md for
+      # the Cloud Console setup.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      # Optional -- Microsoft/Outlook Sign-In, independently configurable
+      # from GOOGLE_* above. MICROSOFT_TENANT_ID defaults to "common" if
+      # unset. See docs/oauth-setup.md for the Azure App Registration setup.
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+      MICROSOFT_REDIRECT_URI: ${MICROSOFT_REDIRECT_URI:-}
+      MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:8080}
-      REQUIRE_GOOGLE_LINK: ${REQUIRE_GOOGLE_LINK:-}
+      REQUIRE_ACCOUNT_LINK: ${REQUIRE_ACCOUNT_LINK:-}
     depends_on:
       schema:
         condition: service_completed_successfully

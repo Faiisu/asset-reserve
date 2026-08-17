@@ -11,10 +11,16 @@
 > match against at creation), and the callback's "connect" branch became
 > the *only* way a Google identity is ever linked, not just a Phase C
 > stub. Phase C (Calendar sync) is still designed below and not started;
-> it can still reuse the shipped `/connect` flow as planned. For the
-> dev/deploy toggle and the actual Google Cloud Console setup steps (local
-> testing and real customer deployment), see
-> [`google-oauth-setup.md`](./google-oauth-setup.md) instead of this doc.
+> it can still reuse the shipped `/connect` flow as planned. **Microsoft/Outlook
+> was added as a second, independent linking provider on
+> `feature/microsoft-outlook-linking`** (branched from the above) --
+> linking either provider satisfies the mandatory-link gate, which is why
+> the guard/config/frontend pages are named provider-generically
+> (`AccountLinkGuard`, `requireAccountLink()`, `ConnectAccountPage`) rather
+> than Google-specifically. For the dev/deploy toggle and the actual
+> Google Cloud Console / Azure App Registration setup steps (local testing
+> and real customer deployment, both providers), see
+> [`oauth-setup.md`](./oauth-setup.md) instead of this doc.
 
 ## Context
 

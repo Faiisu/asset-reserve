@@ -69,10 +69,14 @@ export function buildSessionContext(source: SessionSource): AuthenticatedActor {
       email: source.email,
       isActive: true,
       profile: source.profile,
-      googleLinked: source.authIdentities.some(
-        (identity) => identity.provider === "google",
-      ),
-      googleLinkRequired: appConfig.requireGoogleLink(),
+      // Which external identity providers this user has linked -- the
+      // mandatory-link gate (AccountLinkGuard) is satisfied by linking
+      // ANY of them, not one specifically. Mirrors the shape
+      // UsersService.userDetail()'s authProviders already uses for admin
+      // display (users.service.ts), scoped here to just the OAuth
+      // providers (no "password").
+      linkedProviders: source.authIdentities.map((identity) => identity.provider),
+      accountLinkRequired: appConfig.requireAccountLink(),
     },
     roles,
     effectivePermissions: { global, byManagementArea },

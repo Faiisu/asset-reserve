@@ -61,13 +61,19 @@ describe("buildSessionContext", () => {
     );
   });
 
-  it("reports googleLinked from authIdentities", () => {
-    expect(buildSessionContext(source).user.googleLinked).toBe(false);
+  it("reports linkedProviders from authIdentities", () => {
+    expect(buildSessionContext(source).user.linkedProviders).toEqual([]);
     expect(
       buildSessionContext({
         ...source,
         authIdentities: [{ provider: "google" }],
-      }).user.googleLinked,
-    ).toBe(true);
+      }).user.linkedProviders,
+    ).toEqual(["google"]);
+    expect(
+      buildSessionContext({
+        ...source,
+        authIdentities: [{ provider: "google" }, { provider: "microsoft" }],
+      }).user.linkedProviders,
+    ).toEqual(["google", "microsoft"]);
   });
 });

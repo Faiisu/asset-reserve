@@ -4,12 +4,13 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
 
 /**
- * Lands here after the backend's "connect" callback redirect. The browser
- * already holds a valid session token from before the Google detour --
- * no new token to read, just re-fetch /bff/session (now showing
- * googleLinked: true) and continue into the app.
+ * Lands here after either provider's "connect" callback redirect (both
+ * Google and Microsoft redirect to this same shared path). The browser
+ * already holds a valid session token from before the detour -- no new
+ * token to read, just re-fetch /bff/session (now showing the newly
+ * linked provider in linkedProviders) and continue into the app.
  */
-export function ConnectGoogleCallbackPage() {
+export function ConnectAccountCallbackPage() {
   const { refresh } = useAuth();
   const navigate = useNavigate();
 

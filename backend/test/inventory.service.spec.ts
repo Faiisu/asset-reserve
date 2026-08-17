@@ -12,8 +12,8 @@ const actor: AuthenticatedActor = {
     email: "manager@example.com",
     isActive: true,
     profile: null,
-    googleLinked: true,
-    googleLinkRequired: false,
+    linkedProviders: ["google"],
+    accountLinkRequired: false,
   },
   roles: [],
   effectivePermissions: {

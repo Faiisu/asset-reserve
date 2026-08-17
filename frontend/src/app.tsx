@@ -8,9 +8,9 @@ import { AssetDetailPage } from "./pages/AssetDetailPage";
 import { AssetFormPage } from "./pages/AssetFormPage";
 import { AssetsPage } from "./pages/AssetsPage";
 import { CalendarPage } from "./pages/CalendarPage";
-import { ConnectGoogleCallbackPage } from "./pages/ConnectGoogleCallbackPage";
-import { ConnectGooglePage } from "./pages/ConnectGooglePage";
-import { GoogleCallbackPage } from "./pages/GoogleCallbackPage";
+import { ConnectAccountCallbackPage } from "./pages/ConnectAccountCallbackPage";
+import { ConnectAccountPage } from "./pages/ConnectAccountPage";
+import { OAuthCallbackPage } from "./pages/OAuthCallbackPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ReservationCreatePage } from "./pages/ReservationCreatePage";
 import { ReservationDetailPage } from "./pages/ReservationDetailPage";
@@ -29,7 +29,7 @@ function BootScreen({ label }: { label: string }) {
 }
 
 /** A session is required, but neither AppShell chrome nor the mandatory
- * Google-link gate applies -- used for the connect-google pages
+ * account-link gate applies -- used for the connect-account pages
  * themselves (the gate's own UI would otherwise never be reachable). */
 function RequireSession({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
@@ -46,12 +46,13 @@ function ProtectedApp() {
   if (loading) return <BootScreen label="Opening workspace" />;
   if (!session)
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  // Hard block, no skip: every user must link Google before using the
-  // rest of the app once REQUIRE_GOOGLE_LINK is on (see
-  // appConfig.requireGoogleLink() and GoogleLinkGuard on the backend --
+  // Hard block, no skip: every user must link an external account
+  // (Google or Microsoft -- either satisfies it) before using the rest
+  // of the app once REQUIRE_ACCOUNT_LINK is on (see
+  // appConfig.requireAccountLink() and AccountLinkGuard on the backend --
   // this is the UX for that gate, not the enforcement of it).
-  if (session.user.googleLinkRequired && !session.user.googleLinked) {
-    return <Navigate to="/connect-google" replace />;
+  if (session.user.accountLinkRequired && session.user.linkedProviders.length === 0) {
+    return <Navigate to="/connect-account" replace />;
   }
   return <AppShell />;
 }
@@ -64,20 +65,20 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
+      <Route path="/auth/callback" element={<OAuthCallbackPage />} />
       <Route
-        path="/connect-google"
+        path="/connect-account"
         element={
           <RequireSession>
-            <ConnectGooglePage />
+            <ConnectAccountPage />
           </RequireSession>
         }
       />
       <Route
-        path="/connect-google/callback"
+        path="/connect-account/callback"
         element={
           <RequireSession>
-            <ConnectGoogleCallbackPage />
+            <ConnectAccountCallbackPage />
           </RequireSession>
         }
       />

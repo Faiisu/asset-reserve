@@ -9,6 +9,7 @@ import { DatabaseModule } from "./database/database.module.js";
 import { EmailModule } from "./email/email.module.js";
 import { GoogleAuthModule } from "./google-auth/google-auth.module.js";
 import { ManagementAreasModule } from "./management-areas/management-areas.module.js";
+import { MicrosoftAuthModule } from "./microsoft-auth/microsoft-auth.module.js";
 import { NotificationSettingsModule } from "./notification-settings/notification-settings.module.js";
 import { RecognitionModule } from "./recognition/recognition.module.js";
 import { ReservationsModule } from "./reservations/reservations.module.js";
@@ -23,6 +24,7 @@ import { UsersModule } from "./users/users.module.js";
     ReservationLifecycleModule,
     AuthModule,
     GoogleAuthModule,
+    MicrosoftAuthModule,
     AssetsModule,
     AccessControlModule,
     UsersModule,

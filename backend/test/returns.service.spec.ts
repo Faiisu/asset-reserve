@@ -23,8 +23,8 @@ const requesterActor: AuthenticatedActor = {
     email: "requester@example.com",
     isActive: true,
     profile: null,
-    googleLinked: true,
-    googleLinkRequired: false,
+    linkedProviders: ["google"],
+    accountLinkRequired: false,
   },
   roles: [],
   effectivePermissions: {
@@ -40,8 +40,8 @@ const areaManagerActor: AuthenticatedActor = {
     email: "manager@example.com",
     isActive: true,
     profile: null,
-    googleLinked: true,
-    googleLinkRequired: false,
+    linkedProviders: ["google"],
+    accountLinkRequired: false,
   },
   roles: [],
   effectivePermissions: {
@@ -62,8 +62,8 @@ const otherAreaManagerActor: AuthenticatedActor = {
     email: "other@example.com",
     isActive: true,
     profile: null,
-    googleLinked: true,
-    googleLinkRequired: false,
+    linkedProviders: ["google"],
+    accountLinkRequired: false,
   },
   roles: [],
   effectivePermissions: {

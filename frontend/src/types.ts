@@ -27,8 +27,8 @@ export type SessionContext = {
       phoneNumber: string | null;
       profilePictureUrl: string | null;
     } | null;
-    googleLinked: boolean;
-    googleLinkRequired: boolean;
+    linkedProviders: string[];
+    accountLinkRequired: boolean;
   };
   roles: Array<{
     assignmentId: string;

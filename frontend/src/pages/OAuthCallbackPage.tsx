@@ -5,12 +5,13 @@ import { setAccessToken } from "../api";
 import { useAuth } from "../auth";
 
 /**
- * Lands here after a "Continue with Google" direct login (the "login"
- * purpose, for an already-linked identity -- unlike the "connect" flow,
- * there's no pre-existing session here, so the backend hands back a fresh
- * token in the query string).
+ * Lands here after a "Continue with Google/Microsoft" direct login (the
+ * "login" purpose, for an already-linked identity -- unlike the
+ * "connect" flow, there's no pre-existing session here, so the backend
+ * hands back a fresh token in the query string). Shared by both
+ * providers -- neither's callback logic differs from this point on.
  */
-export function GoogleCallbackPage() {
+export function OAuthCallbackPage() {
   const [params] = useSearchParams();
   const { refresh } = useAuth();
   const navigate = useNavigate();

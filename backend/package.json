@@ -26,6 +26,7 @@
     "reset:admin": "prisma generate && tsx scripts/reset-and-seed-admin-only.ts"
   },
   "dependencies": {
+    "@azure/msal-node": "^5.5.0",
     "@fastify/helmet": "13.1.0",
     "@fastify/multipart": "^10.1.1",
     "@fastify/static": "10.1.3",

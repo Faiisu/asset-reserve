@@ -16,6 +16,13 @@ const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
   google_failed: "Something went wrong connecting to Google. Try again.",
 };
 
+const MICROSOFT_ERROR_MESSAGES: Record<string, string> = {
+  not_linked: "That Microsoft account isn't linked to any user yet. Sign in with your username and password, then link it from there.",
+  inactive: "This account is disabled. Contact an administrator.",
+  microsoft_not_configured: "Microsoft sign-in isn't set up for this deployment.",
+  microsoft_failed: "Something went wrong connecting to Microsoft. Try again.",
+};
+
 export function LoginPage() {
   const { session, login } = useAuth();
   const navigate = useNavigate();
@@ -26,9 +33,12 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const googleError = searchParams.get("googleError");
-  const googleErrorMessage = googleError
+  const microsoftError = searchParams.get("microsoftError");
+  const oauthErrorMessage = googleError
     ? (GOOGLE_ERROR_MESSAGES[googleError] ?? GOOGLE_ERROR_MESSAGES.google_failed)
-    : "";
+    : microsoftError
+      ? (MICROSOFT_ERROR_MESSAGES[microsoftError] ?? MICROSOFT_ERROR_MESSAGES.microsoft_failed)
+      : "";
 
   if (session) return <Navigate to="/" replace />;
 
@@ -99,10 +109,10 @@ export function LoginPage() {
               />
             </Field>
             <div className="login-alert-slot" aria-live="polite">
-              {(error || googleErrorMessage) && (
+              {(error || oauthErrorMessage) && (
                 <div className="form-alert" role="alert">
                   <AlertCircle size={16} aria-hidden />
-                  <span>{error || googleErrorMessage}</span>
+                  <span>{error || oauthErrorMessage}</span>
                 </div>
               )}
             </div>
@@ -117,9 +127,15 @@ export function LoginPage() {
           </form>
           <a
             href="/api/v1/auth/google/login"
-            className="button button--secondary button--md login-google"
+            className="button button--secondary button--md login-oauth"
           >
             Continue with Google
+          </a>
+          <a
+            href="/api/v1/auth/microsoft/login"
+            className="button button--secondary button--md login-oauth"
+          >
+            Continue with Microsoft
           </a>
           <p className="login-help">
             Unable to sign in? Contact an administrator to activate your

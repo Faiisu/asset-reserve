@@ -19,10 +19,10 @@ export type AuthenticatedActor = {
       phoneNumber: string | null;
       profilePictureUrl: string | null;
     } | null;
-    /** Whether a "google" row exists in this user's authIdentities. */
-    googleLinked: boolean;
-    /** appConfig.requireGoogleLink() at session-build time. */
-    googleLinkRequired: boolean;
+    /** Providers with a row in this user's authIdentities, e.g. ["google"]. */
+    linkedProviders: string[];
+    /** appConfig.requireAccountLink() at session-build time. */
+    accountLinkRequired: boolean;
   };
   roles: ActorRole[];
   effectivePermissions: {

@@ -106,10 +106,11 @@ export const api = {
     }),
   session: () => request<{ session: SessionContext }>("/bff/session"),
   logout: () => request<void>("/auth/logout", { method: "POST" }),
-  // Authenticated, so it can't be a plain <a href> (no way to attach the
-  // Bearer token to a browser-initiated navigation) -- fetch the Google
+  // Authenticated, so neither can be a plain <a href> (no way to attach
+  // the Bearer token to a browser-initiated navigation) -- fetch the
   // consent URL first, then the caller navigates the browser there itself.
   googleConnectUrl: () => request<{ url: string }>("/auth/google/connect"),
+  microsoftConnectUrl: () => request<{ url: string }>("/auth/microsoft/connect"),
 
   permissions: () => request<{ data: PermissionDefinition[] }>("/permissions"),
   roles: () => request<{ data: Role[] }>("/roles"),

@@ -4,14 +4,12 @@ import type { FastifyReply } from "fastify";
 import { appConfig } from "../config.js";
 import { ApiException } from "../common/api-exception.js";
 import { PrismaService } from "../database/prisma.service.js";
-import { CurrentActor, Public, SkipGoogleLinkCheck } from "../auth/auth.decorators.js";
+import { CurrentActor, Public, SkipAccountLinkCheck } from "../auth/auth.decorators.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
+import type { ExternalIdentity, ExternalState } from "../auth/external-identity.js";
+import { ExternalIdentitySessionService } from "../auth/external-identity-session.service.js";
 import { GoogleCallbackQueryDto } from "./google-auth.dto.js";
-import {
-  GoogleAuthService,
-  type GoogleIdentity,
-  type GoogleState,
-} from "./google-auth.service.js";
+import { GoogleAuthService } from "./google-auth.service.js";
 
 const SCOPE = ["openid", "email", "profile"];
 
@@ -31,20 +29,23 @@ const SCOPE = ["openid", "email", "profile"];
  *   initiate, so this one *is* a plain redirect a real `<a href>` can hit
  *   directly.
  * Both funnel through the same /callback, discriminated by the signed
- * `state` param's `purpose`.
+ * `state` param's `purpose`. State signing/verification and session
+ * issuance are provider-agnostic and delegated to
+ * ExternalIdentitySessionService, shared with microsoft-auth/.
  */
 @Controller("auth/google")
 export class GoogleAuthController {
   constructor(
     private readonly googleAuth: GoogleAuthService,
+    private readonly session: ExternalIdentitySessionService,
     private readonly prisma: PrismaService,
   ) {}
 
-  @SkipGoogleLinkCheck()
+  @SkipAccountLinkCheck()
   @Get("connect")
   async connect(@CurrentActor() actor: AuthenticatedActor): Promise<{ url: string }> {
     this.assertConfigured();
-    const signed = await this.googleAuth.signState({
+    const signed = await this.session.signState({
       purpose: "connect",
       userId: actor.user.id,
     });
@@ -52,16 +53,16 @@ export class GoogleAuthController {
   }
 
   @Public()
-  @SkipGoogleLinkCheck()
+  @SkipAccountLinkCheck()
   @Get("login")
   async login(@Res() reply: FastifyReply) {
     this.assertConfigured();
-    const signed = await this.googleAuth.signState({ purpose: "login" });
+    const signed = await this.session.signState({ purpose: "login" });
     this.redirect(reply, this.googleAuth.buildAuthUrl(SCOPE, signed));
   }
 
   @Public()
-  @SkipGoogleLinkCheck()
+  @SkipAccountLinkCheck()
   @Get("callback")
   async callback(@Query() query: GoogleCallbackQueryDto, @Res() reply: FastifyReply) {
     const frontendBaseUrl = appConfig.frontendBaseUrl();
@@ -74,9 +75,9 @@ export class GoogleAuthController {
       return;
     }
 
-    let state: GoogleState;
+    let state: ExternalState;
     try {
-      state = await this.googleAuth.verifyState(query.state);
+      state = await this.session.verifyState(query.state);
     } catch {
       this.redirect(reply, `${frontendBaseUrl}/login?googleError=google_failed`);
       return;
@@ -86,13 +87,13 @@ export class GoogleAuthController {
       const identity = await this.googleAuth.exchangeCode(query.code);
       if (state.purpose === "connect") {
         await this.handleConnect(state.userId, identity);
-        this.redirect(reply, `${frontendBaseUrl}/connect-google/callback?ok=1`);
+        this.redirect(reply, `${frontendBaseUrl}/connect-account/callback?ok=1`);
         return;
       }
       await this.handleLogin(identity, reply, frontendBaseUrl);
     } catch (error) {
       console.warn("[google-auth] callback failed:", error);
-      const target = state.purpose === "connect" ? "/connect-google" : "/login";
+      const target = state.purpose === "connect" ? "/connect-account" : "/login";
       this.redirect(reply, `${frontendBaseUrl}${target}?googleError=google_failed`);
     }
   }
@@ -103,7 +104,7 @@ export class GoogleAuthController {
    * extras, not conditions for success (a cosmetic email conflict must
    * never leave a user stuck unable to satisfy the mandatory-link gate).
    */
-  private async handleConnect(userId: string, identity: GoogleIdentity): Promise<void> {
+  private async handleConnect(userId: string, identity: ExternalIdentity): Promise<void> {
     try {
       await this.prisma.userAuthIdentity.upsert({
         where: { userId_provider: { userId, provider: "google" } },
@@ -148,7 +149,7 @@ export class GoogleAuthController {
   }
 
   private async handleLogin(
-    identity: GoogleIdentity,
+    identity: ExternalIdentity,
     reply: FastifyReply,
     frontendBaseUrl: string,
   ): Promise<void> {
@@ -159,14 +160,14 @@ export class GoogleAuthController {
       this.redirect(reply, `${frontendBaseUrl}/login?googleError=not_linked`);
       return;
     }
-    const session = await this.googleAuth.issueSession(link.userId);
+    const session = await this.session.issueSession(link.userId);
     if (!session) {
       this.redirect(reply, `${frontendBaseUrl}/login?googleError=inactive`);
       return;
     }
     this.redirect(
       reply,
-      `${frontendBaseUrl}/auth/google/callback?token=${encodeURIComponent(session.accessToken)}`,
+      `${frontendBaseUrl}/auth/callback?token=${encodeURIComponent(session.accessToken)}`,
     );
   }
 

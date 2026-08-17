@@ -10,13 +10,13 @@ import type { AuthenticatedActor } from "./auth.types.js";
 export const IS_PUBLIC_KEY = "isPublic";
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 
-// Exempts a route from GoogleLinkGuard's mandatory-linking gate (see
-// auth/google-link.guard.ts) -- for the Google auth routes themselves (or
-// the gate could never be escaped), plus the handful of session-management
-// routes a not-yet-linked user still needs (logout, "who am I", session
-// check) so they aren't completely trapped.
-export const SKIP_GOOGLE_LINK_KEY = "skipGoogleLinkCheck";
-export const SkipGoogleLinkCheck = () => SetMetadata(SKIP_GOOGLE_LINK_KEY, true);
+// Exempts a route from AccountLinkGuard's mandatory-linking gate (see
+// auth/account-link.guard.ts) -- for the Google/Microsoft auth routes
+// themselves (or the gate could never be escaped), plus the handful of
+// session-management routes a not-yet-linked user still needs (logout,
+// "who am I", session check) so they aren't completely trapped.
+export const SKIP_ACCOUNT_LINK_KEY = "skipAccountLinkCheck";
+export const SkipAccountLinkCheck = () => SetMetadata(SKIP_ACCOUNT_LINK_KEY, true);
 
 export type AccessRequirement =
   | { kind: "globalAdmin" }

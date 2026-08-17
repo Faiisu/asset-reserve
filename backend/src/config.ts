@@ -108,18 +108,50 @@ export const appConfig = {
     }
     return { clientId: clientId!, clientSecret: clientSecret!, redirectUri: redirectUri! };
   },
+  // Microsoft/Outlook sign-in / account linking -- same optional,
+  // all-set-or-none-set shape as googleAuth(). MICROSOFT_TENANT_ID is the
+  // one extra knob Google has no equivalent of: which Microsoft accounts
+  // are allowed to sign in. Defaults to "common" (both personal
+  // Outlook/Hotmail accounts and work/school Azure AD accounts) rather
+  // than requiring it, since most deployments want "any Microsoft
+  // account" the same way googleAuth() accepts any Google account.
+  microsoftAuth: (): {
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
+    tenantId: string;
+  } | null => {
+    const clientId = process.env.MICROSOFT_CLIENT_ID?.trim();
+    const clientSecret = process.env.MICROSOFT_CLIENT_SECRET?.trim();
+    const redirectUri = process.env.MICROSOFT_REDIRECT_URI?.trim();
+    const present = [clientId, clientSecret, redirectUri].filter(Boolean).length;
+    if (present === 0) return null;
+    if (present < 3) {
+      throw new Error(
+        "MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET and MICROSOFT_REDIRECT_URI must all be set together (or all left unset to disable Microsoft sign-in).",
+      );
+    }
+    return {
+      clientId: clientId!,
+      clientSecret: clientSecret!,
+      redirectUri: redirectUri!,
+      tenantId: process.env.MICROSOFT_TENANT_ID?.trim() || "common",
+    };
+  },
   // The frontend's own origin, e.g. http://localhost:5173 -- only needed to
-  // build the redirect target at the end of the Google OAuth callback, so
-  // it's required (not optional) the moment googleAuth() is configured, but
-  // otherwise unused.
+  // build the redirect target at the end of an OAuth callback (Google or
+  // Microsoft), so it's required (not optional) the moment either provider
+  // is configured, but otherwise unused.
   frontendBaseUrl: (): string => required("FRONTEND_BASE_URL").replace(/\/$/, ""),
-  // Whether every user must link a Google account before using the app
-  // (enforced by GoogleLinkGuard). Three effective states: Google not
-  // configured -> always off (nothing to force-link to); Google configured
-  // and this unset/anything but "false" -> on (the production default);
-  // Google configured *and* explicitly set to "false" -> off (lets a
-  // developer configure real Google OAuth locally to test the link flow
-  // itself without every other login being blocked by it).
-  requireGoogleLink: (): boolean =>
-    appConfig.googleAuth() !== null && process.env.REQUIRE_GOOGLE_LINK !== "false",
+  // Whether every user must link an external account (Google or Microsoft
+  // -- either satisfies it, see AccountLinkGuard) before using the app.
+  // Three effective states: neither provider configured -> always off
+  // (nothing to force-link to); at least one configured and this
+  // unset/anything but "false" -> on (the production default); a provider
+  // configured *and* this explicitly set to "false" -> off (lets a
+  // developer configure real OAuth credentials locally to test the link
+  // flow itself without every other login being blocked by it).
+  requireAccountLink: (): boolean =>
+    (appConfig.googleAuth() !== null || appConfig.microsoftAuth() !== null) &&
+    process.env.REQUIRE_ACCOUNT_LINK !== "false",
 };
