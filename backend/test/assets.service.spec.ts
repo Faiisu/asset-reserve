@@ -7,9 +7,12 @@ const assetId = "00000000-0000-4000-8000-000000000201";
 const actor: AuthenticatedActor = {
   user: {
     id: "00000000-0000-4000-8000-000000000001",
+    username: "manager",
     email: "manager@example.com",
     isActive: true,
     profile: null,
+    linkedProviders: ["google"],
+    accountLinkRequired: false,
   },
   roles: [],
   effectivePermissions: {

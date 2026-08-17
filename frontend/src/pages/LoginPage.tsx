@@ -4,19 +4,42 @@ import {
   KeyRound,
 } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiClientError } from "../api";
 import { useAuth } from "../auth";
 import { Button, Field, Input } from "../components/ui";
+import { GoogleIcon, MicrosoftIcon } from "../components/OAuthIcons";
+
+const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
+  not_linked: "That Google account isn't linked to any user yet. Sign in with your username and password, then link it from there.",
+  inactive: "This account is disabled. Contact an administrator.",
+  google_not_configured: "Google sign-in isn't set up for this deployment.",
+  google_failed: "Something went wrong connecting to Google. Try again.",
+};
+
+const MICROSOFT_ERROR_MESSAGES: Record<string, string> = {
+  not_linked: "That Microsoft account isn't linked to any user yet. Sign in with your username and password, then link it from there.",
+  inactive: "This account is disabled. Contact an administrator.",
+  microsoft_not_configured: "Microsoft sign-in isn't set up for this deployment.",
+  microsoft_failed: "Something went wrong connecting to Microsoft. Try again.",
+};
 
 export function LoginPage() {
   const { session, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState("");
+  const [searchParams] = useSearchParams();
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const googleError = searchParams.get("googleError");
+  const microsoftError = searchParams.get("microsoftError");
+  const oauthErrorMessage = googleError
+    ? (GOOGLE_ERROR_MESSAGES[googleError] ?? GOOGLE_ERROR_MESSAGES.google_failed)
+    : microsoftError
+      ? (MICROSOFT_ERROR_MESSAGES[microsoftError] ?? MICROSOFT_ERROR_MESSAGES.microsoft_failed)
+      : "";
 
   if (session) return <Navigate to="/" replace />;
 
@@ -25,14 +48,14 @@ export function LoginPage() {
     setError("");
     setSubmitting(true);
     try {
-      await login(email, password);
+      await login(username, password);
       const from = (location.state as { from?: string } | null)?.from;
       navigate(from && from !== "/login" ? from : "/", { replace: true });
     } catch (caught) {
       setError(
         caught instanceof ApiClientError && caught.status === 403
           ? "This account is disabled. Contact an administrator."
-          : "Incorrect email or password",
+          : "Incorrect username or password",
       );
     } finally {
       setSubmitting(false);
@@ -64,14 +87,14 @@ export function LoginPage() {
           <h2>Sign in to your workspace</h2>
           <p className="login-form__intro">Use the account created for you by an administrator.</p>
           <form onSubmit={submit} noValidate>
-            <Field label="Email" required>
+            <Field label="Username" required>
               <Input
-                type="email"
-                name="email"
-                autoComplete="email"
-                placeholder="name@company.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                type="text"
+                name="username"
+                autoComplete="username"
+                placeholder="jane.doe"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
                 required
               />
             </Field>
@@ -87,10 +110,10 @@ export function LoginPage() {
               />
             </Field>
             <div className="login-alert-slot" aria-live="polite">
-              {error && (
+              {(error || oauthErrorMessage) && (
                 <div className="form-alert" role="alert">
                   <AlertCircle size={16} aria-hidden />
-                  <span>{error}</span>
+                  <span>{error || oauthErrorMessage}</span>
                 </div>
               )}
             </div>
@@ -98,11 +121,23 @@ export function LoginPage() {
               className="login-submit"
               type="submit"
               loading={submitting}
-              disabled={!email || !password}
+              disabled={!username || !password}
             >
               Sign in <ArrowRight size={17} />
             </Button>
           </form>
+          <a
+            href="/api/v1/auth/google/login"
+            className="button button--secondary button--md login-oauth"
+          >
+            <GoogleIcon /> Continue with Google
+          </a>
+          <a
+            href="/api/v1/auth/microsoft/login"
+            className="button button--secondary button--md login-oauth"
+          >
+            <MicrosoftIcon /> Continue with Microsoft
+          </a>
           <p className="login-help">
             Unable to sign in? Contact an administrator to activate your
             account or check your access.

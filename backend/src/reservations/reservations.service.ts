@@ -1,10 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "../../generated/prisma/client.js";
+import { normalizePermissions } from "../access-control/permissions.js";
 import type { PermissionKey } from "../access-control/permissions.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import { ApiException } from "../common/api-exception.js";
 import { decodeCursor, pageInfo } from "../common/pagination.js";
+import { ReservationLifecycleEvents } from "../common/reservation-lifecycle.events.js";
 import { PrismaService } from "../database/prisma.service.js";
 import {
   hasAnyPermission,
@@ -130,7 +132,10 @@ type Availability = {
 
 @Injectable()
 export class ReservationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly reservationEvents: ReservationLifecycleEvents,
+  ) {}
 
   async list(actor: AuthenticatedActor, query: ReservationListQueryDto) {
     const cursor = decodeCursor(query.cursor);
@@ -437,7 +442,49 @@ export class ReservationsService {
       entityId: reservationId,
       details: { status: nextStatus },
     });
+    if (nextStatus === "PENDING_APPROVAL") {
+      const managementAreaIds = [...new Set(assets.map((a) => a.managementAreaId))];
+      const approverRecipients = await this.findApproverRecipients(managementAreaIds);
+      this.reservationEvents.emitSubmitted({
+        reservationId,
+        eventName: reservation.eventName,
+        startAt: reservation.startAt,
+        endAt: reservation.endAt,
+        requester: {
+          email: reservation.requester.email,
+          name: reservation.requester.profile?.name ?? reservation.requester.username,
+        },
+        approverRecipients,
+      });
+    }
     return this.get(actor, reservationId);
+  }
+
+  private async findApproverRecipients(managementAreaIds: string[]) {
+    const assignments = await this.prisma.userRole.findMany({
+      where: {
+        OR: [{ managementAreaId: null }, { managementAreaId: { in: managementAreaIds } }],
+      },
+      include: { role: true, user: { include: { profile: true } } },
+    });
+    const recipients = new Map<string, { email: string; name: string }>();
+    for (const assignment of assignments) {
+      if (!assignment.user.isActive) continue;
+      if (!normalizePermissions(assignment.role.permissions).includes("reservation:approve")) {
+        continue;
+      }
+      // Not every approver has linked Google yet (email is only populated
+      // once they do) -- dedupe by user id (stable regardless of email,
+      // unlike the old email-keyed Map, which would have silently
+      // collapsed multiple unlinked approvers into one entry) and skip
+      // anyone we have no address to reach.
+      if (!assignment.user.email) continue;
+      recipients.set(assignment.user.id, {
+        email: assignment.user.email,
+        name: assignment.user.profile?.name ?? assignment.user.username,
+      });
+    }
+    return [...recipients.values()];
   }
 
   async decideItem(
@@ -480,7 +527,7 @@ export class ReservationsService {
       );
     }
 
-    await this.runSerializable(async (tx) => {
+    const newStatus = await this.runSerializable(async (tx) => {
       await this.assertActiveActor(tx, actor.user.id);
       const items = await tx.reservationItem.findMany({
         where: { id: { in: itemIds }, reservationId },
@@ -563,14 +610,12 @@ export class ReservationsService {
         where: { reservationId },
         select: { status: true },
       });
+      const newStatus = this.reservationStatusFromItems(
+        statuses.map((row) => row.status),
+      );
       await tx.reservation.update({
         where: { id: reservationId },
-        data: {
-          status: this.reservationStatusFromItems(
-            statuses.map((row) => row.status),
-          ),
-          updatedAt: decidedAt,
-        },
+        data: { status: newStatus, updatedAt: decidedAt },
       });
       for (const item of items) {
         await this.logActivity(tx, {
@@ -587,8 +632,23 @@ export class ReservationsService {
           },
         });
       }
+      return newStatus;
     });
-    return this.get(actor, reservationId);
+    const detail = await this.get(actor, reservationId);
+    this.reservationEvents.emitDecided({
+      reservationId,
+      eventName: detail.eventName,
+      startAt: new Date(detail.startAt),
+      endAt: new Date(detail.endAt),
+      status: newStatus,
+      decision: input.decision,
+      requester: {
+        id: detail.requester.id,
+        email: detail.requester.email,
+        name: detail.requester.name ?? "A user",
+      },
+    });
+    return detail;
   }
 
   async requestChange(
@@ -1168,6 +1228,10 @@ export class ReservationsService {
         entityId: reservationId,
         details: { reason: input?.reason ?? null },
       });
+    });
+    this.reservationEvents.emitCancelled({
+      reservationId,
+      requesterId: reservation.requesterId,
     });
     return this.get(actor, reservationId);
   }
@@ -2181,7 +2245,7 @@ export class ReservationsService {
 
   private userDto(user: {
     id: string;
-    email: string;
+    email: string | null;
     profile: { name: string; profilePictureUrl: string | null } | null;
   }) {
     return {

@@ -1,20 +1,16 @@
-import { Transform, Type } from "class-transformer";
+import { Transform } from "class-transformer";
 import {
   IsBoolean,
-  IsDefined,
-  IsEmail,
   IsISO8601,
   IsOptional,
   IsString,
-  IsUrl,
   IsUUID,
+  Matches,
   MaxLength,
   MinLength,
   ValidateIf,
-  ValidateNested,
 } from "class-validator";
 import {
-  IsUrlOrPath,
   SearchPaginationQueryDto,
   parseOptionalBoolean,
 } from "../common/dto.js";
@@ -34,40 +30,24 @@ export class UserListQueryDto extends SearchPaginationQueryDto {
   areaId?: string;
 }
 
-export class CreateProfileDto {
-  @IsString()
-  @MinLength(1)
-  @MaxLength(150)
-  name!: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(30)
-  phoneNumber?: string | null;
-
-  @IsOptional()
-  @IsUrlOrPath()
-  @MaxLength(2048)
-  profilePictureUrl?: string | null;
-}
-
 export class CreateUserDto {
+  // Login identifier only -- no email/name required up front. The user's
+  // email and profile (name, picture) are populated later, once they link
+  // their Google account (see google-auth.controller.ts's "connect"
+  // callback), which is mandatory before they can otherwise use the app.
   @Transform(({ value }: { value: unknown }) =>
     typeof value === "string" ? value.trim().toLowerCase() : value,
   )
-  @IsEmail()
-  @MaxLength(255)
-  email!: string;
+  @IsString()
+  @Matches(/^[a-z0-9._-]{3,50}$/, {
+    message: "username must be 3-50 characters: letters, numbers, dots, underscores, or hyphens.",
+  })
+  username!: string;
 
   @IsString()
   @MinLength(8)
   @MaxLength(128)
   password!: string;
-
-  @ValidateNested()
-  @IsDefined()
-  @Type(() => CreateProfileDto)
-  profile!: CreateProfileDto;
 }
 
 export class UpdateUserStatusDto {

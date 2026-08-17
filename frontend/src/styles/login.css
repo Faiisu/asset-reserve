@@ -172,4 +172,14 @@
   font-size: 12px;
   line-height: 1.55;
 }
+/* Same layout as .login-submit (full-width, aligned under the form)
+   without forcing its brand-exact blue -- used for secondary OAuth
+   provider links/buttons (e.g. "Continue with Microsoft" next to the
+   primary Sign in button, or a second provider button on
+   ConnectAccountPage), which should read as secondary actions rather
+   than duplicating the primary button's exact color. */
+.login-oauth {
+  width: 100%;
+  margin-top: 10px;
+}
 

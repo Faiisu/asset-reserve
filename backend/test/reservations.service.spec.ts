@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AuthenticatedActor } from "../src/auth/auth.types.js";
+import { ReservationLifecycleEvents } from "../src/common/reservation-lifecycle.events.js";
 import type { PrismaService } from "../src/database/prisma.service.js";
 import { ReservationsService } from "../src/reservations/reservations.service.js";
+
+// Fresh instance per describe/it isn't needed -- nothing here asserts on
+// listener state across tests, only whether a given call emits at all
+// (see the dedicated "reservation lifecycle events" describe block below).
+const reservationEvents = new ReservationLifecycleEvents();
 
 const actorId = "00000000-0000-4000-8000-000000000001";
 const reservationId = "00000000-0000-4000-8000-000000000101";
@@ -13,9 +19,12 @@ const changeRequestId = "00000000-0000-4000-8000-000000000501";
 const actor: AuthenticatedActor = {
   user: {
     id: actorId,
+    username: "manager",
     email: "manager@example.com",
     isActive: true,
     profile: null,
+    linkedProviders: ["google"],
+    accountLinkRequired: false,
   },
   roles: [],
   effectivePermissions: {
@@ -31,6 +40,7 @@ const actor: AuthenticatedActor = {
 
 const user = {
   id: actorId,
+  username: "manager",
   email: actor.user.email,
   profile: null,
 };
@@ -94,7 +104,7 @@ describe("reservation listing", () => {
     const findMany = vi.fn().mockResolvedValue([reservation]);
     const service = new ReservationsService({
       reservation: { findMany },
-    } as unknown as PrismaService);
+    } as unknown as PrismaService, reservationEvents);
 
     const result = await service.list(actor, {
       view: "MINE",
@@ -222,7 +232,7 @@ describe("reservation listing", () => {
     const findMany = vi.fn().mockResolvedValue([reservation]);
     const service = new ReservationsService({
       reservation: { findMany },
-    } as unknown as PrismaService);
+    } as unknown as PrismaService, reservationEvents);
 
     const result = await service.list(scopedActor, {
       view: "APPROVALS",
@@ -243,7 +253,7 @@ describe("reservation listing", () => {
     const findMany = vi.fn();
     const service = new ReservationsService({
       reservation: { findMany },
-    } as unknown as PrismaService);
+    } as unknown as PrismaService, reservationEvents);
 
     const result = await service.list(
       {
@@ -282,7 +292,7 @@ describe("reservation availability", () => {
         ]),
       },
     } as unknown as PrismaService;
-    const service = new ReservationsService(prisma);
+    const service = new ReservationsService(prisma, reservationEvents);
 
     const result = await service.get(actor, reservationId);
 
@@ -348,7 +358,7 @@ describe("reservation availability", () => {
         async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
       ),
     } as unknown as PrismaService;
-    const service = new ReservationsService(prisma);
+    const service = new ReservationsService(prisma, reservationEvents);
 
     await expect(
       service.decideItem(actor, reservationId, itemId, {
@@ -432,8 +442,19 @@ describe("reservation availability", () => {
         async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
       ),
     } as unknown as PrismaService;
-    const service = new ReservationsService(prisma);
-    const detail = { id: reservationId } as never;
+    // Fresh event bus (not the shared module-level one) so the listener
+    // added here doesn't linger and accumulate across every other test.
+    const events = new ReservationLifecycleEvents();
+    const decidedSpy = vi.fn();
+    events.onDecided(decidedSpy);
+    const service = new ReservationsService(prisma, events);
+    const detail = {
+      id: reservationId,
+      eventName: "Town Hall",
+      startAt: reservation.startAt.toISOString(),
+      endAt: reservation.endAt.toISOString(),
+      requester: { id: actorId, email: "manager@example.com", name: "Manager" },
+    } as never;
     vi.spyOn(service, "get").mockResolvedValue(detail);
 
     await expect(
@@ -444,6 +465,9 @@ describe("reservation availability", () => {
       }),
     ).resolves.toBe(detail);
 
+    expect(decidedSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ reservationId, status: "APPROVED", decision: "APPROVE" }),
+    );
     expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
     expect(itemUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -545,7 +569,7 @@ describe("reservation change requests", () => {
         async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
       ),
     } as unknown as PrismaService;
-    const service = new ReservationsService(prisma);
+    const service = new ReservationsService(prisma, reservationEvents);
     vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
 
     await service.decideChangeRequest(actor, reservationId, changeRequestId, {
@@ -572,9 +596,12 @@ describe("reservation change requests", () => {
     const nonRequesterActor: AuthenticatedActor = {
       user: {
         id: "other-user-id",
+        username: "other",
         email: "other@example.com",
         isActive: true,
         profile: null,
+        linkedProviders: ["google"],
+        accountLinkRequired: false,
       },
       roles: [],
       effectivePermissions: {
@@ -588,7 +615,7 @@ describe("reservation change requests", () => {
         findUnique: vi.fn().mockResolvedValue(reservation),
       },
     } as unknown as PrismaService;
-    const service = new ReservationsService(prisma);
+    const service = new ReservationsService(prisma, reservationEvents);
 
     await expect(
       service.requestChange(nonRequesterActor, reservationId, {
@@ -603,9 +630,12 @@ describe("reservation change requests", () => {
     const nonRequesterManagerActor: AuthenticatedActor = {
       user: {
         id: "manager-user-id",
+        username: "manager-user",
         email: "manager@example.com",
         isActive: true,
         profile: null,
+        linkedProviders: ["google"],
+        accountLinkRequired: false,
       },
       roles: [],
       effectivePermissions: {
@@ -629,7 +659,7 @@ describe("reservation change requests", () => {
       },
       reservationItem: { findMany: vi.fn().mockResolvedValue([]) },
     } as unknown as PrismaService;
-    const service = new ReservationsService(prisma);
+    const service = new ReservationsService(prisma, reservationEvents);
 
     const result = await service.get(nonRequesterManagerActor, reservationId);
     expect(result.capabilities.canRequestChange).toBe(false);
@@ -651,7 +681,7 @@ describe("reservation change requests", () => {
         async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
       ),
     } as unknown as PrismaService;
-    const service = new ReservationsService(prisma);
+    const service = new ReservationsService(prisma, reservationEvents);
     vi.spyOn(service, "get").mockResolvedValue({
       id: reservationId,
       status: "APPROVED",
@@ -692,9 +722,12 @@ describe("reservation change requests", () => {
     const regularUserActor: AuthenticatedActor = {
       user: {
         id: "regular-user-id",
+        username: "regular-user",
         email: "user@example.com",
         isActive: true,
         profile: null,
+        linkedProviders: ["google"],
+        accountLinkRequired: false,
       },
       roles: [],
       effectivePermissions: {
@@ -705,7 +738,7 @@ describe("reservation change requests", () => {
     const findMany = vi.fn().mockResolvedValue([]);
     const service = new ReservationsService({
       reservation: { findMany },
-    } as unknown as PrismaService);
+    } as unknown as PrismaService, reservationEvents);
 
     await service.list(regularUserActor, {
       view: "ALL",
@@ -746,9 +779,12 @@ describe("reservation change requests", () => {
     const regularUserActor: AuthenticatedActor = {
       user: {
         id: "regular-user-id",
+        username: "regular-user",
         email: "user@example.com",
         isActive: true,
         profile: null,
+        linkedProviders: ["google"],
+        accountLinkRequired: false,
       },
       roles: [],
       effectivePermissions: {
@@ -761,7 +797,7 @@ describe("reservation change requests", () => {
       reservation: {
         findUnique: vi.fn().mockResolvedValue(pendingReservation),
       },
-    } as unknown as PrismaService);
+    } as unknown as PrismaService, reservationEvents);
 
     await expect(service.get(regularUserActor, reservationId)).rejects.toThrow(
       "You do not have permission to perform this reservation action.",
@@ -772,9 +808,12 @@ describe("reservation change requests", () => {
     const regularUserActor: AuthenticatedActor = {
       user: {
         id: "regular-user-id",
+        username: "regular-user",
         email: "user@example.com",
         isActive: true,
         profile: null,
+        linkedProviders: ["google"],
+        accountLinkRequired: false,
       },
       roles: [],
       effectivePermissions: {
@@ -787,7 +826,7 @@ describe("reservation change requests", () => {
       reservation: {
         findUnique: vi.fn().mockResolvedValue(rejectedReservation),
       },
-    } as unknown as PrismaService);
+    } as unknown as PrismaService, reservationEvents);
 
     await expect(service.get(regularUserActor, reservationId)).rejects.toThrow(
       "You do not have permission to perform this reservation action.",
@@ -806,7 +845,7 @@ describe("reservation change requests", () => {
           .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]),
       },
       reservationItem: { findMany: vi.fn().mockResolvedValue([]) },
-    } as unknown as PrismaService);
+    } as unknown as PrismaService, reservationEvents);
 
     const result = await service.get(actor, reservationId);
     expect(result.id).toBe(reservationId);
@@ -846,7 +885,7 @@ describe("reservation change requests", () => {
       ),
     } as unknown as PrismaService;
 
-    const service = new ReservationsService(prisma);
+    const service = new ReservationsService(prisma, reservationEvents);
     const result = await service.confirmDelivery(actor, reservationId);
 
     expect(update).toHaveBeenCalledWith(
@@ -884,9 +923,12 @@ describe("reservation change requests", () => {
             actorKind === "participant"
               ? participantId
               : "00000000-0000-4000-8000-000000000778",
+          username: actorKind.replace(" ", "-"),
           email: `${actorKind.replace(" ", "-")}@example.com`,
           isActive: true,
           profile: null,
+          linkedProviders: ["google"],
+          accountLinkRequired: false,
         },
         roles: [],
         effectivePermissions: {
@@ -915,7 +957,7 @@ describe("reservation change requests", () => {
           }),
         ),
       } as unknown as PrismaService;
-      const service = new ReservationsService(prisma);
+      const service = new ReservationsService(prisma, reservationEvents);
       vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
 
       await expect(
@@ -934,9 +976,12 @@ describe("reservation change requests", () => {
     const outsider: AuthenticatedActor = {
       user: {
         id: "00000000-0000-4000-8000-000000000779",
+        username: "outsider",
         email: "outsider@example.com",
         isActive: true,
         profile: null,
+        linkedProviders: ["google"],
+        accountLinkRequired: false,
       },
       roles: [],
       effectivePermissions: { global: [], byManagementArea: [] },
@@ -944,7 +989,7 @@ describe("reservation change requests", () => {
     const prisma = {
       reservation: { findUnique: vi.fn().mockResolvedValue(approvedReservation) },
     } as unknown as PrismaService;
-    const service = new ReservationsService(prisma);
+    const service = new ReservationsService(prisma, reservationEvents);
 
     await expect(
       service.confirmDelivery(outsider, reservationId, { itemIds: [itemId] }),
@@ -992,7 +1037,7 @@ describe("reservation change requests", () => {
       ),
     } as unknown as PrismaService;
 
-    const service = new ReservationsService(prisma);
+    const service = new ReservationsService(prisma, reservationEvents);
     await service.confirmDelivery(actor, reservationId, { itemIds: [itemId] });
 
     // Should update the specific item
@@ -1009,5 +1054,190 @@ describe("reservation change requests", () => {
         data: expect.not.objectContaining({ status: "DELIVERY_CONFIRMED" }),
       }),
     );
+  });
+});
+
+describe("reservation lifecycle events", () => {
+  it("submit() resolves approvers with reservation:approve in the affected area and emits submitted", async () => {
+    const reservation = detailRecord("DRAFT");
+    const findUnique = vi.fn().mockResolvedValue(reservation);
+    const assetFindMany = vi.fn().mockResolvedValue([{ id: assetId, totalQuantity: 2 }]);
+    const reservationItemFindMany = vi.fn().mockResolvedValue([]); // no overlapping bookings
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const userRoleFindMany = vi.fn().mockResolvedValue([
+      {
+        role: { permissions: ["reservation:approve"] },
+        user: {
+          id: "approver-id",
+          username: "area-approver",
+          isActive: true,
+          email: "approver@example.com",
+          profile: { name: "Area Approver" },
+        },
+      },
+      // Inactive user with the right permission -- must be excluded.
+      {
+        role: { permissions: ["reservation:approve"] },
+        user: {
+          id: "gone-id",
+          username: "gone",
+          isActive: false,
+          email: "gone@example.com",
+          profile: null,
+        },
+      },
+      // Active user without reservation:approve -- must be excluded.
+      {
+        role: { permissions: ["reservation:update"] },
+        user: {
+          id: "editor-id",
+          username: "editor",
+          isActive: true,
+          email: "editor@example.com",
+          profile: null,
+        },
+      },
+    ]);
+    const prisma = {
+      reservation: { findUnique, updateMany },
+      asset: { findMany: assetFindMany },
+      reservationItem: { findMany: reservationItemFindMany },
+      userRole: { findMany: userRoleFindMany },
+    } as unknown as PrismaService;
+    const events = new ReservationLifecycleEvents();
+    const submittedSpy = vi.fn();
+    events.onSubmitted(submittedSpy);
+    const service = new ReservationsService(prisma, events);
+    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
+
+    await service.submit(actor, reservationId, {
+      expectedUpdatedAt: reservation.updatedAt.toISOString(),
+    });
+
+    expect(submittedSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservationId,
+        eventName: reservation.eventName,
+        approverRecipients: [{ email: "approver@example.com", name: "Area Approver" }],
+      }),
+    );
+  });
+
+  it("submit() dedupes approvers by id and skips those with no email on file", async () => {
+    const reservation = detailRecord("DRAFT");
+    const findUnique = vi.fn().mockResolvedValue(reservation);
+    const assetFindMany = vi.fn().mockResolvedValue([{ id: assetId, totalQuantity: 2 }]);
+    const reservationItemFindMany = vi.fn().mockResolvedValue([]);
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const userRoleFindMany = vi.fn().mockResolvedValue([
+      // Global approver, granted twice (global + area-scoped role) -- must
+      // collapse to a single recipient, keyed by id rather than email.
+      {
+        role: { permissions: ["reservation:approve"] },
+        user: {
+          id: "dup-id",
+          username: "dup-approver",
+          isActive: true,
+          email: "dup@example.com",
+          profile: { name: "Dup Approver" },
+        },
+      },
+      {
+        role: { permissions: ["reservation:approve"] },
+        user: {
+          id: "dup-id",
+          username: "dup-approver",
+          isActive: true,
+          email: "dup@example.com",
+          profile: { name: "Dup Approver" },
+        },
+      },
+      // Active approver who hasn't linked Google yet -- no email on file,
+      // must be skipped rather than emailed to `null`.
+      {
+        role: { permissions: ["reservation:approve"] },
+        user: {
+          id: "unlinked-id",
+          username: "unlinked-approver",
+          isActive: true,
+          email: null,
+          profile: null,
+        },
+      },
+    ]);
+    const prisma = {
+      reservation: { findUnique, updateMany },
+      asset: { findMany: assetFindMany },
+      reservationItem: { findMany: reservationItemFindMany },
+      userRole: { findMany: userRoleFindMany },
+    } as unknown as PrismaService;
+    const events = new ReservationLifecycleEvents();
+    const submittedSpy = vi.fn();
+    events.onSubmitted(submittedSpy);
+    const service = new ReservationsService(prisma, events);
+    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
+
+    await service.submit(actor, reservationId, {
+      expectedUpdatedAt: reservation.updatedAt.toISOString(),
+    });
+
+    expect(submittedSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approverRecipients: [{ email: "dup@example.com", name: "Dup Approver" }],
+      }),
+    );
+  });
+
+  it("submit() does not emit when a zero-item reservation auto-approves", async () => {
+    const reservation = { ...detailRecord("DRAFT"), items: [] };
+    const findUnique = vi.fn().mockResolvedValue(reservation);
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const userRoleFindMany = vi.fn();
+    const prisma = {
+      reservation: { findUnique, updateMany },
+      userRole: { findMany: userRoleFindMany },
+    } as unknown as PrismaService;
+    const events = new ReservationLifecycleEvents();
+    const submittedSpy = vi.fn();
+    events.onSubmitted(submittedSpy);
+    const service = new ReservationsService(prisma, events);
+    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
+
+    await service.submit(actor, reservationId, {
+      expectedUpdatedAt: reservation.updatedAt.toISOString(),
+    });
+
+    expect(submittedSpy).not.toHaveBeenCalled();
+    expect(userRoleFindMany).not.toHaveBeenCalled();
+  });
+
+  it("cancel() emits cancelled with the requester id", async () => {
+    const reservation = detailRecord("APPROVED");
+    const findUnique = vi.fn().mockResolvedValue(reservation);
+    const update = vi.fn().mockResolvedValue({});
+    const itemUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const changeRequestUpdateMany = vi.fn().mockResolvedValue({ count: 0 });
+    const prisma = {
+      reservation: { findUnique, update },
+      reservationItem: { updateMany: itemUpdateMany },
+      reservationChangeRequest: { updateMany: changeRequestUpdateMany },
+      $transaction: vi.fn(
+        async (work: (client: unknown) => Promise<unknown>) =>
+          work({
+            reservation: { update },
+            reservationItem: { updateMany: itemUpdateMany },
+            reservationChangeRequest: { updateMany: changeRequestUpdateMany },
+          }),
+      ),
+    } as unknown as PrismaService;
+    const events = new ReservationLifecycleEvents();
+    const cancelledSpy = vi.fn();
+    events.onCancelled(cancelledSpy);
+    const service = new ReservationsService(prisma, events);
+    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
+
+    await service.cancel(actor, reservationId);
+
+    expect(cancelledSpy).toHaveBeenCalledWith({ reservationId, requesterId: actorId });
   });
 });

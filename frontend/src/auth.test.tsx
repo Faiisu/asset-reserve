@@ -6,8 +6,11 @@ import type { SessionContext } from "./types";
 const session: SessionContext = {
   user: {
     id: "user-1",
+    username: "manager",
     email: "manager@example.com",
     isActive: true,
+    linkedProviders: ["google"],
+    accountLinkRequired: false,
     profile: {
       name: "Asset Manager",
       phoneNumber: null,

@@ -11,6 +11,10 @@ export class SessionService {
       where: { id: userId },
       include: {
         profile: true,
+        // Needed to compute AuthenticatedActor.user.linkedProviders --
+        // which rows exist here is the single source of truth for
+        // whether the mandatory-link gate (AccountLinkGuard) is satisfied.
+        authIdentities: { select: { provider: true } },
         userRoles: {
           include: { role: true, managementArea: true },
         },
@@ -18,8 +22,8 @@ export class SessionService {
     });
   }
 
-  async findPasswordUser(email: string) {
-    return this.prisma.user.findUnique({ where: { email } });
+  async findPasswordUser(username: string) {
+    return this.prisma.user.findUnique({ where: { username } });
   }
 
   async getActor(userId: string) {

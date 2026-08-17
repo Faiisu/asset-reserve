@@ -354,11 +354,11 @@ function ReservationListRow({
           </span>
           <span>
             <Avatar
-              name={reservation.requester.name ?? reservation.requester.email}
+              name={reservation.requester.name ?? reservation.requester.email ?? "User"}
               imageUrl={reservation.requester.profilePictureUrl}
               size="sm"
             />{" "}
-            {reservation.requester.name ?? reservation.requester.email}
+            {reservation.requester.name ?? reservation.requester.email ?? "User"}
           </span>
         </div>
         <div className="reservation-list-areas">

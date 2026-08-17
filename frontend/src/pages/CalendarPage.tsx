@@ -55,10 +55,13 @@ import type {
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const STATUS_COLOR_CLASS: Record<ReservationStatus, string> = {
   DRAFT: "calendar-legend__draft",
+  PENDING: "calendar-legend__pending_approval",
   PENDING_APPROVAL: "calendar-legend__pending_approval",
   PARTIALLY_APPROVED: "calendar-legend__partially_approved",
   APPROVED: "calendar-legend__approved",
   DELIVERY_CONFIRMED: "calendar-legend__delivery_confirmed",
+  ACTIVE: "calendar-legend__delivery_confirmed",
+  RETURN: "calendar-legend__return_pending",
   RETURN_PENDING: "calendar-legend__return_pending",
   RETURN_CONFIRMED: "calendar-legend__return_confirmed",
   COMPLETED: "calendar-legend__completed",
@@ -68,10 +71,13 @@ const STATUS_COLOR_CLASS: Record<ReservationStatus, string> = {
 
 const STATUS_OPTION_STATUSES: Record<ReservationStatus, ReservationStatus[]> = {
   DRAFT: ["DRAFT"],
+  PENDING: ["PENDING", "PENDING_APPROVAL"],
   PENDING_APPROVAL: ["PENDING_APPROVAL"],
   PARTIALLY_APPROVED: ["PARTIALLY_APPROVED"],
   APPROVED: ["APPROVED"],
   DELIVERY_CONFIRMED: ["DELIVERY_CONFIRMED"],
+  ACTIVE: ["ACTIVE", "DELIVERY_CONFIRMED"],
+  RETURN: ["RETURN", "RETURN_PENDING"],
   RETURN_PENDING: ["RETURN_PENDING"],
   RETURN_CONFIRMED: ["RETURN_CONFIRMED"],
   COMPLETED: ["COMPLETED"],

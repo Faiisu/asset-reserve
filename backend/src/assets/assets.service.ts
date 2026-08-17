@@ -535,7 +535,7 @@ export class AssetsService {
 
   private userDto(user: {
     id: string;
-    email: string;
+    email: string | null;
     profile: { name: string; profilePictureUrl: string | null } | null;
   }) {
     return {

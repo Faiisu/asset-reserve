@@ -1,4 +1,5 @@
 import {
+  Bell,
   Boxes,
   Building2,
   ChevronDown,
@@ -27,6 +28,7 @@ const titles: Array<[string, string]> = [
   ["/admin/access", "Access and roles"],
   ["/admin/users", "Users"],
   ["/admin/areas", "Management areas"],
+  ["/admin/notifications", "Notification"],
 ];
 
 export function AppShell() {
@@ -101,6 +103,12 @@ export function AppShell() {
       label: "Users",
       icon: Users,
       show: canAdminUsers,
+    },
+    {
+      to: "/admin/notifications",
+      label: "Notification",
+      icon: Bell,
+      show: isGlobalAdmin,
     },
   ].filter((item) => item.show);
 
@@ -207,7 +215,7 @@ export function AppShell() {
               </button>
               {profileOpen && (
                 <div className="profile-popover">
-                  <p>{session?.user.email}</p>
+                  <p>{session?.user.email ?? session?.user.username}</p>
                   <button onClick={() => void logout()}>
                     <LogOut size={16} />
                     Log out

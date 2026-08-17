@@ -226,6 +226,11 @@ async function seedBootstrapAdmin(): Promise<void> {
     user = await prisma.user.create({
       data: {
         id: ids.users.admin,
+        // Derived from the email local-part, same convention the
+        // 20260817130000_username_accounts migration uses to backfill
+        // pre-existing rows -- keeps a fresh seed and a migrated database
+        // producing the same username for this account.
+        username: email.split("@")[0]!,
         email,
         passwordHash: await hash(password, { type: 2 }),
         profile: { create: { name } },
@@ -344,6 +349,7 @@ async function seedMockData(): Promise<void> {
       update: {},
       create: {
         id: userData.id,
+        username: userData.email.split("@")[0]!,
         email: userData.email,
         passwordHash,
       },

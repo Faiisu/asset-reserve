@@ -11,13 +11,18 @@ export type ActorRole = {
 export type AuthenticatedActor = {
   user: {
     id: string;
-    email: string;
+    username: string;
+    email: string | null;
     isActive: true;
     profile: {
       name: string;
       phoneNumber: string | null;
       profilePictureUrl: string | null;
     } | null;
+    /** Providers with a row in this user's authIdentities, e.g. ["google"]. */
+    linkedProviders: string[];
+    /** appConfig.requireAccountLink() at session-build time. */
+    accountLinkRequired: boolean;
   };
   roles: ActorRole[];
   effectivePermissions: {

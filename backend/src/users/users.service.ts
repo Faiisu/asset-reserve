@@ -47,6 +47,7 @@ export class UsersService {
     if (query.search) {
       conditions.push({
         OR: [
+          { username: { contains: query.search, mode: "insensitive" } },
           { email: { contains: query.search, mode: "insensitive" } },
           {
             profile: { name: { contains: query.search, mode: "insensitive" } },
@@ -89,6 +90,7 @@ export class UsersService {
     return {
       data: page.data.map((user) => ({
         id: user.id,
+        username: user.username,
         email: user.email,
         name: user.profile?.name ?? null,
         isActive: user.isActive,
@@ -116,15 +118,13 @@ export class UsersService {
       const user = await this.prisma.user.create({
         data: {
           id: randomUUID(),
-          email: input.email,
+          username: input.username,
+          // No email or profile at creation time -- both are populated the
+          // first time this user links their Google account (mandatory
+          // before they can otherwise use the app; see google-auth's
+          // "connect" callback).
+          email: null,
           passwordHash: await hash(input.password, { type: 2 }),
-          profile: {
-            create: {
-              name: input.profile.name,
-              phoneNumber: input.profile.phoneNumber ?? null,
-              profilePictureUrl: input.profile.profilePictureUrl ?? null,
-            },
-          },
           ...(userRole
             ? {
                 userRoles: {
@@ -144,8 +144,8 @@ export class UsersService {
       if (this.prismaCode(error) === "P2002") {
         throw new ApiException(
           409,
-          "EMAIL_ALREADY_EXISTS",
-          "A user with this email already exists.",
+          "USERNAME_ALREADY_EXISTS",
+          "A user with this username already exists.",
         );
       }
       throw error;
@@ -326,6 +326,7 @@ export class UsersService {
   private userDetail(user: UserDetailRecord) {
     return {
       id: user.id,
+      username: user.username,
       email: user.email,
       isActive: user.isActive,
       profile: user.profile

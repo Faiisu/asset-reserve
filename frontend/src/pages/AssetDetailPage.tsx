@@ -308,7 +308,7 @@ export function AssetDetailPage() {
                     <td>
                       <span className="performer">
                         <UserRound size={15} />
-                        {item.performedBy.name ?? item.performedBy.email}
+                        {item.performedBy.name ?? item.performedBy.email ?? "Unnamed user"}
                       </span>
                     </td>
                   </tr>

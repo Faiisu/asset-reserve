@@ -1,3 +1,4 @@
+import { appConfig } from "../config.js";
 import {
   normalizePermissions,
   type PermissionKey,
@@ -6,13 +7,15 @@ import type { AuthenticatedActor } from "./auth.types.js";
 
 export type SessionSource = {
   id: string;
-  email: string;
+  username: string;
+  email: string | null;
   isActive: boolean;
   profile: {
     name: string;
     phoneNumber: string | null;
     profilePictureUrl: string | null;
   } | null;
+  authIdentities: Array<{ provider: string }>;
   userRoles: Array<{
     id: string;
     role: { id: string; name: string; permissions: unknown };
@@ -62,9 +65,18 @@ export function buildSessionContext(source: SessionSource): AuthenticatedActor {
   return {
     user: {
       id: source.id,
+      username: source.username,
       email: source.email,
       isActive: true,
       profile: source.profile,
+      // Which external identity providers this user has linked -- the
+      // mandatory-link gate (AccountLinkGuard) is satisfied by linking
+      // ANY of them, not one specifically. Mirrors the shape
+      // UsersService.userDetail()'s authProviders already uses for admin
+      // display (users.service.ts), scoped here to just the OAuth
+      // providers (no "password").
+      linkedProviders: source.authIdentities.map((identity) => identity.provider),
+      accountLinkRequired: appConfig.requireAccountLink(),
     },
     roles,
     effectivePermissions: { global, byManagementArea },

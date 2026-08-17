@@ -24,8 +24,8 @@ describe("LoginPage", () => {
         </AuthProvider>
       </MemoryRouter>,
     );
-    fireEvent.change(screen.getByLabelText(/email/i), {
-      target: { value: "user@example.com" },
+    fireEvent.change(screen.getByLabelText(/username/i), {
+      target: { value: "someuser" },
     });
     fireEvent.change(screen.getByLabelText(/password/i), {
       target: { value: "wrong-password" },
@@ -33,7 +33,7 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Incorrect email or password",
+      "Incorrect username or password",
     );
   });
 });

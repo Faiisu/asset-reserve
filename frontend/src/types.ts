@@ -20,13 +20,16 @@ export type ManagementAreaRef = { id: string; name: string };
 export type SessionContext = {
   user: {
     id: string;
-    email: string;
+    username: string;
+    email: string | null;
     isActive: true;
     profile: {
       name: string;
       phoneNumber: string | null;
       profilePictureUrl: string | null;
     } | null;
+    linkedProviders: string[];
+    accountLinkRequired: boolean;
   };
   roles: Array<{
     assignmentId: string;
@@ -69,9 +72,29 @@ export type ManagementArea = ManagementAreaRef & {
   updatedAt: string;
 };
 
+export type NotificationSettings = {
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  fromName: string;
+  fromEmail: string;
+  smtpPasswordSet: boolean;
+  updatedAt: string | null;
+};
+
+export type NotificationSettingsInput = {
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  fromName: string;
+  fromEmail: string;
+  smtpPassword?: string;
+};
+
 export type UserListItem = {
   id: string;
-  email: string;
+  username: string;
+  email: string | null;
   name: string | null;
   isActive: boolean;
   roleCount: number;
@@ -91,7 +114,8 @@ export type RoleAssignment = {
 
 export type UserDetail = {
   id: string;
-  email: string;
+  username: string;
+  email: string | null;
   isActive: boolean;
   profile: {
     name: string;
@@ -125,7 +149,7 @@ export type AssetSummary = {
   managementArea: ManagementAreaRef;
   owner: {
     id: string;
-    email: string;
+    email: string | null;
     name: string | null;
     profilePictureUrl: string | null;
   } | null;
@@ -158,7 +182,7 @@ export type AssetDetail = AssetSummary & {
     batchDescription: string | null;
     performedBy: {
       id: string;
-      email: string;
+      email: string | null;
       name: string | null;
       profilePictureUrl: string | null;
     };
@@ -215,7 +239,7 @@ export type ReservationItemStatus =
 
 export type ReservationUser = {
   id: string;
-  email: string;
+  email: string | null;
   name: string | null;
   profilePictureUrl: string | null;
 };

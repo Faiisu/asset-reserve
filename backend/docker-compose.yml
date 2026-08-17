@@ -36,6 +36,33 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
       TRUST_PROXY: ${TRUST_PROXY:-true}
       RECOGNITION_SERVICE_URL: ${RECOGNITION_SERVICE_URL:-http://recognition-service:8000}
+      # Optional -- email stays disabled (EmailService no-ops) if these are
+      # left blank. Set both SMTP_USER and SMTP_APP_PASSWORD to enable.
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_APP_PASSWORD: ${SMTP_APP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Advantech Asset Reservation}
+      # Only required once an admin saves an App Password through
+      # Administration > Notification instead of only via SMTP_* above.
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      # Optional -- Google Sign-In / mandatory account linking stays
+      # disabled (no gate, "Continue with Google" link not functional)
+      # unless all three GOOGLE_* are set. See docs/oauth-setup.md for
+      # the Cloud Console setup.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      # Optional -- Microsoft/Outlook Sign-In, independently configurable
+      # from GOOGLE_* above. MICROSOFT_TENANT_ID defaults to "common" if
+      # unset. See docs/oauth-setup.md for the Azure App Registration setup.
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+      MICROSOFT_REDIRECT_URI: ${MICROSOFT_REDIRECT_URI:-}
+      MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:8080}
+      REQUIRE_ACCOUNT_LINK: ${REQUIRE_ACCOUNT_LINK:-}
     depends_on:
       schema:
         condition: service_completed_successfully
