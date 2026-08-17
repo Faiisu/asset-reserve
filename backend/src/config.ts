@@ -42,4 +42,35 @@ export const appConfig = {
   recognitionServiceUrl: (
     process.env.RECOGNITION_SERVICE_URL ?? "http://localhost:8000"
   ).replace(/\/$/, ""),
+  // Outgoing email (Gmail SMTP + App Password), an optional feature: null
+  // when unconfigured (SMTP_USER/SMTP_APP_PASSWORD both absent -- e.g. dev
+  // or CI, EmailService just no-ops sends), throws if only one of the pair
+  // is set (that's a misconfiguration, not "disabled"), else returns the
+  // resolved settings. Evaluated once by EmailService's constructor.
+  smtp: (): {
+    host: string;
+    port: number;
+    user: string;
+    appPassword: string;
+    fromEmail: string;
+    fromName: string;
+  } | null => {
+    const user = process.env.SMTP_USER?.trim();
+    const appPassword = process.env.SMTP_APP_PASSWORD?.trim();
+    const present = [user, appPassword].filter(Boolean).length;
+    if (present === 0) return null;
+    if (present < 2) {
+      throw new Error(
+        "SMTP_USER and SMTP_APP_PASSWORD must both be set together (or both left unset to disable email).",
+      );
+    }
+    return {
+      host: process.env.SMTP_HOST?.trim() || "smtp.gmail.com",
+      port: integer("SMTP_PORT", 465),
+      user: user!,
+      appPassword: appPassword!,
+      fromEmail: process.env.SMTP_FROM_EMAIL?.trim() || user!,
+      fromName: process.env.SMTP_FROM_NAME?.trim() || "Advantech Asset Reservation",
+    };
+  },
 };

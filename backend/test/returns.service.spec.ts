@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AuthenticatedActor } from "../src/auth/auth.types.js";
+import { ReservationLifecycleEvents } from "../src/common/reservation-lifecycle.events.js";
 import type { PrismaService } from "../src/database/prisma.service.js";
 import { ReturnsService } from "../src/returns/returns.service.js";
+
+const reservationEvents = new ReservationLifecycleEvents();
 
 const requesterId = "00000000-0000-4000-8000-000000000001";
 const managerId = "00000000-0000-4000-8000-000000000002";
@@ -224,7 +227,7 @@ describe("ReturnsService", () => {
       }),
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock);
+    const service = new ReturnsService(prismaMock, reservationEvents);
     const result = await service.create(requesterActor, reservationId, {
       items: [
         {
@@ -250,7 +253,7 @@ describe("ReturnsService", () => {
       },
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock);
+    const service = new ReturnsService(prismaMock, reservationEvents);
     await expect(
       service.create(requesterActor, reservationId, {
         items: [
@@ -274,7 +277,7 @@ describe("ReturnsService", () => {
       $transaction: vi.fn().mockImplementation(async (callback) => callback(prismaMock)),
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock);
+    const service = new ReturnsService(prismaMock, reservationEvents);
     await expect(
       service.create(requesterActor, reservationId, {
         items: [
@@ -342,7 +345,13 @@ describe("ReturnsService", () => {
       }),
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock);
+    // Fresh event bus (not the shared module-level one) so the listener
+    // added here doesn't linger and accumulate across every other test in
+    // this file.
+    const events = new ReservationLifecycleEvents();
+    const returnDecidedSpy = vi.fn();
+    events.onReturnDecided(returnDecidedSpy);
+    const service = new ReturnsService(prismaMock, events);
     const result = await service.decide(areaManagerActor, reservationId, returnId, {
       decision: "APPROVE",
       description: "Looks good",
@@ -355,6 +364,9 @@ describe("ReturnsService", () => {
         data: expect.objectContaining({ status: "COMPLETED" }),
       }),
     );
+    expect(returnDecidedSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ reservationId, returnId, decision: "APPROVED" }),
+    );
   });
 
   it("forbids a manager from deciding returns for an unassigned management area", async () => {
@@ -366,7 +378,7 @@ describe("ReturnsService", () => {
       },
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock);
+    const service = new ReturnsService(prismaMock, reservationEvents);
     await expect(
       service.decide(otherAreaManagerActor, reservationId, returnId, {
         decision: "APPROVE",
@@ -423,7 +435,7 @@ describe("ReturnsService", () => {
       }),
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock);
+    const service = new ReturnsService(prismaMock, reservationEvents);
     const created = await service.create(requesterActor, reservationId, {
       items: [
         {
@@ -497,7 +509,7 @@ describe("ReturnsService", () => {
       }),
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock);
+    const service = new ReturnsService(prismaMock, reservationEvents);
     const result = await service.decide(areaManagerActor, reservationId, returnId, {
       decision: "APPROVE",
       items: [
@@ -532,7 +544,7 @@ describe("ReturnsService", () => {
       $transaction: vi.fn().mockImplementation(async (callback) => callback(prismaMock)),
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock);
+    const service = new ReturnsService(prismaMock, reservationEvents);
     await expect(
       service.decide(areaManagerActor, reservationId, returnId, {
         decision: "APPROVE",

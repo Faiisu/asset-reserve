@@ -7,6 +7,7 @@ import {
   hasGlobalPermission,
 } from "../assets/asset-access.js";
 import { ApiException } from "../common/api-exception.js";
+import { ReservationLifecycleEvents } from "../common/reservation-lifecycle.events.js";
 import { PrismaService } from "../database/prisma.service.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import {
@@ -50,7 +51,10 @@ type ReturnDetailRecord = Prisma.ReturnGetPayload<{
 
 @Injectable()
 export class ReturnsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly reservationEvents: ReservationLifecycleEvents,
+  ) {}
 
   async list(actor: AuthenticatedActor, query: ReturnListQueryDto) {
     const limit = Math.min(query.limit ?? 20, 100);
@@ -781,7 +785,18 @@ export class ReturnsService {
       }
     });
 
-    return this.get(actor, returnId);
+    const detail = await this.get(actor, returnId);
+    this.reservationEvents.emitReturnDecided({
+      reservationId,
+      returnId,
+      eventName: detail.reservation.eventName,
+      decision: input.decision === "APPROVE" ? "APPROVED" : "REJECTED",
+      requester: {
+        email: detail.reservation.requester.email,
+        name: detail.reservation.requester.name ?? detail.reservation.requester.email,
+      },
+    });
+    return detail;
   }
 
   private returnDto(actor: AuthenticatedActor, record: ReturnDetailRecord) {

@@ -36,6 +36,14 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
       TRUST_PROXY: ${TRUST_PROXY:-true}
       RECOGNITION_SERVICE_URL: ${RECOGNITION_SERVICE_URL:-http://recognition-service:8000}
+      # Optional -- email stays disabled (EmailService no-ops) if these are
+      # left blank. Set both SMTP_USER and SMTP_APP_PASSWORD to enable.
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_APP_PASSWORD: ${SMTP_APP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Advantech Asset Reservation}
     depends_on:
       schema:
         condition: service_completed_successfully

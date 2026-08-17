@@ -4,7 +4,9 @@ import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { AccessControlModule } from "./access-control/access-control.module.js";
 import { AuthModule } from "./auth/auth.module.js";
 import { AssetsModule } from "./assets/assets.module.js";
+import { ReservationLifecycleModule } from "./common/reservation-lifecycle.module.js";
 import { DatabaseModule } from "./database/database.module.js";
+import { EmailModule } from "./email/email.module.js";
 import { ManagementAreasModule } from "./management-areas/management-areas.module.js";
 import { RecognitionModule } from "./recognition/recognition.module.js";
 import { ReservationsModule } from "./reservations/reservations.module.js";
@@ -16,6 +18,7 @@ import { UsersModule } from "./users/users.module.js";
   imports: [
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     DatabaseModule,
+    ReservationLifecycleModule,
     AuthModule,
     AssetsModule,
     AccessControlModule,
@@ -25,6 +28,7 @@ import { UsersModule } from "./users/users.module.js";
     ReturnsModule,
     UploadsModule,
     RecognitionModule,
+    EmailModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
