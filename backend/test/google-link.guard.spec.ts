@@ -1,5 +1,5 @@
 import { SetMetadata, type ExecutionContext } from "@nestjs/common";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SKIP_GOOGLE_LINK_KEY } from "../src/auth/auth.decorators.js";
 import { GoogleLinkGuard } from "../src/auth/google-link.guard.js";
 
@@ -24,6 +24,17 @@ function stubGoogleConfigured(): void {
 }
 
 describe("GoogleLinkGuard", () => {
+  // The real backend/.env may itself have GOOGLE_* set (e.g. during
+  // manual OAuth testing) -- vi.stubEnv layers on top of the actual
+  // process.env rather than clearing it, so "unconfigured" tests must
+  // explicitly blank these out instead of relying on them being unset.
+  beforeEach(() => {
+    vi.stubEnv("GOOGLE_CLIENT_ID", "");
+    vi.stubEnv("GOOGLE_CLIENT_SECRET", "");
+    vi.stubEnv("GOOGLE_REDIRECT_URI", "");
+    vi.stubEnv("REQUIRE_GOOGLE_LINK", "");
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
   });
