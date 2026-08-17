@@ -64,15 +64,17 @@ export function Field({
   error,
   required,
   children,
+  className,
 }: {
   label: string;
   hint?: string;
   error?: string;
   required?: boolean;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <label className={cx("field", error && "field--error")}>
+    <label className={cx("field", error && "field--error", className)}>
       <span className="field__label">
         {label} {required && <span aria-hidden>*</span>}
       </span>

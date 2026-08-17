@@ -35,6 +35,7 @@ services:
       JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
       TRUST_PROXY: ${TRUST_PROXY:-true}
+      RECOGNITION_SERVICE_URL: ${RECOGNITION_SERVICE_URL:-http://recognition-service:8000}
     depends_on:
       schema:
         condition: service_completed_successfully
