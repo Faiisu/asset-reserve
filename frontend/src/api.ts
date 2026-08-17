@@ -6,6 +6,10 @@ import type {
   AssetTemplate,
   CreateReservationInput,
   CreateReturnInput,
+  EmailTemplate,
+  EmailTemplateInput,
+  EmailTemplatePreview,
+  EmailTemplateSituation,
   InventoryResult,
   ListResponse,
   ManagementArea,
@@ -20,6 +24,7 @@ import type {
   ReturnDecisionInput,
   ReturnDetail,
   SessionContext,
+  UpdateSelfInput,
   UserDetail,
   UserListItem,
 } from "./types";
@@ -112,6 +117,14 @@ export const api = {
   googleConnectUrl: () => request<{ url: string }>("/auth/google/connect"),
   microsoftConnectUrl: () => request<{ url: string }>("/auth/microsoft/connect"),
 
+  updateMe: (input: UpdateSelfInput) =>
+    request<UserDetail>("/users/me", { method: "PATCH", body: json(input) }),
+  changeMyPassword: (currentPassword: string, newPassword: string) =>
+    request<void>("/users/me/password", {
+      method: "POST",
+      body: json({ currentPassword, newPassword }),
+    }),
+
   permissions: () => request<{ data: PermissionDefinition[] }>("/permissions"),
   roles: () => request<{ data: Role[] }>("/roles"),
   createRole: (input: {
@@ -189,6 +202,21 @@ export const api = {
     }),
   sendTestNotification: () =>
     request<void>("/notification-settings/test", { method: "POST" }),
+  emailTemplates: () => request<EmailTemplate[]>("/email-templates"),
+  emailTemplate: (situation: EmailTemplateSituation) =>
+    request<EmailTemplate>(`/email-templates/${situation}`),
+  updateEmailTemplate: (situation: EmailTemplateSituation, input: EmailTemplateInput) =>
+    request<EmailTemplate>(`/email-templates/${situation}`, {
+      method: "PATCH",
+      body: json(input),
+    }),
+  resetEmailTemplate: (situation: EmailTemplateSituation) =>
+    request<EmailTemplate>(`/email-templates/${situation}`, { method: "DELETE" }),
+  previewEmailTemplate: (situation: EmailTemplateSituation, input: EmailTemplateInput) =>
+    request<EmailTemplatePreview>(`/email-templates/${situation}/preview`, {
+      method: "POST",
+      body: json(input),
+    }),
   assets: (filters: {
     search?: string;
     areaId?: string;

@@ -325,6 +325,27 @@ export class ReservationsService {
         });
       }
     });
+    // The everyday "send for approval" flow creates straight into
+    // PENDING_APPROVAL in one step -- it never goes through submit() below,
+    // which is only reachable from an existing DRAFT. Without this, the
+    // normal way anyone actually submits a reservation never notified
+    // approvers at all (caught via live testing: an admin who should
+    // receive every submission got no email when a user reserved an asset).
+    if (status === "PENDING_APPROVAL") {
+      const managementAreaIds = [...new Set(assets.map((a) => a.managementAreaId))];
+      const approverRecipients = await this.findApproverRecipients(managementAreaIds);
+      this.reservationEvents.emitSubmitted({
+        reservationId,
+        eventName: input.eventName,
+        startAt,
+        endAt,
+        requester: {
+          email: actor.user.email,
+          name: actor.user.profile?.name ?? actor.user.username,
+        },
+        approverRecipients,
+      });
+    }
     return this.get(actor, reservationId);
   }
 
@@ -548,19 +569,30 @@ export class ReservationsService {
       return newStatus;
     });
     const detail = await this.get(actor, reservationId);
-    this.reservationEvents.emitDecided({
-      reservationId,
-      eventName: detail.eventName,
-      startAt: new Date(detail.startAt),
-      endAt: new Date(detail.endAt),
-      status: newStatus,
-      decision: input.decision,
-      requester: {
-        id: detail.requester.id,
-        email: detail.requester.email,
-        name: detail.requester.name ?? "A user",
-      },
-    });
+    // Items are often decided in batches (area managers only ever see/decide
+    // their own area's items -- see findApproverRecipients), so newStatus can
+    // still be PENDING_APPROVAL right after this call (other items in the
+    // same reservation untouched). Emailing on every batch would send a
+    // premature "your reservation was approved/rejected" while it's still
+    // actually pending, and could fire more than once per reservation.
+    // Only notify once the decision is actually final for now (APPROVED,
+    // REJECTED, or PARTIALLY_APPROVED -- reservationDecidedEmail already
+    // caveats that last one).
+    if (newStatus !== "PENDING_APPROVAL") {
+      this.reservationEvents.emitDecided({
+        reservationId,
+        eventName: detail.eventName,
+        startAt: new Date(detail.startAt),
+        endAt: new Date(detail.endAt),
+        status: newStatus,
+        decision: input.decision,
+        requester: {
+          id: detail.requester.id,
+          email: detail.requester.email,
+          name: detail.requester.name ?? "A user",
+        },
+      });
+    }
     return detail;
   }
 

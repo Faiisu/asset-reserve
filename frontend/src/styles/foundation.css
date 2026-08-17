@@ -724,6 +724,7 @@ code {
   font-size: 12px;
   text-overflow: ellipsis;
 }
+.profile-popover a,
 .profile-popover button {
   width: 100%;
   padding: 10px;
@@ -732,8 +733,17 @@ code {
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: var(--red);
   cursor: pointer;
+  text-decoration: none;
+}
+.profile-popover a {
+  color: var(--ink);
+}
+.profile-popover a:hover {
+  background: var(--line);
+}
+.profile-popover button {
+  color: var(--red);
 }
 .profile-popover button:hover {
   background: var(--red-soft);

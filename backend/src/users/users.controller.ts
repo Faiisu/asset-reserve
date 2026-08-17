@@ -17,7 +17,9 @@ import {
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import {
   AssignRoleDto,
+  ChangeMyPasswordDto,
   CreateUserDto,
+  UpdateSelfDto,
   UpdateUserStatusDto,
   UserListQueryDto,
 } from "./users.dto.js";
@@ -43,6 +45,27 @@ export class UsersController {
   @Post()
   create(@Body() input: CreateUserDto) {
     return this.users.create(input);
+  }
+
+  // Self-service routes -- any authenticated user, scoped to their own
+  // record via @CurrentActor(), no admin permission required. Declared
+  // ahead of the ":userId" routes below so "me" is never captured by
+  // ParseUUIDPipe's param route instead.
+  @Patch("me")
+  updateSelf(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Body() input: UpdateSelfDto,
+  ) {
+    return this.users.updateSelf(actor, input);
+  }
+
+  @Post("me/password")
+  @HttpCode(204)
+  changeMyPassword(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Body() input: ChangeMyPasswordDto,
+  ) {
+    return this.users.changeMyPassword(actor, input);
   }
 
   @RequireAnyGlobalPermission(...userAdministrationPermissions)

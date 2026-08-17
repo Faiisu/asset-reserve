@@ -20,7 +20,26 @@
 > than Google-specifically. For the dev/deploy toggle and the actual
 > Google Cloud Console / Azure App Registration setup steps (local testing
 > and real customer deployment, both providers), see
-> [`oauth-setup.md`](./oauth-setup.md) instead of this doc.
+> [`oauth-setup.md`](./oauth-setup.md) instead of this doc. **Linking was
+> made fully optional** (not just togglable at the deployment level) with a
+> new self-service `/account` page -- for customers whose corporate tenant
+> blocks OAuth consent for outside apps, set `REQUIRE_ACCOUNT_LINK=false`
+> and users manage their own notification email/name/password there
+> instead of linking anything; see `oauth-setup.md` §3.5. **Two real
+> notification bugs were found and fixed via live testing**: the everyday
+> "send for approval" flow (`ReservationsService.create()` landing straight
+> in `PENDING_APPROVAL`) never emitted `submitted` at all -- only the
+> separate draft-then-`submit()` path did -- so approvers never got emailed
+> on a normal reservation; and `decideItems()` emailed the requester an
+> "approved/rejected" verdict on *every* partial item-batch decision, even
+> while other items in the same multi-area reservation were still pending.
+> Both fixed in `reservations.service.ts`, see git history. **Admin-configurable
+> email templates shipped** on the same branch -- a new `email_templates`
+> table lets an admin rewrite each situation's subject/body (bold/italic/H1-3
+> + `{{placeholders}}`, no raw HTML) from Notification → Templates, with a
+> live preview and reset-to-default; absence of a row falls back to the
+> original hardcoded template unchanged. See `backend/src/email-templates/`
+> (new module) and `backend/src/email/email.service.ts`'s `resolveContent()`.
 
 ## Context
 

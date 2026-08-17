@@ -30,6 +30,7 @@ model User {
   returns                     Return[]                   @relation("ReturnReturnedBy")
   returnApprovals             ReturnApproval[]
   updatedNotificationSettings NotificationSettings[]
+  updatedEmailTemplates       EmailTemplate[]
 
   @@map("users")
 }

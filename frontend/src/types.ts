@@ -111,6 +111,39 @@ export type RoleAssignment = {
   createdAt: string;
 };
 
+export type EmailTemplateSituation =
+  | "reservation_submitted"
+  | "reservation_decided"
+  | "return_decided";
+
+export type EmailTemplate = {
+  situation: EmailTemplateSituation;
+  label: string;
+  description: string;
+  recipient: string;
+  placeholders: string[];
+  subject: string;
+  bodyMarkdown: string;
+  isCustomized: boolean;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
+
+export type EmailTemplateInput = {
+  subject: string;
+  bodyMarkdown: string;
+};
+
+export type EmailTemplatePreview = {
+  subject: string;
+  html: string;
+};
+
+export type UpdateSelfInput = {
+  name?: string;
+  email?: string;
+};
+
 export type UserDetail = {
   id: string;
   username: string;

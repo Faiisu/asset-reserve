@@ -102,7 +102,7 @@ export class NotificationSettingsService {
       throw new ApiException(
         422,
         "NO_EMAIL_ON_FILE",
-        "Link a Google account before sending a test email -- there is no address to send it to yet.",
+        "Set your notification email (in My account) before sending a test email -- there is no address to send it to yet.",
       );
     }
     try {

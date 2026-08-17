@@ -248,6 +248,65 @@ describe("EmailService", () => {
     expect(sendMail).not.toHaveBeenCalled();
   });
 
+  it("uses a saved EmailTemplate override instead of the hardcoded default when one exists", async () => {
+    vi.stubEnv("SMTP_USER", "notify@example.com");
+    vi.stubEnv("SMTP_APP_PASSWORD", "app-password");
+    const prisma = {
+      notificationSettings: { findUnique: vi.fn().mockResolvedValue(null) },
+      emailTemplate: {
+        findUnique: vi.fn().mockResolvedValue({
+          situation: "reservation_decided",
+          subject: "Custom: {{eventName}} was {{decision}}",
+          bodyMarkdown: "Hi -- your event **{{eventName}}** was {{decision}}.",
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new EmailService(prisma);
+
+    await service.sendReservationDecided({
+      reservationId: "res-1",
+      eventName,
+      startAt,
+      endAt,
+      status: "APPROVED",
+      decision: "APPROVE",
+      requester: { id: "u1", email: "req@example.com", name: "Reyna" },
+    });
+
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: "Custom: Town Hall was approved",
+        html: expect.stringContaining("<strong>Town Hall</strong> was approved"),
+      }),
+    );
+  });
+
+  it("falls back to the hardcoded default when the EmailTemplate lookup itself fails", async () => {
+    vi.stubEnv("SMTP_USER", "notify@example.com");
+    vi.stubEnv("SMTP_APP_PASSWORD", "app-password");
+    const prisma = {
+      notificationSettings: { findUnique: vi.fn().mockResolvedValue(null) },
+      emailTemplate: { findUnique: vi.fn().mockRejectedValue(new Error("db down")) },
+    } as unknown as PrismaService;
+    const service = new EmailService(prisma);
+
+    await expect(
+      service.sendReservationDecided({
+        reservationId: "res-1",
+        eventName,
+        startAt,
+        endAt,
+        status: "APPROVED",
+        decision: "APPROVE",
+        requester: { id: "u1", email: "req@example.com", name: "Reyna" },
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: expect.stringMatching(/approved/i) }),
+    );
+  });
+
   it("sendTestEmail throws (not best-effort) when nothing is configured", async () => {
     vi.stubEnv("SMTP_USER", "");
     vi.stubEnv("SMTP_APP_PASSWORD", "");

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { hash } from "argon2";
+import { hash, verify } from "argon2";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "../../generated/prisma/client.js";
 import { ApiException } from "../common/api-exception.js";
@@ -8,7 +8,9 @@ import { PrismaService } from "../database/prisma.service.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import type {
   AssignRoleDto,
+  ChangeMyPasswordDto,
   CreateUserDto,
+  UpdateSelfDto,
   UpdateUserStatusDto,
   UserListQueryDto,
 } from "./users.dto.js";
@@ -160,6 +162,69 @@ export class UsersService {
     if (!user)
       throw new ApiException(404, "USER_NOT_FOUND", "The user was not found.");
     return this.userDetail(user);
+  }
+
+  /**
+   * Self-service profile edit: a user updating their own name/notification
+   * email, independent of (and unaffected by) OAuth linking -- google-auth/
+   * microsoft-auth only ever populate email when it's still null, so a
+   * self-service value set here is never overwritten by a later link.
+   */
+  async updateSelf(actor: AuthenticatedActor, input: UpdateSelfDto) {
+    const userId = actor.user.id;
+
+    if (input.email !== undefined) {
+      try {
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { email: input.email, updatedAt: new Date() },
+        });
+      } catch (error) {
+        if (this.prismaCode(error) === "P2002") {
+          throw new ApiException(
+            409,
+            "EMAIL_ALREADY_IN_USE",
+            "This email is already in use by another account.",
+          );
+        }
+        throw error;
+      }
+    }
+
+    if (input.name !== undefined) {
+      await this.prisma.userProfile.upsert({
+        where: { userId },
+        update: { name: input.name, updatedAt: new Date() },
+        create: { userId, name: input.name },
+      });
+    }
+
+    return this.get(userId);
+  }
+
+  async changeMyPassword(actor: AuthenticatedActor, input: ChangeMyPasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: actor.user.id },
+      select: { passwordHash: true },
+    });
+    const valid =
+      !!user?.passwordHash &&
+      (await verify(user.passwordHash, input.currentPassword).catch(() => false));
+    if (!valid) {
+      throw new ApiException(
+        401,
+        "INVALID_CURRENT_PASSWORD",
+        "Current password is incorrect.",
+      );
+    }
+
+    await this.prisma.user.update({
+      where: { id: actor.user.id },
+      data: {
+        passwordHash: await hash(input.newPassword, { type: 2 }),
+        updatedAt: new Date(),
+      },
+    });
   }
 
   async updateStatus(

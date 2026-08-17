@@ -10,10 +10,19 @@ import type {
 import { PrismaService } from "../database/prisma.service.js";
 import { NOTIFICATION_SETTINGS_ID } from "../notification-settings/notification-settings.constants.js";
 import {
+  placeholdersForDecided,
+  placeholdersForReturnDecided,
+  placeholdersForSubmitted,
   reservationDecidedEmail,
   reservationSubmittedEmail,
   returnDecidedEmail,
+  wrap,
 } from "./email-templates.js";
+import {
+  renderTemplateBody,
+  renderTemplateSubject,
+} from "../email-templates/template-markup.js";
+import type { EmailContent } from "./email-templates.js";
 
 type SmtpConfig = {
   host: string;
@@ -45,8 +54,12 @@ type SmtpConfig = {
 export class EmailService {
   constructor(private readonly prisma: PrismaService) {}
 
-  sendReservationSubmitted(event: ReservationSubmittedEvent): Promise<void> {
-    const { subject, html } = reservationSubmittedEmail(event);
+  async sendReservationSubmitted(event: ReservationSubmittedEvent): Promise<void> {
+    const { subject, html } = await this.resolveContent(
+      "reservation_submitted",
+      () => placeholdersForSubmitted(event),
+      () => reservationSubmittedEmail(event),
+    );
     // findApproverRecipients() already excludes approvers with no email on
     // file, but the shared NotifyRecipient type is nullable -- filter
     // defensively rather than relying on that invariant here too.
@@ -59,8 +72,12 @@ export class EmailService {
     );
   }
 
-  sendReservationDecided(event: ReservationDecidedEvent): Promise<void> {
-    const { subject, html } = reservationDecidedEmail(event);
+  async sendReservationDecided(event: ReservationDecidedEvent): Promise<void> {
+    const { subject, html } = await this.resolveContent(
+      "reservation_decided",
+      () => placeholdersForDecided(event),
+      () => reservationDecidedEmail(event),
+    );
     // The requester may not have linked Google yet (no email on file) --
     // deliver() already no-ops on an empty recipient list.
     return this.deliver(
@@ -70,13 +87,45 @@ export class EmailService {
     );
   }
 
-  sendReturnDecided(event: ReturnDecidedEvent): Promise<void> {
-    const { subject, html } = returnDecidedEmail(event);
+  async sendReturnDecided(event: ReturnDecidedEvent): Promise<void> {
+    const { subject, html } = await this.resolveContent(
+      "return_decided",
+      () => placeholdersForReturnDecided(event),
+      () => returnDecidedEmail(event),
+    );
     return this.deliver(
       event.requester.email ? [event.requester.email] : [],
       subject,
       html,
     );
+  }
+
+  /**
+   * Checks for an admin-saved EmailTemplate row for this situation
+   * (email-templates/ module owns writing these); if present, renders it
+   * through the shared markdown-lite pipeline, otherwise falls back to the
+   * hardcoded default template unchanged -- so a deployment that never
+   * touches the templates admin UI behaves exactly as before. A lookup
+   * failure (e.g. table missing on an old deployment mid-migration) also
+   * falls back rather than throwing, matching this class's "email must
+   * never break the triggering action" rule.
+   */
+  private async resolveContent(
+    situation: "reservation_submitted" | "reservation_decided" | "return_decided",
+    placeholders: () => Record<string, string>,
+    fallback: () => EmailContent,
+  ): Promise<EmailContent> {
+    let row: { subject: string; bodyMarkdown: string } | null = null;
+    try {
+      row = await this.prisma.emailTemplate.findUnique({ where: { situation } });
+    } catch {
+      row = null;
+    }
+    if (!row) return fallback();
+    const values = placeholders();
+    const subject = renderTemplateSubject(row.subject, values);
+    const html = wrap(subject, renderTemplateBody(row.bodyMarkdown, values));
+    return { subject, html };
   }
 
   /**

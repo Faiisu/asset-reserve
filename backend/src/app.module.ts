@@ -11,6 +11,7 @@ import { GoogleAuthModule } from "./google-auth/google-auth.module.js";
 import { ManagementAreasModule } from "./management-areas/management-areas.module.js";
 import { MicrosoftAuthModule } from "./microsoft-auth/microsoft-auth.module.js";
 import { NotificationSettingsModule } from "./notification-settings/notification-settings.module.js";
+import { EmailTemplatesModule } from "./email-templates/email-templates.module.js";
 import { RecognitionModule } from "./recognition/recognition.module.js";
 import { ReservationsModule } from "./reservations/reservations.module.js";
 import { ReturnsModule } from "./returns/returns.module.js";
@@ -35,6 +36,7 @@ import { UsersModule } from "./users/users.module.js";
     RecognitionModule,
     EmailModule,
     NotificationSettingsModule,
+    EmailTemplatesModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

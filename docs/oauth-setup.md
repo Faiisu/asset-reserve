@@ -217,15 +217,43 @@ no trailing slash. You don't have to offer both providers; set up only the one(s
 vars or secrets manager, never committed to a `.env` file in git, never pasted into chat/tickets
 as the long-term storage location.
 
-### 3.5 Go-live checklist
+### 3.5 When a customer can't (or won't) do OAuth at all
 
+Some customers run their work Outlook on a corporate Microsoft 365 tenant with "user consent to
+apps" locked down by IT policy. In that case, the *first* employee to try linking hits a wall
+that has nothing to do with this app: Microsoft blocks the sign-in and says an org admin has to
+grant consent for the whole tenant before anyone there can use it. The same class of restriction
+can happen on the Google side too (Workspace admins can similarly restrict third-party app
+access). Chasing that consent from a customer's IT department isn't always practical, especially
+early on.
+
+For these customers, don't make linking mandatory:
+
+```bash
+REQUIRE_ACCOUNT_LINK=false
+```
+
+This disables `AccountLinkGuard` entirely — nobody is forced through `/connect-account`, and the
+app is fully usable on username + password alone. In this mode, users manage their own
+notification email (and name, and password) themselves from **My account** (`/account`, linked
+from the profile menu in the top-right) — no admin action needed per user. Google/Microsoft
+linking is still offered there, just as an optional convenience, for whichever individual users
+*can* get past their org's consent screen.
+
+You can also leave `REQUIRE_ACCOUNT_LINK` unset (or `true`) for customers whose tenants don't
+have this restriction — the choice is per-deployment, not global.
+
+### 3.6 Go-live checklist
+
+- [ ] Decided whether this customer's deployment requires linking (§3.5) — if unsure, default to
+      `REQUIRE_ACCOUNT_LINK=false` and point users at `/account` instead of chasing IT approval
 - [ ] Production credentials created under company-controlled accounts (§3.1), for each provider
       you're offering
 - [ ] Google consent screen published (not left in Testing), if offering Google (§3.2)
 - [ ] Microsoft App Registration's account type confirmed correct, if offering Microsoft (§3.2)
 - [ ] Production redirect URIs registered, matching the `*_REDIRECT_URI` env vars exactly (§3.3)
 - [ ] Credentials + `FRONTEND_BASE_URL` set in the production deployment's secrets,
-      `REQUIRE_ACCOUNT_LINK` left unset
+      `REQUIRE_ACCOUNT_LINK` set deliberately either way (§3.5)
 - [ ] One real end-to-end login tested per offered provider against production before announcing
       to customers
 

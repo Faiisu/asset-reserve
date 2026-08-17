@@ -1,6 +1,7 @@
 import { Transform } from "class-transformer";
 import {
   IsBoolean,
+  IsEmail,
   IsISO8601,
   IsOptional,
   IsString,
@@ -65,4 +66,36 @@ export class AssignRoleDto {
   @ValidateIf((_object, value) => value !== null)
   @IsUUID()
   managementAreaId!: string | null;
+}
+
+/**
+ * Self-service profile edit -- distinct from admin-only user management
+ * above. Both fields optional/partial so a user can update just their
+ * notification email without also touching their name (or vice versa).
+ */
+export class UpdateSelfDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  name?: string;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === "string" ? value.trim().toLowerCase() : value,
+  )
+  @IsEmail()
+  @MaxLength(255)
+  email?: string;
+}
+
+export class ChangeMyPasswordDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1024)
+  currentPassword!: string;
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  newPassword!: string;
 }

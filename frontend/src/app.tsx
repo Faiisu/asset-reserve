@@ -4,6 +4,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth";
 import { AppShell } from "./components/AppShell";
 import { AccessPage } from "./pages/AccessPage";
+import { AccountPage } from "./pages/AccountPage";
 import { AssetDetailPage } from "./pages/AssetDetailPage";
 import { AssetFormPage } from "./pages/AssetFormPage";
 import { AssetsPage } from "./pages/AssetsPage";
@@ -84,6 +85,7 @@ export function App() {
       />
       <Route element={<ProtectedApp />}>
         <Route index element={<HomeRedirect />} />
+        <Route path="account" element={<AccountPage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="assets" element={<AssetsPage />} />
         <Route path="assets/new" element={<AssetFormPage />} />
