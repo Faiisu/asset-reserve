@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
 import { Button } from "../components/ui";
+import { GoogleIcon, MicrosoftIcon } from "../components/OAuthIcons";
 
 type Provider = "google" | "microsoft";
 
@@ -82,7 +83,7 @@ export function ConnectAccountPage() {
             disabled={starting === "microsoft"}
             onClick={() => void startConnect("google")}
           >
-            Continue with Google
+            <GoogleIcon /> Continue with Google
           </Button>
           <Button
             className="login-oauth"
@@ -91,7 +92,7 @@ export function ConnectAccountPage() {
             disabled={starting === "google"}
             onClick={() => void startConnect("microsoft")}
           >
-            Continue with Microsoft
+            <MicrosoftIcon /> Continue with Microsoft
           </Button>
           <p className="login-help">
             <button

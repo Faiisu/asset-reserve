@@ -8,6 +8,7 @@ import { Navigate, useLocation, useNavigate, useSearchParams } from "react-route
 import { ApiClientError } from "../api";
 import { useAuth } from "../auth";
 import { Button, Field, Input } from "../components/ui";
+import { GoogleIcon, MicrosoftIcon } from "../components/OAuthIcons";
 
 const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
   not_linked: "That Google account isn't linked to any user yet. Sign in with your username and password, then link it from there.",
@@ -129,13 +130,13 @@ export function LoginPage() {
             href="/api/v1/auth/google/login"
             className="button button--secondary button--md login-oauth"
           >
-            Continue with Google
+            <GoogleIcon /> Continue with Google
           </a>
           <a
             href="/api/v1/auth/microsoft/login"
             className="button button--secondary button--md login-oauth"
           >
-            Continue with Microsoft
+            <MicrosoftIcon /> Continue with Microsoft
           </a>
           <p className="login-help">
             Unable to sign in? Contact an administrator to activate your
