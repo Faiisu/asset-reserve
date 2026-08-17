@@ -207,7 +207,7 @@ export function AppShell() {
               </button>
               {profileOpen && (
                 <div className="profile-popover">
-                  <p>{session?.user.email}</p>
+                  <p>{session?.user.email ?? session?.user.username}</p>
                   <button onClick={() => void logout()}>
                     <LogOut size={16} />
                     Log out

@@ -97,7 +97,14 @@ export class NotificationSettingsService {
     return this.get();
   }
 
-  async sendTest(actorEmail: string): Promise<void> {
+  async sendTest(actorEmail: string | null): Promise<void> {
+    if (!actorEmail) {
+      throw new ApiException(
+        422,
+        "NO_EMAIL_ON_FILE",
+        "Link a Google account before sending a test email -- there is no address to send it to yet.",
+      );
+    }
     try {
       await this.email.sendTestEmail(actorEmail);
     } catch (error) {

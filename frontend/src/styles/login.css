@@ -172,4 +172,12 @@
   font-size: 12px;
   line-height: 1.55;
 }
+/* Same layout as .login-submit (full-width, aligned under the form)
+   without forcing its brand-exact blue -- used for the secondary
+   "Continue with Google" link on the login page, which should read as a
+   secondary action next to the primary Sign in button. */
+.login-google {
+  width: 100%;
+  margin-top: 10px;
+}
 

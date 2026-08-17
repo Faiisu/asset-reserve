@@ -19,9 +19,12 @@ const changeRequestId = "00000000-0000-4000-8000-000000000501";
 const actor: AuthenticatedActor = {
   user: {
     id: actorId,
+    username: "manager",
     email: "manager@example.com",
     isActive: true,
     profile: null,
+    googleLinked: true,
+    googleLinkRequired: false,
   },
   roles: [],
   effectivePermissions: {
@@ -37,6 +40,7 @@ const actor: AuthenticatedActor = {
 
 const user = {
   id: actorId,
+  username: "manager",
   email: actor.user.email,
   profile: null,
 };
@@ -528,9 +532,12 @@ describe("reservation change requests", () => {
     const nonRequesterActor: AuthenticatedActor = {
       user: {
         id: "other-user-id",
+        username: "other",
         email: "other@example.com",
         isActive: true,
         profile: null,
+        googleLinked: true,
+        googleLinkRequired: false,
       },
       roles: [],
       effectivePermissions: {
@@ -559,9 +566,12 @@ describe("reservation change requests", () => {
     const nonRequesterManagerActor: AuthenticatedActor = {
       user: {
         id: "manager-user-id",
+        username: "manager-user",
         email: "manager@example.com",
         isActive: true,
         profile: null,
+        googleLinked: true,
+        googleLinkRequired: false,
       },
       roles: [],
       effectivePermissions: {
@@ -634,9 +644,12 @@ describe("reservation change requests", () => {
     const regularUserActor: AuthenticatedActor = {
       user: {
         id: "regular-user-id",
+        username: "regular-user",
         email: "user@example.com",
         isActive: true,
         profile: null,
+        googleLinked: true,
+        googleLinkRequired: false,
       },
       roles: [],
       effectivePermissions: {
@@ -688,9 +701,12 @@ describe("reservation change requests", () => {
     const regularUserActor: AuthenticatedActor = {
       user: {
         id: "regular-user-id",
+        username: "regular-user",
         email: "user@example.com",
         isActive: true,
         profile: null,
+        googleLinked: true,
+        googleLinkRequired: false,
       },
       roles: [],
       effectivePermissions: {
@@ -714,9 +730,12 @@ describe("reservation change requests", () => {
     const regularUserActor: AuthenticatedActor = {
       user: {
         id: "regular-user-id",
+        username: "regular-user",
         email: "user@example.com",
         isActive: true,
         profile: null,
+        googleLinked: true,
+        googleLinkRequired: false,
       },
       roles: [],
       effectivePermissions: {
@@ -826,9 +845,12 @@ describe("reservation change requests", () => {
             actorKind === "participant"
               ? participantId
               : "00000000-0000-4000-8000-000000000778",
+          username: actorKind.replace(" ", "-"),
           email: `${actorKind.replace(" ", "-")}@example.com`,
           isActive: true,
           profile: null,
+          googleLinked: true,
+          googleLinkRequired: false,
         },
         roles: [],
         effectivePermissions: {
@@ -874,9 +896,12 @@ describe("reservation change requests", () => {
     const outsider: AuthenticatedActor = {
       user: {
         id: "00000000-0000-4000-8000-000000000779",
+        username: "outsider",
         email: "outsider@example.com",
         isActive: true,
         profile: null,
+        googleLinked: true,
+        googleLinkRequired: false,
       },
       roles: [],
       effectivePermissions: { global: [], byManagementArea: [] },
@@ -963,6 +988,8 @@ describe("reservation lifecycle events", () => {
       {
         role: { permissions: ["reservation:approve"] },
         user: {
+          id: "approver-id",
+          username: "area-approver",
           isActive: true,
           email: "approver@example.com",
           profile: { name: "Area Approver" },
@@ -971,12 +998,24 @@ describe("reservation lifecycle events", () => {
       // Inactive user with the right permission -- must be excluded.
       {
         role: { permissions: ["reservation:approve"] },
-        user: { isActive: false, email: "gone@example.com", profile: null },
+        user: {
+          id: "gone-id",
+          username: "gone",
+          isActive: false,
+          email: "gone@example.com",
+          profile: null,
+        },
       },
       // Active user without reservation:approve -- must be excluded.
       {
         role: { permissions: ["reservation:update"] },
-        user: { isActive: true, email: "editor@example.com", profile: null },
+        user: {
+          id: "editor-id",
+          username: "editor",
+          isActive: true,
+          email: "editor@example.com",
+          profile: null,
+        },
       },
     ]);
     const prisma = {
@@ -1000,6 +1039,71 @@ describe("reservation lifecycle events", () => {
         reservationId,
         eventName: reservation.eventName,
         approverRecipients: [{ email: "approver@example.com", name: "Area Approver" }],
+      }),
+    );
+  });
+
+  it("submit() dedupes approvers by id and skips those with no email on file", async () => {
+    const reservation = detailRecord("DRAFT");
+    const findUnique = vi.fn().mockResolvedValue(reservation);
+    const assetFindMany = vi.fn().mockResolvedValue([{ id: assetId, totalQuantity: 2 }]);
+    const reservationItemFindMany = vi.fn().mockResolvedValue([]);
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const userRoleFindMany = vi.fn().mockResolvedValue([
+      // Global approver, granted twice (global + area-scoped role) -- must
+      // collapse to a single recipient, keyed by id rather than email.
+      {
+        role: { permissions: ["reservation:approve"] },
+        user: {
+          id: "dup-id",
+          username: "dup-approver",
+          isActive: true,
+          email: "dup@example.com",
+          profile: { name: "Dup Approver" },
+        },
+      },
+      {
+        role: { permissions: ["reservation:approve"] },
+        user: {
+          id: "dup-id",
+          username: "dup-approver",
+          isActive: true,
+          email: "dup@example.com",
+          profile: { name: "Dup Approver" },
+        },
+      },
+      // Active approver who hasn't linked Google yet -- no email on file,
+      // must be skipped rather than emailed to `null`.
+      {
+        role: { permissions: ["reservation:approve"] },
+        user: {
+          id: "unlinked-id",
+          username: "unlinked-approver",
+          isActive: true,
+          email: null,
+          profile: null,
+        },
+      },
+    ]);
+    const prisma = {
+      reservation: { findUnique, updateMany },
+      asset: { findMany: assetFindMany },
+      reservationItem: { findMany: reservationItemFindMany },
+      userRole: { findMany: userRoleFindMany },
+    } as unknown as PrismaService;
+    const events = new ReservationLifecycleEvents();
+    const submittedSpy = vi.fn();
+    events.onSubmitted(submittedSpy);
+    const service = new ReservationsService(prisma, events);
+    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
+
+    await service.submit(actor, reservationId, {
+      expectedUpdatedAt: reservation.updatedAt.toISOString(),
+    });
+
+    expect(submittedSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approverRecipients: [{ email: "dup@example.com", name: "Dup Approver" }],
       }),
     );
   });

@@ -47,8 +47,13 @@ export class EmailService {
 
   sendReservationSubmitted(event: ReservationSubmittedEvent): Promise<void> {
     const { subject, html } = reservationSubmittedEmail(event);
+    // findApproverRecipients() already excludes approvers with no email on
+    // file, but the shared NotifyRecipient type is nullable -- filter
+    // defensively rather than relying on that invariant here too.
     return this.deliver(
-      event.approverRecipients.map((r) => r.email),
+      event.approverRecipients
+        .map((r) => r.email)
+        .filter((email): email is string => Boolean(email)),
       subject,
       html,
     );
@@ -56,12 +61,22 @@ export class EmailService {
 
   sendReservationDecided(event: ReservationDecidedEvent): Promise<void> {
     const { subject, html } = reservationDecidedEmail(event);
-    return this.deliver([event.requester.email], subject, html);
+    // The requester may not have linked Google yet (no email on file) --
+    // deliver() already no-ops on an empty recipient list.
+    return this.deliver(
+      event.requester.email ? [event.requester.email] : [],
+      subject,
+      html,
+    );
   }
 
   sendReturnDecided(event: ReturnDecidedEvent): Promise<void> {
     const { subject, html } = returnDecidedEmail(event);
-    return this.deliver([event.requester.email], subject, html);
+    return this.deliver(
+      event.requester.email ? [event.requester.email] : [],
+      subject,
+      html,
+    );
   }
 
   /**

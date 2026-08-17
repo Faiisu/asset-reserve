@@ -1,6 +1,13 @@
 model User {
   id           String  @id @db.Uuid
-  email        String  @unique @db.VarChar(255)
+  /// Login identifier, set once at creation (by an admin or via seed) and
+  /// never supplied by Google -- distinct from email, which may be null
+  /// until the user links a Google account.
+  username     String  @unique @db.VarChar(50)
+  /// Nullable: no longer collected at account creation. Populated the first
+  /// time a user links their Google account (see google-auth.controller.ts's
+  /// "connect" callback) and never before.
+  email        String? @unique @db.VarChar(255)
   passwordHash String? @map("password_hash")
   isActive     Boolean @default(true) @map("is_active")
 

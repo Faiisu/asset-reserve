@@ -13,7 +13,7 @@ import type { PermissionKey, SessionContext } from "./types";
 type AuthContextValue = {
   session: SessionContext | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   hasGlobalPermission: (permission: PermissionKey) => boolean;
@@ -60,8 +60,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("asset-rail:unauthorized", clearSession);
   }, [clearSession, refresh]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const response = await api.login(email, password);
+  const login = useCallback(async (username: string, password: string) => {
+    const response = await api.login(username, password);
     setAccessToken(response.accessToken);
     setSession(response.session);
   }, []);

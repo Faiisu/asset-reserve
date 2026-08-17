@@ -94,7 +94,7 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
 const json = (value: unknown) => JSON.stringify(value);
 
 export const api = {
-  login: (email: string, password: string) =>
+  login: (username: string, password: string) =>
     request<{
       accessToken: string;
       tokenType: "Bearer";
@@ -102,10 +102,14 @@ export const api = {
       session: SessionContext;
     }>("/auth/login", {
       method: "POST",
-      body: json({ email, password }),
+      body: json({ username, password }),
     }),
   session: () => request<{ session: SessionContext }>("/bff/session"),
   logout: () => request<void>("/auth/logout", { method: "POST" }),
+  // Authenticated, so it can't be a plain <a href> (no way to attach the
+  // Bearer token to a browser-initiated navigation) -- fetch the Google
+  // consent URL first, then the caller navigates the browser there itself.
+  googleConnectUrl: () => request<{ url: string }>("/auth/google/connect"),
 
   permissions: () => request<{ data: PermissionDefinition[] }>("/permissions"),
   roles: () => request<{ data: Role[] }>("/roles"),
@@ -134,15 +138,8 @@ export const api = {
     limit?: number;
   }) => request<ListResponse<UserListItem>>(`/users${queryString(filters)}`),
   user: (userId: string) => request<UserDetail>(`/users/${userId}`),
-  createUser: (input: {
-    email: string;
-    password: string;
-    profile: {
-      name: string;
-      phoneNumber?: string | null;
-      profilePictureUrl?: string | null;
-    };
-  }) => request<UserDetail>("/users", { method: "POST", body: json(input) }),
+  createUser: (input: { username: string; password: string }) =>
+    request<UserDetail>("/users", { method: "POST", body: json(input) }),
   updateUserStatus: (
     userId: string,
     input: { isActive: boolean; expectedUpdatedAt: string },

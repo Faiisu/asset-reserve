@@ -1,6 +1,5 @@
 import {
   Ban,
-  Camera,
   CheckCircle2,
   Filter,
   KeyRound,
@@ -9,7 +8,6 @@ import {
   Search,
   ShieldPlus,
   Trash2,
-  Upload,
   UserRound,
   UserRoundCheck,
   X,
@@ -17,7 +15,6 @@ import {
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
-import { CameraCaptureModal } from "../components/CameraCaptureModal";
 import {
   Avatar,
   Button,
@@ -199,7 +196,7 @@ export function UsersPage() {
           <input
             value={draftSearch}
             onChange={(event) => setDraftSearch(event.target.value)}
-            placeholder="Search by name or email"
+            placeholder="Search by username, name, or email"
             aria-label="Search users"
           />
           <button>Search</button>
@@ -256,13 +253,13 @@ export function UsersPage() {
                 key={user.id}
                 onClick={() => void openUser(user.id)}
               >
-                <Avatar name={user.name ?? user.email} size="lg" />
+                <Avatar name={user.name ?? user.email ?? user.username} size="lg" />
                 <div className="person-card__main">
                   <span>
-                    <strong>{user.name ?? "No profile name"}</strong>
+                    <strong>{user.name ?? user.username}</strong>
                     <StatusBadge active={user.isActive} />
                   </span>
-                  <small>{user.email}</small>
+                  <small>{user.email ?? "Not linked yet"}</small>
                 </div>
                 <div className="person-card__foot">
                   <span>
@@ -309,13 +306,13 @@ export function UsersPage() {
                       <X size={20} />
                     </button>
                     <Avatar
-                      name={selected.profile?.name ?? selected.email}
+                      name={selected.profile?.name ?? selected.email ?? selected.username}
                       imageUrl={selected.profile?.profilePictureUrl}
                       size="lg"
                     />
                     <div>
-                      <h2>{selected.profile?.name ?? "No profile name"}</h2>
-                      <span>{selected.email}</span>
+                      <h2>{selected.profile?.name ?? selected.username}</h2>
+                      <span>{selected.email ?? "Not linked yet"}</span>
                     </div>
                     <StatusBadge active={selected.isActive} />
                   </header>
@@ -565,33 +562,9 @@ function CreateUserDialog({
   onClose: () => void;
   onCreated: (user: UserDetail) => void | Promise<void>;
 }) {
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    phoneNumber: "",
-    profilePictureUrl: "",
-  });
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadError, setUploadError] = useState("");
-  const [cameraOpen, setCameraOpen] = useState(false);
+  const [form, setForm] = useState({ username: "", password: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-
-  async function handleImageUpload(file: File) {
-    setUploadingImage(true);
-    setUploadError("");
-    try {
-      const res = await api.uploadImage(file);
-      setForm((prev) => ({ ...prev, profilePictureUrl: res.url }));
-    } catch (caught) {
-      setUploadError(
-        caught instanceof Error ? caught.message : "Image upload failed",
-      );
-    } finally {
-      setUploadingImage(false);
-    }
-  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -599,22 +572,11 @@ function CreateUserDialog({
     setError("");
     try {
       const user = await api.createUser({
-        email: form.email,
+        username: form.username,
         password: form.password,
-        profile: {
-          name: form.name,
-          phoneNumber: form.phoneNumber || null,
-          profilePictureUrl: form.profilePictureUrl || null,
-        },
       });
       await onCreated(user);
-      setForm({
-        name: "",
-        email: "",
-        password: "",
-        phoneNumber: "",
-        profilePictureUrl: "",
-      });
+      setForm({ username: "", password: "" });
     } catch (caught) {
       setError(
         caught instanceof ApiClientError
@@ -626,132 +588,58 @@ function CreateUserDialog({
     }
   }
   return (
-    <>
-      <Dialog
-        open={open}
-        title="Create new user"
-        description="Create a password account first, then assign roles and areas."
-        onClose={onClose}
-        wide
-      >
-        <form className="form-stack" onSubmit={submit}>
-          {error && (
-            <div className="form-alert" role="alert">
-              {error}
-            </div>
-          )}
-          <div className="form-grid form-grid--2">
-            <Field label="Name" required>
-              <Input
-                value={form.name}
-                onChange={(event) =>
-                  setForm({ ...form, name: event.target.value })
-                }
-                maxLength={150}
-                required
-                autoFocus
-              />
-            </Field>
-            <Field label="Email" required>
-              <Input
-                type="email"
-                value={form.email}
-                onChange={(event) =>
-                  setForm({ ...form, email: event.target.value })
-                }
-                required
-              />
-            </Field>
-            <Field label="Initial password" hint="At least 8 characters" required>
-              <Input
-                type="password"
-                value={form.password}
-                onChange={(event) =>
-                  setForm({ ...form, password: event.target.value })
-                }
-                minLength={8}
-                required
-              />
-            </Field>
-            <Field label="Phone number">
-              <Input
-                value={form.phoneNumber}
-                onChange={(event) =>
-                  setForm({ ...form, phoneNumber: event.target.value })
-                }
-                maxLength={30}
-              />
-            </Field>
+    <Dialog
+      open={open}
+      title="Create new user"
+      description="Create a username + password account. The user must link their Google account before they can otherwise use the app -- that's where their name, email, and photo come from."
+      onClose={onClose}
+      wide
+    >
+      <form className="form-stack" onSubmit={submit}>
+        {error && (
+          <div className="form-alert" role="alert">
+            {error}
           </div>
-          <Field label="Profile picture" error={uploadError}>
-            <div style={{ display: "flex", gap: "14px", alignItems: "center", flexWrap: "wrap" }}>
-              <Avatar
-                name={form.name || "User"}
-                imageUrl={form.profilePictureUrl || null}
-                size="lg"
-              />
-              <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={uploadingImage}
-                  onClick={() => setCameraOpen(true)}
-                  style={{ whiteSpace: "nowrap" }}
-                >
-                  <Camera size={17} /> Take photo
-                </Button>
-                <label
-                  className="button button--secondary button--md"
-                  style={{ cursor: "pointer", whiteSpace: "nowrap" }}
-                >
-                  <Upload size={17} />
-                  {uploadingImage ? "Uploading..." : "Upload file"}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    style={{ display: "none" }}
-                    disabled={uploadingImage}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) void handleImageUpload(file);
-                    }}
-                  />
-                </label>
-                {form.profilePictureUrl && (
-                  <Button
-                    type="button"
-                    variant="quiet"
-                    onClick={() =>
-                      setForm((prev) => ({ ...prev, profilePictureUrl: "" }))
-                    }
-                    style={{ color: "var(--red)", gap: "5px" }}
-                  >
-                    <X size={15} /> Remove photo
-                  </Button>
-                )}
-              </div>
-            </div>
+        )}
+        <div className="form-grid form-grid--2">
+          <Field label="Username" hint="Letters, numbers, dots, underscores, or hyphens" required>
+            <Input
+              value={form.username}
+              onChange={(event) =>
+                setForm({ ...form, username: event.target.value })
+              }
+              minLength={3}
+              maxLength={50}
+              required
+              autoFocus
+            />
           </Field>
-          <div className="dialog__actions">
-            <Button type="button" variant="quiet" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              loading={submitting}
-              disabled={form.password.length < 8}
-            >
-              <CheckCircle2 size={16} />
-              Create user
-            </Button>
-          </div>
-        </form>
-      </Dialog>
-      <CameraCaptureModal
-        open={cameraOpen}
-        onClose={() => setCameraOpen(false)}
-        onCapture={(file) => handleImageUpload(file)}
-      />
-    </>
+          <Field label="Initial password" hint="At least 8 characters" required>
+            <Input
+              type="password"
+              value={form.password}
+              onChange={(event) =>
+                setForm({ ...form, password: event.target.value })
+              }
+              minLength={8}
+              required
+            />
+          </Field>
+        </div>
+        <div className="dialog__actions">
+          <Button type="button" variant="quiet" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            loading={submitting}
+            disabled={form.username.length < 3 || form.password.length < 8}
+          >
+            <CheckCircle2 size={16} />
+            Create user
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

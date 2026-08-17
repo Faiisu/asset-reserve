@@ -2,7 +2,16 @@
 
 > **Status (2026-08-17):** Phase A shipped on
 > [`feature/email-notifications`](https://github.com/Faiisu/asset-reserve/tree/feature/email-notifications)
-> (not yet merged). Phases B and C are designed below but not started.
+> (not yet merged). **Phase B shipped, in a substantially revised form, on
+> `feature/username-google-linking`** as part of switching admin-created
+> accounts to username + password (no email/name collected up front) with
+> *mandatory* Google linking -- see that branch for the actual design.
+> The Phase B section below is kept for history but is superseded: its
+> "login-by-email-match" idea no longer applies (accounts have no email to
+> match against at creation), and the callback's "connect" branch became
+> the *only* way a Google identity is ever linked, not just a Phase C
+> stub. Phase C (Calendar sync) is still designed below and not started;
+> it can still reuse the shipped `/connect` flow as planned.
 
 ## Context
 

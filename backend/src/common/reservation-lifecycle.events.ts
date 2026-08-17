@@ -1,7 +1,11 @@
 import { Injectable } from "@nestjs/common";
 import { EventEmitter } from "node:events";
 
-type NotifyRecipient = { email: string; name: string };
+// email is nullable: a user who hasn't linked Google yet has none on file
+// yet. Callers that actually send mail (EmailService) must skip/guard on
+// that; ReservationSubmittedEvent.requester below is display-only (it's
+// never used as a send target) so a null email there is harmless.
+type NotifyRecipient = { email: string | null; name: string };
 
 export type ReservationSubmittedEvent = {
   reservationId: string;

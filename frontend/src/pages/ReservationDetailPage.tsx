@@ -571,7 +571,9 @@ export function ReservationDetailPage() {
             <div>
               <span className="res-detail-meta-label">Requester</span>
               <span className="res-detail-meta-value">
-                {reservation.requester.name ?? reservation.requester.email}
+                {reservation.requester.name ??
+                  reservation.requester.email ??
+                  "Unnamed user"}
               </span>
             </div>
           </div>
@@ -1131,7 +1133,10 @@ export function ReservationDetailPage() {
                                 <CheckCircle size={14} />
                                 <div>
                                   <span>
-                                    Cleared by {item.approval.approver.name ?? item.approval.approver.email}
+                                    Cleared by{" "}
+                                    {item.approval.approver.name ??
+                                      item.approval.approver.email ??
+                                      "a user"}
                                   </span>
                                   {item.approval.decidedAt && (
                                     <small>{formatDate(item.approval.decidedAt, true)}</small>
@@ -1195,13 +1200,15 @@ export function ReservationDetailPage() {
             </div>
             <div className="res-team-list">
               <div className="res-team-member res-team-member--requester">
-                <Avatar name={reservation.requester.name ?? reservation.requester.email} />
+                <Avatar
+                  name={reservation.requester.name ?? reservation.requester.email ?? "User"}
+                />
                 <div>
                   <div className="res-team-member__name">
                     {reservation.requester.name ?? "User"}
                   </div>
                   <div className="res-team-member__meta">
-                    {reservation.requester.email}
+                    {reservation.requester.email ?? "Not linked yet"}
                   </div>
                 </div>
                 <span className="res-team-role">Requester</span>
@@ -1209,13 +1216,13 @@ export function ReservationDetailPage() {
 
               {reservation.participants.map((p) => (
                 <div key={p.id} className="res-team-member">
-                  <Avatar name={p.name ?? p.email} />
+                  <Avatar name={p.name ?? p.email ?? "Participant"} />
                   <div>
                     <div className="res-team-member__name">
                       {p.name ?? "Participant"}
                     </div>
                     <div className="res-team-member__meta">
-                      {p.email}
+                      {p.email ?? "Not linked yet"}
                     </div>
                   </div>
                 </div>

@@ -47,6 +47,15 @@ services:
       # Only required once an admin saves an App Password through
       # Administration > Notification instead of only via SMTP_* above.
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      # Optional -- Google Sign-In / mandatory account linking stays
+      # disabled (no gate, "Continue with Google" link not functional)
+      # unless all three GOOGLE_* are set. See
+      # docs/google-integrations-plan.md for the Cloud Console setup.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:8080}
+      REQUIRE_GOOGLE_LINK: ${REQUIRE_GOOGLE_LINK:-}
     depends_on:
       schema:
         condition: service_completed_successfully

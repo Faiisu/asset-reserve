@@ -15,15 +15,15 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
-  async login(email: string, password: string) {
-    const source = await this.sessions.findPasswordUser(email);
+  async login(username: string, password: string) {
+    const source = await this.sessions.findPasswordUser(username);
     const candidateHash = source?.passwordHash ?? (await this.dummyHash);
     const valid = await verify(candidateHash, password).catch(() => false);
     if (!source || !valid) {
       throw new ApiException(
         401,
         "INVALID_CREDENTIALS",
-        "Email or password is incorrect.",
+        "Username or password is incorrect.",
       );
     }
     if (!source.isActive)

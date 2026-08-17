@@ -382,7 +382,7 @@ export class ReservationsService {
         endAt: reservation.endAt,
         requester: {
           email: reservation.requester.email,
-          name: reservation.requester.profile?.name ?? reservation.requester.email,
+          name: reservation.requester.profile?.name ?? reservation.requester.username,
         },
         approverRecipients,
       });
@@ -403,9 +403,15 @@ export class ReservationsService {
       if (!normalizePermissions(assignment.role.permissions).includes("reservation:approve")) {
         continue;
       }
-      recipients.set(assignment.user.email, {
+      // Not every approver has linked Google yet (email is only populated
+      // once they do) -- dedupe by user id (stable regardless of email,
+      // unlike the old email-keyed Map, which would have silently
+      // collapsed multiple unlinked approvers into one entry) and skip
+      // anyone we have no address to reach.
+      if (!assignment.user.email) continue;
+      recipients.set(assignment.user.id, {
         email: assignment.user.email,
-        name: assignment.user.profile?.name ?? assignment.user.email,
+        name: assignment.user.profile?.name ?? assignment.user.username,
       });
     }
     return [...recipients.values()];
@@ -552,7 +558,7 @@ export class ReservationsService {
       requester: {
         id: detail.requester.id,
         email: detail.requester.email,
-        name: detail.requester.name ?? detail.requester.email,
+        name: detail.requester.name ?? "A user",
       },
     });
     return detail;
@@ -1976,7 +1982,7 @@ export class ReservationsService {
 
   private userDto(user: {
     id: string;
-    email: string;
+    email: string | null;
     profile: { name: string; profilePictureUrl: string | null } | null;
   }) {
     return {

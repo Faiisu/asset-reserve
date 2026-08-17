@@ -1,4 +1,5 @@
 import { LoaderCircle } from "lucide-react";
+import type { ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth";
 import { AppShell } from "./components/AppShell";
@@ -7,6 +8,9 @@ import { AssetDetailPage } from "./pages/AssetDetailPage";
 import { AssetFormPage } from "./pages/AssetFormPage";
 import { AssetsPage } from "./pages/AssetsPage";
 import { CalendarPage } from "./pages/CalendarPage";
+import { ConnectGoogleCallbackPage } from "./pages/ConnectGoogleCallbackPage";
+import { ConnectGooglePage } from "./pages/ConnectGooglePage";
+import { GoogleCallbackPage } from "./pages/GoogleCallbackPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ReservationCreatePage } from "./pages/ReservationCreatePage";
 import { ReservationDetailPage } from "./pages/ReservationDetailPage";
@@ -15,18 +19,40 @@ import { ManagementAreasPage } from "./pages/ManagementAreasPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { UsersPage } from "./pages/UsersPage";
 
+function BootScreen({ label }: { label: string }) {
+  return (
+    <div className="boot-screen">
+      <LoaderCircle className="spin" />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+/** A session is required, but neither AppShell chrome nor the mandatory
+ * Google-link gate applies -- used for the connect-google pages
+ * themselves (the gate's own UI would otherwise never be reachable). */
+function RequireSession({ children }: { children: ReactNode }) {
+  const { session, loading } = useAuth();
+  const location = useLocation();
+  if (loading) return <BootScreen label="Opening workspace" />;
+  if (!session)
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  return <>{children}</>;
+}
+
 function ProtectedApp() {
   const { session, loading } = useAuth();
   const location = useLocation();
-  if (loading)
-    return (
-      <div className="boot-screen">
-        <LoaderCircle className="spin" />
-        <span>Opening workspace</span>
-      </div>
-    );
+  if (loading) return <BootScreen label="Opening workspace" />;
   if (!session)
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  // Hard block, no skip: every user must link Google before using the
+  // rest of the app once REQUIRE_GOOGLE_LINK is on (see
+  // appConfig.requireGoogleLink() and GoogleLinkGuard on the backend --
+  // this is the UX for that gate, not the enforcement of it).
+  if (session.user.googleLinkRequired && !session.user.googleLinked) {
+    return <Navigate to="/connect-google" replace />;
+  }
   return <AppShell />;
 }
 
@@ -38,6 +64,23 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
+      <Route
+        path="/connect-google"
+        element={
+          <RequireSession>
+            <ConnectGooglePage />
+          </RequireSession>
+        }
+      />
+      <Route
+        path="/connect-google/callback"
+        element={
+          <RequireSession>
+            <ConnectGoogleCallbackPage />
+          </RequireSession>
+        }
+      />
       <Route element={<ProtectedApp />}>
         <Route index element={<HomeRedirect />} />
         <Route path="calendar" element={<CalendarPage />} />

@@ -19,9 +19,12 @@ const returnId = "00000000-0000-4000-8000-000000000701";
 const requesterActor: AuthenticatedActor = {
   user: {
     id: requesterId,
+    username: "requester",
     email: "requester@example.com",
     isActive: true,
     profile: null,
+    googleLinked: true,
+    googleLinkRequired: false,
   },
   roles: [],
   effectivePermissions: {
@@ -33,9 +36,12 @@ const requesterActor: AuthenticatedActor = {
 const areaManagerActor: AuthenticatedActor = {
   user: {
     id: managerId,
+    username: "manager",
     email: "manager@example.com",
     isActive: true,
     profile: null,
+    googleLinked: true,
+    googleLinkRequired: false,
   },
   roles: [],
   effectivePermissions: {
@@ -52,9 +58,12 @@ const areaManagerActor: AuthenticatedActor = {
 const otherAreaManagerActor: AuthenticatedActor = {
   user: {
     id: otherManagerId,
+    username: "other",
     email: "other@example.com",
     isActive: true,
     profile: null,
+    googleLinked: true,
+    googleLinkRequired: false,
   },
   roles: [],
   effectivePermissions: {
@@ -70,12 +79,14 @@ const otherAreaManagerActor: AuthenticatedActor = {
 
 const userRecord = {
   id: requesterId,
+  username: "requester",
   email: "requester@example.com",
   profile: null,
 };
 
 const managerRecord = {
   id: managerId,
+  username: "manager",
   email: "manager@example.com",
   profile: null,
 };

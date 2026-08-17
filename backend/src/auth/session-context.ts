@@ -1,3 +1,4 @@
+import { appConfig } from "../config.js";
 import {
   normalizePermissions,
   type PermissionKey,
@@ -6,13 +7,15 @@ import type { AuthenticatedActor } from "./auth.types.js";
 
 export type SessionSource = {
   id: string;
-  email: string;
+  username: string;
+  email: string | null;
   isActive: boolean;
   profile: {
     name: string;
     phoneNumber: string | null;
     profilePictureUrl: string | null;
   } | null;
+  authIdentities: Array<{ provider: string }>;
   userRoles: Array<{
     id: string;
     role: { id: string; name: string; permissions: unknown };
@@ -62,9 +65,14 @@ export function buildSessionContext(source: SessionSource): AuthenticatedActor {
   return {
     user: {
       id: source.id,
+      username: source.username,
       email: source.email,
       isActive: true,
       profile: source.profile,
+      googleLinked: source.authIdentities.some(
+        (identity) => identity.provider === "google",
+      ),
+      googleLinkRequired: appConfig.requireGoogleLink(),
     },
     roles,
     effectivePermissions: { global, byManagementArea },

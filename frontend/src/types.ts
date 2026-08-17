@@ -19,13 +19,16 @@ export type ManagementAreaRef = { id: string; name: string };
 export type SessionContext = {
   user: {
     id: string;
-    email: string;
+    username: string;
+    email: string | null;
     isActive: true;
     profile: {
       name: string;
       phoneNumber: string | null;
       profilePictureUrl: string | null;
     } | null;
+    googleLinked: boolean;
+    googleLinkRequired: boolean;
   };
   roles: Array<{
     assignmentId: string;
@@ -89,7 +92,8 @@ export type NotificationSettingsInput = {
 
 export type UserListItem = {
   id: string;
-  email: string;
+  username: string;
+  email: string | null;
   name: string | null;
   isActive: boolean;
   roleCount: number;
@@ -109,7 +113,8 @@ export type RoleAssignment = {
 
 export type UserDetail = {
   id: string;
-  email: string;
+  username: string;
+  email: string | null;
   isActive: boolean;
   profile: {
     name: string;
@@ -156,7 +161,7 @@ export type AssetSummary = {
   managementArea: ManagementAreaRef;
   owner: {
     id: string;
-    email: string;
+    email: string | null;
     name: string | null;
     profilePictureUrl: string | null;
   } | null;
@@ -189,7 +194,7 @@ export type AssetDetail = AssetSummary & {
     batchDescription: string | null;
     performedBy: {
       id: string;
-      email: string;
+      email: string | null;
       name: string | null;
       profilePictureUrl: string | null;
     };
@@ -247,7 +252,7 @@ export type ReservationItemStatus =
 
 export type ReservationUser = {
   id: string;
-  email: string;
+  email: string | null;
   name: string | null;
   profilePictureUrl: string | null;
 };

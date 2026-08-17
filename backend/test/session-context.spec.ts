@@ -6,9 +6,11 @@ import {
 
 const source: SessionSource = {
   id: "6e7fd59f-1499-4f7a-bb47-5d6a09d32650",
+  username: "manager",
   email: "manager@example.com",
   isActive: true,
   profile: { name: "Manager", phoneNumber: null, profilePictureUrl: null },
+  authIdentities: [],
   userRoles: [
     {
       id: "fbb74b56-c6f8-42b7-a465-a61ac9695208",
@@ -57,5 +59,15 @@ describe("buildSessionContext", () => {
     expect(() => buildSessionContext({ ...source, isActive: false })).toThrow(
       /inactive user/i,
     );
+  });
+
+  it("reports googleLinked from authIdentities", () => {
+    expect(buildSessionContext(source).user.googleLinked).toBe(false);
+    expect(
+      buildSessionContext({
+        ...source,
+        authIdentities: [{ provider: "google" }],
+      }).user.googleLinked,
+    ).toBe(true);
   });
 });

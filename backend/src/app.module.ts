@@ -7,6 +7,7 @@ import { AssetsModule } from "./assets/assets.module.js";
 import { ReservationLifecycleModule } from "./common/reservation-lifecycle.module.js";
 import { DatabaseModule } from "./database/database.module.js";
 import { EmailModule } from "./email/email.module.js";
+import { GoogleAuthModule } from "./google-auth/google-auth.module.js";
 import { ManagementAreasModule } from "./management-areas/management-areas.module.js";
 import { NotificationSettingsModule } from "./notification-settings/notification-settings.module.js";
 import { RecognitionModule } from "./recognition/recognition.module.js";
@@ -21,6 +22,7 @@ import { UsersModule } from "./users/users.module.js";
     DatabaseModule,
     ReservationLifecycleModule,
     AuthModule,
+    GoogleAuthModule,
     AssetsModule,
     AccessControlModule,
     UsersModule,

@@ -88,4 +88,38 @@ export const appConfig = {
     }
     return key;
   },
+  // Google Sign-In / account linking, an optional feature (same "all set or
+  // none set, else throws" shape as smtp()): null unless GOOGLE_CLIENT_ID,
+  // GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI are all present.
+  googleAuth: (): {
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
+  } | null => {
+    const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI?.trim();
+    const present = [clientId, clientSecret, redirectUri].filter(Boolean).length;
+    if (present === 0) return null;
+    if (present < 3) {
+      throw new Error(
+        "GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI must all be set together (or all left unset to disable Google sign-in).",
+      );
+    }
+    return { clientId: clientId!, clientSecret: clientSecret!, redirectUri: redirectUri! };
+  },
+  // The frontend's own origin, e.g. http://localhost:5173 -- only needed to
+  // build the redirect target at the end of the Google OAuth callback, so
+  // it's required (not optional) the moment googleAuth() is configured, but
+  // otherwise unused.
+  frontendBaseUrl: (): string => required("FRONTEND_BASE_URL").replace(/\/$/, ""),
+  // Whether every user must link a Google account before using the app
+  // (enforced by GoogleLinkGuard). Three effective states: Google not
+  // configured -> always off (nothing to force-link to); Google configured
+  // and this unset/anything but "false" -> on (the production default);
+  // Google configured *and* explicitly set to "false" -> off (lets a
+  // developer configure real Google OAuth locally to test the link flow
+  // itself without every other login being blocked by it).
+  requireGoogleLink: (): boolean =>
+    appConfig.googleAuth() !== null && process.env.REQUIRE_GOOGLE_LINK !== "false",
 };

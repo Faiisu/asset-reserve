@@ -793,7 +793,7 @@ export class ReturnsService {
       decision: input.decision === "APPROVE" ? "APPROVED" : "REJECTED",
       requester: {
         email: detail.reservation.requester.email,
-        name: detail.reservation.requester.name ?? detail.reservation.requester.email,
+        name: detail.reservation.requester.name ?? "A user",
       },
     });
     return detail;
@@ -904,7 +904,7 @@ export class ReturnsService {
 
   private userDto(user: {
     id: string;
-    email: string;
+    email: string | null;
     profile: { name: string; profilePictureUrl: string | null } | null;
   }) {
     return {

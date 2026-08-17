@@ -154,6 +154,7 @@ async function seedAreasAndAccounts(): Promise<void> {
   const adminUser = await prisma.user.create({
     data: {
       id: randomUUID(),
+      username: adminEmail.split("@")[0]!,
       email: adminEmail,
       passwordHash,
       isActive: true,
@@ -224,6 +225,7 @@ async function seedAreasAndAccounts(): Promise<void> {
     const user = await prisma.user.create({
       data: {
         id: randomUUID(),
+        username: mgr.email.split("@")[0]!,
         email: mgr.email,
         passwordHash,
         isActive: true,
@@ -269,6 +271,7 @@ async function seedAreasAndAccounts(): Promise<void> {
     const createdUser = await prisma.user.create({
       data: {
         id: randomUUID(),
+        username: u.email.split("@")[0]!,
         email: u.email,
         passwordHash,
         isActive: true,
