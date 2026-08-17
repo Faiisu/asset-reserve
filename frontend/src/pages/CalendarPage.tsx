@@ -2,6 +2,7 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -35,13 +36,11 @@ import { useAuth } from "../auth";
 import {
   AssetPicture,
   Button,
-  CheckboxDropdownFilter,
   Dialog,
   ErrorState,
   Field,
   Select,
   Textarea,
-  WorkspaceCheckboxFilter,
   cx,
 } from "../components/ui";
 import { reservationStatusLabel } from "../reservations";
@@ -69,30 +68,41 @@ const STATUS_COLOR_CLASS: Record<ReservationStatus, string> = {
   CANCELLED: "calendar-legend__cancelled",
 };
 
+const DISPLAY_STATUSES: ReservationStatus[] = [
+  "DRAFT",
+  "PENDING_APPROVAL",
+  "PARTIALLY_APPROVED",
+  "APPROVED",
+  "DELIVERY_CONFIRMED",
+  "RETURN_PENDING",
+  "RETURN_CONFIRMED",
+  "COMPLETED",
+  "REJECTED",
+  "CANCELLED",
+];
+
 const STATUS_OPTION_STATUSES: Record<ReservationStatus, ReservationStatus[]> = {
   DRAFT: ["DRAFT"],
   PENDING: ["PENDING", "PENDING_APPROVAL"],
-  PENDING_APPROVAL: ["PENDING_APPROVAL"],
+  PENDING_APPROVAL: ["PENDING_APPROVAL", "PENDING"],
   PARTIALLY_APPROVED: ["PARTIALLY_APPROVED"],
   APPROVED: ["APPROVED"],
-  DELIVERY_CONFIRMED: ["DELIVERY_CONFIRMED"],
+  DELIVERY_CONFIRMED: ["DELIVERY_CONFIRMED", "ACTIVE"],
   ACTIVE: ["ACTIVE", "DELIVERY_CONFIRMED"],
   RETURN: ["RETURN", "RETURN_PENDING"],
-  RETURN_PENDING: ["RETURN_PENDING"],
+  RETURN_PENDING: ["RETURN_PENDING", "RETURN"],
   RETURN_CONFIRMED: ["RETURN_CONFIRMED"],
   COMPLETED: ["COMPLETED"],
   REJECTED: ["REJECTED"],
   CANCELLED: ["CANCELLED"],
 };
 
-const statusOptions = (Object.keys(STATUS_COLOR_CLASS) as ReservationStatus[]).map(
-  (status) => ({
-    value: status,
-    label: reservationStatusLabel[status],
-    statuses: STATUS_OPTION_STATUSES[status],
-    colorClass: STATUS_COLOR_CLASS[status],
-  }),
-);
+const statusOptions = DISPLAY_STATUSES.map((status) => ({
+  value: status,
+  label: reservationStatusLabel[status],
+  statuses: STATUS_OPTION_STATUSES[status],
+  colorClass: STATUS_COLOR_CLASS[status],
+}));
 
 type DateSelection = { anchor: Date; focus: Date };
 
@@ -150,6 +160,8 @@ export function CalendarPage() {
   const selectionAnchor = useRef<Date | null>(null);
   const [miniCalendarOpen, setMiniCalendarOpen] = useState(false);
   const miniCalendarRef = useRef<HTMLDivElement>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
   const reservePanel = useRef<HTMLElement>(null);
   const calendarScrollRef = useRef<HTMLDivElement>(null);
   const eventMenuRef = useRef<HTMLElement>(null);
@@ -248,6 +260,24 @@ export function CalendarPage() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [miniCalendarOpen]);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    const onPointerDown = (event: globalThis.PointerEvent) => {
+      if (!filterRef.current?.contains(event.target as Node)) {
+        setFilterOpen(false);
+      }
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setFilterOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [filterOpen]);
 
   useEffect(() => {
     if (!canCreate) return;
@@ -406,6 +436,8 @@ export function CalendarPage() {
         selectedAssets.map((asset) => asset.id),
       )
     : "/reservations/new";
+  const totalFilterCount = selectedAreaIds.length + selectedStatuses.length;
+  const hasActiveFilters = totalFilterCount > 0;
 
   // Initial scroll to base month on mount
   useEffect(() => {
@@ -755,22 +787,196 @@ export function CalendarPage() {
             </div>
 
             <div className="calendar-filters">
-              <span>
-                <Filter size={14} /> Filters
-              </span>
-              <WorkspaceCheckboxFilter
-                areas={areas}
-                selectedIds={selectedAreaIds}
-                onChange={setSelectedAreaIds}
-              />
-              <CheckboxDropdownFilter
-                label="Statuses"
-                allLabel="All statuses"
-                options={statusOptions}
-                selectedValues={selectedStatuses}
-                onChange={setSelectedStatuses}
-                ariaLabel="Filter statuses"
-              />
+              <div className="calendar-filter-picker" ref={filterRef}>
+                <button
+                  id="calendar-filter-toggle"
+                  type="button"
+                  className={cx(
+                    "calendar-filter-btn",
+                    (hasActiveFilters || filterOpen) && "calendar-filter-btn--active",
+                  )}
+                  onClick={() => setFilterOpen((prev) => !prev)}
+                  aria-haspopup="dialog"
+                  aria-expanded={filterOpen}
+                  aria-label="Filter reservations by workspace and status"
+                  title={
+                    hasActiveFilters
+                      ? `${totalFilterCount} filter${totalFilterCount > 1 ? "s" : ""} applied`
+                      : "Filter by workspace and status"
+                  }
+                >
+                  <Filter size={13} />
+                  <span>Filters</span>
+                  {hasActiveFilters && (
+                    <span className="calendar-filter-btn__badge">
+                      {totalFilterCount}
+                    </span>
+                  )}
+                  <ChevronDown
+                    size={14}
+                    className={cx(
+                      "calendar-filter-btn__chevron",
+                      filterOpen && "calendar-filter-btn__chevron--open",
+                    )}
+                    aria-hidden
+                  />
+                </button>
+
+                {filterOpen && (
+                  <div
+                    className="calendar-filter-popover"
+                    role="dialog"
+                    aria-label="Filter reservations"
+                  >
+                    <div className="calendar-filter-popover__top">
+                      <div className="calendar-filter-popover__title">
+                        <Filter size={13} />
+                        <strong>Filters</strong>
+                      </div>
+                      {hasActiveFilters && (
+                        <button
+                          type="button"
+                          className="calendar-filter-popover__reset"
+                          onClick={() => {
+                            setSelectedAreaIds([]);
+                            setSelectedStatuses([]);
+                          }}
+                        >
+                          Clear all
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="calendar-filter-popover__columns">
+                      <section className="calendar-filter-popover__section">
+                        <div className="calendar-filter-popover__section-header">
+                          <span>Workspaces</span>
+                          <div className="calendar-filter-popover__actions">
+                            <button
+                              type="button"
+                              className="calendar-filter-popover__action"
+                              onClick={() => setSelectedAreaIds([])}
+                            >
+                              All
+                            </button>
+                            {selectedAreaIds.length > 0 && (
+                              <button
+                                type="button"
+                                className="calendar-filter-popover__action"
+                                onClick={() => setSelectedAreaIds([])}
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="calendar-filter-popover__list">
+                          {areas.length === 0 ? (
+                            <p className="calendar-filter-popover__empty">
+                              No workspaces found
+                            </p>
+                          ) : (
+                            areas.map((area) => {
+                              const checked = selectedAreaIds.includes(area.id);
+                              return (
+                                <label
+                                  key={area.id}
+                                  className={cx(
+                                    "workspace-filter-checkbox-item",
+                                    checked &&
+                                      "workspace-filter-checkbox-item--checked",
+                                  )}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => {
+                                      setSelectedAreaIds((prev) =>
+                                        prev.includes(area.id)
+                                          ? prev.filter((id) => id !== area.id)
+                                          : [...prev, area.id],
+                                      );
+                                    }}
+                                    aria-label={area.name}
+                                  />
+                                  <span className="workspace-filter-checkbox-item__name">
+                                    {area.name}
+                                  </span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      </section>
+
+                      <section className="calendar-filter-popover__section">
+                        <div className="calendar-filter-popover__section-header">
+                          <span>Statuses</span>
+                          <div className="calendar-filter-popover__actions">
+                            <button
+                              type="button"
+                              className="calendar-filter-popover__action"
+                              onClick={() => setSelectedStatuses([])}
+                            >
+                              All
+                            </button>
+                            {selectedStatuses.length > 0 && (
+                              <button
+                                type="button"
+                                className="calendar-filter-popover__action"
+                                onClick={() => setSelectedStatuses([])}
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="calendar-filter-popover__list">
+                          {statusOptions.map((option) => {
+                            const checked = selectedStatuses.includes(option.value);
+                            return (
+                              <label
+                                key={option.value}
+                                className={cx(
+                                  "workspace-filter-checkbox-item",
+                                  checked &&
+                                    "workspace-filter-checkbox-item--checked",
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    setSelectedStatuses((prev) =>
+                                      prev.includes(option.value)
+                                        ? prev.filter((val) => val !== option.value)
+                                        : [...prev, option.value],
+                                    );
+                                  }}
+                                  aria-label={option.label}
+                                />
+                                {option.colorClass ? (
+                                  <i
+                                    className={cx(
+                                      "workspace-filter-checkbox-item__swatch",
+                                      option.colorClass,
+                                    )}
+                                    aria-hidden
+                                  />
+                                ) : null}
+                                <span className="workspace-filter-checkbox-item__name">
+                                  {option.label}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {canViewOthers && (
                 <button
                   id="calendar-only-mine-toggle"
@@ -782,7 +988,11 @@ export function CalendarPage() {
                   onClick={() => setOnlyMine((prev) => !prev)}
                   aria-pressed={onlyMine}
                   aria-label="Show only my reservations"
-                  title={onlyMine ? "Showing only my reservations" : "Showing all reservations"}
+                  title={
+                    onlyMine
+                      ? "Showing only my reservations"
+                      : "Showing all reservations"
+                  }
                 >
                   <Eye size={13} />
                   {onlyMine ? "Only mine" : "All reservations"}

@@ -287,11 +287,13 @@ describe("AssetsPage", () => {
     expect(screen.getAllByText("Lost Asset").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Inactive Asset").length).toBeGreaterThan(0);
 
-    // Open status filter dropdown and toggle Broken
-    const statusBtn = screen.getByLabelText("Filter statuses");
-    fireEvent.click(statusBtn);
+    // Open unified filter dropdown and toggle Broken
+    const filterBtn = screen.getByRole("button", {
+      name: /Filter assets by workspace and status/i,
+    });
+    fireEvent.click(filterBtn);
 
-    const popover = screen.getByRole("listbox");
+    const popover = screen.getByRole("dialog", { name: "Filter assets" });
     fireEvent.click(within(popover).getByText("Broken"));
 
     // Now only Broken should appear

@@ -656,35 +656,6 @@ code {
   border-radius: 2px;
   background: #6d93ff;
 }
-.sidebar__scope {
-  margin-top: auto;
-  padding: 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid #2c4563;
-  border-radius: 10px;
-  background: #142945;
-}
-.sidebar__scope small,
-.sidebar__scope strong {
-  display: block;
-}
-.sidebar__scope small {
-  color: #8195aa;
-  font-size: 10px;
-}
-.sidebar__scope strong {
-  margin-top: 2px;
-  font-size: 13px;
-}
-.scope-pulse {
-  width: 9px;
-  height: 9px;
-  border: 2px solid #7ce0cf;
-  border-radius: 50%;
-  box-shadow: 0 0 0 4px rgba(124, 224, 207, 0.09);
-}
 .app-main {
   grid-column: 2;
   min-width: 0;

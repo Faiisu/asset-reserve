@@ -485,7 +485,7 @@ describe("CalendarPage", () => {
     expect(screen.getByRole("heading", { level: 2, name: "September 2026" })).toBeInTheDocument();
   });
 
-  it("filters calendar and assets using workspace checkboxes", async () => {
+  it("filters calendar and assets using merged workspace and status filter dropdown", async () => {
     vi.spyOn(api, "areas").mockResolvedValue({
       data: [
         { id: "area-1", name: "Production", description: null, createdAt: "", updatedAt: "" },
@@ -504,31 +504,38 @@ describe("CalendarPage", () => {
       </MemoryRouter>,
     );
 
-    const trigger = screen.getByRole("button", { name: "Filter workspaces" });
+    const trigger = screen.getByRole("button", {
+      name: /Filter reservations by workspace and status/i,
+    });
     expect(trigger).toBeInTheDocument();
-    expect(screen.getByText("All workspaces")).toBeInTheDocument();
+    expect(trigger).toHaveTextContent("Filters");
 
-    // Open workspace filter popover
+    // Open unified filter popover
     fireEvent.click(trigger);
-    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Filter reservations" }),
+    ).toBeInTheDocument();
 
-    // Wait for Production checkbox and toggle it
+    // Wait for Production workspace checkbox and toggle it
     const prodCheckbox = await screen.findByRole("checkbox", { name: "Production" });
     expect(prodCheckbox).not.toBeChecked();
     fireEvent.click(prodCheckbox);
     expect(prodCheckbox).toBeChecked();
-    expect(trigger).toHaveTextContent("Production");
     expect(trigger).toHaveTextContent("1");
 
-    // Test Status Filter dropdown (individual statuses, matching event colors)
-    const statusTrigger = screen.getByRole("button", { name: "Filter statuses" });
-    expect(statusTrigger).toBeInTheDocument();
-    expect(screen.getByText("All statuses")).toBeInTheDocument();
-    fireEvent.click(statusTrigger);
+    // Toggle Approved status checkbox in the same popover
     const approvedCheckbox = screen.getByRole("checkbox", { name: "Approved" });
+    expect(approvedCheckbox).not.toBeChecked();
     fireEvent.click(approvedCheckbox);
     expect(approvedCheckbox).toBeChecked();
-    expect(statusTrigger).toHaveTextContent("Approved");
+    expect(trigger).toHaveTextContent("2");
+
+    // Test Clear all button
+    const clearAllBtn = screen.getByRole("button", { name: "Clear all" });
+    expect(clearAllBtn).toBeInTheDocument();
+    fireEvent.click(clearAllBtn);
+    expect(prodCheckbox).not.toBeChecked();
+    expect(approvedCheckbox).not.toBeChecked();
   });
 
   it("allows selecting past dates to view information while disabling the reserve button", async () => {

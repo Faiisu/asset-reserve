@@ -160,17 +160,6 @@ export function AppShell() {
               </NavLink>
             ))}
         </nav>
-        <div className="sidebar__scope">
-          <span className="scope-pulse" aria-hidden />
-          <div>
-            <small>Access scope</small>
-            <strong>
-              {session?.roles.some((role) => !role.managementArea)
-                ? "All areas"
-                : `${session?.effectivePermissions.byManagementArea.length ?? 0} areas`}
-            </strong>
-          </div>
-        </div>
       </aside>
 
       <div className="app-main">

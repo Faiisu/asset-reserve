@@ -14,6 +14,9 @@
   .toolbar__filters {
     flex-wrap: wrap;
   }
+  .toolbar__filters .calendar-filter-picker {
+    flex: 1;
+  }
   .toolbar__filters .control,
   .toolbar__filters .select-wrap {
     flex: 1;
@@ -42,6 +45,9 @@
   .reservation-list-filters {
     flex-wrap: wrap;
   }
+  .reservation-list-filters .calendar-filter-picker {
+    flex: 1;
+  }
   .reservation-list-filters .control,
   .reservation-list-filters .select-wrap {
     flex: 1;
@@ -53,9 +59,13 @@
   .calendar-filters {
     flex-wrap: wrap;
   }
-  .calendar-filters .control,
-  .calendar-filters .select-wrap {
+  .calendar-filter-picker,
+  .calendar-only-mine-toggle {
     flex: 1;
+  }
+  .calendar-filter-btn {
+    width: 100%;
+    justify-content: center;
   }
   .calendar-workspace {
     grid-template-columns: 1fr;
@@ -258,23 +268,31 @@
   .calendar-month-control__buttons .button {
     flex: 1;
   }
-  .calendar-filters > span {
-    width: 100%;
+  .calendar-filter-popover {
+    width: min(320px, calc(100vw - 32px));
+    right: auto;
+    left: 0;
   }
-  .calendar-filters .control,
-  .calendar-filters .select-wrap {
-    min-width: calc(50% - 4px);
+  .calendar-filter-popover__columns {
+    grid-template-columns: 1fr;
+  }
+  .calendar-filter-popover__section:first-child {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .calendar-filter-popover__list {
+    max-height: 160px;
   }
   .search-box {
     width: 100%;
     min-width: 0;
   }
-  .toolbar__filter-label {
+  .toolbar__filters .calendar-filter-picker {
     width: 100%;
   }
-  .toolbar__filters .control,
-  .toolbar__filters .select-wrap {
-    min-width: calc(50% - 4px);
+  .toolbar__filters .calendar-filter-btn {
+    width: 100%;
+    justify-content: center;
   }
   .selection-bar {
     align-items: stretch;
@@ -553,12 +571,12 @@
   .reservation-list-search {
     min-width: 0;
   }
-  .reservation-list-filters > span {
+  .reservation-list-filters .calendar-filter-picker {
     width: 100%;
   }
-  .reservation-list-filters .control,
-  .reservation-list-filters .select-wrap {
-    min-width: calc(50% - 4px);
+  .reservation-list-filters .calendar-filter-btn {
+    width: 100%;
+    justify-content: center;
   }
   .compact-date {
     min-width: calc(50% - 4px);
