@@ -313,7 +313,9 @@
 }
 
 .permission-item-wrapper:hover .permission-minipanel,
-.permission-item-wrapper:focus-within .permission-minipanel {
+.permission-item-wrapper:has(.permission-item__info-trigger:focus-visible) .permission-minipanel,
+.permission-item__info-trigger:focus-visible ~ .permission-minipanel,
+.permission-minipanel:hover {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
