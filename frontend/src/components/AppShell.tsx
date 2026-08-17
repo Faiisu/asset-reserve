@@ -1,4 +1,5 @@
 import {
+  Bell,
   Boxes,
   Building2,
   ChevronDown,
@@ -26,6 +27,7 @@ const titles: Array<[string, string]> = [
   ["/admin/access", "Access and roles"],
   ["/admin/users", "Users"],
   ["/admin/areas", "Management areas"],
+  ["/admin/notifications", "Notification"],
 ];
 
 export function AppShell() {
@@ -93,6 +95,12 @@ export function AppShell() {
       label: "Users",
       icon: Users,
       show: canAdminUsers,
+    },
+    {
+      to: "/admin/notifications",
+      label: "Notification",
+      icon: Bell,
+      show: isGlobalAdmin,
     },
   ].filter((item) => item.show);
 

@@ -44,6 +44,9 @@ services:
       SMTP_APP_PASSWORD: ${SMTP_APP_PASSWORD:-}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Advantech Asset Reservation}
+      # Only required once an admin saves an App Password through
+      # Administration > Notification instead of only via SMTP_* above.
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
     depends_on:
       schema:
         condition: service_completed_successfully

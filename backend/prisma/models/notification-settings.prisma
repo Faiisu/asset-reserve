@@ -1,0 +1,28 @@
+/// Singleton settings row (always looked up/upserted by a single fixed id,
+/// see NOTIFICATION_SETTINGS_ID in notification-settings.service.ts) for
+/// the SMTP configuration EmailService sends through. Lets an admin change
+/// the App Password from the app itself instead of only via env vars +
+/// redeploy -- see backend/src/email/email.service.ts's
+/// resolveActiveSmtpConfig(), which prefers this row and falls back to
+/// SMTP_* env vars when no row exists yet.
+model NotificationSettings {
+  id String @id @db.Uuid
+
+  smtpHost              String @map("smtp_host") @db.VarChar(255)
+  smtpPort              Int    @map("smtp_port")
+  smtpUser              String @map("smtp_user") @db.VarChar(255)
+  /// AES-256-GCM ciphertext, see backend/src/common/secret-cipher.ts.
+  /// Never store the raw App Password.
+  smtpAppPasswordCipher String @map("smtp_app_password_cipher") @db.Text
+  fromEmail             String @map("from_email") @db.VarChar(255)
+  fromName              String @map("from_name") @db.VarChar(255)
+
+  updatedBy String? @map("updated_by") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  updatedByUser User? @relation(fields: [updatedBy], references: [id])
+
+  @@map("notification_settings")
+}

@@ -46,7 +46,10 @@ export const appConfig = {
   // when unconfigured (SMTP_USER/SMTP_APP_PASSWORD both absent -- e.g. dev
   // or CI, EmailService just no-ops sends), throws if only one of the pair
   // is set (that's a misconfiguration, not "disabled"), else returns the
-  // resolved settings. Evaluated once by EmailService's constructor.
+  // resolved settings. This is only the fallback path -- EmailService
+  // prefers a NotificationSettings database row (settable through the
+  // admin UI) when one exists, and only falls back to these env vars when
+  // it doesn't. Read fresh on every call, not cached.
   smtp: (): {
     host: string;
     port: number;
@@ -72,5 +75,17 @@ export const appConfig = {
       fromEmail: process.env.SMTP_FROM_EMAIL?.trim() || user!,
       fromName: process.env.SMTP_FROM_NAME?.trim() || "Advantech Asset Reservation",
     };
+  },
+  // Key for encrypting secrets stored reversibly in the database (currently
+  // just the SMTP App Password when set through the Notification settings
+  // admin page -- see backend/src/common/secret-cipher.ts). Lazy/required:
+  // only called by code paths that actually touch an encrypted secret, so
+  // an app that never uses that feature never needs this env var set.
+  tokenEncryptionKey: (): Buffer => {
+    const key = Buffer.from(required("TOKEN_ENCRYPTION_KEY"), "base64");
+    if (key.length !== 32) {
+      throw new Error("TOKEN_ENCRYPTION_KEY must decode to exactly 32 bytes (base64).");
+    }
+    return key;
   },
 };

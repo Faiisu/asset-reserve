@@ -9,6 +9,8 @@ import type {
   InventoryResult,
   ListResponse,
   ManagementArea,
+  NotificationSettings,
+  NotificationSettingsInput,
   PermissionDefinition,
   PermissionKey,
   Role,
@@ -180,6 +182,15 @@ export const api = {
     request<{ success: boolean; id: string }>(`/management-areas/${id}`, {
       method: "DELETE",
     }),
+  notificationSettings: () =>
+    request<NotificationSettings>("/notification-settings"),
+  updateNotificationSettings: (input: NotificationSettingsInput) =>
+    request<NotificationSettings>("/notification-settings", {
+      method: "PATCH",
+      body: json(input),
+    }),
+  sendTestNotification: () =>
+    request<void>("/notification-settings/test", { method: "POST" }),
   assets: (filters: {
     search?: string;
     areaId?: string;

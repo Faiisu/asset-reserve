@@ -68,6 +68,25 @@ export type ManagementArea = ManagementAreaRef & {
   updatedAt: string;
 };
 
+export type NotificationSettings = {
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  fromName: string;
+  fromEmail: string;
+  smtpPasswordSet: boolean;
+  updatedAt: string | null;
+};
+
+export type NotificationSettingsInput = {
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  fromName: string;
+  fromEmail: string;
+  smtpPassword?: string;
+};
+
 export type UserListItem = {
   id: string;
   email: string;

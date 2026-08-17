@@ -8,6 +8,7 @@ import { ReservationLifecycleModule } from "./common/reservation-lifecycle.modul
 import { DatabaseModule } from "./database/database.module.js";
 import { EmailModule } from "./email/email.module.js";
 import { ManagementAreasModule } from "./management-areas/management-areas.module.js";
+import { NotificationSettingsModule } from "./notification-settings/notification-settings.module.js";
 import { RecognitionModule } from "./recognition/recognition.module.js";
 import { ReservationsModule } from "./reservations/reservations.module.js";
 import { ReturnsModule } from "./returns/returns.module.js";
@@ -29,6 +30,7 @@ import { UsersModule } from "./users/users.module.js";
     UploadsModule,
     RecognitionModule,
     EmailModule,
+    NotificationSettingsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
