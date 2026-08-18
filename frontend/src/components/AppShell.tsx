@@ -9,14 +9,16 @@ import {
   CalendarRange,
   ShieldCheck,
   Sun,
+  User as UserIcon,
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
 import { Avatar, cx } from "./ui";
 
 const titles: Array<[string, string]> = [
+  ["/account", "My account"],
   ["/calendar", "Calendar"],
   ["/reservations/new", "New reservation"],
   ["/reservations/", "Reservation details"],
@@ -205,6 +207,10 @@ export function AppShell() {
               {profileOpen && (
                 <div className="profile-popover">
                   <p>{session?.user.email ?? session?.user.username}</p>
+                  <Link to="/account" onClick={() => setProfileOpen(false)}>
+                    <UserIcon size={16} />
+                    My account
+                  </Link>
                   <button onClick={() => void logout()}>
                     <LogOut size={16} />
                     Log out

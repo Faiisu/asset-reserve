@@ -32,6 +32,7 @@ model User {
   returnApprovals             ReturnApproval[]
   activityLogs                ActivityLog[]              @relation("UserActivityLogs")
   updatedNotificationSettings NotificationSettings[]
+  updatedEmailTemplates       EmailTemplate[]
 
   @@map("users")
 }

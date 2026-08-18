@@ -1,0 +1,19 @@
+model EmailTemplate {
+  /// Fixed keys, not a generated id: "reservation_submitted",
+  /// "reservation_decided", "return_decided" -- see
+  /// backend/src/email-templates/email-templates.constants.ts. A plain
+  /// string (not an enum) so a 4th situation can be added later with no
+  /// schema change, same reasoning as UserAuthIdentity.provider.
+  situation    String @id @db.VarChar(50)
+  subject      String @db.VarChar(255)
+  bodyMarkdown String @map("body_markdown") @db.Text
+
+  updatedBy String? @map("updated_by") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  updatedByUser User? @relation(fields: [updatedBy], references: [id])
+
+  @@map("email_templates")
+}

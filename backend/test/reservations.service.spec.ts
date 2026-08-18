@@ -717,8 +717,68 @@ describe("reservation change requests", () => {
     expect(result.status).toBe("APPROVED");
   });
 
+  it("create() with items straight into PENDING_APPROVAL emits submitted -- the normal 'send for approval' flow never goes through submit()", async () => {
+    const reservationCreate = vi.fn().mockResolvedValue({ id: reservationId });
+    const tx = {
+      user: { findFirst: vi.fn().mockResolvedValue({ id: actorId, isActive: true }) },
+      reservation: { create: reservationCreate },
+      reservationItem: { createMany: vi.fn() },
+      reservationParticipant: { createMany: vi.fn() },
+    };
+    const userRoleFindMany = vi.fn().mockResolvedValue([
+      {
+        role: { permissions: ["reservation:approve"] },
+        user: {
+          id: "approver-id",
+          username: "area-approver",
+          isActive: true,
+          email: "approver@example.com",
+          profile: { name: "Area Approver" },
+        },
+      },
+    ]);
+    const prisma = {
+      asset: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([
+            { id: assetId, managementAreaId: areaId, totalQuantity: 2, isActive: true },
+          ]),
+      },
+      reservationItem: { findMany: vi.fn().mockResolvedValue([]) }, // no overlapping bookings
+      userRole: { findMany: userRoleFindMany },
+      $transaction: vi.fn(
+        async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
+      ),
+    } as unknown as PrismaService;
+    const events = new ReservationLifecycleEvents();
+    const submittedSpy = vi.fn();
+    events.onSubmitted(submittedSpy);
+    const service = new ReservationsService(prisma, events);
+    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
+
+    await service.create(actor, {
+      eventName: "Town hall",
+      startAt: "2026-09-01T09:00:00.000Z",
+      endAt: "2026-09-01T11:00:00.000Z",
+      status: "PENDING_APPROVAL",
+      items: [{ assetId, quantity: 1 }],
+    });
+
+    expect(submittedSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservationId: expect.any(String),
+        eventName: "Town hall",
+        approverRecipients: [{ email: "approver@example.com", name: "Area Approver" }],
+      }),
+    );
+  });
+
   it("rejects creating a reservation with a start time in the past", async () => {
-    const service = new ReservationsService({} as unknown as PrismaService);
+    const service = new ReservationsService(
+      {} as unknown as PrismaService,
+      reservationEvents,
+    );
 
     await expect(
       service.create(actor, {
@@ -1287,5 +1347,69 @@ describe("reservation lifecycle events", () => {
       reservationId,
       requesterId: actorId,
     });
+  });
+
+  it("decideItems() does not emit decided when other items in the reservation are still pending", async () => {
+    // Two-area reservation: this decision only covers one item, the other
+    // (different area, different approver) is untouched and stays PENDING --
+    // the aggregate status must stay PENDING_APPROVAL, and no "your
+    // reservation was approved" email should go out yet.
+    const secondItemId = "00000000-0000-4000-8000-000000000202";
+    const reservation = {
+      id: reservationId,
+      status: "PENDING_APPROVAL",
+      startAt: new Date("2026-09-01T09:00:00.000Z"),
+      endAt: new Date("2026-09-01T11:00:00.000Z"),
+    };
+    const decidedItem = {
+      id: itemId,
+      reservationId,
+      assetId,
+      quantity: 1,
+      status: "PENDING",
+      reservation,
+      asset: { id: assetId, managementAreaId: areaId, totalQuantity: 2 },
+    };
+    const itemUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const reservationUpdate = vi.fn().mockResolvedValue({});
+    const tx = {
+      user: { findFirst: vi.fn().mockResolvedValue({ id: actorId }) },
+      reservationItem: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([decidedItem]) // items being decided
+          .mockResolvedValueOnce([]) // overlapping-booking check
+          .mockResolvedValueOnce([
+            { status: "APPROVED" },
+            { status: "PENDING" }, // the other item, untouched
+          ]),
+        updateMany: itemUpdateMany,
+      },
+      asset: { findMany: vi.fn().mockResolvedValue([{ id: assetId, totalQuantity: 2 }]) },
+      reservationItemApproval: { createMany: vi.fn(), updateMany: vi.fn() },
+      reservation: { update: reservationUpdate },
+      $queryRaw: vi.fn().mockResolvedValue([]),
+    };
+    const prisma = {
+      reservationItem: { findMany: vi.fn().mockResolvedValue([decidedItem]) },
+      $transaction: vi.fn(
+        async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
+      ),
+    } as unknown as PrismaService;
+    const events = new ReservationLifecycleEvents();
+    const decidedSpy = vi.fn();
+    events.onDecided(decidedSpy);
+    const service = new ReservationsService(prisma, events);
+    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
+
+    await service.decideItems(actor, reservationId, {
+      itemIds: [itemId],
+      decision: "APPROVE",
+    });
+
+    expect(reservationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "PENDING_APPROVAL" }) }),
+    );
+    expect(decidedSpy).not.toHaveBeenCalled();
   });
 });

@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  forwardRef,
   useEffect,
   useId,
   useRef,
@@ -284,14 +285,14 @@ export function WorkspaceCheckboxFilter({
   );
 }
 
-export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export const Textarea = forwardRef<
+  HTMLTextAreaElement,
+  TextareaHTMLAttributes<HTMLTextAreaElement>
+>(function Textarea({ className, ...props }, ref) {
   return (
-    <textarea
-      className={cx("control", "control--textarea", props.className)}
-      {...props}
-    />
+    <textarea ref={ref} className={cx("control", "control--textarea", className)} {...props} />
   );
-}
+});
 
 export function StatusBadge({ active }: { active: boolean }) {
   return (

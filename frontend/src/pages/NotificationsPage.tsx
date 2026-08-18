@@ -2,8 +2,10 @@ import { Send } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
+import { EmailTemplateEditor } from "../components/EmailTemplateEditor";
 import {
   Button,
+  cx,
   EmptyState,
   ErrorState,
   Field,
@@ -11,14 +13,21 @@ import {
   LoadingState,
   Notice,
 } from "../components/ui";
-import type { NotificationSettings } from "../types";
+import type { EmailTemplate, NotificationSettings } from "../types";
+
+type Tab = "delivery" | "templates";
 
 export function NotificationsPage() {
   const { isGlobalAdmin } = useAuth();
+  const [tab, setTab] = useState<Tab>("delivery");
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<unknown>(null);
   const [notice, setNotice] = useState("");
+
+  const [templates, setTemplates] = useState<EmailTemplate[] | null>(null);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
+  const [templatesError, setTemplatesError] = useState<unknown>(null);
 
   const [smtpHost, setSmtpHost] = useState("");
   const [smtpPort, setSmtpPort] = useState("465");
@@ -51,9 +60,25 @@ export function NotificationsPage() {
     }
   }, []);
 
+  const loadTemplates = useCallback(async () => {
+    setTemplatesLoading(true);
+    setTemplatesError(null);
+    try {
+      setTemplates(await api.emailTemplates());
+    } catch (caught) {
+      setTemplatesError(caught);
+    } finally {
+      setTemplatesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isGlobalAdmin) void load();
   }, [isGlobalAdmin, load]);
+
+  useEffect(() => {
+    if (isGlobalAdmin && tab === "templates" && templates === null) void loadTemplates();
+  }, [isGlobalAdmin, tab, templates, loadTemplates]);
 
   if (!isGlobalAdmin) {
     return (
@@ -122,7 +147,29 @@ export function NotificationsPage() {
     <div className="page-stack">
       {notice && <Notice>{notice}</Notice>}
 
-      {loading ? (
+      <div className="reservation-view-tabs" role="tablist" aria-label="Notification section">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "delivery"}
+          className={cx(tab === "delivery" && "is-active")}
+          onClick={() => setTab("delivery")}
+        >
+          Email delivery
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "templates"}
+          className={cx(tab === "templates" && "is-active")}
+          onClick={() => setTab("templates")}
+        >
+          Templates
+        </button>
+      </div>
+
+      {tab === "delivery" ? (
+      loading ? (
         <LoadingState label="Loading notification settings" />
       ) : loadError ? (
         <ErrorState error={loadError} onRetry={() => void load()} />
@@ -136,7 +183,15 @@ export function NotificationsPage() {
                 this account. Changes take effect immediately -- no redeploy needed.
               </p>
             </div>
-            <span
+            {/*
+              A div, not a span: `.form-section__heading > span` (assets.css)
+              is a 30x30 square-icon rule meant for a numbered/icon badge
+              right before a section title elsewhere (see AssetFormPage's
+              "02" step badge) -- as a bare span here it was incidentally
+              matching too, squashing this pill into that same 30x30 grid
+              box instead of its own inline-flex pill shape.
+            */}
+            <div
               className={
                 settings?.smtpPasswordSet
                   ? "status-badge status-badge--active"
@@ -145,7 +200,7 @@ export function NotificationsPage() {
             >
               <span className="status-badge__dot" aria-hidden />
               {settings?.smtpPasswordSet ? "Configured" : "Not configured"}
-            </span>
+            </div>
           </div>
 
           <form className="form-stack" onSubmit={save}>
@@ -245,6 +300,25 @@ export function NotificationsPage() {
             )}
           </form>
         </section>
+      )
+      ) : templatesLoading ? (
+        <LoadingState label="Loading email templates" />
+      ) : templatesError ? (
+        <ErrorState error={templatesError} onRetry={() => void loadTemplates()} />
+      ) : (
+        <div className="page-stack">
+          {(templates ?? []).map((template) => (
+            <EmailTemplateEditor
+              key={template.situation}
+              template={template}
+              onUpdated={(updated) =>
+                setTemplates((current) =>
+                  (current ?? []).map((t) => (t.situation === updated.situation ? updated : t)),
+                )
+              }
+            />
+          ))}
+        </div>
       )}
     </div>
   );
