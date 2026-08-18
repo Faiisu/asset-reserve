@@ -81,4 +81,58 @@ describe("ApprovalRequestsPage", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("filters approval requests using merged workspace and status filter dropdown", async () => {
+    vi.spyOn(api, "areas").mockResolvedValue({
+      data: [
+        { id: "area-1", name: "Application Engineer", description: null, createdAt: "", updatedAt: "" },
+        { id: "area-2", name: "Audio Lab", description: null, createdAt: "", updatedAt: "" },
+      ],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+    vi.spyOn(api, "reservations").mockResolvedValue({
+      data: [reservation],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <ApprovalRequestsPage />
+      </MemoryRouter>,
+    );
+
+    const trigger = screen.getByRole("button", {
+      name: /Filter approval requests by workspace and status/i,
+    });
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveTextContent("Filters");
+
+    // Open unified filter popover
+    fireEvent.click(trigger);
+    expect(
+      screen.getByRole("dialog", { name: "Filter approval requests" }),
+    ).toBeInTheDocument();
+
+    // Toggle Application Engineer workspace checkbox
+    const appEngCheckbox = await screen.findByRole("checkbox", { name: "Application Engineer" });
+    expect(appEngCheckbox).not.toBeChecked();
+    fireEvent.click(appEngCheckbox);
+    expect(appEngCheckbox).toBeChecked();
+    expect(trigger).toHaveTextContent("1");
+
+    // Toggle Pending approval status checkbox
+    const pendingCheckbox = screen.getByRole("checkbox", { name: /Pending approval/i });
+    expect(pendingCheckbox).not.toBeChecked();
+    fireEvent.click(pendingCheckbox);
+    expect(pendingCheckbox).toBeChecked();
+    expect(trigger).toHaveTextContent("2");
+
+    // Clear all
+    const clearAllBtn = screen.getByRole("button", { name: "Clear all" });
+    expect(clearAllBtn).toBeInTheDocument();
+    fireEvent.click(clearAllBtn);
+    expect(appEngCheckbox).not.toBeChecked();
+    expect(pendingCheckbox).not.toBeChecked();
+  });
 });
+
