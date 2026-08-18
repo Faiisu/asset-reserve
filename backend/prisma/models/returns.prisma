@@ -26,21 +26,37 @@ model ReturnItem {
   id                String  @id @db.Uuid
   returnId          String  @map("return_id") @db.Uuid
   reservationItemId String  @map("reservation_item_id") @db.Uuid
-  quantityReturned  Int     @default(0) @map("quantity_returned")
-  quantityBroken    Int     @default(0) @map("quantity_broken")
-  quantityLost      Int     @default(0) @map("quantity_lost")
   description       String?
   photoUrl          String? @map("photo_url") @db.VarChar(1000)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  return          Return          @relation(fields: [returnId], references: [id])
-  reservationItem ReservationItem @relation(fields: [reservationItemId], references: [id])
+  return          Return           @relation(fields: [returnId], references: [id])
+  reservationItem ReservationItem  @relation(fields: [reservationItemId], references: [id])
+  units           ReturnItemUnit[]
 
-  // Database CHECKs required by the source specification: all quantities >= 0.
   @@unique([returnId, reservationItemId])
   @@index([reservationItemId])
   @@map("return_items")
+}
+
+model ReturnItemUnit {
+  id                    String  @id @db.Uuid
+  returnItemId          String  @map("return_item_id") @db.Uuid
+  reservationItemUnitId String  @unique @map("reservation_item_unit_id") @db.Uuid
+  /// Supported values: GOOD, BROKEN, LOST. Null until the return is inspected and decided --
+  /// set at that point, not at drop-off submission.
+  condition             String? @db.VarChar(10)
+  photoUrl              String? @map("photo_url") @db.VarChar(1000)
+  note                  String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  returnItem          ReturnItem          @relation(fields: [returnItemId], references: [id])
+  reservationItemUnit ReservationItemUnit @relation(fields: [reservationItemUnitId], references: [id])
+
+  @@index([returnItemId])
+  @@map("return_item_units")
 }
 
 model ReturnApproval {

@@ -36,10 +36,11 @@ export const prisma = new PrismaClient({ adapter });
 
 ใช้ `Serializable` transaction สำหรับ:
 
-- ตรวจ availability แล้ว submit/approve ReservationItem
-- Inventory adjustment และ update `Asset.totalQuantity`
-- Prepare/check out หลาย item
-- Return approval, inventory ledger effects และ lifecycle completion
+- ตรวจ availability แล้ว submit/approve ReservationItem (quantity-based, ก่อนเลือก unit จริง)
+- Register/retire `AssetUnit` และเขียน `AssetUnitEvent`
+- Prepare item: lock และ assign `AssetUnit` ที่ ACTIVE ให้เป็น `ReservationItemUnit`, เปลี่ยน unit เป็น RESERVED
+- Check out หลาย item: เปลี่ยน `ReservationItemUnit`/`AssetUnit` เป็น CHECKED_OUT
+- Return approval: เขียน `ReturnItemUnit` (condition ต่อ serial) และปรับ `AssetUnit.status` ตาม condition, บันทึก lifecycle completion
 - Aggregate Reservation status หลังตัดสิน item
 
 ```mermaid
@@ -67,37 +68,49 @@ sequenceDiagram
 - Retry Prisma `P2034` write conflict/deadlock สูงสุด 3 attempts
 - ใช้ exponential backoff พร้อม jitter ระยะสั้น
 - ทุก retry ต้องอ่าน availability/state ใหม่
-- ถ้าหลัง retry quantity ไม่พอ ให้ตอบ `409 INSUFFICIENT_QUANTITY`
+- ถ้าหลัง retry quantity (ระดับ ReservationItem) ไม่พอ ให้ตอบ `409 INSUFFICIENT_QUANTITY`; ถ้า unit ที่จะ assign ที่ prepare time ไม่ ACTIVE/ถูกจองไปแล้ว ให้ตอบ `409` เช่นกัน (กันซ้ำด้วย partial unique index บน `reservation_item_units`)
 - ห้าม retry validation, permission หรือ unique-constraint error แบบไม่จำแนก
 
 ### Transaction rules
 
 - Transaction ต้องสั้นและ deterministic
-- Lock/order asset ตาม UUID ที่ sort แล้วเมื่อ mutation แตะหลาย asset เพื่อลด deadlock
+- Lock/order `asset_units` (ไม่ใช่ `assets`) ตาม UUID ที่ sort แล้วเมื่อ mutation แตะหลายหน่วยเพื่อลด deadlock
 - ห้าม upload file, call HTTP service หรือส่ง notification ภายใน transaction
 - Aggregate parent status และ child status ต้อง commit พร้อมกัน
-- Ledger entry และ `Asset.totalQuantity` ต้อง commit พร้อมกัน
+- `AssetUnitEvent` และการเปลี่ยน `AssetUnit.status` ต้อง commit พร้อมกันเสมอ (ไม่มี stored quantity ให้ sync แล้ว -- total/available คำนวณจากการนับแถว `asset_units` ตอน read)
 
 ## Database constraints และ indexes
 
 Prisma schema มี comment สำหรับ check constraints แต่ Prisma schema language ยังไม่ enforce ทุกข้อ จึงต้องเพิ่ม raw SQL ใน migration:
 
 ```sql
-CHECK (total_quantity >= 0)
 CHECK (end_at > start_at)
-CHECK (quantity > 0)
-CHECK (quantity_returned >= 0)
-CHECK (quantity_broken >= 0)
-CHECK (quantity_lost >= 0)
+CHECK (quantity > 0)                              -- reservation_items.quantity
 ```
 
-Business validation ที่ข้ามหลายแถว เช่นยอดคืนรวมไม่เกินยอด checkout ต้องตรวจภายใน transaction
+Partial unique indexes (ไม่สามารถเขียนใน Prisma schema language ได้ ต้องเพิ่มใน raw migration SQL):
+
+```sql
+-- assets: part_number ไม่ซ้ำภายใน management area เดียวกัน เมื่อมีค่า
+CREATE UNIQUE INDEX assets_area_part_number_key
+  ON assets (management_area_id, part_number)
+  WHERE part_number IS NOT NULL;
+
+-- reservation_item_units: unit หนึ่งชิ้นถูก assign ค้างอยู่ (ยังไม่คืน) ได้ครั้งเดียว
+-- ณ เวลาใดเวลาหนึ่ง -- กันไม่ให้ serial เดียวกันถูกจองซ้อนสองการจอง
+CREATE UNIQUE INDEX reservation_item_units_active_unit_key
+  ON reservation_item_units (asset_unit_id)
+  WHERE status IN ('ASSIGNED', 'CHECKED_OUT');
+```
+
+`asset_units.serial_number` และ `return_item_units.reservation_item_unit_id` เป็น UNIQUE ปกติ (ประกาศใน Prisma schema ได้ตรงๆ) -- ตัวหลังคือสิ่งที่ทำให้ unit ที่ checked out หนึ่งชิ้นถูกปิดยอดคืนได้เพียงครั้งเดียวเท่านั้น แทนที่ business validation แบบข้ามหลายแถว (เช่น "ยอดคืนรวมไม่เกินยอด checkout") ที่ระบบเดิมต้องตรวจเองใน transaction
 
 Indexes ที่ต้องประเมินก่อน production:
 
 - Approval queue: `(approver_id, status)`
 - Return approval queue: `(approver_id, status)`
 - Asset filters: `(management_area_id, is_active)`
+- Asset unit lookup: `(asset_id, status)`, `serial_number` (unique)
 - User scope lookup: `(user_id)` และ `(management_area_id)`
 - Calendar: ใช้ reservation date/status indexes ที่มีอยู่
 

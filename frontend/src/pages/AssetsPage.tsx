@@ -1,7 +1,6 @@
 import {
   ArchiveX,
   ArrowDownToLine,
-  ArrowUpFromLine,
   Boxes,
   ChevronDown,
   Eye,
@@ -113,7 +112,7 @@ export function AssetsPage() {
     (asset: AssetSummary) =>
       Boolean(
         asset.capabilities.canEdit ||
-        asset.capabilities.canAdjustQuantity ||
+        asset.capabilities.canManageUnits ||
         asset.capabilities.canDeactivate ||
         (hasAreaPermission &&
           hasAreaPermission("asset:update", asset.managementArea.id)) ||
@@ -156,21 +155,18 @@ export function AssetsPage() {
       append ? setLoadingMore(true) : setLoading(true);
       setError(null);
       try {
+        // Asset-level BROKEN/LOST status no longer exists server-side (it
+        // now lives per serial unit) -- isActive is the only status facet
+        // the backend can still pre-filter on; BROKEN/LOST/ACTIVE selections
+        // are applied client-side below via getNormalizedAssetStatus.
         const singleStatus =
           filters.statuses.length === 1
             ? filters.statuses[0].toUpperCase()
             : undefined;
 
-        let apiStatus: "ACTIVE" | "BROKEN" | "LOST" | undefined = undefined;
         let apiIsActive: boolean | undefined = undefined;
-
         if (singleStatus === "ACTIVE") {
-          apiStatus = "ACTIVE";
           apiIsActive = true;
-        } else if (singleStatus === "BROKEN") {
-          apiStatus = "BROKEN";
-        } else if (singleStatus === "LOST") {
-          apiStatus = "LOST";
         } else if (singleStatus === "INACTIVE") {
           apiIsActive = false;
         }
@@ -178,7 +174,6 @@ export function AssetsPage() {
         const response = await api.assets({
           search: filters.search || undefined,
           areaId: filters.areaIds.length === 1 ? filters.areaIds[0] : undefined,
-          status: apiStatus,
           isActive: apiIsActive,
           cursor,
           limit: 50,
@@ -231,7 +226,7 @@ export function AssetsPage() {
   );
   const selectable = displayAssets.filter(
     (asset) =>
-      asset.capabilities.canAdjustQuantity || asset.capabilities.canDeactivate,
+      asset.capabilities.canManageUnits || asset.capabilities.canDeactivate,
   );
   const allSelected =
     selectable.length > 0 &&
@@ -561,26 +556,16 @@ export function AssetsPage() {
           </span>
           <div>
             {selectedAssets.every(
-              (asset) => asset.capabilities.canAdjustQuantity,
+              (asset) => asset.capabilities.canManageUnits,
             ) && (
-              <>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setAdjustOperation("ADD")}
-                >
-                  <ArrowDownToLine size={16} />
-                  Add stock
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setAdjustOperation("REMOVE")}
-                >
-                  <ArrowUpFromLine size={16} />
-                  Remove stock
-                </Button>
-              </>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setAdjustOperation("ADD")}
+              >
+                <ArrowDownToLine size={16} />
+                Register units
+              </Button>
             )}
             {selectedAssets.every(
               (asset) => asset.capabilities.canDeactivate && asset.isActive,
@@ -652,7 +637,7 @@ export function AssetsPage() {
               <tbody>
                 {displayAssets.map((asset) => {
                   const isSelectable =
-                    asset.capabilities.canAdjustQuantity ||
+                    asset.capabilities.canManageUnits ||
                     asset.capabilities.canDeactivate;
                   const isSelected = selected.includes(asset.id);
                   return (
@@ -732,7 +717,7 @@ export function AssetsPage() {
           <div className="asset-card-list">
             {displayAssets.map((asset) => {
               const isSelectable =
-                asset.capabilities.canAdjustQuantity ||
+                asset.capabilities.canManageUnits ||
                 asset.capabilities.canDeactivate;
               const isSelected = selected.includes(asset.id);
               return (
@@ -852,39 +837,53 @@ function InventoryDialog({
   onSuccess: (message: string) => void | Promise<void>;
 }) {
   const assetKey = assets.map((asset) => asset.id).join(",");
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [serialsByAsset, setSerialsByAsset] = useState<Record<string, string>>(
+    {},
+  );
   const [reason, setReason] = useState("");
-  const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (operation) {
-      setQuantities(Object.fromEntries(assets.map((asset) => [asset.id, 1])));
+      setSerialsByAsset(Object.fromEntries(assets.map((asset) => [asset.id, ""])));
       setReason("");
-      setDescription("");
       setError("");
     }
   }, [operation, assetKey]);
 
+  const parsedByAsset = Object.fromEntries(
+    assets.map((asset) => [
+      asset.id,
+      (serialsByAsset[asset.id] ?? "")
+        .split(/[\n,]/)
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ]),
+  );
+  const totalUnits = Object.values(parsedByAsset).reduce(
+    (sum, serials) => sum + serials.length,
+    0,
+  );
+
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!operation) return;
+    if (!operation || totalUnits === 0) return;
     setSubmitting(true);
     setError("");
     try {
-      await api.adjustInventory(
-        operation,
-        assets.map((asset) => ({
-          assetId: asset.id,
-          quantity: quantities[asset.id] || 1,
-          reason: reason || undefined,
-        })),
-        description || undefined,
+      await Promise.all(
+        assets
+          .filter((asset) => parsedByAsset[asset.id]!.length > 0)
+          .map((asset) =>
+            api.registerAssetUnits(
+              asset.id,
+              parsedByAsset[asset.id]!,
+              reason || undefined,
+            ),
+          ),
       );
-      await onSuccess(
-        `${operation === "ADD" ? "Added stock for" : "Removed stock from"} ${assets.length} assets`,
-      );
+      await onSuccess(`Registered ${totalUnits} unit(s)`);
     } catch (caught) {
       setError(apiError(caught).message);
     } finally {
@@ -895,8 +894,8 @@ function InventoryDialog({
   return (
     <Dialog
       open={Boolean(operation)}
-      title={operation === "ADD" ? "Add stock" : "Remove stock"}
-      description="All changes will be recorded as a single transaction batch."
+      title="Register units"
+      description="Enter one serial number per line for each asset."
       onClose={onClose}
       wide
     >
@@ -914,19 +913,16 @@ function InventoryDialog({
                 <strong>{asset.name}</strong>
                 <small>Current: {asset.totalQuantity} units</small>
               </span>
-              <Field label="Quantity">
-                <Input
-                  type="number"
-                  min={1}
-                  max={operation === "REMOVE" ? asset.totalQuantity : undefined}
-                  value={quantities[asset.id] ?? 1}
+              <Field label="Serial numbers">
+                <Textarea
+                  value={serialsByAsset[asset.id] ?? ""}
                   onChange={(event) =>
-                    setQuantities((current) => ({
+                    setSerialsByAsset((current) => ({
                       ...current,
-                      [asset.id]: Number(event.target.value),
+                      [asset.id]: event.target.value,
                     }))
                   }
-                  required
+                  placeholder={"One per line, e.g.\nSN-001\nSN-002"}
                 />
               </Field>
             </div>
@@ -941,26 +937,14 @@ function InventoryDialog({
               maxLength={2000}
             />
           </Field>
-          <Field label="Batch description">
-            <Textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Additional details about this adjustment"
-              maxLength={2000}
-            />
-          </Field>
         </div>
         <div className="dialog__actions">
           <Button variant="quiet" type="button" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" loading={submitting}>
-            {operation === "ADD" ? (
-              <ArrowDownToLine size={16} />
-            ) : (
-              <ArrowUpFromLine size={16} />
-            )}
-            Confirm quantity adjustment
+          <Button type="submit" loading={submitting} disabled={totalUnits === 0}>
+            <ArrowDownToLine size={16} />
+            Register {totalUnits || ""} unit{totalUnits === 1 ? "" : "s"}
           </Button>
         </div>
       </form>

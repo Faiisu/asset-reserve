@@ -3,6 +3,7 @@ import type {
   AssetDetail,
   AssetInput,
   AssetSummary,
+  AssetUnit,
   ConfirmDeliveryInput,
   CreateReservationInput,
   CreateReturnInput,
@@ -10,7 +11,6 @@ import type {
   EmailTemplateInput,
   EmailTemplatePreview,
   EmailTemplateSituation,
-  InventoryResult,
   ListResponse,
   ManagementArea,
   NotificationSettings,
@@ -221,7 +221,6 @@ export const api = {
     search?: string;
     areaId?: string;
     isActive?: boolean;
-    status?: "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE";
     from?: string;
     to?: string;
     cursor?: string;
@@ -237,7 +236,7 @@ export const api = {
     }),
   updateAsset: (
     assetId: string,
-    input: Omit<Partial<AssetInput>, "totalQuantity" | "isActive"> & {
+    input: Omit<Partial<AssetInput>, "isActive"> & {
       expectedUpdatedAt: string;
     },
   ) =>
@@ -247,7 +246,7 @@ export const api = {
     }),
   updateAssetStatus: (
     assetId: string,
-    status: "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE",
+    status: "ACTIVE" | "INACTIVE",
     expectedUpdatedAt: string,
   ) =>
     request<AssetSummary>(`/assets/${assetId}/status`, {
@@ -264,18 +263,15 @@ export const api = {
         body: json({ items }),
       },
     ),
-  adjustInventory: (
-    operation: "ADD" | "REMOVE",
-    items: Array<{ assetId: string; quantity: number; reason?: string }>,
-    description?: string,
+  registerAssetUnits: (
+    assetId: string,
+    serialNumbers: string[],
+    reason?: string,
   ) =>
-    request<InventoryResult>(
-      `/assets/inventory/batch-${operation.toLowerCase()}`,
-      {
-        method: "POST",
-        body: json({ items, description }),
-      },
-    ),
+    request<{ data: AssetUnit[] }>(`/assets/${assetId}/units`, {
+      method: "POST",
+      body: json({ serialNumbers, reason }),
+    }),
   createReservation: (input: CreateReservationInput) =>
     request<ReservationDetail>("/reservations", {
       method: "POST",

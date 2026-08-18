@@ -14,6 +14,7 @@ import {
   ConfirmDeliveryDto,
   CreateReservationChangeRequestDto,
   CreateReservationDto,
+  PrepareReservationItemDto,
   ReservationChangeRequestDecisionDto,
   ReservationItemDecisionDto,
   ReservationItemsDecisionDto,
@@ -100,6 +101,16 @@ export class ReservationsController {
       changeRequestId,
       input,
     );
+  }
+
+  @Post(":reservationId/items/:itemId/prepare")
+  prepareItem(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Param("reservationId", new ParseUUIDPipe()) reservationId: string,
+    @Param("itemId", new ParseUUIDPipe()) itemId: string,
+    @Body() input: PrepareReservationItemDto,
+  ) {
+    return this.reservations.prepareItem(actor, reservationId, itemId, input);
   }
 
   @Post(":reservationId/delivery-confirm")

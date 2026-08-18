@@ -169,19 +169,19 @@ Table user_roles {
 
 
 // =====================================================
-// ASSETS
+// ASSETS (part-number catalog entry -- NOT a physical item)
 // =====================================================
 
 Table assets {
   id uuid [pk]
 
   management_area_id uuid [not null]
+  created_by uuid [note: 'Owner shown in the UI; SET NULL when the user is removed']
 
   name varchar(150) [not null]
+  part_number varchar(100) [note: 'Optional; unique per management area when present']
   description text
   picture_url text
-
-  total_quantity int [not null, default: 0, note: 'Current physical quantity; ต้อง >= 0']
 
   is_active boolean [not null, default: true]
 
@@ -190,15 +190,57 @@ Table assets {
 
   indexes {
     (management_area_id, name) [unique]
+    (management_area_id, part_number) [unique, note: 'Partial: WHERE part_number IS NOT NULL']
+    (created_by)
+    (management_area_id, is_active)
+  }
+
+  note: '''
+    No quantity or status column here anymore. "Total"/"available" quantity and
+    status are derived by counting this asset's asset_units rows (see AssetUnit
+    below) -- one Asset = one catalog/part-number entry that can have many
+    physical, serial-numbered units.
+  '''
+}
+
+
+// =====================================================
+// ASSET UNITS (one row per physical, serial-numbered item)
+// =====================================================
+
+Table asset_units {
+  id uuid [pk]
+
+  asset_id uuid [not null]
+
+  serial_number varchar(100) [not null, unique, note: 'Globally unique across the whole system, not just per asset']
+
+  status varchar(20) [not null, default: 'ACTIVE', note: '''
+    ACTIVE
+    RESERVED
+    CHECKED_OUT
+    BROKEN
+    LOST
+    IN_REPAIR
+    INACTIVE
+  ''']
+
+  note text
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (asset_id, status)
   }
 }
 
 
 // =====================================================
-// ASSET TRANSACTION BATCH
+// ASSET UNIT EVENT BATCH
 // =====================================================
 
-Table asset_transaction_batches {
+Table asset_unit_event_batches {
   id uuid [pk]
 
   description text
@@ -206,49 +248,50 @@ Table asset_transaction_batches {
   performed_by uuid [not null]
 
   created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (performed_by)
+  }
 }
 
 
 // =====================================================
-// INVENTORY LEDGER
+// ASSET UNIT EVENT LEDGER (per-serial, identity-based -- replaces the old
+// quantity-delta asset_transactions ledger)
 // =====================================================
 
-Table asset_transactions {
+Table asset_unit_events {
   id uuid [pk]
 
   batch_id uuid [not null]
-  asset_id uuid [not null]
+  asset_unit_id uuid [not null]
 
-  transaction_type varchar(30) [not null, note: '''
-    ADD
-    REMOVE
-    LOST
-    BROKEN
-    REPAIR
-    RETURN
+  event_type varchar(30) [not null, note: '''
+    REGISTERED
+    RETIRED
+    REACTIVATED
+    RESERVED
+    CHECKED_OUT
+    RETURNED_GOOD
+    RETURNED_BROKEN
+    RETURNED_LOST
+    REPAIRED
     ADJUSTMENT
   ''']
 
-  quantity_delta int [not null, note: '''
-    Signed quantity.
+  from_status varchar(20)
+  to_status varchar(20)
 
-    ADD        = positive
-    REMOVE     = negative
-    LOST       = negative
-    BROKEN     = negative
-    RETURN     = positive
-
-    REPAIR / ADJUSTMENT
-    ขึ้นอยู่กับการเปลี่ยน quantity จริง
-  ''']
+  reservation_item_id uuid [note: 'Set when the event was caused by a reservation lifecycle transition']
 
   reason text
 
   created_at timestamptz [not null, default: `now()`]
 
   indexes {
-    (asset_id, created_at)
+    (asset_unit_id, created_at)
     (batch_id)
+    (reservation_item_id)
   }
 }
 
@@ -331,6 +374,43 @@ Table reservation_items {
     (reservation_id, status)
   }
 }
+
+
+// =====================================================
+// RESERVATION ITEM UNITS (specific serials assigned at prepare time)
+// =====================================================
+
+Table reservation_item_units {
+  id uuid [pk]
+
+  reservation_item_id uuid [not null]
+  asset_unit_id uuid [not null]
+
+  status varchar(20) [not null, default: 'ASSIGNED', note: '''
+    ASSIGNED
+    CHECKED_OUT
+    RETURNED_GOOD
+    RETURNED_BROKEN
+    RETURNED_LOST
+  ''']
+
+  assigned_by uuid [not null]
+  assigned_at timestamptz [not null, default: `now()`]
+  checked_out_at timestamptz
+  returned_at timestamptz
+
+  indexes {
+    (reservation_item_id, asset_unit_id) [unique]
+    (asset_unit_id)
+    (reservation_item_id, status)
+  }
+}
+
+
+// UNIQUE (partial, added in raw migration SQL, not expressible in this ERD tool):
+// one active (status IN ('ASSIGNED','CHECKED_OUT')) assignment per asset_unit_id
+// -- this is what stops the same physical serial being handed out to two
+// reservations at once.
 
 
 // =====================================================
@@ -446,24 +526,47 @@ Table return_items {
   return_id uuid [not null]
   reservation_item_id uuid [not null]
 
-  quantity_returned int [not null, default: 0]
-  quantity_broken int [not null, default: 0]
-  quantity_lost int [not null, default: 0]
-
   description text
+  picture_url text
 
   created_at timestamptz [not null, default: `now()`]
 
   indexes {
     (return_id, reservation_item_id) [unique]
+    (reservation_item_id)
   }
 }
 
 
-// CHECK:
-// quantity_returned >= 0
-// quantity_broken >= 0
-// quantity_lost >= 0
+// =====================================================
+// RETURN ITEM UNITS (per-serial drop-off + condition -- replaces the old
+// quantity_returned/quantity_broken/quantity_lost counters)
+// =====================================================
+
+Table return_item_units {
+  id uuid [pk]
+
+  return_item_id uuid [not null]
+  reservation_item_unit_id uuid [not null, unique, note: 'A checked-out unit can be settled by exactly one return_item_unit, ever']
+
+  condition varchar(10) [note: '''
+    GOOD
+    BROKEN
+    LOST
+
+    NULL until the return is inspected and decided at return-approval time;
+    set at drop-off submission only if already known, otherwise decided later.
+  ''']
+
+  picture_url text
+  note text
+
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (return_item_id)
+  }
+}
 
 
 // =====================================================
@@ -512,14 +615,21 @@ Ref: user_roles.assigned_by > users.id
 // ASSET
 
 Ref: assets.management_area_id > management_areas.id
+Ref: assets.created_by > users.id
 
 
-// ASSET TRANSACTION
+// ASSET UNIT
 
-Ref: asset_transaction_batches.performed_by > users.id
+Ref: asset_units.asset_id > assets.id
 
-Ref: asset_transactions.batch_id > asset_transaction_batches.id
-Ref: asset_transactions.asset_id > assets.id
+
+// ASSET UNIT EVENT
+
+Ref: asset_unit_event_batches.performed_by > users.id
+
+Ref: asset_unit_events.batch_id > asset_unit_event_batches.id
+Ref: asset_unit_events.asset_unit_id > asset_units.id
+Ref: asset_unit_events.reservation_item_id > reservation_items.id
 
 
 // RESERVATION
@@ -531,6 +641,10 @@ Ref: reservation_items.asset_id > assets.id
 
 Ref: reservation_items.prepared_by > users.id
 Ref: reservation_items.checked_out_by > users.id
+
+Ref: reservation_item_units.reservation_item_id > reservation_items.id
+Ref: reservation_item_units.asset_unit_id > asset_units.id
+Ref: reservation_item_units.assigned_by > users.id
 
 Ref: reservation_participants.reservation_id > reservations.id
 Ref: reservation_participants.user_id > users.id
@@ -556,6 +670,9 @@ Ref: returns.returned_by > users.id
 
 Ref: return_items.return_id > returns.id
 Ref: return_items.reservation_item_id > reservation_items.id
+
+Ref: return_item_units.return_item_id > return_items.id
+Ref: return_item_units.reservation_item_unit_id > reservation_item_units.id
 
 Ref: return_approvals.return_id > returns.id
 Ref: return_approvals.approver_id > users.id

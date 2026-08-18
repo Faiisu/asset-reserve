@@ -1,7 +1,6 @@
 import {
   ArrowDownToLine,
   ArrowLeft,
-  ArrowUpFromLine,
   CalendarClock,
   Edit3,
   PackageCheck,
@@ -161,19 +160,11 @@ export function AssetDetailPage() {
             <small>Choose dates in Calendar to see reservable units.</small>
           </span>
         </div>
-        {asset.capabilities.canAdjustQuantity && (
+        {asset.capabilities.canManageUnits && (
           <div className="quantity-board__actions">
             <Button onClick={() => setAdjustOperation("ADD")}>
               <ArrowDownToLine size={16} />
-              Add stock
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => setAdjustOperation("REMOVE")}
-              disabled={asset.totalQuantity === 0}
-            >
-              <ArrowUpFromLine size={16} />
-              Remove stock
+              Register units
             </Button>
           </div>
         )}
@@ -254,15 +245,15 @@ export function AssetDetailPage() {
       <section className="ledger-card">
         <header>
           <div>
-            <p className="eyebrow">Inventory ledger</p>
+            <p className="eyebrow">Unit event ledger</p>
             <h2>Change history</h2>
           </div>
-          <span className="mono">LATEST / {asset.inventoryLedger.length}</span>
+          <span className="mono">LATEST / {asset.unitEventLedger.length}</span>
         </header>
-        {asset.inventoryLedger.length === 0 ? (
+        {asset.unitEventLedger.length === 0 ? (
           <EmptyState
             title="No ledger entries yet"
-            description="Stock additions and removals will appear here."
+            description="Serial unit registrations, status changes, and returns will appear here."
           />
         ) : (
           <div className="data-table-wrap">
@@ -270,32 +261,25 @@ export function AssetDetailPage() {
               <thead>
                 <tr>
                   <th>Time</th>
-                  <th>Type</th>
-                  <th>Quantity</th>
+                  <th>Event</th>
+                  <th>Serial</th>
+                  <th>Status change</th>
                   <th>Reason</th>
                   <th>Performed by</th>
                 </tr>
               </thead>
               <tbody>
-                {asset.inventoryLedger.map((item) => (
+                {asset.unitEventLedger.map((item) => (
                   <tr key={item.id}>
                     <td className="mono table-date">
                       {formatDate(item.createdAt, true)}
                     </td>
                     <td>
-                      <span
-                        className={`transaction transaction--${item.quantityDelta >= 0 ? "add" : "remove"}`}
-                      >
-                        {item.transactionType}
-                      </span>
+                      <span className="transaction">{item.eventType}</span>
                     </td>
+                    <td className="mono">{item.serialNumber}</td>
                     <td>
-                      <strong
-                        className={`quantity-delta ${item.quantityDelta >= 0 ? "positive" : "negative"}`}
-                      >
-                        {item.quantityDelta > 0 ? "+" : ""}
-                        {item.quantityDelta}
-                      </strong>
+                      {item.fromStatus ?? "—"} → {item.toStatus ?? "—"}
                     </td>
                     <td>
                       <strong className="table-primary">
@@ -371,36 +355,29 @@ function AdjustOneDialog({
   onClose: () => void;
   onDone: (message: string) => void | Promise<void>;
 }) {
-  const [quantity, setQuantity] = useState("1");
+  const [serialNumbers, setSerialNumbers] = useState("");
   const [reason, setReason] = useState("");
-  const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const parsedSerials = serialNumbers
+    .split(/[\n,]/)
+    .map((value) => value.trim())
+    .filter(Boolean);
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!operation) return;
+    if (!operation || parsedSerials.length === 0) return;
     setSubmitting(true);
     setError("");
     try {
-      await api.adjustInventory(
-        operation,
-        [
-          {
-            assetId: asset.id,
-            quantity: Number(quantity),
-            reason: reason || undefined,
-          },
-        ],
-        description || undefined,
-      );
+      await api.registerAssetUnits(asset.id, parsedSerials, reason || undefined);
       await onDone(
-        `${operation === "ADD" ? "Added" : "Removed"} ${quantity} units`,
+        `Registered ${parsedSerials.length} unit${parsedSerials.length === 1 ? "" : "s"}`,
       );
     } catch (caught) {
       setError(
         caught instanceof ApiClientError
           ? caught.message
-          : "Unable to adjust quantity",
+          : "Unable to register units",
       );
     } finally {
       setSubmitting(false);
@@ -409,11 +386,7 @@ function AdjustOneDialog({
   return (
     <Dialog
       open={Boolean(operation)}
-      title={
-        operation === "ADD"
-          ? `Add stock for ${asset.name}`
-          : `Remove ${asset.name} from stock`
-      }
+      title={`Register units for ${asset.name}`}
       description={`Current quantity: ${asset.totalQuantity} units`}
       onClose={onClose}
     >
@@ -423,13 +396,11 @@ function AdjustOneDialog({
             {error}
           </div>
         )}
-        <Field label="Quantity" required>
-          <Input
-            type="number"
-            min={1}
-            max={operation === "REMOVE" ? asset.totalQuantity : undefined}
-            value={quantity}
-            onChange={(event) => setQuantity(event.target.value)}
+        <Field label="Serial numbers" required>
+          <Textarea
+            value={serialNumbers}
+            onChange={(event) => setSerialNumbers(event.target.value)}
+            placeholder={"One serial number per line, e.g.\nSN-001\nSN-002"}
             required
             autoFocus
           />
@@ -441,18 +412,17 @@ function AdjustOneDialog({
             placeholder="Reason for this entry"
           />
         </Field>
-        <Field label="Batch description">
-          <Textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-          />
-        </Field>
         <div className="dialog__actions">
           <Button type="button" variant="quiet" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" loading={submitting}>
-            Save to ledger
+          <Button
+            type="submit"
+            loading={submitting}
+            disabled={parsedSerials.length === 0}
+          >
+            Register {parsedSerials.length || ""} unit
+            {parsedSerials.length === 1 ? "" : "s"}
           </Button>
         </div>
       </form>

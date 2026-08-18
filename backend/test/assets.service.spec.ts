@@ -26,9 +26,9 @@ const asset = {
   managementAreaId: "00000000-0000-4000-8000-000000000301",
   createdById: null,
   name: "Stage camera",
+  partNumber: null,
   description: null,
   pictureUrl: null,
-  totalQuantity: 4,
   isActive: true,
   createdAt: new Date("2026-08-01T00:00:00.000Z"),
   updatedAt: new Date("2026-08-01T00:00:00.000Z"),
@@ -39,6 +39,12 @@ const asset = {
   createdBy: null,
 };
 
+const fourActiveUnits = vi
+  .fn()
+  .mockResolvedValue([
+    { assetId, status: "ACTIVE", _count: { _all: 4 } },
+  ]);
+
 describe("time-based asset availability", () => {
   it("deducts approved allocations that overlap the requested range", async () => {
     const groupBy = vi
@@ -46,6 +52,7 @@ describe("time-based asset availability", () => {
       .mockResolvedValue([{ assetId, _sum: { quantity: 4 } }]);
     const service = new AssetsService({
       asset: { findMany: vi.fn().mockResolvedValue([asset]) },
+      assetUnit: { groupBy: fourActiveUnits },
       reservationItem: { groupBy },
     } as unknown as PrismaService);
 
@@ -77,6 +84,7 @@ describe("time-based asset availability", () => {
     const groupBy = vi.fn();
     const service = new AssetsService({
       asset: { findMany: vi.fn().mockResolvedValue([asset]) },
+      assetUnit: { groupBy: fourActiveUnits },
       reservationItem: { groupBy },
     } as unknown as PrismaService);
 

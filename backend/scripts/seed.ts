@@ -87,19 +87,7 @@ const ids = {
     barcodeScanner: "00000000-0000-4000-8000-000000000409",
     platformCart: "00000000-0000-4000-8000-000000000410",
   },
-  batch: "00000000-0000-4000-8000-000000000501",
-  transactions: [
-    "00000000-0000-4000-8000-000000000511",
-    "00000000-0000-4000-8000-000000000512",
-    "00000000-0000-4000-8000-000000000513",
-    "00000000-0000-4000-8000-000000000514",
-    "00000000-0000-4000-8000-000000000515",
-    "00000000-0000-4000-8000-000000000516",
-    "00000000-0000-4000-8000-000000000517",
-    "00000000-0000-4000-8000-000000000518",
-    "00000000-0000-4000-8000-000000000519",
-    "00000000-0000-4000-8000-000000000520",
-  ],
+  unitEventBatch: "00000000-0000-4000-8000-000000000501",
   reservations: {
     completed: "00000000-0000-4000-8000-000000000601",
     approved: "00000000-0000-4000-8000-000000000602",
@@ -202,6 +190,11 @@ const ids = {
   ],
   returnApproval: "00000000-0000-4000-8000-000000000721",
 } as const;
+
+/** Deterministic UUID for a numeric offset, so ledger/event rows stay idempotent across reseeds. */
+function fixedId(offset: number): string {
+  return `00000000-0000-4000-8000-${offset.toString(16).padStart(12, "0")}`;
+}
 
 async function seedRoles(): Promise<void> {
   for (const role of roles) {
@@ -489,8 +482,7 @@ async function seedMockData(): Promise<void> {
       name: "Saleae Logic Pro 16",
       description: "16-channel USB logic analyzer with probes.",
       pictureUrl: seedImages.logicAnalyzer.url,
-      totalQuantity: 5,
-      status: "ACTIVE",
+      unitCount: 5,
       createdById: userMap["ae@example.com"]!,
     },
     {
@@ -499,8 +491,7 @@ async function seedMockData(): Promise<void> {
       name: "Rigol 4-Channel Digital Oscilloscope",
       description: "100MHz digital storage oscilloscope.",
       pictureUrl: seedImages.oscilloscope.url,
-      totalQuantity: 4,
-      status: "ACTIVE",
+      unitCount: 4,
       createdById: userMap["ae@example.com"]!,
     },
     {
@@ -509,8 +500,7 @@ async function seedMockData(): Promise<void> {
       name: "Sony Alpha 7 IV Kit",
       description: "Full-frame mirrorless camera with 24-70mm lens.",
       pictureUrl: seedImages.camera.url,
-      totalQuantity: 3,
-      status: "ACTIVE",
+      unitCount: 3,
       createdById: userMap["mk@example.com"]!,
     },
     {
@@ -519,8 +509,7 @@ async function seedMockData(): Promise<void> {
       name: "Rode Wireless GO II Dual Kit",
       description: "Dual channel compact wireless microphone system.",
       pictureUrl: seedImages.wirelessMic.url,
-      totalQuantity: 6,
-      status: "ACTIVE",
+      unitCount: 6,
       createdById: userMap["mk@example.com"]!,
     },
     {
@@ -529,8 +518,7 @@ async function seedMockData(): Promise<void> {
       name: "New Hire Onboarding Tech Kit",
       description: "USB-C multi-port dock, wireless mouse, and keyboard.",
       pictureUrl: seedImages.onboardingKit.url,
-      totalQuantity: 10,
-      status: "ACTIVE",
+      unitCount: 10,
       createdById: userMap["hr@example.com"]!,
     },
     {
@@ -539,8 +527,7 @@ async function seedMockData(): Promise<void> {
       name: "Herman Miller Aeron Chair (Trial Unit)",
       description: "Adjustable ergonomic task chair for assessment.",
       pictureUrl: seedImages.ergonomicChair.url,
-      totalQuantity: 2,
-      status: "ACTIVE",
+      unitCount: 2,
       createdById: userMap["hr@example.com"]!,
     },
     {
@@ -550,8 +537,7 @@ async function seedMockData(): Promise<void> {
       description:
         "Heavy-duty electric powered pallet truck for warehouse logistics.",
       pictureUrl: seedImages.palletJack.url,
-      totalQuantity: 3,
-      status: "ACTIVE",
+      unitCount: 3,
       createdById: userMap["wh@example.com"]!,
     },
     {
@@ -560,8 +546,7 @@ async function seedMockData(): Promise<void> {
       name: "Heavy-Duty Hand Truck 300kg",
       description: "Dual-handle industrial sack barrow with pneumatic wheels.",
       pictureUrl: seedImages.handTruck.url,
-      totalQuantity: 6,
-      status: "ACTIVE",
+      unitCount: 6,
       createdById: userMap["wh@example.com"]!,
     },
     {
@@ -571,8 +556,7 @@ async function seedMockData(): Promise<void> {
       description:
         "Rugged wireless barcode and QR code scanner gun with charging cradle.",
       pictureUrl: seedImages.barcodeScanner.url,
-      totalQuantity: 8,
-      status: "ACTIVE",
+      unitCount: 8,
       createdById: userMap["wh@example.com"]!,
     },
     {
@@ -581,13 +565,12 @@ async function seedMockData(): Promise<void> {
       name: "Foldable Platform Trolley Cart",
       description: "300kg capacity steel platform trolley with folding handle.",
       pictureUrl: seedImages.platformCart.url,
-      totalQuantity: 4,
-      status: "ACTIVE",
+      unitCount: 4,
       createdById: userMap["wh@example.com"]!,
     },
   ] as const;
 
-  for (const asset of assetInputs) {
+  for (const { unitCount, ...asset } of assetInputs) {
     await prisma.asset.upsert({
       where: { id: asset.id },
       update: { createdById: asset.createdById },
@@ -595,30 +578,132 @@ async function seedMockData(): Promise<void> {
     });
   }
 
-  // 6. Asset Initial Transactions
-  await prisma.assetTransactionBatch.upsert({
-    where: { id: ids.batch },
+  // 6. Register serialized asset units (one physical unit per serial number)
+  await prisma.assetUnitEventBatch.upsert({
+    where: { id: ids.unitEventBatch },
     update: {},
     create: {
-      id: ids.batch,
+      id: ids.unitEventBatch,
       description:
         "Initial inventory load for AE, Marketing, HR, and Warehouse",
       performedBy: adminUser.id,
     },
   });
 
-  for (const [index, asset] of assetInputs.entries()) {
-    await prisma.assetTransaction.upsert({
-      where: { id: ids.transactions[index]! },
-      update: {},
+  // Pool of ACTIVE units per asset, consumed as reservation items assign
+  // specific serials below -- mirrors the real prepare/handover flow.
+  const assetUnitPool = new Map<
+    string,
+    { id: string; serialNumber: string }[]
+  >();
+  let unitEventOffset = 0;
+  for (const asset of assetInputs) {
+    const units: { id: string; serialNumber: string }[] = [];
+    for (let i = 1; i <= asset.unitCount; i += 1) {
+      const serialNumber = `SN-${asset.id.slice(-4)}-${String(i).padStart(3, "0")}`;
+      const unit = await prisma.assetUnit.upsert({
+        where: { serialNumber },
+        update: { assetId: asset.id },
+        create: {
+          id: randomUUID(),
+          assetId: asset.id,
+          serialNumber,
+          status: "ACTIVE",
+        },
+      });
+      units.push({ id: unit.id, serialNumber: unit.serialNumber });
+      await prisma.assetUnitEvent.upsert({
+        where: { id: fixedId(0x900 + unitEventOffset) },
+        update: {},
+        create: {
+          id: fixedId(0x900 + unitEventOffset),
+          batchId: ids.unitEventBatch,
+          assetUnitId: unit.id,
+          eventType: "REGISTERED",
+          toStatus: "ACTIVE",
+          reason: "Opening balance for deployment mock data",
+        },
+      });
+      unitEventOffset += 1;
+    }
+    assetUnitPool.set(asset.id, units);
+  }
+
+  /** Assigns the next `quantity` ACTIVE units of an asset to a reservation
+   * item, mirroring prepare (ASSIGNED) and optionally handover (CHECKED_OUT). */
+  async function assignReservationItemUnits(input: {
+    reservationItemId: string;
+    assetId: string;
+    quantity: number;
+    assignedBy: string;
+    assignedAt: Date;
+    checkedOutAt: Date | null;
+  }) {
+    const pool = assetUnitPool.get(input.assetId)!;
+    const chosen = pool.splice(0, input.quantity);
+    const rows: { id: string; assetUnitId: string }[] = [];
+    for (const unit of chosen) {
+      const status = input.checkedOutAt ? "CHECKED_OUT" : "ASSIGNED";
+      const row = await prisma.reservationItemUnit.upsert({
+        where: {
+          reservationItemId_assetUnitId: {
+            reservationItemId: input.reservationItemId,
+            assetUnitId: unit.id,
+          },
+        },
+        update: { status, checkedOutAt: input.checkedOutAt },
+        create: {
+          id: randomUUID(),
+          reservationItemId: input.reservationItemId,
+          assetUnitId: unit.id,
+          status,
+          assignedBy: input.assignedBy,
+          assignedAt: input.assignedAt,
+          checkedOutAt: input.checkedOutAt,
+        },
+      });
+      await prisma.assetUnit.update({
+        where: { id: unit.id },
+        data: { status },
+      });
+      rows.push({ id: row.id, assetUnitId: unit.id });
+    }
+    return rows;
+  }
+
+  /** Settles a checked-out unit's return with a condition (GOOD/BROKEN/LOST),
+   * or leaves it pending inspection (condition null) if the return isn't decided yet. */
+  async function settleReturnItemUnit(input: {
+    id: string;
+    returnItemId: string;
+    reservationItemUnitId: string;
+    condition: "GOOD" | "BROKEN" | "LOST" | null;
+  }) {
+    await prisma.returnItemUnit.upsert({
+      where: { reservationItemUnitId: input.reservationItemUnitId },
+      update: { condition: input.condition },
       create: {
-        id: ids.transactions[index]!,
-        batchId: ids.batch,
-        assetId: asset.id,
-        transactionType: "ADD",
-        quantityDelta: asset.totalQuantity,
-        reason: "Opening balance for deployment mock data",
+        id: input.id,
+        returnItemId: input.returnItemId,
+        reservationItemUnitId: input.reservationItemUnitId,
+        condition: input.condition,
       },
+    });
+    if (!input.condition) return;
+    const assetUnitStatus =
+      input.condition === "GOOD"
+        ? "ACTIVE"
+        : input.condition === "BROKEN"
+          ? "BROKEN"
+          : "LOST";
+    const updated = await prisma.reservationItemUnit.update({
+      where: { id: input.reservationItemUnitId },
+      data: { status: `RETURNED_${input.condition}`, returnedAt: new Date() },
+      select: { assetUnitId: true },
+    });
+    await prisma.assetUnit.update({
+      where: { id: updated.assetUnitId },
+      data: { status: assetUnitStatus },
     });
   }
 
@@ -1156,6 +1241,26 @@ async function seedMockData(): Promise<void> {
     });
   }
 
+  // 10.1 Assign specific serialized units to delivered/returned items --
+  // mirrors the real prepare + handover flow that would have produced these
+  // states one reservation item at a time.
+  const reservationItemUnitsById = new Map<
+    string,
+    { id: string; assetUnitId: string }[]
+  >();
+  for (const item of itemInputs) {
+    if (!item.checkedOutAt) continue;
+    const rows = await assignReservationItemUnits({
+      reservationItemId: item.id,
+      assetId: item.assetId,
+      quantity: item.quantity,
+      assignedBy: item.preparedBy!,
+      assignedAt: item.preparedAt!,
+      checkedOutAt: item.checkedOutAt,
+    });
+    reservationItemUnitsById.set(item.id, rows);
+  }
+
   // 11. Seed Reservation Item Approvals
   const approvalInputs = [
     // COMPLETED
@@ -1396,6 +1501,7 @@ async function seedMockData(): Promise<void> {
   });
 
   // 13. Seed Return Records
+  let returnItemUnitOffset = 0;
   // 13.1 COMPLETED Return
   await prisma.return.upsert({
     where: { id: ids.returns.completed },
@@ -1423,12 +1529,17 @@ async function seedMockData(): Promise<void> {
       id: ids.returnItems.completedLogic,
       returnId: ids.returns.completed,
       reservationItemId: ids.items.completedLogic,
-      quantityReturned: 1,
-      quantityBroken: 0,
-      quantityLost: 0,
       description: "Returned in good condition.",
     },
   });
+  for (const unit of reservationItemUnitsById.get(ids.items.completedLogic)!) {
+    await settleReturnItemUnit({
+      id: fixedId(0xa00 + returnItemUnitOffset++),
+      returnItemId: ids.returnItems.completedLogic,
+      reservationItemUnitId: unit.id,
+      condition: "GOOD",
+    });
+  }
 
   await prisma.returnItem.upsert({
     where: { id: ids.returnItems.completedKit },
@@ -1437,12 +1548,17 @@ async function seedMockData(): Promise<void> {
       id: ids.returnItems.completedKit,
       returnId: ids.returns.completed,
       reservationItemId: ids.items.completedKit,
-      quantityReturned: 1,
-      quantityBroken: 0,
-      quantityLost: 0,
       description: "Returned in good condition.",
     },
   });
+  for (const unit of reservationItemUnitsById.get(ids.items.completedKit)!) {
+    await settleReturnItemUnit({
+      id: fixedId(0xa00 + returnItemUnitOffset++),
+      returnItemId: ids.returnItems.completedKit,
+      reservationItemUnitId: unit.id,
+      condition: "GOOD",
+    });
+  }
 
   await prisma.returnApproval.upsert({
     where: { returnId: ids.returns.completed },
@@ -1489,12 +1605,18 @@ async function seedMockData(): Promise<void> {
       id: ids.returnItems.returnPhaseCart,
       returnId: ids.returns.returnPhase,
       reservationItemId: ids.items.returnPhaseCart,
-      quantityReturned: 1,
-      quantityBroken: 0,
-      quantityLost: 0,
       description: "Returned intact.",
     },
   });
+  for (const unit of reservationItemUnitsById.get(ids.items.returnPhaseCart)!) {
+    // Awaiting inspection -- condition stays null until the return is decided.
+    await settleReturnItemUnit({
+      id: fixedId(0xa00 + returnItemUnitOffset++),
+      returnItemId: ids.returnItems.returnPhaseCart,
+      reservationItemUnitId: unit.id,
+      condition: null,
+    });
+  }
 
   await prisma.returnItem.upsert({
     where: { id: ids.returnItems.returnPhaseTruck },
@@ -1503,12 +1625,17 @@ async function seedMockData(): Promise<void> {
       id: ids.returnItems.returnPhaseTruck,
       returnId: ids.returns.returnPhase,
       reservationItemId: ids.items.returnPhaseTruck,
-      quantityReturned: 2,
-      quantityBroken: 0,
-      quantityLost: 0,
       description: "Returned intact.",
     },
   });
+  for (const unit of reservationItemUnitsById.get(ids.items.returnPhaseTruck)!) {
+    await settleReturnItemUnit({
+      id: fixedId(0xa00 + returnItemUnitOffset++),
+      returnItemId: ids.returnItems.returnPhaseTruck,
+      reservationItemUnitId: unit.id,
+      condition: null,
+    });
+  }
 
   await prisma.returnApproval.upsert({
     where: { returnId: ids.returns.returnPhase },
@@ -1555,12 +1682,19 @@ async function seedMockData(): Promise<void> {
       id: ids.returnItems.returnPendingChair,
       returnId: ids.returns.returnPending,
       reservationItemId: ids.items.returnPendingChair,
-      quantityReturned: 1,
-      quantityBroken: 0,
-      quantityLost: 0,
       description: "Intact.",
     },
   });
+  for (const unit of reservationItemUnitsById.get(
+    ids.items.returnPendingChair,
+  )!) {
+    await settleReturnItemUnit({
+      id: fixedId(0xa00 + returnItemUnitOffset++),
+      returnItemId: ids.returnItems.returnPendingChair,
+      reservationItemUnitId: unit.id,
+      condition: null,
+    });
+  }
 
   await prisma.returnApproval.upsert({
     where: { returnId: ids.returns.returnPending },
@@ -1607,12 +1741,19 @@ async function seedMockData(): Promise<void> {
       id: ids.returnItems.returnConfirmedJack,
       returnId: ids.returns.returnConfirmed,
       reservationItemId: ids.items.returnConfirmedJack,
-      quantityReturned: 1,
-      quantityBroken: 0,
-      quantityLost: 0,
       description: "Returned and tested operational.",
     },
   });
+  for (const unit of reservationItemUnitsById.get(
+    ids.items.returnConfirmedJack,
+  )!) {
+    await settleReturnItemUnit({
+      id: fixedId(0xa00 + returnItemUnitOffset++),
+      returnItemId: ids.returnItems.returnConfirmedJack,
+      reservationItemUnitId: unit.id,
+      condition: "GOOD",
+    });
+  }
 
   await prisma.returnApproval.upsert({
     where: { returnId: ids.returns.returnConfirmed },

@@ -71,14 +71,15 @@ function detailRecord(status = "PENDING_APPROVAL") {
         checkedOutAt: null,
         createdAt: new Date("2026-08-15T00:00:00.000Z"),
         updatedAt: new Date("2026-08-15T00:00:00.000Z"),
+        unitAssignments: [],
         asset: {
           id: assetId,
           managementAreaId: areaId,
           createdById: actorId,
           name: "Projector",
+          partNumber: null,
           description: null,
           pictureUrl: null,
-          totalQuantity: 2,
           isActive: true,
           createdAt: new Date("2026-08-15T00:00:00.000Z"),
           updatedAt: new Date("2026-08-15T00:00:00.000Z"),
@@ -96,6 +97,16 @@ function detailRecord(status = "PENDING_APPROVAL") {
     changeRequests: [],
     returns: [],
   };
+}
+
+const assetUnitId = "00000000-0000-4000-8000-000000000901";
+
+function unitCountRows(entries: Array<{ assetId: string; count: number }>) {
+  return entries.map(({ assetId: id, count }) => ({
+    assetId: id,
+    status: "ACTIVE",
+    _count: { _all: count },
+  }));
 }
 
 describe("reservation listing", () => {
@@ -150,9 +161,12 @@ describe("reservation listing", () => {
   it("lists reservations where actor is a participant", async () => {
     const reservation = detailRecord();
     const findMany = vi.fn().mockResolvedValue([reservation]);
-    const service = new ReservationsService({
-      reservation: { findMany },
-    } as unknown as PrismaService);
+    const service = new ReservationsService(
+      {
+        reservation: { findMany },
+      } as unknown as PrismaService,
+      reservationEvents,
+    );
 
     await service.list(actor, {
       view: "PARTICIPATING",
@@ -187,9 +201,12 @@ describe("reservation listing", () => {
     };
     const reservation = detailRecord();
     const findMany = vi.fn().mockResolvedValue([reservation]);
-    const service = new ReservationsService({
-      reservation: { findMany },
-    } as unknown as PrismaService);
+    const service = new ReservationsService(
+      {
+        reservation: { findMany },
+      } as unknown as PrismaService,
+      reservationEvents,
+    );
 
     await service.list(scopedActor, {
       view: "APPROVAL_HISTORY",
@@ -284,10 +301,10 @@ describe("reservation availability", () => {
   it("returns a soft warning for overlapping unapproved requests", async () => {
     const prisma = {
       reservation: { findUnique: vi.fn().mockResolvedValue(detailRecord()) },
-      asset: {
-        findMany: vi
+      assetUnit: {
+        groupBy: vi
           .fn()
-          .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]),
+          .mockResolvedValue(unitCountRows([{ assetId, count: 2 }])),
       },
       reservationItem: {
         findMany: vi.fn().mockResolvedValue([
@@ -353,10 +370,10 @@ describe("reservation availability", () => {
             },
           ]),
       },
-      asset: {
-        findMany: vi
+      assetUnit: {
+        groupBy: vi
           .fn()
-          .mockResolvedValue([{ id: assetId, totalQuantity: 1 }]),
+          .mockResolvedValue(unitCountRows([{ assetId, count: 1 }])),
       },
       reservationItemApproval: { createMany: approvalCreateMany },
       $queryRaw: vi.fn().mockResolvedValue([{ id: assetId }]),
@@ -432,11 +449,13 @@ describe("reservation availability", () => {
           ]),
         updateMany: itemUpdateMany,
       },
-      asset: {
-        findMany: vi.fn().mockResolvedValue([
-          { id: assetId, totalQuantity: 2 },
-          { id: secondAssetId, totalQuantity: 3 },
-        ]),
+      assetUnit: {
+        groupBy: vi.fn().mockResolvedValue(
+          unitCountRows([
+            { assetId, count: 2 },
+            { assetId: secondAssetId, count: 3 },
+          ]),
+        ),
       },
       reservationItemApproval: {
         createMany: approvalCreateMany,
@@ -550,10 +569,14 @@ describe("reservation change requests", () => {
           {
             id: assetId,
             managementAreaId: areaId,
-            totalQuantity: 2,
             isActive: true,
           },
         ]),
+      },
+      assetUnit: {
+        groupBy: vi
+          .fn()
+          .mockResolvedValue(unitCountRows([{ assetId, count: 2 }])),
       },
       reservationItem: {
         findMany: vi
@@ -573,7 +596,6 @@ describe("reservation change requests", () => {
           {
             id: assetId,
             managementAreaId: areaId,
-            totalQuantity: 2,
             isActive: true,
           },
         ]),
@@ -665,10 +687,10 @@ describe("reservation change requests", () => {
       reservation: {
         findUnique: vi.fn().mockResolvedValue(reservation),
       },
-      asset: {
-        findMany: vi
+      assetUnit: {
+        groupBy: vi
           .fn()
-          .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]),
+          .mockResolvedValue(unitCountRows([{ assetId, count: 2 }])),
       },
       reservationItem: { findMany: vi.fn().mockResolvedValue([]) },
     } as unknown as PrismaService;
@@ -742,8 +764,13 @@ describe("reservation change requests", () => {
         findMany: vi
           .fn()
           .mockResolvedValue([
-            { id: assetId, managementAreaId: areaId, totalQuantity: 2, isActive: true },
+            { id: assetId, managementAreaId: areaId, isActive: true },
           ]),
+      },
+      assetUnit: {
+        groupBy: vi
+          .fn()
+          .mockResolvedValue(unitCountRows([{ assetId, count: 2 }])),
       },
       reservationItem: { findMany: vi.fn().mockResolvedValue([]) }, // no overlapping bookings
       userRole: { findMany: userRoleFindMany },
@@ -922,10 +949,10 @@ describe("reservation change requests", () => {
         reservation: {
           findUnique: vi.fn().mockResolvedValue(rejectedReservation),
         },
-        asset: {
-          findMany: vi
+        assetUnit: {
+          groupBy: vi
             .fn()
-            .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]),
+            .mockResolvedValue(unitCountRows([{ assetId, count: 2 }])),
         },
         reservationItem: { findMany: vi.fn().mockResolvedValue([]) },
       } as unknown as PrismaService,
@@ -937,8 +964,32 @@ describe("reservation change requests", () => {
     expect(result.status).toBe("REJECTED");
   });
 
+  function preparedItem() {
+    return {
+      status: "PREPARED",
+      unitAssignments: [
+        {
+          id: "00000000-0000-4000-8000-000000000911",
+          assetUnitId,
+          status: "ASSIGNED",
+          assetUnit: { serialNumber: "SN-001" },
+        },
+      ],
+    };
+  }
+
+  function unitCheckoutTxMethods() {
+    return {
+      reservationItemUnit: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      assetUnit: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      assetUnitEventBatch: { create: vi.fn().mockResolvedValue({}) },
+      assetUnitEvent: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    };
+  }
+
   it("allows requester to confirm delivery for an approved reservation and auto-advance status", async () => {
     const approvedReservation = detailRecord("APPROVED");
+    Object.assign(approvedReservation.items[0]!, preparedItem());
     const update = vi.fn();
     const updateItem = vi.fn();
     const handoverCreate = vi.fn();
@@ -947,15 +998,12 @@ describe("reservation change requests", () => {
         findUnique: vi.fn().mockResolvedValue(approvedReservation),
         update,
       },
-      reservationItem: {
-        findMany: vi.fn().mockResolvedValue([]),
-        update: updateItem,
-      },
-      asset: {
-        findMany: vi
+      assetUnit: {
+        groupBy: vi
           .fn()
-          .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]),
+          .mockResolvedValue(unitCountRows([{ assetId, count: 2 }])),
       },
+      reservationItem: { findMany: vi.fn().mockResolvedValue([]) },
       $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
         cb({
           reservation: { update },
@@ -966,6 +1014,7 @@ describe("reservation change requests", () => {
               .mockResolvedValue([{ id: itemId, status: "DELIVERED" }]),
             update: updateItem,
           },
+          ...unitCheckoutTxMethods(),
         }),
       ),
     } as unknown as PrismaService;
@@ -993,6 +1042,7 @@ describe("reservation change requests", () => {
     "allows an event %s to confirm handover for an authorized item",
     async (actorKind) => {
       const approvedReservation = detailRecord("APPROVED");
+      Object.assign(approvedReservation.items[0]!, preparedItem());
       const participantId = "00000000-0000-4000-8000-000000000777";
       if (actorKind === "participant") {
         approvedReservation.participants.push({
@@ -1045,6 +1095,7 @@ describe("reservation change requests", () => {
                 .fn()
                 .mockResolvedValue([{ id: itemId, status: "DELIVERED" }]),
             },
+            ...unitCheckoutTxMethods(),
           }),
         ),
       } as unknown as PrismaService;
@@ -1096,11 +1147,13 @@ describe("reservation change requests", () => {
 
   it("supports partial item delivery confirmation without prematurely advancing event status", async () => {
     const approvedReservation = detailRecord("APPROVED");
+    Object.assign(approvedReservation.items[0]!, preparedItem());
     const itemId2 = "00000000-0000-0000-0000-000000000088";
     approvedReservation.items.push({
       ...approvedReservation.items[0]!,
       id: itemId2,
       status: "APPROVED",
+      unitAssignments: [],
     });
 
     const update = vi.fn();
@@ -1111,15 +1164,12 @@ describe("reservation change requests", () => {
         findUnique: vi.fn().mockResolvedValue(approvedReservation),
         update,
       },
-      reservationItem: {
-        findMany: vi.fn().mockResolvedValue([]),
-        update: updateItem,
-      },
-      asset: {
-        findMany: vi
+      assetUnit: {
+        groupBy: vi
           .fn()
-          .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]),
+          .mockResolvedValue(unitCountRows([{ assetId, count: 2 }])),
       },
+      reservationItem: { findMany: vi.fn().mockResolvedValue([]) },
       $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
         cb({
           reservation: { update },
@@ -1131,6 +1181,7 @@ describe("reservation change requests", () => {
             ]),
             update: updateItem,
           },
+          ...unitCheckoutTxMethods(),
         }),
       ),
     } as unknown as PrismaService;
@@ -1159,9 +1210,9 @@ describe("reservation lifecycle events", () => {
   it("submit() resolves approvers with reservation:approve in the affected area and emits submitted", async () => {
     const reservation = detailRecord("DRAFT");
     const findUnique = vi.fn().mockResolvedValue(reservation);
-    const assetFindMany = vi
+    const assetUnitGroupBy = vi
       .fn()
-      .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]);
+      .mockResolvedValue(unitCountRows([{ assetId, count: 2 }]));
     const reservationItemFindMany = vi.fn().mockResolvedValue([]); // no overlapping bookings
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const userRoleFindMany = vi.fn().mockResolvedValue([
@@ -1200,7 +1251,7 @@ describe("reservation lifecycle events", () => {
     ]);
     const prisma = {
       reservation: { findUnique, updateMany },
-      asset: { findMany: assetFindMany },
+      assetUnit: { groupBy: assetUnitGroupBy },
       reservationItem: { findMany: reservationItemFindMany },
       userRole: { findMany: userRoleFindMany },
     } as unknown as PrismaService;
@@ -1228,9 +1279,9 @@ describe("reservation lifecycle events", () => {
   it("submit() dedupes approvers by id and skips those with no email on file", async () => {
     const reservation = detailRecord("DRAFT");
     const findUnique = vi.fn().mockResolvedValue(reservation);
-    const assetFindMany = vi
+    const assetUnitGroupBy = vi
       .fn()
-      .mockResolvedValue([{ id: assetId, totalQuantity: 2 }]);
+      .mockResolvedValue(unitCountRows([{ assetId, count: 2 }]));
     const reservationItemFindMany = vi.fn().mockResolvedValue([]);
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const userRoleFindMany = vi.fn().mockResolvedValue([
@@ -1271,7 +1322,7 @@ describe("reservation lifecycle events", () => {
     ]);
     const prisma = {
       reservation: { findUnique, updateMany },
-      asset: { findMany: assetFindMany },
+      assetUnit: { groupBy: assetUnitGroupBy },
       reservationItem: { findMany: reservationItemFindMany },
       userRole: { findMany: userRoleFindMany },
     } as unknown as PrismaService;
@@ -1385,7 +1436,11 @@ describe("reservation lifecycle events", () => {
           ]),
         updateMany: itemUpdateMany,
       },
-      asset: { findMany: vi.fn().mockResolvedValue([{ id: assetId, totalQuantity: 2 }]) },
+      assetUnit: {
+        groupBy: vi
+          .fn()
+          .mockResolvedValue(unitCountRows([{ assetId, count: 2 }])),
+      },
       reservationItemApproval: { createMany: vi.fn(), updateMany: vi.fn() },
       reservation: { update: reservationUpdate },
       $queryRaw: vi.fn().mockResolvedValue([]),

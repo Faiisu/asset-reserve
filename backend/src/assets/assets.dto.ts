@@ -2,18 +2,15 @@ import { Transform, Type } from "class-transformer";
 import {
   ArrayMaxSize,
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsIn,
-  IsInt,
   IsISO8601,
   IsOptional,
   IsString,
-  IsUrl,
   IsUUID,
-  Max,
   MaxLength,
-  Min,
   MinLength,
   ValidateIf,
   ValidateNested,
@@ -27,6 +24,26 @@ import {
 const trim = ({ value }: { value: unknown }) =>
   typeof value === "string" ? value.trim() : value;
 
+export const ASSET_UNIT_STATUSES = [
+  "ACTIVE",
+  "RESERVED",
+  "CHECKED_OUT",
+  "BROKEN",
+  "LOST",
+  "IN_REPAIR",
+  "INACTIVE",
+] as const;
+export type AssetUnitStatus = (typeof ASSET_UNIT_STATUSES)[number];
+
+/** Statuses a staff member may set directly; RESERVED/CHECKED_OUT are system-managed by the reservation flow. */
+const MANUALLY_SETTABLE_UNIT_STATUSES = [
+  "ACTIVE",
+  "BROKEN",
+  "LOST",
+  "IN_REPAIR",
+  "INACTIVE",
+] as const;
+
 export class AssetListQueryDto extends SearchPaginationQueryDto {
   @IsOptional()
   @IsUUID()
@@ -36,10 +53,6 @@ export class AssetListQueryDto extends SearchPaginationQueryDto {
   @Transform(({ value }: { value: unknown }) => parseOptionalBoolean(value))
   @IsBoolean()
   isActive?: boolean;
-
-  @IsOptional()
-  @IsIn(["ACTIVE", "BROKEN", "LOST"])
-  status?: "ACTIVE" | "BROKEN" | "LOST";
 
   @IsOptional()
   @IsISO8601({ strict: true })
@@ -62,6 +75,13 @@ export class CreateAssetDto {
 
   @IsOptional()
   @ValidateIf((_object, value) => value !== null)
+  @Transform(trim)
+  @IsString()
+  @MaxLength(100)
+  partNumber?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_object, value) => value !== null)
   @IsString()
   @MaxLength(10_000)
   description?: string | null;
@@ -72,18 +92,9 @@ export class CreateAssetDto {
   @MaxLength(2048)
   pictureUrl?: string | null;
 
-  @IsInt()
-  @Min(0)
-  @Max(2_147_483_647)
-  totalQuantity!: number;
-
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
-
-  @IsOptional()
-  @IsIn(["ACTIVE", "BROKEN", "LOST"])
-  status?: "ACTIVE" | "BROKEN" | "LOST";
 }
 
 export class BatchCreateAssetsDto {
@@ -114,6 +125,13 @@ export class UpdateAssetDto {
 
   @IsOptional()
   @ValidateIf((_object, value) => value !== null)
+  @Transform(trim)
+  @IsString()
+  @MaxLength(100)
+  partNumber?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_object, value) => value !== null)
   @IsString()
   @MaxLength(10_000)
   description?: string | null;
@@ -124,17 +142,13 @@ export class UpdateAssetDto {
   @MaxLength(2048)
   pictureUrl?: string | null;
 
-  @IsOptional()
-  @IsIn(["ACTIVE", "BROKEN", "LOST"])
-  status?: "ACTIVE" | "BROKEN" | "LOST";
-
   @IsISO8601({ strict: true })
   expectedUpdatedAt!: string;
 }
 
 export class UpdateAssetStatusDto {
-  @IsIn(["ACTIVE", "BROKEN", "LOST", "INACTIVE"])
-  status!: "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE";
+  @IsIn(["ACTIVE", "INACTIVE"])
+  status!: "ACTIVE" | "INACTIVE";
 
   @IsISO8601({ strict: true })
   expectedUpdatedAt!: string;
@@ -157,14 +171,26 @@ export class BatchRemoveAssetsDto {
   items!: BatchRemoveAssetItemDto[];
 }
 
-export class InventoryLineDto {
-  @IsUUID()
-  assetId!: string;
+export class AssetUnitListQueryDto extends SearchPaginationQueryDto {
+  @IsOptional()
+  @IsIn(ASSET_UNIT_STATUSES)
+  status?: AssetUnitStatus;
+}
 
-  @IsInt()
-  @Min(1)
-  @Max(2_147_483_647)
-  quantity!: number;
+export class RegisterAssetUnitsDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ArrayUnique()
+  @Transform(({ value }: { value: unknown }) =>
+    Array.isArray(value)
+      ? value.map((entry) => (typeof entry === "string" ? entry.trim() : entry))
+      : value,
+  )
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  @MaxLength(100, { each: true })
+  serialNumbers!: string[];
 
   @IsOptional()
   @IsString()
@@ -172,16 +198,37 @@ export class InventoryLineDto {
   reason?: string;
 }
 
-export class InventoryBatchDto {
+export class RetireAssetUnitItemDto {
+  @IsUUID()
+  assetUnitId!: string;
+
+  @IsISO8601({ strict: true })
+  expectedUpdatedAt!: string;
+}
+
+export class RetireAssetUnitsDto {
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(100)
+  @ArrayMaxSize(200)
   @ValidateNested({ each: true })
-  @Type(() => InventoryLineDto)
-  items!: InventoryLineDto[];
+  @Type(() => RetireAssetUnitItemDto)
+  items!: RetireAssetUnitItemDto[];
 
   @IsOptional()
   @IsString()
   @MaxLength(2_000)
-  description?: string;
+  reason?: string;
+}
+
+export class UpdateAssetUnitStatusDto {
+  @IsIn(MANUALLY_SETTABLE_UNIT_STATUSES)
+  status!: (typeof MANUALLY_SETTABLE_UNIT_STATUSES)[number];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000)
+  reason?: string;
+
+  @IsISO8601({ strict: true })
+  expectedUpdatedAt!: string;
 }

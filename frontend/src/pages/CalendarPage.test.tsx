@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { api } from "../api";
 import type {
@@ -20,7 +27,19 @@ const asset: AssetSummary = {
   name: "Stage camera",
   description: null,
   pictureUrl: null,
+  partNumber: null,
   totalQuantity: 4,
+  unitCounts: {
+    total: 0,
+    active: 0,
+    reserved: 0,
+    checkedOut: 0,
+    broken: 0,
+    lost: 0,
+    inRepair: 0,
+    inactive: 0,
+  },
+
   allocatedQuantity: 1,
   availableQuantity: 3,
   isActive: true,
@@ -30,7 +49,7 @@ const asset: AssetSummary = {
   capabilities: {
     canEdit: false,
     canDeactivate: false,
-    canAdjustQuantity: false,
+    canManageUnits: false,
   },
   createdAt: "2026-08-01T00:00:00.000Z",
   updatedAt: "2026-08-01T00:00:00.000Z",
@@ -290,9 +309,7 @@ describe("CalendarPage", () => {
       name: /Stage camera/i,
     });
     expect(assetOption).toBeEnabled();
-    expect(
-      screen.getByText(/3 of 4/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/3 of 4/)).toBeInTheDocument();
     fireEvent.click(assetOption);
     expect(
       screen.getByRole("link", { name: /Reserve 1 asset/i }),
@@ -370,9 +387,7 @@ describe("CalendarPage", () => {
       name: /Stage camera/i,
     });
     expect(assetOption).toBeEnabled();
-    expect(
-      screen.getAllByText(/3 of 4/),
-    ).toHaveLength(2);
+    expect(screen.getAllByText(/3 of 4/)).toHaveLength(2);
 
     const day = screen.getByRole("button", {
       name: /Tuesday, August 18, 2026, select reservation date/i,
@@ -386,18 +401,22 @@ describe("CalendarPage", () => {
     });
     expect(orderedOptions[0]).toHaveAccessibleName(/Backup microphone/i);
     expect(assetOption.querySelector("i svg")).toBeNull();
-    expect(
-      screen.getByText("Fully booked"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: /Create event/i }),
-    ).toHaveAttribute("aria-disabled", "false");
+    expect(screen.getByText("Fully booked")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Create event/i })).toHaveAttribute(
+      "aria-disabled",
+      "false",
+    );
   });
 
   it("cancels a reservation from the calendar mini popover after confirmation", async () => {
     const cancellableReservation = {
       ...reservation,
-      capabilities: { canSubmit: false, canRequestChange: true, canReview: true, canCancel: true },
+      capabilities: {
+        canSubmit: false,
+        canRequestChange: true,
+        canReview: true,
+        canCancel: true,
+      },
     };
     vi.spyOn(api, "reservations").mockResolvedValue({
       data: [cancellableReservation],
@@ -424,12 +443,18 @@ describe("CalendarPage", () => {
     });
     fireEvent.click(within(miniMenu).getByRole("button", { name: /Cancel/i }));
 
-    const confirmDialog = screen.getByRole("dialog", { name: "Cancel reservation" });
+    const confirmDialog = screen.getByRole("dialog", {
+      name: "Cancel reservation",
+    });
     expect(confirmDialog).toBeInTheDocument();
     fireEvent.change(within(confirmDialog).getByRole("textbox"), {
       target: { value: "Cancelled from calendar" },
     });
-    fireEvent.click(within(confirmDialog).getByRole("button", { name: "Confirm cancellation" }));
+    fireEvent.click(
+      within(confirmDialog).getByRole("button", {
+        name: "Confirm cancellation",
+      }),
+    );
 
     await waitFor(() =>
       expect(cancelSpy).toHaveBeenCalledWith(
@@ -452,44 +477,74 @@ describe("CalendarPage", () => {
     );
 
     // Initial visible month is August 2026
-    expect(screen.getByRole("heading", { level: 2, name: "August 2026" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "August 2026" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Aug")).toBeInTheDocument();
 
     // Open Mini Calendar Date Picker
-    fireEvent.click(screen.getByRole("button", { name: "Select date from mini calendar" }));
-    expect(screen.getByRole("dialog", { name: "Choose date" })).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select date from mini calendar" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Choose date" }),
+    ).toBeInTheDocument();
 
     // Navigate to next month in mini calendar
-    fireEvent.click(screen.getByRole("button", { name: "Next month in picker" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Next month in picker" }),
+    );
     expect(screen.getByText("September 2026")).toBeInTheDocument();
 
     // Pick September 15, 2026
-    const sep15Btn = screen.getByRole("button", { name: "Tuesday, September 15, 2026" });
+    const sep15Btn = screen.getByRole("button", {
+      name: "Tuesday, September 15, 2026",
+    });
     fireEvent.click(sep15Btn);
 
     await waitFor(() =>
-      expect(screen.getByRole("heading", { level: 2, name: "September 2026" })).toBeInTheDocument(),
+      expect(
+        screen.getByRole("heading", { level: 2, name: "September 2026" }),
+      ).toBeInTheDocument(),
     );
     expect(screen.queryByRole("dialog", { name: "Choose date" })).toBeNull();
 
     // Click Today button to return to current month
     fireEvent.click(screen.getByRole("button", { name: "Today" }));
     await waitFor(() =>
-      expect(screen.getByRole("heading", { level: 2, name: "August 2026" })).toBeInTheDocument(),
+      expect(
+        screen.getByRole("heading", { level: 2, name: "August 2026" }),
+      ).toBeInTheDocument(),
     );
 
     // Selecting a box in September updates header month label
-    const sepBox = screen.getByRole("button", { name: /Tuesday, September 1, 2026/i });
+    const sepBox = screen.getByRole("button", {
+      name: /Tuesday, September 1, 2026/i,
+    });
     fireEvent.pointerDown(sepBox, { button: 0 });
     fireEvent.pointerUp(sepBox);
-    expect(screen.getByRole("heading", { level: 2, name: "September 2026" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "September 2026" }),
+    ).toBeInTheDocument();
   });
 
   it("filters calendar and assets using merged workspace and status filter dropdown", async () => {
     vi.spyOn(api, "areas").mockResolvedValue({
       data: [
-        { id: "area-1", name: "Production", description: null, createdAt: "", updatedAt: "" },
-        { id: "area-2", name: "Audio Lab", description: null, createdAt: "", updatedAt: "" },
+        {
+          id: "area-1",
+          name: "Production",
+          description: null,
+          createdAt: "",
+          updatedAt: "",
+        },
+        {
+          id: "area-2",
+          name: "Audio Lab",
+          description: null,
+          createdAt: "",
+          updatedAt: "",
+        },
       ],
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
@@ -517,7 +572,9 @@ describe("CalendarPage", () => {
     ).toBeInTheDocument();
 
     // Wait for Production workspace checkbox and toggle it
-    const prodCheckbox = await screen.findByRole("checkbox", { name: "Production" });
+    const prodCheckbox = await screen.findByRole("checkbox", {
+      name: "Production",
+    });
     expect(prodCheckbox).not.toBeChecked();
     fireEvent.click(prodCheckbox);
     expect(prodCheckbox).toBeChecked();

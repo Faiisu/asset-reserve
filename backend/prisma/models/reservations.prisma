@@ -52,6 +52,8 @@ model ReservationItem {
   checkedOutByUser User?                    @relation("ReservationItemCheckedOutBy", fields: [checkedOutBy], references: [id])
   handover         ReservationHandover?     @relation(fields: [handoverId], references: [id])
   approval         ReservationItemApproval?
+  unitAssignments  ReservationItemUnit[]
+  assetUnitEvents  AssetUnitEvent[]
   returnItems      ReturnItem[]
 
   // Database CHECK required by the source specification: quantity > 0.
@@ -63,6 +65,30 @@ model ReservationItem {
   @@index([checkedOutBy])
   @@index([handoverId])
   @@map("reservation_items")
+}
+
+model ReservationItemUnit {
+  id                String    @id @db.Uuid
+  reservationItemId String    @map("reservation_item_id") @db.Uuid
+  assetUnitId       String    @map("asset_unit_id") @db.Uuid
+  /// Supported values: ASSIGNED, CHECKED_OUT, RETURNED_GOOD, RETURNED_BROKEN, RETURNED_LOST.
+  status            String    @default("ASSIGNED") @db.VarChar(20)
+  assignedBy        String    @map("assigned_by") @db.Uuid
+  assignedAt        DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  checkedOutAt      DateTime? @map("checked_out_at") @db.Timestamptz(6)
+  returnedAt        DateTime? @map("returned_at") @db.Timestamptz(6)
+
+  reservationItem ReservationItem @relation(fields: [reservationItemId], references: [id])
+  assetUnit       AssetUnit       @relation(fields: [assetUnitId], references: [id])
+  assigner        User            @relation(fields: [assignedBy], references: [id])
+  returnItemUnit  ReturnItemUnit?
+
+  // Database UNIQUE required by the source specification: one active (ASSIGNED/CHECKED_OUT)
+  // assignment per asset_unit_id, enforced via a partial unique index (added in raw migration SQL).
+  @@unique([reservationItemId, assetUnitId])
+  @@index([assetUnitId])
+  @@index([reservationItemId, status])
+  @@map("reservation_item_units")
 }
 
 model ReservationParticipant {
@@ -114,10 +140,10 @@ model ReservationChangeRequest {
   requester   User        @relation("ReservationChangeRequestedBy", fields: [requestedBy], references: [id])
   reviewer    User?       @relation("ReservationChangeReviewedBy", fields: [reviewedBy], references: [id])
 
+  @@unique([reservationId], map: "reservation_change_requests_one_pending", where: { status: "PENDING" })
   @@index([reservationId, status])
   @@index([requestedBy])
   @@index([reviewedBy])
-  @@unique([reservationId], map: "reservation_change_requests_one_pending", where: { status: "PENDING" })
   @@map("reservation_change_requests")
 }
 
@@ -138,4 +164,3 @@ model ReservationHandover {
   @@index([handledBy])
   @@map("reservation_handovers")
 }
-

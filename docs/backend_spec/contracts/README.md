@@ -41,8 +41,7 @@ npm run openapi:bundle
 | Session BFF     | `paths/session.yaml`         | ใช้ authentication schemas                |
 | Access control  | `paths/access-control.yaml`  | `components/schemas/access-control.yaml`  |
 | Users           | `paths/users.yaml`           | `components/schemas/users.yaml`           |
-| Assets          | `paths/assets.yaml`          | `components/schemas/assets.yaml`          |
-| Inventory       | `paths/inventory.yaml`       | `components/schemas/inventory.yaml`       |
+| Assets          | `paths/assets.yaml`          | `components/schemas/assets.yaml` (assets + serialized asset units) |
 | Reservations    | `paths/reservations.yaml`    | `components/schemas/reservations.yaml`    |
 | Management areas| `paths/management-areas.yaml` | `components/schemas/access-control.yaml`  |
 | Uploads         | `paths/uploads.yaml`         | inline multipart/response schemas         |

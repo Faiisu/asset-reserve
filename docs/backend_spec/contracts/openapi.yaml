@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Asset Reservation API
   version: 1.4.0
-  description: Contract-first API for authentication, access control, users, management areas, assets, inventory, uploads, and reservations.
+  description: Contract-first API for authentication, access control, users, management areas, serialized asset units, uploads, and reservations.
 servers:
   - url: /api/v1
 tags:
@@ -69,10 +69,12 @@ paths:
     $ref: ./paths/assets.yaml#/~1assets~1{assetId}
   /assets/{assetId}/status:
     $ref: ./paths/assets.yaml#/~1assets~1{assetId}~1status
-  /assets/inventory/batch-add:
-    $ref: ./paths/inventory.yaml#/~1assets~1inventory~1batch-add
-  /assets/inventory/batch-remove:
-    $ref: ./paths/inventory.yaml#/~1assets~1inventory~1batch-remove
+  /assets/{assetId}/units:
+    $ref: ./paths/assets.yaml#/~1assets~1{assetId}~1units
+  /assets/units/batch-retire:
+    $ref: ./paths/assets.yaml#/~1assets~1units~1batch-retire
+  /assets/units/{assetUnitId}/status:
+    $ref: ./paths/assets.yaml#/~1assets~1units~1{assetUnitId}~1status
   /reservations:
     $ref: ./paths/reservations.yaml#/~1reservations
   /reservations/{reservationId}:
@@ -209,10 +211,14 @@ components:
       $ref: ./components/schemas/users.yaml#/AssignRoleRequest
     AssetStatus:
       $ref: ./components/schemas/assets.yaml#/AssetStatus
+    AssetUnitStatus:
+      $ref: ./components/schemas/assets.yaml#/AssetUnitStatus
     AssetOwner:
       $ref: ./components/schemas/assets.yaml#/AssetOwner
     AssetCapabilities:
       $ref: ./components/schemas/assets.yaml#/AssetCapabilities
+    AssetUnitCounts:
+      $ref: ./components/schemas/assets.yaml#/AssetUnitCounts
     AssetSummary:
       $ref: ./components/schemas/assets.yaml#/AssetSummary
     AssetListResponse:
@@ -221,8 +227,10 @@ components:
       $ref: ./components/schemas/assets.yaml#/ReservationRef
     ActiveReservationItem:
       $ref: ./components/schemas/assets.yaml#/ActiveReservationItem
-    InventoryLedgerItem:
-      $ref: ./components/schemas/assets.yaml#/InventoryLedgerItem
+    AssetUnit:
+      $ref: ./components/schemas/assets.yaml#/AssetUnit
+    AssetUnitEventLedgerItem:
+      $ref: ./components/schemas/assets.yaml#/AssetUnitEventLedgerItem
     AssetEditPolicy:
       $ref: ./components/schemas/assets.yaml#/AssetEditPolicy
     AssetDetail:
@@ -245,18 +253,16 @@ components:
       $ref: ./components/schemas/assets.yaml#/RemovedAsset
     BatchRemoveAssetsResponse:
       $ref: ./components/schemas/assets.yaml#/BatchRemoveAssetsResponse
-    InventoryLineRequest:
-      $ref: ./components/schemas/inventory.yaml#/InventoryLineRequest
-    InventoryBatchRequest:
-      $ref: ./components/schemas/inventory.yaml#/InventoryBatchRequest
-    InventoryOperation:
-      $ref: ./components/schemas/inventory.yaml#/InventoryOperation
-    InventoryPerformer:
-      $ref: ./components/schemas/inventory.yaml#/InventoryPerformer
-    InventoryResultItem:
-      $ref: ./components/schemas/inventory.yaml#/InventoryResultItem
-    InventoryBatchResponse:
-      $ref: ./components/schemas/inventory.yaml#/InventoryBatchResponse
+    RegisterAssetUnitsRequest:
+      $ref: ./components/schemas/assets.yaml#/RegisterAssetUnitsRequest
+    RegisterAssetUnitsResponse:
+      $ref: ./components/schemas/assets.yaml#/RegisterAssetUnitsResponse
+    RetireAssetUnitItem:
+      $ref: ./components/schemas/assets.yaml#/RetireAssetUnitItem
+    RetireAssetUnitsRequest:
+      $ref: ./components/schemas/assets.yaml#/RetireAssetUnitsRequest
+    UpdateAssetUnitStatusRequest:
+      $ref: ./components/schemas/assets.yaml#/UpdateAssetUnitStatusRequest
     ReservationStatus:
       $ref: ./components/schemas/reservations.yaml#/ReservationStatus
     ReservationItemStatus:

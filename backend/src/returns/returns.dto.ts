@@ -2,15 +2,14 @@ import { Transform, Type } from "class-transformer";
 import {
   ArrayMaxSize,
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsIn,
-  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
-  Min,
   ValidateIf,
   ValidateNested,
 } from "class-validator";
@@ -26,20 +25,12 @@ export class CreateReturnItemDto {
   @IsUUID()
   reservationItemId!: string;
 
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  quantityReturned: number = 0;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  quantityBroken: number = 0;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  quantityLost: number = 0;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  reservationItemUnitIds!: string[];
 
   @IsOptional()
   @ValidateIf((_object, value) => value !== null && value !== undefined)
@@ -84,31 +75,12 @@ export class CreateReturnDto {
   immediateApprove?: boolean;
 }
 
-export class DecideReturnItemDto {
+export class DecideReturnItemUnitDto {
   @IsUUID()
-  reservationItemId!: string;
+  reservationItemUnitId!: string;
 
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  quantityReturned: number = 0;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  quantityBroken: number = 0;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  quantityLost: number = 0;
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null && value !== undefined)
-  @Transform(trim)
-  @IsString()
-  @MaxLength(2_000)
-  description?: string | null;
+  @IsIn(["GOOD", "BROKEN", "LOST"])
+  condition!: "GOOD" | "BROKEN" | "LOST";
 
   @IsOptional()
   @ValidateIf((_object, value) => value !== null && value !== undefined)
@@ -116,6 +88,31 @@ export class DecideReturnItemDto {
   @IsString()
   @MaxLength(1000)
   photoUrl?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_object, value) => value !== null && value !== undefined)
+  @Transform(trim)
+  @IsString()
+  @MaxLength(2_000)
+  note?: string | null;
+}
+
+export class DecideReturnItemDto {
+  @IsUUID()
+  reservationItemId!: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DecideReturnItemUnitDto)
+  units?: DecideReturnItemUnitDto[];
+
+  @IsOptional()
+  @ValidateIf((_object, value) => value !== null && value !== undefined)
+  @Transform(trim)
+  @IsString()
+  @MaxLength(2_000)
+  description?: string | null;
 }
 
 export class ReturnDecisionDto {

@@ -404,11 +404,13 @@ Global ADMIN เท่านั้น ปฏิเสธเมื่อ area ย
 
 หลาย endpoint คืน asset summary โดยใช้กติกาเดียวกัน:
 
-1. `allocatedQuantity` คือผลรวม `ReservationItem.quantity` ที่ item status เป็น `APPROVED`, `PREPARED` หรือ `CHECKED_OUT` และ reservation status เป็น `PARTIALLY_APPROVED`, `APPROVED` หรือ `ACTIVE`
-2. `availableQuantity = max(totalQuantity - allocatedQuantity, 0)`
-3. `status` map จาก `isActive`: `true → ACTIVE`, `false → INACTIVE`
-4. `owner` มาจาก `Asset.createdBy`; asset เก่าก่อนมี creator tracking อาจเป็น `null`
-5. `capabilities` คำนวณเฉพาะ actor ปัจจุบันจาก permission ใน management area ของ asset
+1. `unitCounts` คำนวณจากการนับแถว `AssetUnit` ของ asset นั้น แยกตาม status (`ACTIVE`, `RESERVED`, `CHECKED_OUT`, `BROKEN`, `LOST`, `IN_REPAIR`, `INACTIVE`) ด้วย `groupBy` -- ไม่มี quantity column เก็บไว้ที่ `Asset` แล้ว
+2. `totalQuantity = unitCounts.total` (นับทุก unit ยกเว้น `INACTIVE`)
+3. `allocatedQuantity` คือผลรวม `ReservationItem.quantity` ที่ item status เป็น `APPROVED`, `PREPARED` หรือ `CHECKED_OUT` และ reservation status เป็น `PARTIALLY_APPROVED`, `APPROVED` หรือ `ACTIVE`
+4. `availableQuantity = max(unitCounts.active - allocatedQuantity, 0)`
+5. `isActive` เป็น boolean ตรงๆ บน `Asset`; ไม่มี asset-level `status` แล้ว -- status ย้ายไปอยู่ระดับ `AssetUnit` แต่ละชิ้น
+6. `owner` มาจาก `Asset.createdBy`; asset เก่าก่อนมี creator tracking อาจเป็น `null`
+7. `capabilities` คำนวณเฉพาะ actor ปัจจุบันจาก permission ใน management area ของ asset
 
 ### 7.2 `GET /assets`
 
@@ -421,23 +423,23 @@ Algorithm:
 1. หา area ที่ actor มี `asset:view`; global permission หมายถึงทุก area
 2. ถ้าไม่มี view permission เลย ตอบ `403 PERMISSION_DENIED`
 3. ถ้าระบุ `areaId` ที่อยู่นอก scope ตอบ `403`
-4. สร้าง filter จาก area scope, status, search และ cursor
+4. สร้าง filter จาก area scope, `isActive`, search (ครอบคลุม `partNumber` ด้วย) และ cursor
 5. Query assets `limit + 1` พร้อม management area และ owner
-6. Query allocated quantities ของ asset ทั้งหน้าแบบ `GROUP BY assetId` ครั้งเดียว เพื่อหลีกเลี่ยง N+1
+6. Query unit counts (`groupBy` บน `AssetUnit.status`) และ allocated quantities ของ asset ทั้งหน้าแบบ `GROUP BY assetId` ครั้งเดียว เพื่อหลีกเลี่ยง N+1
 7. คำนวณ available quantity/capabilities และคืน `{ data, pageInfo }`
 
 ### 7.3 `POST /assets`
 
 สถานะสำเร็จ: `201 Created`  
 Authorization: Scoped `asset:create` ของ management area  
-Input: `name`, `managementAreaId`, `description?`, `pictureUrl?`, `totalQuantity`, `isActive?`
+Input: `name`, `managementAreaId`, `partNumber?`, `description?`, `pictureUrl?`, `isActive?`
 
 Algorithm:
 
-1. Validate ชื่อไม่ว่างและยาวไม่เกิน 150, quantity เป็น integer 0–2,147,483,647 และ picture เป็น URL
+1. Validate ชื่อไม่ว่างและยาวไม่เกิน 150, `partNumber` ไม่เกิน 100 ตัวอักษร และ picture เป็น URL
 2. เรียก batch-create algorithm ด้วยรายการเดียว
 3. บันทึก actor เป็น `createdById`; client ระบุ owner เองไม่ได้
-4. ถ้า initial quantity มากกว่า 0 สร้าง opening `ADD` ledger ใน transaction เดียวกับ asset
+4. Asset ถูกสร้างโดยไม่มี unit ใดๆ (0 units) เสมอ -- การลงทะเบียนหน่วยจริงทำแยกผ่าน `POST /assets/:assetId/units` (ดูหัวข้อ 7.13)
 5. คืน asset summary; ถ้าชื่อซ้ำภายใน area ตอบ `409 ASSET_NAME_ALREADY_EXISTS`
 
 ### 7.4 `POST /assets/batch`
@@ -452,12 +454,9 @@ Algorithm:
 2. ตรวจ `asset:create` ทีละ item ก่อนเขียนข้อมูล
 3. Query ตรวจ management areas ทั้งหมดแบบ batch
 4. เตรียม UUID, owner และ default `isActive = true`
-5. เปิด Serializable transaction
-6. Insert assets ทั้งหมดด้วย `createMany`
-7. เลือกเฉพาะ asset ที่ quantity มากกว่า 0 แล้วสร้าง transaction batch หนึ่งรายการ
-8. Insert opening `ADD` ledger ทุกบรรทัดด้วย `createMany`
-9. โหลด asset ที่สร้างทั้งหมดและ commit พร้อมกัน; ถ้าบรรทัดใดล้มเหลวทั้ง batch rollback
-10. เรียง response ตามลำดับ input เดิม
+5. Insert assets ทั้งหมดด้วย `createMany` (ไม่มี unit/ledger เกี่ยวข้อง เพราะยังไม่มี unit ให้ลงทะเบียน)
+6. โหลด asset ที่สร้างทั้งหมดกลับไป; ถ้าบรรทัดใดล้มเหลวทั้ง batch rollback
+7. เรียง response ตามลำดับ input เดิม
 
 ### 7.5 `POST /assets/batch-remove`
 
@@ -475,85 +474,78 @@ Algorithm:
 6. ถ้ารายการใด stale ให้ rollback ทั้ง batch และตอบ `409 STALE_WRITE`
 7. คืน ID และ status `INACTIVE` ของทุก asset
 
-เส้นนี้เป็น soft removal เพื่อรักษา reservation relation และ inventory ledger ไม่ได้ลบ row จริง
+เส้นนี้เป็น soft removal เพื่อรักษา reservation relation, unit และ unit event history ไม่ได้ลบ row จริง
 
-### 7.6 `POST /assets/inventory/batch-add`
-
-สถานะสำเร็จ: `201 Created`  
-Authorization: Scoped `asset:update` ครบทุก asset  
-Input: `items` 1–100 รายการ แต่ละรายการมี `assetId`, `quantity > 0`, `reason?`; มี `description?` ระดับ batch
-
-Algorithm ใช้ shared inventory algorithm ในหัวข้อ 7.8 โดยกำหนด operation เป็น `ADD`, เพิ่ม `totalQuantity` และบันทึก `quantityDelta` เป็นค่าบวก
-
-### 7.7 `POST /assets/inventory/batch-remove`
+### 7.6 `POST /assets/:assetId/units` -- ลงทะเบียนหน่วยใหม่ (register)
 
 สถานะสำเร็จ: `201 Created`  
-Authorization: Scoped `asset:update` ครบทุก asset  
-Input เหมือน batch-add
+Authorization: Scoped `asset:update`  
+Input: `serialNumbers` 1–200 รายการ (unique ทั้งใน request และเทียบกับฐานข้อมูล), `reason?`
 
-Algorithm ใช้ shared inventory algorithm โดยกำหนด operation เป็น `REMOVE`, ลด `totalQuantity` และบันทึก `quantityDelta` เป็นค่าลบ ถ้าการลดทำให้ quantity ติดลบตอบ `409 INSUFFICIENT_QUANTITY`
+Algorithm:
 
-### 7.8 Shared atomic inventory algorithm
+1. Trim และตรวจ serial number แต่ละตัวไม่ว่าง ไม่เกิน 100 ตัวอักษร และไม่ซ้ำกันเองใน request
+2. ตรวจ `asset:update` ใน area ของ asset
+3. สร้าง `AssetUnitEventBatch` หนึ่งรายการ (`performedBy` = actor)
+4. สร้าง `AssetUnit` หนึ่งแถวต่อ serial number ด้วย `status = ACTIVE`
+5. สร้าง `AssetUnitEvent` หนึ่งรายการต่อ unit (`eventType = REGISTERED`, `toStatus = ACTIVE`) ผูกกับ batch เดียวกัน
+6. ถ้า serial number ใดชนกับที่มีอยู่แล้ว (`serial_number` เป็น unique ทั้งระบบ) ตอบ `409 SERIAL_NUMBER_ALREADY_EXISTS`
+7. คืนรายการ `AssetUnit` ที่สร้าง
 
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant A as Inventory API
-    participant P as Permission check
-    participant D as PostgreSQL
+### 7.7 `GET /assets/:assetId/units` -- ดูรายการ unit ของ asset
 
-    C->>A: ส่ง batch ADD หรือ REMOVE
-    A->>A: Validate และตัด duplicate asset
-    A->>D: โหลด asset IDs และ management areas
-    A->>P: ตรวจ asset:update ทุก area
-    P-->>A: ผ่าน
-    A->>A: เรียง lines ตาม asset UUID
-    A->>D: BEGIN SERIALIZABLE
-    A->>D: ตรวจ actor ยัง active
-    A->>D: สร้าง AssetTransactionBatch
-    loop ทุก line ตาม UUID
-        A->>D: increment หรือ conditional decrement
-    end
-    A->>D: createMany ledger entries
-    A->>D: COMMIT
-    D-->>A: batch + transaction + total ล่าสุด
-    A-->>C: 201 response
+Authorization: Scoped `asset:view`  
+Query: `status?` (unit status filter), `search?`, `cursor?`, `limit?` -- คืนแบบ paginated เหมือน list endpoint อื่นๆ
 
-    Note over A,D: P2034 จะ retry สูงสุด 3 attempts<br/>ด้วย exponential backoff + jitter
-```
+### 7.8 `POST /assets/units/batch-retire` -- ปลดระวางหน่วย
 
-รายละเอียด:
+สถานะสำเร็จ: `201 Created`  
+Authorization: Scoped `asset:update` ตาม area ของแต่ละ unit  
+Input: `items` 1–200 รายการ แต่ละรายการมี `assetUnitId`, `expectedUpdatedAt`; มี `reason?` ระดับ batch
 
-1. ปฏิเสธ duplicate asset lines และตรวจว่าพบ asset ครบทุก ID
-2. ตรวจ `asset:update` ตาม area ของทุก assetก่อนเริ่ม transaction
-3. เรียง UUID เพื่อลดโอกาส deadlock เมื่อหลาย request แตะ asset ชุดเดียวกัน
-4. เปิด Serializable transaction และตรวจ actor ยัง active อีกครั้ง
-5. สร้าง `AssetTransactionBatch` โดย `performedBy` มาจาก actor เท่านั้น
-6. ADD ใช้ atomic increment
-7. REMOVE ใช้ conditional update `WHERE totalQuantity >= quantity` แล้ว atomic decrement
-8. ถ้า REMOVE update ไม่ได้ ตอบ `409 INSUFFICIENT_QUANTITY`; transaction rollback รวม batch/lines ก่อนหน้า
-9. Insert ledger lines ทั้งหมดด้วย `createMany` และ commit พร้อมยอด asset
-10. ถ้า Prisma แจ้ง write conflict/deadlock `P2034` ให้ retry สูงสุด 3 ครั้งด้วย backoff และ jitter; error อื่นไม่ retry
+Algorithm:
 
-### 7.9 `GET /assets/:assetId`
+1. โหลด unit ทั้งหมดตาม ID พร้อม asset/area และเรียงตาม UUID เพื่อลด deadlock
+2. ตรวจ `asset:update` ตาม area ของทุก unit
+3. ปฏิเสธ (`409`) unit ที่สถานะปัจจุบันเป็น `RESERVED` หรือ `CHECKED_OUT` -- ต้องคืน/ยกเลิกการจองก่อนปลดระวาง
+4. เปลี่ยน `status = INACTIVE` ทีละ unit ด้วย optimistic concurrency (`expectedUpdatedAt`); stale ตอบ `409 STALE_WRITE`
+5. เขียน `AssetUnitEvent` (`eventType = RETIRED`) หนึ่งรายการต่อ unit ใน `AssetUnitEventBatch` เดียวกัน
+6. คืนรายการ unit ที่ปลดระวางแล้ว
+
+### 7.9 `PATCH /assets/units/:assetUnitId/status` -- ปรับสถานะ unit ด้วยมือ
+
+สถานะสำเร็จ: `200 OK`  
+Authorization: Scoped `asset:update` ใน area ของ unit  
+Input: `status` (จำกัดเฉพาะ `ACTIVE`, `BROKEN`, `LOST`, `IN_REPAIR`, `INACTIVE` -- `RESERVED`/`CHECKED_OUT` ระบบจัดการเองผ่าน reservation flow เท่านั้น), `reason?`, `expectedUpdatedAt`
+
+Algorithm:
+
+1. โหลด unit; ถ้าไม่พบตอบ `404`
+2. ตรวจ `asset:update` ใน area ของ asset ที่ unit สังกัด
+3. Update `status` ด้วย optimistic concurrency; stale ตอบ `409 STALE_WRITE`
+4. เขียน `AssetUnitEvent` (`eventType = ADJUSTMENT`, `fromStatus`/`toStatus` ตามการเปลี่ยน) ใน batch ใหม่หนึ่งรายการ
+5. คืน unit ล่าสุด
+
+### 7.10 `GET /assets/:assetId`
 
 สถานะสำเร็จ: `200 OK`  
 Authorization: Scoped `asset:view`
 
 Algorithm:
 
-1. Query asset พร้อม area, owner, reservation items ที่ยัง allocate quantity และ ledger 50 รายการล่าสุด
+1. Query asset พร้อม area, owner, unit สูงสุด 500 แถว (เรียงตาม serial number), reservation items ที่ยัง allocate quantity
 2. ถ้าไม่พบตอบ `404 ASSET_NOT_FOUND`
 3. ตรวจ `asset:view` ใน area หลังทราบ scope ของ asset
-4. รวม allocated quantity และคำนวณ available quantity
-5. Query roles ทั้งหมดแล้วเลือก role ที่ permission set ปัจจุบันมี `asset:update` เป็น `editPolicy.roles`
-6. คืน asset detail, actor capabilities, active reservation items และ inventory ledger พร้อมผู้ดำเนินการ
+4. รวม unit counts (นับจาก unit ที่โหลดมา), allocated quantity และคำนวณ available quantity
+5. Query `AssetUnitEvent` 50 รายการล่าสุดของ unit ทุกตัวใน asset นี้ (join `AssetUnitEventBatch.performer`) เป็น unit event ledger
+6. Query roles ทั้งหมดแล้วเลือก role ที่ permission set ปัจจุบันมี `asset:update` เป็น `editPolicy.roles`
+7. คืน asset detail, actor capabilities, unit รายชิ้น, active reservation items และ unit event ledger พร้อมผู้ดำเนินการ
 
-### 7.10 `PATCH /assets/:assetId`
+### 7.11 `PATCH /assets/:assetId`
 
 สถานะสำเร็จ: `200 OK`  
 Authorization: Scoped `asset:update`  
-Input: field ที่แก้ได้อย่างน้อยหนึ่งค่าจาก `name`, `managementAreaId`, `description`, `pictureUrl` และต้องมี `expectedUpdatedAt`
+Input: field ที่แก้ได้อย่างน้อยหนึ่งค่าจาก `name`, `managementAreaId`, `partNumber`, `description`, `pictureUrl` และต้องมี `expectedUpdatedAt`
 
 Algorithm:
 
@@ -566,9 +558,9 @@ Algorithm:
 7. ถ้าชื่อซ้ำใน area ตอบ `409 ASSET_NAME_ALREADY_EXISTS`; ถ้า stale ตอบ `409 STALE_WRITE`
 8. โหลด summary และ available quantity ล่าสุดกลับไป
 
-Quantity แก้ผ่าน endpoint นี้ไม่ได้ ต้องใช้ inventory batch เพื่อให้ ledger กับยอดรวมเปลี่ยนพร้อมกัน
+Unit ไม่มีให้แก้ผ่าน endpoint นี้ ต้องใช้ `/assets/:assetId/units`, `/assets/units/batch-retire` หรือ `/assets/units/:assetUnitId/status` แทน (หัวข้อ 7.6/7.8/7.9) เพื่อให้ unit event ledger กับ status เปลี่ยนพร้อมกันเสมอ
 
-### 7.11 `PATCH /assets/:assetId/status`
+### 7.12 `PATCH /assets/:assetId/status`
 
 สถานะสำเร็จ: `200 OK`  
 Input: `status` เป็น `ACTIVE` หรือ `INACTIVE`, `expectedUpdatedAt`
@@ -581,7 +573,9 @@ Algorithm:
 4. Map status เป็น `isActive` และ update ด้วย optimistic concurrency
 5. คืน asset summary ล่าสุด
 
-### 7.12 `DELETE /assets/:assetId`
+หมายเหตุ: นี่คือ asset-level active/inactive toggle เท่านั้น ไม่แตะ `AssetUnit.status` ของหน่วยที่มีอยู่
+
+### 7.13 `DELETE /assets/:assetId`
 
 สถานะสำเร็จ: `200 OK`  
 Authorization: Scoped `asset:delete`
@@ -686,16 +680,29 @@ flowchart LR
 ### 12.1 Asset summary
 
 ```ts
+type AssetUnitCounts = {
+  total: number; // count of all units except INACTIVE
+  active: number;
+  reserved: number;
+  checkedOut: number;
+  broken: number;
+  lost: number;
+  inRepair: number;
+  inactive: number;
+};
+
 type AssetSummary = {
   id: string;
   name: string;
+  partNumber: string | null;
   description: string | null;
   pictureUrl: string | null;
-  totalQuantity: number;
+  totalQuantity: number; // derived: same as unitCounts.total
   allocatedQuantity: number;
-  availableQuantity: number;
+  availableQuantity: number; // derived: unitCounts.active - allocatedQuantity
+  unitCounts: AssetUnitCounts;
   isActive: boolean;
-  status: "ACTIVE" | "INACTIVE";
+  // No asset-level `status` field anymore -- status lives per AssetUnit.
   managementArea: { id: string; name: string };
   owner: {
     id: string;
@@ -706,7 +713,7 @@ type AssetSummary = {
   capabilities: {
     canEdit: boolean;
     canDeactivate: boolean;
-    canAdjustQuantity: boolean;
+    canManageUnits: boolean;
   };
   createdAt: string;
   updatedAt: string;

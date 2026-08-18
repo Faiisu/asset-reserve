@@ -189,6 +189,15 @@ export class CancelReservationDto {
   reason?: string;
 }
 
+export class PrepareReservationItemDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  assetUnitIds!: string[];
+}
+
 export class ConfirmDeliveryItemPhotoDto {
   @IsUUID()
   itemId!: string;

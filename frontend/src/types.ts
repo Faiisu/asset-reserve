@@ -164,7 +164,7 @@ export type UserDetail = {
 export type AssetCapabilities = {
   canEdit: boolean;
   canDeactivate: boolean;
-  canAdjustQuantity: boolean;
+  canManageUnits: boolean;
 };
 
 export type AssetStatus = "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE";
@@ -178,7 +178,19 @@ export type AssetSummary = {
   allocatedQuantity: number;
   availableQuantity: number;
   isActive: boolean;
-  status: AssetStatus;
+  /** No longer sent by the backend -- status now lives per serial unit (see AssetDetail.units). */
+  status?: AssetStatus;
+  partNumber: string | null;
+  unitCounts: {
+    total: number;
+    active: number;
+    reserved: number;
+    checkedOut: number;
+    broken: number;
+    lost: number;
+    inRepair: number;
+    inactive: number;
+  };
   managementArea: ManagementAreaRef;
   owner: {
     id: string;
@@ -205,11 +217,15 @@ export type AssetDetail = AssetSummary & {
       endAt: string;
     };
   }>;
-  inventoryLedger: Array<{
+  units: AssetUnit[];
+  unitEventLedger: Array<{
     id: string;
     batchId: string;
-    transactionType: string;
-    quantityDelta: number;
+    assetUnitId: string;
+    serialNumber: string;
+    eventType: string;
+    fromStatus: string | null;
+    toStatus: string | null;
     reason: string | null;
     createdAt: string;
     batchDescription: string | null;
@@ -222,28 +238,22 @@ export type AssetDetail = AssetSummary & {
   }>;
 };
 
+export type AssetUnit = {
+  id: string;
+  serialNumber: string;
+  status: string;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AssetInput = {
   name: string;
   managementAreaId: string;
+  partNumber?: string | null;
   description?: string | null;
   pictureUrl?: string | null;
-  totalQuantity: number;
   isActive?: boolean;
-};
-
-export type InventoryResult = {
-  id: string;
-  operation: "ADD" | "REMOVE";
-  description: string | null;
-  items: Array<{
-    transactionId: string;
-    assetId: string;
-    assetName: string;
-    quantityDelta: number;
-    totalQuantity: number;
-    reason: string | null;
-  }>;
-  createdAt: string;
 };
 
 export type ReservationStatus =

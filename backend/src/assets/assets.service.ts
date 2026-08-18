@@ -40,6 +40,28 @@ const allocatedReservationStatuses = [
   "RETURN_PENDING",
 ];
 
+type UnitCounts = {
+  total: number;
+  active: number;
+  reserved: number;
+  checkedOut: number;
+  broken: number;
+  lost: number;
+  inRepair: number;
+  inactive: number;
+};
+
+const emptyUnitCounts = (): UnitCounts => ({
+  total: 0,
+  active: 0,
+  reserved: 0,
+  checkedOut: 0,
+  broken: 0,
+  lost: 0,
+  inRepair: 0,
+  inactive: 0,
+});
+
 @Injectable()
 export class AssetsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -74,12 +96,12 @@ export class AssetsService {
     if (query.areaId) conditions.push({ managementAreaId: query.areaId });
     if (query.isActive !== undefined)
       conditions.push({ isActive: query.isActive });
-    if (query.status !== undefined) conditions.push({ status: query.status });
     if (query.search) {
       conditions.push({
         OR: [
           { name: { contains: query.search, mode: "insensitive" } },
           { description: { contains: query.search, mode: "insensitive" } },
+          { partNumber: { contains: query.search, mode: "insensitive" } },
         ],
       });
     }
@@ -99,13 +121,19 @@ export class AssetsService {
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
     const page = pageInfo(rows, query.limit);
-    const allocated = await this.allocatedQuantities(
-      page.data.map((asset) => asset.id),
-      availabilityRange,
-    );
+    const assetIds = page.data.map((asset) => asset.id);
+    const [unitCountsById, allocated] = await Promise.all([
+      this.unitCounts(assetIds),
+      this.allocatedQuantities(assetIds, availabilityRange),
+    ]);
     return {
       data: page.data.map((asset) =>
-        this.assetDto(actor, asset, allocated.get(asset.id) ?? 0),
+        this.assetDto(
+          actor,
+          asset,
+          unitCountsById.get(asset.id) ?? emptyUnitCounts(),
+          allocated.get(asset.id) ?? 0,
+        ),
       ),
       pageInfo: page.pageInfo,
     };
@@ -116,12 +144,9 @@ export class AssetsService {
       where: { id: assetId },
       include: {
         ...assetInclude,
-        assetTransactions: {
-          take: 50,
-          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          include: {
-            batch: { include: { performer: { include: { profile: true } } } },
-          },
+        units: {
+          orderBy: [{ serialNumber: "asc" }],
+          take: 500,
         },
         reservationItems: {
           where: {
@@ -141,17 +166,40 @@ export class AssetsService {
       );
     assertAreaPermission(actor, "asset:view", asset.managementAreaId);
 
+    const events = await this.prisma.assetUnitEvent.findMany({
+      where: { assetUnit: { assetId } },
+      take: 50,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      include: {
+        assetUnit: { select: { id: true, serialNumber: true } },
+        batch: { include: { performer: { include: { profile: true } } } },
+      },
+    });
+
     const allocatedQuantity = asset.reservationItems.reduce(
       (sum, item) => sum + item.quantity,
       0,
     );
     const editableByRoles = await this.editableRoleNames();
     return {
-      ...this.assetDto(actor, asset, allocatedQuantity),
+      ...this.assetDto(
+        actor,
+        asset,
+        this.countUnits(asset.units),
+        allocatedQuantity,
+      ),
       editPolicy: {
         permission: "asset:update",
         roles: editableByRoles,
       },
+      units: asset.units.map((unit) => ({
+        id: unit.id,
+        serialNumber: unit.serialNumber,
+        status: unit.status,
+        note: unit.note,
+        createdAt: unit.createdAt.toISOString(),
+        updatedAt: unit.updatedAt.toISOString(),
+      })),
       activeReservationItems: asset.reservationItems.map((item) => ({
         id: item.id,
         quantity: item.quantity,
@@ -164,15 +212,18 @@ export class AssetsService {
           endAt: item.reservation.endAt.toISOString(),
         },
       })),
-      inventoryLedger: asset.assetTransactions.map((transaction) => ({
-        id: transaction.id,
-        batchId: transaction.batchId,
-        transactionType: transaction.transactionType,
-        quantityDelta: transaction.quantityDelta,
-        reason: transaction.reason,
-        createdAt: transaction.createdAt.toISOString(),
-        batchDescription: transaction.batch.description,
-        performedBy: this.userDto(transaction.batch.performer),
+      unitEventLedger: events.map((event) => ({
+        id: event.id,
+        batchId: event.batchId,
+        assetUnitId: event.assetUnitId,
+        serialNumber: event.assetUnit.serialNumber,
+        eventType: event.eventType,
+        fromStatus: event.fromStatus,
+        toStatus: event.toStatus,
+        reason: event.reason,
+        createdAt: event.createdAt.toISOString(),
+        batchDescription: event.batch.description,
+        performedBy: this.userDto(event.batch.performer),
       })),
     };
   }
@@ -180,7 +231,7 @@ export class AssetsService {
   async create(actor: AuthenticatedActor, input: CreateAssetDto) {
     const result = await this.createBatch(actor, {
       items: [input],
-      description: "Initial asset inventory",
+      description: "Initial asset catalog entry",
     });
     return result.data[0];
   }
@@ -197,50 +248,21 @@ export class AssetsService {
       managementAreaId: item.managementAreaId,
       createdById: actor.user.id,
       name: item.name,
+      partNumber: item.partNumber ?? null,
       description: item.description ?? null,
       pictureUrl: item.pictureUrl ?? null,
-      totalQuantity: item.totalQuantity,
       isActive: item.isActive ?? true,
-      status: item.status ?? (item.isActive === false ? "INACTIVE" : "ACTIVE"),
     }));
     try {
-      const rows = await this.prisma.$transaction(
-        async (tx) => {
-          await tx.asset.createMany({ data: prepared });
-          const inventoryItems = prepared.filter(
-            (item) => item.totalQuantity > 0,
-          );
-          if (inventoryItems.length) {
-            const batchId = randomUUID();
-            await tx.assetTransactionBatch.create({
-              data: {
-                id: batchId,
-                description: input.description ?? "Initial asset inventory",
-                performedBy: actor.user.id,
-              },
-            });
-            await tx.assetTransaction.createMany({
-              data: inventoryItems.map((item) => ({
-                id: randomUUID(),
-                batchId,
-                assetId: item.id,
-                transactionType: "ADD",
-                quantityDelta: item.totalQuantity,
-                reason: "Opening quantity",
-              })),
-            });
-          }
-          return tx.asset.findMany({
-            where: { id: { in: prepared.map((item) => item.id) } },
-            include: assetInclude,
-          });
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-      );
+      await this.prisma.asset.createMany({ data: prepared });
+      const rows = await this.prisma.asset.findMany({
+        where: { id: { in: prepared.map((item) => item.id) } },
+        include: assetInclude,
+      });
       const byId = new Map(rows.map((asset) => [asset.id, asset] as const));
       return {
         data: prepared.map((item) =>
-          this.assetDto(actor, byId.get(item.id)!, 0),
+          this.assetDto(actor, byId.get(item.id)!, emptyUnitCounts(), 0),
         ),
       };
     } catch (error) {
@@ -284,6 +306,9 @@ export class AssetsService {
           ...(input.managementAreaId !== undefined
             ? { managementAreaId: input.managementAreaId }
             : {}),
+          ...(input.partNumber !== undefined
+            ? { partNumber: input.partNumber }
+            : {}),
           ...(input.description !== undefined
             ? { description: input.description }
             : {}),
@@ -311,14 +336,10 @@ export class AssetsService {
       input.status === "INACTIVE" ? "asset:delete" : "asset:update",
       current.managementAreaId,
     );
-    const isActive = input.status === "ACTIVE";
-    const status =
-      input.status === "INACTIVE" ? current.status || "ACTIVE" : input.status;
     const result = await this.prisma.asset.updateMany({
       where: { id: assetId, updatedAt: new Date(input.expectedUpdatedAt) },
       data: {
-        isActive,
-        status,
+        isActive: input.status === "ACTIVE",
         updatedAt: new Date(),
       },
     });
@@ -375,6 +396,79 @@ export class AssetsService {
     return { data: ids.map((id) => ({ id, status: "INACTIVE" as const })) };
   }
 
+  private countUnits(
+    units: ReadonlyArray<{ status: string }>,
+  ): UnitCounts {
+    const counts = emptyUnitCounts();
+    for (const unit of units) {
+      switch (unit.status) {
+        case "ACTIVE":
+          counts.active += 1;
+          break;
+        case "RESERVED":
+          counts.reserved += 1;
+          break;
+        case "CHECKED_OUT":
+          counts.checkedOut += 1;
+          break;
+        case "BROKEN":
+          counts.broken += 1;
+          break;
+        case "LOST":
+          counts.lost += 1;
+          break;
+        case "IN_REPAIR":
+          counts.inRepair += 1;
+          break;
+        case "INACTIVE":
+          counts.inactive += 1;
+          break;
+      }
+      if (unit.status !== "INACTIVE") counts.total += 1;
+    }
+    return counts;
+  }
+
+  private async unitCounts(assetIds: string[]) {
+    const result = new Map<string, UnitCounts>();
+    if (!assetIds.length) return result;
+    const rows = await this.prisma.assetUnit.groupBy({
+      by: ["assetId", "status"],
+      where: { assetId: { in: assetIds } },
+      _count: { _all: true },
+    });
+    for (const row of rows) {
+      const counts = result.get(row.assetId) ?? emptyUnitCounts();
+      const count = row._count._all;
+      switch (row.status) {
+        case "ACTIVE":
+          counts.active += count;
+          break;
+        case "RESERVED":
+          counts.reserved += count;
+          break;
+        case "CHECKED_OUT":
+          counts.checkedOut += count;
+          break;
+        case "BROKEN":
+          counts.broken += count;
+          break;
+        case "LOST":
+          counts.lost += count;
+          break;
+        case "IN_REPAIR":
+          counts.inRepair += count;
+          break;
+        case "INACTIVE":
+          counts.inactive += count;
+          break;
+      }
+      if (row.status !== "INACTIVE") counts.total += count;
+      result.set(row.assetId, counts);
+    }
+    return result;
+  }
+
   private async allocatedQuantities(
     assetIds: string[],
     range?: { startAt: Date; endAt: Date },
@@ -429,8 +523,16 @@ export class AssetsService {
       where: { id: assetId },
       include: assetInclude,
     });
-    const allocated = await this.allocatedQuantities([assetId]);
-    return this.assetDto(actor, asset, allocated.get(assetId) ?? 0);
+    const [unitCountsById, allocated] = await Promise.all([
+      this.unitCounts([assetId]),
+      this.allocatedQuantities([assetId]),
+    ]);
+    return this.assetDto(
+      actor,
+      asset,
+      unitCountsById.get(assetId) ?? emptyUnitCounts(),
+      allocated.get(assetId) ?? 0,
+    );
   }
 
   private async editableRoleNames() {
@@ -476,7 +578,7 @@ export class AssetsService {
 
   private assertUniqueAssetInputs(items: CreateAssetDto[]) {
     const keys = items.map(
-      (item) => `${item.managementAreaId}\u0000${item.name}`,
+      (item) => `${item.managementAreaId} ${item.name}`,
     );
     this.assertUniqueIds(keys, "items");
   }
@@ -495,19 +597,24 @@ export class AssetsService {
   private assetDto(
     actor: AuthenticatedActor,
     asset: Prisma.AssetGetPayload<{ include: typeof assetInclude }>,
+    unitCounts: UnitCounts,
     allocatedQuantity: number,
   ) {
+    const availableQuantity = Math.max(
+      unitCounts.active - allocatedQuantity,
+      0,
+    );
     return {
       id: asset.id,
       name: asset.name,
+      partNumber: asset.partNumber,
       description: asset.description,
       pictureUrl: asset.pictureUrl,
-      totalQuantity: asset.totalQuantity,
+      totalQuantity: unitCounts.total,
       allocatedQuantity,
-      availableQuantity: Math.max(asset.totalQuantity - allocatedQuantity, 0),
+      availableQuantity,
+      unitCounts,
       isActive: asset.isActive,
-      status: (asset.status ?? (asset.isActive ? "ACTIVE" : "INACTIVE")) as
-        "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE",
       managementArea: {
         id: asset.managementArea.id,
         name: asset.managementArea.name,
@@ -524,7 +631,7 @@ export class AssetsService {
           "asset:delete",
           asset.managementAreaId,
         ),
-        canAdjustQuantity: hasAreaPermission(
+        canManageUnits: hasAreaPermission(
           actor,
           "asset:update",
           asset.managementAreaId,

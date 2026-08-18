@@ -34,7 +34,6 @@ type FormValue = {
   name: string;
   managementAreaId: string;
   description: string;
-  totalQuantity: string;
   isActive: boolean;
 };
 
@@ -42,7 +41,6 @@ const emptyForm: FormValue = {
   name: "",
   managementAreaId: "",
   description: "",
-  totalQuantity: "1",
   isActive: true,
 };
 
@@ -122,7 +120,6 @@ export function AssetFormPage() {
             name: detail.name,
             managementAreaId: detail.managementArea.id,
             description: detail.description ?? "",
-            totalQuantity: String(detail.totalQuantity),
             isActive: detail.isActive,
           });
         } else if (areaResponse.data.length > 0) {
@@ -259,13 +256,6 @@ export function AssetFormPage() {
     }
     if (!form.managementAreaId)
       nextFields.managementAreaId = "Select a management area";
-    if (
-      !editing &&
-      (Number.isNaN(Number(form.totalQuantity)) ||
-        Number(form.totalQuantity) < 0)
-    ) {
-      nextFields.totalQuantity = "Quantity must be 0 or more";
-    }
     setFields(nextFields);
     return Object.keys(nextFields).length === 0;
   }
@@ -411,7 +401,6 @@ export function AssetFormPage() {
           managementAreaId: form.managementAreaId,
           description: form.description.trim() || null,
           pictureUrl,
-          totalQuantity: Number(form.totalQuantity) || 0,
           isActive: true,
         });
 
@@ -535,7 +524,7 @@ export function AssetFormPage() {
                 <span>01</span>
                 <div>
                   <h2>Asset details</h2>
-                  <p>Enter asset information, quantity, and assign a management area.</p>
+                  <p>Enter asset information and assign a management area.</p>
                 </div>
               </div>
               <Field
@@ -555,26 +544,10 @@ export function AssetFormPage() {
                 />
               </Field>
               <div className="form-grid form-grid--2">
-                {!editing ? (
+                {editing && (
                   <Field
                     label="Asset quantity"
-                    required
-                    error={fields.totalQuantity}
-                  >
-                    <Input
-                      type="number"
-                      min={0}
-                      value={form.totalQuantity}
-                      onChange={(event) =>
-                        setForm({ ...form, totalQuantity: event.target.value })
-                      }
-                      required
-                    />
-                  </Field>
-                ) : (
-                  <Field
-                    label="Asset quantity"
-                    hint="Adjust quantity from the asset details page"
+                    hint="Register or retire serial units from the asset details page"
                   >
                     <Input
                       value={`${asset?.totalQuantity ?? 0} units`}
@@ -659,10 +632,7 @@ export function AssetFormPage() {
               </div>
               <div>
                 <dt>Quantity</dt>
-                <dd>
-                  {editing ? asset?.totalQuantity : form.totalQuantity || 0}{" "}
-                  units
-                </dd>
+                <dd>{asset?.totalQuantity ?? 0} units</dd>
               </div>
             </dl>
           </aside>
@@ -676,7 +646,6 @@ type BatchRow = {
   key: number;
   name: string;
   description: string;
-  quantity: string;
   // Every photo attached to a row is both a potential thumbnail AND a
   // recognition reference photo -- same model as the single-asset form, just
   // duplicated per row. Nothing is uploaded anywhere until Add assets is
@@ -687,7 +656,7 @@ type BatchRow = {
 };
 
 function newBatchRow(key: number): BatchRow {
-  return { key, name: "", description: "", quantity: "1", photos: [], thumbnailId: null };
+  return { key, name: "", description: "", photos: [], thumbnailId: null };
 }
 
 function BatchAssetForm({
@@ -795,7 +764,6 @@ function BatchAssetForm({
           managementAreaId: areaId,
           description: row.description.trim() || null,
           pictureUrl: pictureUrls[i],
-          totalQuantity: Number(row.quantity) || 0,
           isActive: true,
         })),
         description.trim() || undefined,
@@ -922,17 +890,6 @@ function BatchAssetForm({
                     }
                     placeholder="Asset name"
                     maxLength={40}
-                    required
-                  />
-                </Field>
-                <Field label="Quantity" className="batch-row__field--qty">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={row.quantity}
-                    onChange={(event) =>
-                      update(row.key, { quantity: event.target.value })
-                    }
                     required
                   />
                 </Field>
