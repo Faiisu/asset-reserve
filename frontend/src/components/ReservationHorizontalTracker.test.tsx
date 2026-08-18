@@ -33,7 +33,6 @@ const baseReservation: ReservationDetail = {
           id: "area-1",
           name: "Marketing",
         },
-        template: null,
       },
       approval: {
         id: "app-1",

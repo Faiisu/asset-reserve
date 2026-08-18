@@ -33,10 +33,6 @@ export class AssetListQueryDto extends SearchPaginationQueryDto {
   areaId?: string;
 
   @IsOptional()
-  @IsUUID()
-  templateId?: string;
-
-  @IsOptional()
   @Transform(({ value }: { value: unknown }) => parseOptionalBoolean(value))
   @IsBoolean()
   isActive?: boolean;
@@ -63,11 +59,6 @@ export class CreateAssetDto {
 
   @IsUUID()
   managementAreaId!: string;
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null)
-  @IsUUID()
-  assetTemplateId?: string | null;
 
   @IsOptional()
   @ValidateIf((_object, value) => value !== null)
@@ -120,11 +111,6 @@ export class UpdateAssetDto {
   @IsOptional()
   @IsUUID()
   managementAreaId?: string;
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null)
-  @IsUUID()
-  assetTemplateId?: string | null;
 
   @IsOptional()
   @ValidateIf((_object, value) => value !== null)
@@ -198,51 +184,4 @@ export class InventoryBatchDto {
   @IsString()
   @MaxLength(2_000)
   description?: string;
-}
-
-export class CreateAssetTemplateDto {
-  @Transform(trim)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(150)
-  name!: string;
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null)
-  @IsString()
-  @MaxLength(10_000)
-  description?: string | null;
-}
-
-export class UpdateAssetTemplateDto {
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(150)
-  name?: string;
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null)
-  @IsString()
-  @MaxLength(10_000)
-  description?: string | null;
-
-  @IsISO8601({ strict: true })
-  expectedUpdatedAt!: string;
-}
-
-export class SaveAssetAsTemplateDto {
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(150)
-  name?: string;
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null)
-  @IsString()
-  @MaxLength(10_000)
-  description?: string | null;
 }

@@ -1,5 +1,6 @@
 import {
   CalendarPlus,
+  ChevronDown,
   ChevronRight,
   Clock3,
   Filter,
@@ -8,6 +9,7 @@ import {
   Search,
   ShieldCheck,
   UserRound,
+  Users,
 } from "lucide-react";
 import {
   useCallback,
@@ -26,8 +28,6 @@ import {
   ErrorState,
   LoadingState,
   Notice,
-  CheckboxDropdownFilter,
-  WorkspaceCheckboxFilter,
   cx,
   formatDate,
 } from "../components/ui";
@@ -39,52 +39,64 @@ import type {
   ReservationSummary,
 } from "../types";
 
-type ReservationView = "MINE" | "APPROVALS";
+type ReservationView = "MINE" | "PARTICIPATING";
 
-const statusOptions = [
-  {
-    value: "REQUEST",
-    label: "Request",
-    statuses: [
-      "PENDING",
-      "PENDING_APPROVAL",
-      "DRAFT",
-      "PARTIALLY_APPROVED",
-    ] as ReservationStatus[],
-  },
-  {
-    value: "APPROVE",
-    label: "Approve",
-    statuses: [
-      "APPROVED",
-      "DELIVERY_CONFIRMED",
-      "ACTIVE",
-      "RETURN",
-      "RETURN_PENDING",
-      "RETURN_CONFIRMED",
-      "COMPLETED",
-    ] as ReservationStatus[],
-  },
-  {
-    value: "REJECT",
-    label: "Reject",
-    statuses: ["REJECTED"] as ReservationStatus[],
-  },
-  {
-    value: "CANCEL",
-    label: "Cancel",
-    statuses: ["CANCELLED"] as ReservationStatus[],
-  },
+const STATUS_COLOR_CLASS: Record<ReservationStatus, string> = {
+  DRAFT: "calendar-legend__draft",
+  PENDING: "calendar-legend__pending_approval",
+  PENDING_APPROVAL: "calendar-legend__pending_approval",
+  PARTIALLY_APPROVED: "calendar-legend__partially_approved",
+  APPROVED: "calendar-legend__approved",
+  DELIVERY_CONFIRMED: "calendar-legend__delivery_confirmed",
+  ACTIVE: "calendar-legend__delivery_confirmed",
+  RETURN: "calendar-legend__return_pending",
+  RETURN_PENDING: "calendar-legend__return_pending",
+  RETURN_CONFIRMED: "calendar-legend__return_confirmed",
+  COMPLETED: "calendar-legend__completed",
+  REJECTED: "calendar-legend__rejected",
+  CANCELLED: "calendar-legend__cancelled",
+};
+
+const DISPLAY_STATUSES: ReservationStatus[] = [
+  "DRAFT",
+  "PENDING_APPROVAL",
+  "PARTIALLY_APPROVED",
+  "APPROVED",
+  "DELIVERY_CONFIRMED",
+  "RETURN_PENDING",
+  "RETURN_CONFIRMED",
+  "COMPLETED",
+  "REJECTED",
+  "CANCELLED",
 ];
+
+const STATUS_OPTION_STATUSES: Record<ReservationStatus, ReservationStatus[]> = {
+  DRAFT: ["DRAFT"],
+  PENDING: ["PENDING", "PENDING_APPROVAL"],
+  PENDING_APPROVAL: ["PENDING_APPROVAL", "PENDING"],
+  PARTIALLY_APPROVED: ["PARTIALLY_APPROVED"],
+  APPROVED: ["APPROVED"],
+  DELIVERY_CONFIRMED: ["DELIVERY_CONFIRMED", "ACTIVE"],
+  ACTIVE: ["ACTIVE", "DELIVERY_CONFIRMED"],
+  RETURN: ["RETURN", "RETURN_PENDING"],
+  RETURN_PENDING: ["RETURN_PENDING", "RETURN"],
+  RETURN_CONFIRMED: ["RETURN_CONFIRMED"],
+  COMPLETED: ["COMPLETED"],
+  REJECTED: ["REJECTED"],
+  CANCELLED: ["CANCELLED"],
+};
+
+const statusOptions = DISPLAY_STATUSES.map((status) => ({
+  value: status,
+  label: reservationStatusLabel[status],
+  statuses: STATUS_OPTION_STATUSES[status],
+  colorClass: STATUS_COLOR_CLASS[status],
+}));
 
 export function ReservationsPage() {
   const { hasPermission } = useAuth();
   const canCreate = hasPermission("reservation:create");
-  const canReview =
-    hasPermission("reservation:approve") || hasPermission("reservation:reject");
-  const [view, setView] = useState<ReservationView>(
-    canCreate ? "MINE" : canReview ? "APPROVALS" : "MINE",
-  );
+  const [view, setView] = useState<ReservationView>("MINE");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
@@ -100,7 +112,27 @@ export function ReservationsPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
   const requestSequence = useRef(0);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    const onPointerDown = (event: globalThis.PointerEvent) => {
+      if (!filterRef.current?.contains(event.target as Node)) {
+        setFilterOpen(false);
+      }
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setFilterOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [filterOpen]);
 
   useEffect(() => {
     void api
@@ -169,6 +201,9 @@ export function ReservationsPage() {
     setSearch(searchInput.trim());
   }
 
+  const totalFilterCount = selectedAreaIds.length + selectedStatuses.length;
+  const hasActiveFilters = totalFilterCount > 0;
+
   return (
     <div className="page-stack reservations-index">
       <div
@@ -184,16 +219,14 @@ export function ReservationsPage() {
         >
           <UserRound size={16} /> My reservations
         </button>
-        {canReview && (
-          <button
-            role="tab"
-            aria-selected={view === "APPROVALS"}
-            className={cx(view === "APPROVALS" && "is-active")}
-            onClick={() => setView("APPROVALS")}
-          >
-            <ShieldCheck size={16} /> Approval queue
-          </button>
-        )}
+        <button
+          role="tab"
+          aria-selected={view === "PARTICIPATING"}
+          className={cx(view === "PARTICIPATING" && "is-active")}
+          onClick={() => setView("PARTICIPATING")}
+        >
+          <Users size={16} /> Participate
+        </button>
         {canCreate && (
           <Link
             style={{ marginLeft: "auto" }}
@@ -204,23 +237,6 @@ export function ReservationsPage() {
           </Link>
         )}
       </div>
-
-      {view === "APPROVALS" && (
-        <section className="review-lane-banner">
-          <span>
-            <ShieldCheck size={22} />
-          </span>
-          <div>
-            <p className="eyebrow eyebrow--light">Review lane</p>
-            <strong>
-              Only reservations needing a decision from your areas appear here.
-            </strong>
-          </div>
-          <small>
-            Open an event to approve assets or review a requested edit.
-          </small>
-        </section>
-      )}
 
       <section className="reservation-list-toolbar">
         <form className="reservation-list-search" onSubmit={submitSearch}>
@@ -234,22 +250,196 @@ export function ReservationsPage() {
           <button type="submit">Search</button>
         </form>
         <div className="reservation-list-filters">
-          <span>
-            <Filter size={14} /> Filters
-          </span>
-          <CheckboxDropdownFilter
-            label="Statuses"
-            allLabel="All statuses"
-            options={statusOptions}
-            selectedValues={selectedStatuses}
-            onChange={setSelectedStatuses}
-            ariaLabel="Filter statuses"
-          />
-          <WorkspaceCheckboxFilter
-            areas={areas}
-            selectedIds={selectedAreaIds}
-            onChange={setSelectedAreaIds}
-          />
+          <div className="calendar-filter-picker" ref={filterRef}>
+            <button
+              id="reservation-filter-toggle"
+              type="button"
+              className={cx(
+                "calendar-filter-btn",
+                (hasActiveFilters || filterOpen) && "calendar-filter-btn--active",
+              )}
+              onClick={() => setFilterOpen((prev) => !prev)}
+              aria-haspopup="dialog"
+              aria-expanded={filterOpen}
+              aria-label="Filter reservations by workspace and status"
+              title={
+                hasActiveFilters
+                  ? `${totalFilterCount} filter${totalFilterCount > 1 ? "s" : ""} applied`
+                  : "Filter by workspace and status"
+              }
+            >
+              <Filter size={13} />
+              <span>Filters</span>
+              {hasActiveFilters && (
+                <span className="calendar-filter-btn__badge">
+                  {totalFilterCount}
+                </span>
+              )}
+              <ChevronDown
+                size={14}
+                className={cx(
+                  "calendar-filter-btn__chevron",
+                  filterOpen && "calendar-filter-btn__chevron--open",
+                )}
+                aria-hidden
+              />
+            </button>
+
+            {filterOpen && (
+              <div
+                className="calendar-filter-popover"
+                role="dialog"
+                aria-label="Filter reservations"
+              >
+                <div className="calendar-filter-popover__top">
+                  <div className="calendar-filter-popover__title">
+                    <Filter size={13} />
+                    <strong>Filters</strong>
+                  </div>
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      className="calendar-filter-popover__reset"
+                      onClick={() => {
+                        setSelectedAreaIds([]);
+                        setSelectedStatuses([]);
+                      }}
+                    >
+                      Clear all
+                    </button>
+                  )}
+                </div>
+
+                <div className="calendar-filter-popover__columns">
+                  <section className="calendar-filter-popover__section">
+                    <div className="calendar-filter-popover__section-header">
+                      <span>Workspaces</span>
+                      <div className="calendar-filter-popover__actions">
+                        <button
+                          type="button"
+                          className="calendar-filter-popover__action"
+                          onClick={() => setSelectedAreaIds([])}
+                        >
+                          All
+                        </button>
+                        {selectedAreaIds.length > 0 && (
+                          <button
+                            type="button"
+                            className="calendar-filter-popover__action"
+                            onClick={() => setSelectedAreaIds([])}
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="calendar-filter-popover__list">
+                      {areas.length === 0 ? (
+                        <p className="calendar-filter-popover__empty">
+                          No workspaces found
+                        </p>
+                      ) : (
+                        areas.map((area) => {
+                          const checked = selectedAreaIds.includes(area.id);
+                          return (
+                            <label
+                              key={area.id}
+                              className={cx(
+                                "workspace-filter-checkbox-item",
+                                checked &&
+                                  "workspace-filter-checkbox-item--checked",
+                              )}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setSelectedAreaIds((prev) =>
+                                    prev.includes(area.id)
+                                      ? prev.filter((id) => id !== area.id)
+                                      : [...prev, area.id],
+                                  );
+                                }}
+                                aria-label={area.name}
+                              />
+                              <span className="workspace-filter-checkbox-item__name">
+                                {area.name}
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="calendar-filter-popover__section">
+                    <div className="calendar-filter-popover__section-header">
+                      <span>Statuses</span>
+                      <div className="calendar-filter-popover__actions">
+                        <button
+                          type="button"
+                          className="calendar-filter-popover__action"
+                          onClick={() => setSelectedStatuses([])}
+                        >
+                          All
+                        </button>
+                        {selectedStatuses.length > 0 && (
+                          <button
+                            type="button"
+                            className="calendar-filter-popover__action"
+                            onClick={() => setSelectedStatuses([])}
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="calendar-filter-popover__list">
+                      {statusOptions.map((option) => {
+                        const checked = selectedStatuses.includes(option.value);
+                        return (
+                          <label
+                            key={option.value}
+                            className={cx(
+                              "workspace-filter-checkbox-item",
+                              checked &&
+                                "workspace-filter-checkbox-item--checked",
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                setSelectedStatuses((prev) =>
+                                  prev.includes(option.value)
+                                    ? prev.filter((val) => val !== option.value)
+                                    : [...prev, option.value],
+                                );
+                              }}
+                              aria-label={option.label}
+                            />
+                            {option.colorClass ? (
+                              <i
+                                className={cx(
+                                  "workspace-filter-checkbox-item__swatch",
+                                  option.colorClass,
+                                )}
+                                aria-hidden
+                              />
+                            ) : null}
+                            <span className="workspace-filter-checkbox-item__name">
+                              {option.label}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </section>
+                </div>
+              </div>
+            )}
+          </div>
+
           <label className="compact-date">
             <span>From</span>
             <input
@@ -277,17 +467,17 @@ export function ReservationsPage() {
       ) : items.length === 0 ? (
         <EmptyState
           title={
-            view === "APPROVALS"
-              ? "Your approval queue is clear"
-              : "No reservations match this view"
+            view === "PARTICIPATING"
+              ? "No participated reservations"
+              : "No reservations found"
           }
           description={
-            view === "APPROVALS"
-              ? "New requests from your management areas will appear here."
-              : "Adjust the filters or create a new reservation to begin."
+            view === "PARTICIPATING"
+              ? "Reservations where you are added as a participant will appear here."
+              : "Adjust your search filters or draft a new reservation to begin."
           }
           action={
-            canCreate && view !== "APPROVALS" ? (
+            canCreate && view === "MINE" ? (
               <Link
                 className="button button--primary button--md"
                 to="/reservations/new"
@@ -304,7 +494,6 @@ export function ReservationsPage() {
               <ReservationListRow
                 reservation={reservation}
                 key={reservation.id}
-                reviewView={view === "APPROVALS"}
               />
             ))}
           </div>
@@ -327,11 +516,13 @@ export function ReservationsPage() {
 
 function ReservationListRow({
   reservation,
-  reviewView,
 }: {
   reservation: ReservationSummary;
-  reviewView: boolean;
 }) {
+  const { session } = useAuth();
+  const isParticipant =
+    Boolean(session?.user?.id) &&
+    reservation.requester.id !== session?.user?.id;
   const start = new Date(reservation.startAt);
   const total = Math.max(1, reservation.itemCount);
   return (
@@ -363,21 +554,26 @@ function ReservationListRow({
             >
               {reservationStatusLabel[reservation.status]}
             </span>
+            {isParticipant && (
+              <span className="reservation-list-participant-tag">
+                <Users size={12} /> Participant
+              </span>
+            )}
           </div>
-          <ChevronRight size={19} />
+          <ChevronRight size={22} />
         </div>
         <div className="reservation-list-meta">
           <span>
-            <Clock3 size={14} /> {formatDate(reservation.startAt, true)} ·{" "}
+            <Clock3 size={16} /> {formatDate(reservation.startAt, true)} ·{" "}
             {reservationDuration(reservation.startAt, reservation.endAt)}
           </span>
           <span>
             <Avatar
-              name={reservation.requester.name ?? reservation.requester.email}
+              name={reservation.requester.name ?? reservation.requester.email ?? "User"}
               imageUrl={reservation.requester.profilePictureUrl}
               size="sm"
             />{" "}
-            {reservation.requester.name ?? reservation.requester.email}
+            {reservation.requester.name ?? reservation.requester.email ?? "User"}
           </span>
         </div>
         <div className="reservation-list-areas">
@@ -413,22 +609,21 @@ function ReservationListRow({
           )}
         </div>
       </div>
-      {(reviewView || reservation.pendingDecisionCount > 0) &&
-        reservation.pendingDecisionCount > 0 && (
-          <div
-            className="reservation-decision-flag"
-            aria-label={`${reservation.pendingDecisionCount} ${reservation.pendingDecisionCount === 1 ? "decision" : "decisions"} waiting`}
-          >
-            <Inbox size={16} />
-            <span aria-hidden>
-              <strong>{reservation.pendingDecisionCount}</strong>{" "}
-              {reservation.pendingDecisionCount === 1
-                ? "decision"
-                : "decisions"}{" "}
-              waiting
-            </span>
-          </div>
-        )}
+      {reservation.pendingDecisionCount > 0 && (
+        <div
+          className="reservation-decision-flag"
+          aria-label={`${reservation.pendingDecisionCount} ${reservation.pendingDecisionCount === 1 ? "decision" : "decisions"} waiting`}
+        >
+          <Inbox size={16} />
+          <span aria-hidden>
+            <strong>{reservation.pendingDecisionCount}</strong>{" "}
+            {reservation.pendingDecisionCount === 1
+              ? "decision"
+              : "decisions"}{" "}
+            waiting
+          </span>
+        </div>
+      )}
     </Link>
   );
 }

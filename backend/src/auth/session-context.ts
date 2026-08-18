@@ -75,7 +75,9 @@ export function buildSessionContext(source: SessionSource): AuthenticatedActor {
       // UsersService.userDetail()'s authProviders already uses for admin
       // display (users.service.ts), scoped here to just the OAuth
       // providers (no "password").
-      linkedProviders: source.authIdentities.map((identity) => identity.provider),
+      linkedProviders: source.authIdentities.map(
+        (identity) => identity.provider,
+      ),
       accountLinkRequired: appConfig.requireAccountLink(),
     },
     roles,

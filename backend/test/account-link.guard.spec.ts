@@ -20,13 +20,19 @@ function makeContext(
 function stubGoogleConfigured(): void {
   vi.stubEnv("GOOGLE_CLIENT_ID", "test-client-id");
   vi.stubEnv("GOOGLE_CLIENT_SECRET", "test-client-secret");
-  vi.stubEnv("GOOGLE_REDIRECT_URI", "http://localhost:3000/api/v1/auth/google/callback");
+  vi.stubEnv(
+    "GOOGLE_REDIRECT_URI",
+    "http://localhost:3000/api/v1/auth/google/callback",
+  );
 }
 
 function stubMicrosoftConfigured(): void {
   vi.stubEnv("MICROSOFT_CLIENT_ID", "test-client-id");
   vi.stubEnv("MICROSOFT_CLIENT_SECRET", "test-client-secret");
-  vi.stubEnv("MICROSOFT_REDIRECT_URI", "http://localhost:3000/api/v1/auth/microsoft/callback");
+  vi.stubEnv(
+    "MICROSOFT_REDIRECT_URI",
+    "http://localhost:3000/api/v1/auth/microsoft/callback",
+  );
 }
 
 describe("AccountLinkGuard", () => {
@@ -66,7 +72,10 @@ describe("AccountLinkGuard", () => {
   it("no-ops on @SkipAccountLinkCheck() routes even when required", () => {
     stubGoogleConfigured();
     const guard = new AccountLinkGuard();
-    const context = makeContext({ user: { linkedProviders: [] } }, { skip: true });
+    const context = makeContext(
+      { user: { linkedProviders: [] } },
+      { skip: true },
+    );
     expect(guard.canActivate(context)).toBe(true);
   });
 

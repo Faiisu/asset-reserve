@@ -4,6 +4,7 @@ export type PermissionKey =
   | "asset:update"
   | "asset:delete"
   | "reservation:create"
+  | "reservation:view"
   | "reservation:update"
   | "reservation:approve"
   | "reservation:reject"
@@ -160,14 +161,6 @@ export type UserDetail = {
   updatedAt: string;
 };
 
-export type AssetTemplate = {
-  id: string;
-  name: string;
-  description: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type AssetCapabilities = {
   canEdit: boolean;
   canDeactivate: boolean;
@@ -186,11 +179,6 @@ export type AssetSummary = {
   availableQuantity: number;
   isActive: boolean;
   status: AssetStatus;
-  assetTemplate: {
-    id: string;
-    name: string;
-    description: string | null;
-  } | null;
   managementArea: ManagementAreaRef;
   owner: {
     id: string;
@@ -237,7 +225,6 @@ export type AssetDetail = AssetSummary & {
 export type AssetInput = {
   name: string;
   managementAreaId: string;
-  assetTemplateId?: string | null;
   description?: string | null;
   pictureUrl?: string | null;
   totalQuantity: number;
@@ -304,6 +291,29 @@ export type ReservationChangeData = {
   participantIds?: string[];
 };
 
+export type ReservationHandover = {
+  id: string;
+  reservationId: string;
+  handledBy: string;
+  handler: ReservationUser;
+  photoUrls: string[];
+  note: string | null;
+  handedOverAt: string;
+  createdAt: string;
+};
+
+export type ConfirmDeliveryItemPhoto = {
+  itemId: string;
+  photoUrl?: string;
+};
+
+export type ConfirmDeliveryInput = {
+  itemIds?: string[];
+  itemPhotos?: ConfirmDeliveryItemPhoto[];
+  photoUrls?: string[];
+  note?: string;
+};
+
 export type ReservationDetail = {
   id: string;
   eventName: string;
@@ -317,6 +327,8 @@ export type ReservationDetail = {
     id: string;
     quantity: number;
     status: ReservationItemStatus;
+    handoverPhotoUrl?: string | null;
+    handoverId?: string | null;
     asset: {
       id: string;
       name: string;
@@ -324,7 +336,6 @@ export type ReservationDetail = {
       pictureUrl: string | null;
       isActive: boolean;
       managementArea: ManagementAreaRef;
-      template: { id: string; name: string } | null;
     };
     returnSummary?: {
       returnedQuantity: number;
@@ -372,7 +383,9 @@ export type ReservationDetail = {
     reviewedAt: string | null;
     createdAt: string;
   }>;
+  handovers?: ReservationHandover[];
   returns: ReturnDetail[];
+  activityLogs?: ActivityLog[];
   capabilities: {
     canSubmit: boolean;
     canRequestChange: boolean;
@@ -384,11 +397,22 @@ export type ReservationDetail = {
   updatedAt: string;
 };
 
+export type ActivityLog = {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  details: Record<string, any> | null;
+  actor: ReservationUser;
+  createdAt: string;
+};
+
 export type ReturnItemDetail = {
   id: string;
   reservationItemId: string;
   assetId: string;
   assetName: string;
+  photoUrl?: string | null;
   managementArea: ManagementAreaRef;
   quantityReturned: number;
   quantityBroken: number;
@@ -400,6 +424,8 @@ export type ReturnDetail = {
   id: string;
   reservationId: string;
   status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
+  photoUrls?: string[];
+  note?: string | null;
   returnedAt: string | null;
   returnedBy: ReservationUser;
   reservation?: {
@@ -429,10 +455,12 @@ export type CreateReturnItemInput = {
   quantityBroken?: number;
   quantityLost?: number;
   description?: string | null;
+  photoUrl?: string | null;
 };
 
 export type CreateReturnInput = {
   items: CreateReturnItemInput[];
+  photoUrls?: string[];
   note?: string | null;
   immediateApprove?: boolean;
 };
@@ -443,6 +471,7 @@ export type DecideReturnItemInput = {
   quantityBroken?: number;
   quantityLost?: number;
   description?: string | null;
+  photoUrl?: string | null;
 };
 
 export type ReturnDecisionInput = {

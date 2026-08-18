@@ -26,13 +26,6 @@ AssetId:
   schema:
     type: string
     format: uuid
-TemplateId:
-  name: templateId
-  in: path
-  required: true
-  schema:
-    type: string
-    format: uuid
 ReservationId:
   name: reservationId
   in: path

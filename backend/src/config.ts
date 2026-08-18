@@ -73,7 +73,8 @@ export const appConfig = {
       user: user!,
       appPassword: appPassword!,
       fromEmail: process.env.SMTP_FROM_EMAIL?.trim() || user!,
-      fromName: process.env.SMTP_FROM_NAME?.trim() || "Advantech Asset Reservation",
+      fromName:
+        process.env.SMTP_FROM_NAME?.trim() || "Advantech Asset Reservation",
     };
   },
   // Key for encrypting secrets stored reversibly in the database (currently
@@ -84,7 +85,9 @@ export const appConfig = {
   tokenEncryptionKey: (): Buffer => {
     const key = Buffer.from(required("TOKEN_ENCRYPTION_KEY"), "base64");
     if (key.length !== 32) {
-      throw new Error("TOKEN_ENCRYPTION_KEY must decode to exactly 32 bytes (base64).");
+      throw new Error(
+        "TOKEN_ENCRYPTION_KEY must decode to exactly 32 bytes (base64).",
+      );
     }
     return key;
   },
@@ -99,14 +102,20 @@ export const appConfig = {
     const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
     const redirectUri = process.env.GOOGLE_REDIRECT_URI?.trim();
-    const present = [clientId, clientSecret, redirectUri].filter(Boolean).length;
+    const present = [clientId, clientSecret, redirectUri].filter(
+      Boolean,
+    ).length;
     if (present === 0) return null;
     if (present < 3) {
       throw new Error(
         "GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI must all be set together (or all left unset to disable Google sign-in).",
       );
     }
-    return { clientId: clientId!, clientSecret: clientSecret!, redirectUri: redirectUri! };
+    return {
+      clientId: clientId!,
+      clientSecret: clientSecret!,
+      redirectUri: redirectUri!,
+    };
   },
   // Microsoft/Outlook sign-in / account linking -- same optional,
   // all-set-or-none-set shape as googleAuth(). MICROSOFT_TENANT_ID is the
@@ -124,7 +133,9 @@ export const appConfig = {
     const clientId = process.env.MICROSOFT_CLIENT_ID?.trim();
     const clientSecret = process.env.MICROSOFT_CLIENT_SECRET?.trim();
     const redirectUri = process.env.MICROSOFT_REDIRECT_URI?.trim();
-    const present = [clientId, clientSecret, redirectUri].filter(Boolean).length;
+    const present = [clientId, clientSecret, redirectUri].filter(
+      Boolean,
+    ).length;
     if (present === 0) return null;
     if (present < 3) {
       throw new Error(
@@ -142,7 +153,8 @@ export const appConfig = {
   // build the redirect target at the end of an OAuth callback (Google or
   // Microsoft), so it's required (not optional) the moment either provider
   // is configured, but otherwise unused.
-  frontendBaseUrl: (): string => required("FRONTEND_BASE_URL").replace(/\/$/, ""),
+  frontendBaseUrl: (): string =>
+    required("FRONTEND_BASE_URL").replace(/\/$/, ""),
   // Whether every user must link an external account (Google or Microsoft
   // -- either satisfies it, see AccountLinkGuard) before using the app.
   // Three effective states: neither provider configured -> always off

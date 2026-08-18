@@ -5,6 +5,8 @@
 เอกสารที่เกี่ยวข้อง:
 
 - [Software architecture](../software_spec/README.md)
+- [Asset reservation flow](../software_spec/asset-reservation-flow.md)
+- [Proof photos & image system](../software_spec/reservation-proof-photos-system.md)
 - [File and schema structure conventions](../software_spec/file-and-schema-structure.md)
 - [Backend specification](../backend_spec/README.md)
 - [Implemented frontend surface](implementation-status.md) — route และ feature ที่ตรวจจาก source ปัจจุบัน
@@ -23,7 +25,7 @@
 | ------ | ------------------------------------------------------------ | ---------------------------------------------- |
 | Pages  | [Login](pages/login.md)                                      | Authentication และ session                     |
 | Pages  | [Calendar](pages/calendar.md)                                | Calendar และการเริ่ม Reservation               |
-| Pages  | [Assets & inventory](pages/assets-and-inventory.md)          | Asset, template และ inventory ledger           |
+| Pages  | [Assets & inventory](pages/assets-and-inventory.md)          | Asset และ inventory ledger                     |
 | Pages  | [Reservations](pages/reservations.md)                        | Create, lifecycle, approval และ change request |
 | Pages  | [Returns](pages/returns.md)                                  | Partial return และ return approval             |
 | Pages  | [Administration](pages/admin.md)                             | Users, roles และ management areas              |
@@ -68,7 +70,7 @@ docs/frontend_spec/
 | ---------------- | ---------------------------------------------------- | ----------------------------------------------- |
 | User             | User, UserProfile, UserAuthIdentity                  | Session, profile และช่องทางเข้าสู่ระบบ          |
 | Access control   | Role, UserRole, ManagementArea                       | Role แบบ global หรือจำกัด management area       |
-| Inventory        | AssetTemplate, Asset                                 | ข้อมูลต้นแบบและ asset แบบมีจำนวน                |
+| Inventory        | Asset                                                | ข้อมูล asset แบบมีจำนวน                         |
 | Inventory ledger | AssetTransactionBatch, AssetTransaction              | ประวัติการเพิ่ม ลด สูญหาย ชำรุด ซ่อม และปรับยอด |
 | Reservation      | Reservation, ReservationItem, ReservationParticipant | กิจกรรมจอง หลายรายการ และผู้เข้าร่วม            |
 | Approval/change  | ReservationItemApproval, ReservationChangeRequest    | อนุมัติราย asset และคำขอแก้ไข                   |
@@ -115,7 +117,6 @@ flowchart LR
 | /returns/:id               | Return details/approval          | เจ้าของรายการหรือ return:approve           |
 | /admin/users               | Users and roles                  | user:create, user:disable หรือ role:assign |
 | /admin/areas               | Management areas                 | Global ADMIN                               |
-| /admin/templates           | Redirect ไป `/admin/areas`       | ผู้ใช้ที่เข้าสู่ระบบ                       |
 
 > ตารางนี้แสดง route ที่ register ใน `frontend/src/app.tsx` จริง สำหรับสถานะ feature รายหน้าและข้อจำกัดของ first draft ดู [Implemented frontend surface](implementation-status.md)
 

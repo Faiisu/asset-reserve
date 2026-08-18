@@ -52,7 +52,7 @@ Authentication guard สร้าง actor/session จาก JWT ทุก reque
 | POST | `/users/{userId}/role-assignments` | assign global หรือ area-scoped role; global `role:assign` |
 | DELETE | `/users/{userId}/role-assignments/{assignmentId}` | remove assignment, 204; global `role:assign` |
 
-## Assets, inventory, templates and uploads
+## Assets, inventory and uploads
 
 | Method | Path | Behavior/access |
 | --- | --- | --- |
@@ -66,13 +66,9 @@ Authentication guard สร้าง actor/session จาก JWT ทุก reque
 | PATCH | `/assets/{assetId}` | edit metadata พร้อม `expectedUpdatedAt` |
 | PATCH | `/assets/{assetId}/status` | activate/deactivate พร้อม `expectedUpdatedAt` |
 | DELETE | `/assets/{assetId}` | compatibility soft-deactivate endpoint |
-| POST | `/assets/{assetId}/template` | save asset metadata เป็น template |
-| GET | `/asset-templates` | scoped template list |
-| POST | `/asset-templates` | create template |
-| PATCH | `/asset-templates/{templateId}` | edit template แบบ optimistic concurrency |
 | POST | `/uploads/image` | authenticated multipart upload, field `file`, หนึ่งไฟล์สูงสุด 10 MiB; คืน `/uploads/assets/{filename}` |
 
-Asset/template/inventory services ตรวจ permission และ management-area scope ตาม operation ส่วน `/uploads/image` ปัจจุบันต้อง login แต่ไม่มี resource permission เพิ่มเติม Static file URL ใต้ `/uploads/` ไม่ผ่าน `/api/v1`
+Asset and inventory services ตรวจ permission และ management-area scope ตาม operation ส่วน `/uploads/image` ปัจจุบันต้อง login แต่ไม่มี resource permission เพิ่มเติม Static file URL ใต้ `/uploads/` ไม่ผ่าน `/api/v1`
 
 ## Reservations
 

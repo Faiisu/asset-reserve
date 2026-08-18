@@ -25,18 +25,18 @@ import type { PermissionDefinition, PermissionKey } from "../types";
 import { cx } from "./ui";
 
 const permissionIcons: Record<string, ReactNode> = {
-  "asset:create": <PackagePlus size={16} />,
-  "asset:view": <Eye size={16} />,
-  "asset:update": <SlidersHorizontal size={16} />,
-  "asset:delete": <Archive size={16} />,
-  "reservation:create": <CalendarPlus size={16} />,
-  "reservation:update": <CalendarRange size={16} />,
-  "reservation:approve": <CheckCircle2 size={16} />,
-  "reservation:reject": <XCircle size={16} />,
-  "return:approve": <ClipboardCheck size={16} />,
-  "user:create": <UserPlus size={16} />,
-  "user:disable": <UserX size={16} />,
-  "role:assign": <KeyRound size={16} />,
+  "asset:create": <PackagePlus size={18} />,
+  "asset:view": <Eye size={18} />,
+  "asset:update": <SlidersHorizontal size={18} />,
+  "asset:delete": <Archive size={18} />,
+  "reservation:create": <CalendarPlus size={18} />,
+  "reservation:update": <CalendarRange size={18} />,
+  "reservation:approve": <CheckCircle2 size={18} />,
+  "reservation:reject": <XCircle size={18} />,
+  "return:approve": <ClipboardCheck size={18} />,
+  "user:create": <UserPlus size={18} />,
+  "user:disable": <UserX size={18} />,
+  "role:assign": <KeyRound size={18} />,
 };
 
 export function PermissionItem({
@@ -67,7 +67,7 @@ export function PermissionItem({
     impact: "Applies operations permitted by the role.",
   };
 
-  const icon = permissionIcons[permission.key] ?? <Sparkles size={16} />;
+  const icon = permissionIcons[permission.key] ?? <Sparkles size={18} />;
 
   return (
     <div
@@ -94,7 +94,7 @@ export function PermissionItem({
           onChange={() => onChange(permission.key)}
         />
         <span className="permission-item__check">
-          {checked && <Check size={14} />}
+          {checked && <Check size={15} />}
         </span>
 
         <span className="permission-item__content">
@@ -114,7 +114,7 @@ export function PermissionItem({
               className="permission-item__locked-tag"
               title="Required system permission"
             >
-              <LockKeyhole size={13} />
+              <LockKeyhole size={14} />
               <span>Locked</span>
             </span>
           ) : (
@@ -124,7 +124,7 @@ export function PermissionItem({
               role="button"
               aria-label={`Permission details for ${detail.name}`}
             >
-              <Info size={14} />
+              <Info size={16} />
             </span>
           )}
         </span>

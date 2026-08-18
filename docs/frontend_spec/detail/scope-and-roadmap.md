@@ -26,7 +26,7 @@
 1. สร้าง design tokens, app shell และ accessible primitives
 2. ทำ authentication/session และ permission-aware routing
 3. สร้าง API client และ frontend contracts
-4. ทำ ManagementArea และ AssetTemplate lookup
+4. ทำ ManagementArea lookup
 5. ทำ Asset list/detail/create/edit และ inventory ledger
 6. ทำ Calendar จาก Reservation
 7. ทำ Create Reservation หลาย item พร้อม quantity

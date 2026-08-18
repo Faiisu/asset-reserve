@@ -25,7 +25,6 @@ const asset: AssetSummary = {
   availableQuantity: 3,
   isActive: true,
   status: "ACTIVE",
-  assetTemplate: null,
   managementArea: { id: "area-1", name: "Production" },
   owner: null,
   capabilities: {
@@ -96,7 +95,6 @@ const pendingReservationDetail: ReservationDetail = {
         pictureUrl: null,
         isActive: true,
         managementArea: asset.managementArea,
-        template: null,
       },
       approval: null,
       availability: {
@@ -487,7 +485,7 @@ describe("CalendarPage", () => {
     expect(screen.getByRole("heading", { level: 2, name: "September 2026" })).toBeInTheDocument();
   });
 
-  it("filters calendar and assets using workspace checkboxes", async () => {
+  it("filters calendar and assets using merged workspace and status filter dropdown", async () => {
     vi.spyOn(api, "areas").mockResolvedValue({
       data: [
         { id: "area-1", name: "Production", description: null, createdAt: "", updatedAt: "" },
@@ -506,31 +504,109 @@ describe("CalendarPage", () => {
       </MemoryRouter>,
     );
 
-    const trigger = screen.getByRole("button", { name: "Filter workspaces" });
+    const trigger = screen.getByRole("button", {
+      name: /Filter reservations by workspace and status/i,
+    });
     expect(trigger).toBeInTheDocument();
-    expect(screen.getByText("All workspaces")).toBeInTheDocument();
+    expect(trigger).toHaveTextContent("Filters");
 
-    // Open workspace filter popover
+    // Open unified filter popover
     fireEvent.click(trigger);
-    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Filter reservations" }),
+    ).toBeInTheDocument();
 
-    // Wait for Production checkbox and toggle it
+    // Wait for Production workspace checkbox and toggle it
     const prodCheckbox = await screen.findByRole("checkbox", { name: "Production" });
     expect(prodCheckbox).not.toBeChecked();
     fireEvent.click(prodCheckbox);
     expect(prodCheckbox).toBeChecked();
-    expect(trigger).toHaveTextContent("Production");
     expect(trigger).toHaveTextContent("1");
 
-    // Test Status Filter dropdown
-    const statusTrigger = screen.getByRole("button", { name: "Filter statuses" });
-    expect(statusTrigger).toBeInTheDocument();
-    expect(screen.getByText("All statuses")).toBeInTheDocument();
-    fireEvent.click(statusTrigger);
-    const approvedCheckbox = screen.getByRole("checkbox", { name: "Approve" });
+    // Toggle Approved status checkbox in the same popover
+    const approvedCheckbox = screen.getByRole("checkbox", { name: "Approved" });
+    expect(approvedCheckbox).not.toBeChecked();
     fireEvent.click(approvedCheckbox);
     expect(approvedCheckbox).toBeChecked();
-    expect(statusTrigger).toHaveTextContent("Approve");
+    expect(trigger).toHaveTextContent("2");
+
+    // Test Clear all button
+    const clearAllBtn = screen.getByRole("button", { name: "Clear all" });
+    expect(clearAllBtn).toBeInTheDocument();
+    fireEvent.click(clearAllBtn);
+    expect(prodCheckbox).not.toBeChecked();
+    expect(approvedCheckbox).not.toBeChecked();
+  });
+
+  it("allows selecting past dates to view information while disabling the reserve button", async () => {
+    vi.spyOn(api, "reservations").mockResolvedValue({
+      data: [],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <CalendarPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText("Loading visible reservations")).toBeNull(),
+    );
+
+    const pastDay = screen.getByRole("button", {
+      name: /Saturday, August 1, 2026/i,
+    });
+    fireEvent.pointerDown(pastDay, { button: 0 });
+    fireEvent.pointerUp(pastDay);
+
+    expect(
+      screen.getByText("Past dates cannot be reserved."),
+    ).toBeInTheDocument();
+    const reserveButton = screen.getByRole("link", { name: /Create event/i });
+    expect(reserveButton).toHaveAttribute("aria-disabled", "true");
+    expect(reserveButton).toHaveClass("button--disabled");
+  });
+
+  it("toggles between all reservations and only mine using the Only mine button", async () => {
+    const listSpy = vi.spyOn(api, "reservations").mockResolvedValue({
+      data: [],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <CalendarPage />
+      </MemoryRouter>,
+    );
+
+    const toggleBtn = await screen.findByRole("button", {
+      name: /Filter to only my reservations/i,
+    });
+    expect(toggleBtn).toBeInTheDocument();
+    expect(toggleBtn).toHaveTextContent("Only mine");
+    expect(toggleBtn).toHaveAttribute("aria-pressed", "false");
+    expect(toggleBtn).not.toHaveClass("calendar-only-mine-toggle--active");
+
+    // Click to toggle "Only mine" ON
+    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute("aria-pressed", "true");
+    expect(toggleBtn).toHaveClass("calendar-only-mine-toggle--active");
+    expect(listSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        view: "MINE",
+      }),
+    );
+
+    // Click to toggle "Only mine" OFF
+    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute("aria-pressed", "false");
+    expect(toggleBtn).not.toHaveClass("calendar-only-mine-toggle--active");
+    expect(listSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        view: "ALL",
+      }),
+    );
   });
 });
 

@@ -43,7 +43,6 @@ flowchart TD
     PARTIALLY_APPROVED["PARTIALLY_APPROVED<br/>(Some items approved, some rejected)"]
     REJECTED["REJECTED<br/>(All items rejected)"]
     DELIVERY_CONFIRMED["DELIVERY_CONFIRMED<br/>(Equipment handed over to user)"]
-    ACTIVE["ACTIVE<br/>(Event is currently ongoing)"]
     RETURN_PENDING["RETURN_PENDING / RETURN<br/>(Return slip submitted, pending inspection)"]
     RETURN_CONFIRMED["RETURN_CONFIRMED<br/>(Manager inspected return)"]
     COMPLETED["COMPLETED<br/>(All items fully returned & restocked)"]
@@ -59,16 +58,10 @@ flowchart TD
 
     APPROVED -->|User confirms pickup / delivery| DELIVERY_CONFIRMED
     PARTIALLY_APPROVED -->|User confirms pickup of approved items| DELIVERY_CONFIRMED
-    APPROVED -->|Event start time reached| ACTIVE
-    PARTIALLY_APPROVED -->|Event start time reached| ACTIVE
     APPROVED -->|User cancels before pickup| CANCELLED
     PARTIALLY_APPROVED -->|User cancels before pickup| CANCELLED
 
-    DELIVERY_CONFIRMED -->|Event start time reached| ACTIVE
-    ACTIVE -->|Event end time reached| DELIVERY_CONFIRMED
-
     DELIVERY_CONFIRMED -->|User submits Return Request| RETURN_PENDING
-    ACTIVE -->|User submits Return Request| RETURN_PENDING
 
     RETURN_PENDING -->|Manager approves inspection| RETURN_CONFIRMED
     RETURN_PENDING -->|Manager rejects return slip| DELIVERY_CONFIRMED
@@ -82,18 +75,17 @@ flowchart TD
 ### 2.2 Reservation Status Dictionary
 
 | Status Key | UI Label | Badge Color | Meaning & Allowed Next Transitions |
-| :--- | :--- | :--- | :--- |
-| `DRAFT` | Draft | Gray (Neutral) | User is compiling item manifest. Next: `PENDING_APPROVAL`, `CANCELLED` |
-| `PENDING_APPROVAL` | Pending approval | Amber (Warning) | Submitted for review. Area Managers reviewing item lines. Next: `APPROVED`, `PARTIALLY_APPROVED`, `REJECTED`, `CANCELLED` |
-| `PARTIALLY_APPROVED` | Partially approved | Violet (Info) | Some items approved, others rejected. Usable for approved items. Next: `DELIVERY_CONFIRMED`, `ACTIVE`, `CANCELLED` |
-| `APPROVED` | Approved | Green (Success) | All requested equipment lines approved. Ready for handover. Next: `DELIVERY_CONFIRMED`, `ACTIVE`, `CANCELLED` |
-| `DELIVERY_CONFIRMED` | Delivery Confirmed | Cyan (Teal) | Equipment handed over and in requester possession. Next: `ACTIVE`, `RETURN_PENDING`, `COMPLETED` |
-| `ACTIVE` | Active (In-Use) | Blue (Primary) | Current time is within `startAt` - `endAt` window. Next: `RETURN_PENDING`, `COMPLETED` |
-| `RETURN` / `RETURN_PENDING` | Return Pending | Orange (Alert) | User submitted return slip; awaiting manager warehouse inspection. Next: `RETURN_CONFIRMED`, `COMPLETED` |
-| `RETURN_CONFIRMED` | Return Confirmed | Emerald (Success) | Manager completed inspection and ledger updated. Next: `COMPLETED`, `DELIVERY_CONFIRMED` (if partial units remain) |
-| `COMPLETED` | Completed | Slate / Green (Muted) | All items accounted for, restocked, or marked broken/lost. Final state. |
-| `REJECTED` | Rejected | Red (Danger) | All items rejected by Area Managers. Final state. |
-| `CANCELLED` | Cancelled | Zinc (Dimmed) | Cancelled by user before pickup. Final state. |
+78: | :--- | :--- | :--- | :--- |
+79: | `DRAFT` | Draft | Gray (Neutral) | User is compiling item manifest. Next: `PENDING_APPROVAL`, `CANCELLED` |
+80: | `PENDING_APPROVAL` | Pending approval | Amber (Warning) | Submitted for review. Area Managers reviewing item lines. Next: `APPROVED`, `PARTIALLY_APPROVED`, `REJECTED`, `CANCELLED` |
+81: | `PARTIALLY_APPROVED` | Partially approved | Violet (Info) | Some items approved, others rejected. Usable for approved items. Next: `DELIVERY_CONFIRMED`, `CANCELLED` |
+82: | `APPROVED` | Approved | Green (Success) | All requested equipment lines approved. Ready for handover. Next: `DELIVERY_CONFIRMED`, `CANCELLED` |
+83: | `DELIVERY_CONFIRMED` | Delivery Confirmed | Cyan (Teal) | Equipment handed over and in requester possession. Next: `RETURN_PENDING`, `COMPLETED` |
+84: | `RETURN` / `RETURN_PENDING` | Return Pending | Orange (Alert) | User submitted return slip; awaiting manager warehouse inspection. Next: `RETURN_CONFIRMED`, `COMPLETED` |
+85: | `RETURN_CONFIRMED` | Partially Return | Emerald (Success) | Manager completed inspection and ledger updated. Next: `COMPLETED`, `DELIVERY_CONFIRMED` (if partial units remain) |
+86: | `COMPLETED` | Completed | Slate / Green (Muted) | All items accounted for, restocked, or marked broken/lost. Final state. |
+87: | `REJECTED` | Rejected | Red (Danger) | All items rejected by Area Managers. Final state. |
+88: | `CANCELLED` | Cancelled | Zinc (Dimmed) | Cancelled by user before pickup. Final state. |
 
 ---
 
@@ -153,9 +145,19 @@ graph LR
 | `capabilities.canSubmit` | `status === 'DRAFT'` AND actor is requester | **"Send for approval"** button |
 | `capabilities.canRequestChange` | `['PENDING_APPROVAL', 'APPROVED', 'PARTIALLY_APPROVED'].includes(status)` AND no pending change request | **"Request changes"** button |
 | `capabilities.canConfirmDelivery` | `['APPROVED', 'PARTIALLY_APPROVED', 'DELIVERY_CONFIRMED'].includes(status)` AND has deliverable items | **"Confirm delivery"** button |
-| `capabilities.canReturn` | `['DELIVERY_CONFIRMED', 'ACTIVE', 'RETURN', 'RETURN_PENDING'].includes(status)` AND remaining items $> 0$ | **"Return request"** button / inline form |
+| `capabilities.canReturn` | `['DELIVERY_CONFIRMED', 'RETURN', 'RETURN_PENDING'].includes(status) || (new Date() >= new Date(reservation.endAt))` AND remaining items > 0 | **"Return request"** button / inline form |
 | `capabilities.canCancel` | `['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'PARTIALLY_APPROVED'].includes(status)` AND not yet delivered | **"Cancel reservation"** button |
 | `capabilities.canReview` | `status === 'PENDING_APPROVAL'` AND actor has `reservation:approve` in item area | **"Approve / Reject selected"** batch bar |
+
+### Cross-User Visibility (Permission-Gated)
+
+| Permission | Scope | Effect |
+| :--- | :--- | :--- |
+| `reservation:view` (global) | System-wide | Actor can browse all reservations in the `ALL` view and access any reservation detail page |
+| `reservation:view` (area-scoped) | Per management area | Actor can browse and view detail of reservations that include items from their permitted area(s) |
+| *(none)* | — | Actor sees only their own reservations (as requester or participant) in `ALL` view; detail access denied for other users' reservations |
+
+> **Note:** Operational permissions (`reservation:approve`, `reservation:reject`, `reservation:update`) **do not** grant cross-user view access. They grant action capability only. Assign `reservation:view` separately to any role that needs to browse reservations across the system.
 
 ---
 

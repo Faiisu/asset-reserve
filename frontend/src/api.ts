@@ -3,7 +3,7 @@ import type {
   AssetDetail,
   AssetInput,
   AssetSummary,
-  AssetTemplate,
+  ConfirmDeliveryInput,
   CreateReservationInput,
   CreateReturnInput,
   EmailTemplate,
@@ -220,7 +220,6 @@ export const api = {
   assets: (filters: {
     search?: string;
     areaId?: string;
-    templateId?: string;
     isActive?: boolean;
     status?: "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE";
     from?: string;
@@ -277,44 +276,13 @@ export const api = {
         body: json({ items, description }),
       },
     ),
-  saveAssetTemplate: (
-    assetId: string,
-    input: { name?: string; description?: string | null },
-  ) =>
-    request<AssetTemplate>(`/assets/${assetId}/template`, {
-      method: "POST",
-      body: json(input),
-    }),
-
-  templates: (search = "") =>
-    request<ListResponse<AssetTemplate>>(
-      `/asset-templates${queryString({ search, limit: 100 })}`,
-    ),
-  createTemplate: (input: { name: string; description?: string | null }) =>
-    request<AssetTemplate>("/asset-templates", {
-      method: "POST",
-      body: json(input),
-    }),
-  updateTemplate: (
-    templateId: string,
-    input: {
-      name?: string;
-      description?: string | null;
-      expectedUpdatedAt: string;
-    },
-  ) =>
-    request<AssetTemplate>(`/asset-templates/${templateId}`, {
-      method: "PATCH",
-      body: json(input),
-    }),
-
   createReservation: (input: CreateReservationInput) =>
     request<ReservationDetail>("/reservations", {
       method: "POST",
       body: json(input),
     }),
   reservations: (filters: {
-    view?: "MINE" | "APPROVALS" | "ALL";
+    view?: "MINE" | "PARTICIPATING" | "APPROVALS" | "APPROVAL_HISTORY" | "ALL";
     status?: string;
     areaId?: string;
     search?: string;
@@ -385,16 +353,19 @@ export const api = {
       method: "POST",
       body: json({ ...(reason ? { reason } : {}) }),
     }),
-  confirmDelivery: (reservationId: string, itemIds?: string[]) =>
-    request<ReservationDetail>(
+  confirmDelivery: (
+    reservationId: string,
+    input?: ConfirmDeliveryInput | string[],
+  ) => {
+    const payload = Array.isArray(input) ? { itemIds: input } : input;
+    return request<ReservationDetail>(
       `/reservations/${reservationId}/delivery-confirm`,
       {
         method: "POST",
-        ...(itemIds && itemIds.length > 0
-          ? { body: json({ itemIds }) }
-          : {}),
+        ...(payload ? { body: json(payload) } : {}),
       },
-    ),
+    );
+  },
   createReturn: (reservationId: string, input: CreateReturnInput) =>
     request<ReturnDetail>(`/reservations/${reservationId}/returns`, {
       method: "POST",

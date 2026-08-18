@@ -31,15 +31,17 @@ const allocatedReservationStatuses = [
   "PARTIALLY_APPROVED",
   "APPROVED",
   "DELIVERY_CONFIRMED",
-  "ACTIVE",
-  "RETURN",
   "RETURN_PENDING",
   "RETURN_CONFIRMED",
   "COMPLETED",
 ];
-const allocatedItemStatuses = ["APPROVED", "PREPARED", "CHECKED_OUT", "DELIVERED"];
+const allocatedItemStatuses = [
+  "APPROVED",
+  "PREPARED",
+  "CHECKED_OUT",
+  "DELIVERED",
+];
 const editableReservationStatuses = [
-  "PENDING",
   "PENDING_APPROVAL",
   "PARTIALLY_APPROVED",
   "APPROVED",
@@ -53,7 +55,7 @@ const reservationInclude = {
   },
   items: {
     include: {
-      asset: { include: { managementArea: true, assetTemplate: true } },
+      asset: { include: { managementArea: true } },
       approval: { include: { approver: { include: { profile: true } } } },
     },
     orderBy: { createdAt: "asc" },
@@ -76,6 +78,18 @@ const reservationInclude = {
         },
       },
       approval: { include: { approver: { include: { profile: true } } } },
+    },
+    orderBy: { createdAt: "desc" },
+  },
+  handovers: {
+    include: {
+      handler: { include: { profile: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  },
+  activityLogs: {
+    include: {
+      actor: { include: { profile: true } },
     },
     orderBy: { createdAt: "desc" },
   },
@@ -155,10 +169,11 @@ export class ReservationsService {
 
     if (query.view === "MINE") {
       conditions.push({
-        OR: [
-          { requesterId: actor.user.id },
-          { participants: { some: { userId: actor.user.id } } },
-        ],
+        requesterId: actor.user.id,
+      });
+    } else if (query.view === "PARTICIPATING") {
+      conditions.push({
+        participants: { some: { userId: actor.user.id } },
       });
     } else if (query.view === "APPROVALS") {
       const approvalConditions = this.approvalListConditions(
@@ -172,6 +187,18 @@ export class ReservationsService {
         };
       }
       conditions.push({ OR: approvalConditions });
+    } else if (query.view === "APPROVAL_HISTORY") {
+      const historyConditions = this.approvalHistoryConditions(
+        approveAreaIds,
+        rejectAreaIds,
+      );
+      if (!historyConditions.length) {
+        return {
+          data: [],
+          pageInfo: { nextCursor: null, hasNextPage: false },
+        };
+      }
+      conditions.push({ OR: historyConditions });
     } else {
       const ownReservationCondition: Prisma.ReservationWhereInput = {
         OR: [
@@ -180,40 +207,68 @@ export class ReservationsService {
         ],
       };
 
-      if (operationalAreaIds === null) {
-        // Global admin: can see all reservations
-      } else if (operationalAreaIds.length) {
-        // Area manager: can see own reservations + reservations in their managed areas
-        // + other public active reservations (NOT DRAFT, NOT PENDING_APPROVAL, NOT REJECTED, NOT CANCELLED)
-        conditions.push({
-          OR: [
-            ownReservationCondition,
-            {
-              items: {
-                some: {
-                  asset: { managementAreaId: { in: operationalAreaIds } },
-                },
-              },
-            },
-            {
-              status: {
-                notIn: ["DRAFT", "PENDING_APPROVAL", "REJECTED", "CANCELLED"],
-              },
-            },
-          ],
-        });
+      const viewAreaIds = this.permissionAreaIds(actor, ["reservation:view"]);
+
+      if (viewAreaIds === null || operationalAreaIds === null) {
+        // Global reservation:view OR global operational access — can see all reservations (no filter)
       } else {
-        // Regular user: can ONLY see own reservations, OR other public active reservations (NOT DRAFT, NOT PENDING_APPROVAL, NOT REJECTED, NOT CANCELLED)
-        conditions.push({
-          OR: [
-            ownReservationCondition,
-            {
-              status: {
-                notIn: ["DRAFT", "PENDING_APPROVAL", "REJECTED", "CANCELLED"],
+        // Build area conditions from both reservation:view scope and operational permissions
+        // (approve/reject/update) so area managers can still see their managed areas.
+        const viewConditions: Prisma.ReservationWhereInput[] = [
+          ownReservationCondition,
+        ];
+
+        // reservation:view area-scoped: see all reservations in those areas
+        if (viewAreaIds.length) {
+          viewConditions.push({
+            items: {
+              some: { asset: { managementAreaId: { in: viewAreaIds } } },
+            },
+          });
+        }
+
+        // Operational area permissions (approve/reject/update): managers can always see
+        // reservations in their managed areas regardless of reservation:view
+        if (operationalAreaIds.length) {
+          viewConditions.push({
+            items: {
+              some: {
+                asset: { managementAreaId: { in: operationalAreaIds } },
               },
             },
-          ],
-        });
+          });
+        }
+
+        if (viewConditions.length > 1) {
+          conditions.push({ OR: viewConditions });
+        } else {
+          // Only own reservations — no view or operational area access
+          conditions.push(ownReservationCondition);
+        }
+      }
+
+      // Private-status guard (applies to non-global-admin users):
+      // DRAFT, PENDING_APPROVAL, REJECTED, CANCELLED are only visible to the
+      // reservation owner, its participants, or area managers of the assets involved.
+      if (operationalAreaIds !== null) {
+        const privateStatuses = [
+          "DRAFT",
+          "PENDING_APPROVAL",
+          "REJECTED",
+          "CANCELLED",
+        ];
+        const privateStatusGuardClauses: Prisma.ReservationWhereInput[] = [
+          { status: { notIn: privateStatuses } },
+          ownReservationCondition,
+        ];
+        if (operationalAreaIds.length) {
+          privateStatusGuardClauses.push({
+            items: {
+              some: { asset: { managementAreaId: { in: operationalAreaIds } } },
+            },
+          });
+        }
+        conditions.push({ OR: privateStatusGuardClauses });
       }
     }
 
@@ -324,6 +379,18 @@ export class ReservationsService {
           data: participantIds.map((userId) => ({ reservationId, userId })),
         });
       }
+      await this.logActivity(tx, {
+        reservationId,
+        actorId: actor.user.id,
+        action: "RESERVATION_CREATED",
+        entityType: "RESERVATION",
+        entityId: reservationId,
+        details: {
+          eventName: input.eventName,
+          itemCount: items.length,
+          status,
+        },
+      });
     });
     // The everyday "send for approval" flow creates straight into
     // PENDING_APPROVAL in one step -- it never goes through submit() below,
@@ -393,9 +460,20 @@ export class ReservationsService {
         "The reservation changed after it was loaded. Reload and try again.",
       );
     }
+    await this.logActivity(this.prisma, {
+      reservationId,
+      actorId: actor.user.id,
+      action: "RESERVATION_SUBMITTED",
+      entityType: "RESERVATION",
+      entityId: reservationId,
+      details: { status: nextStatus },
+    });
     if (nextStatus === "PENDING_APPROVAL") {
-      const managementAreaIds = [...new Set(assets.map((a) => a.managementAreaId))];
-      const approverRecipients = await this.findApproverRecipients(managementAreaIds);
+      const managementAreaIds = [
+        ...new Set(assets.map((a) => a.managementAreaId)),
+      ];
+      const approverRecipients =
+        await this.findApproverRecipients(managementAreaIds);
       this.reservationEvents.emitSubmitted({
         reservationId,
         eventName: reservation.eventName,
@@ -403,7 +481,9 @@ export class ReservationsService {
         endAt: reservation.endAt,
         requester: {
           email: reservation.requester.email,
-          name: reservation.requester.profile?.name ?? reservation.requester.username,
+          name:
+            reservation.requester.profile?.name ??
+            reservation.requester.username,
         },
         approverRecipients,
       });
@@ -414,14 +494,21 @@ export class ReservationsService {
   private async findApproverRecipients(managementAreaIds: string[]) {
     const assignments = await this.prisma.userRole.findMany({
       where: {
-        OR: [{ managementAreaId: null }, { managementAreaId: { in: managementAreaIds } }],
+        OR: [
+          { managementAreaId: null },
+          { managementAreaId: { in: managementAreaIds } },
+        ],
       },
       include: { role: true, user: { include: { profile: true } } },
     });
     const recipients = new Map<string, { email: string; name: string }>();
     for (const assignment of assignments) {
       if (!assignment.user.isActive) continue;
-      if (!normalizePermissions(assignment.role.permissions).includes("reservation:approve")) {
+      if (
+        !normalizePermissions(assignment.role.permissions).includes(
+          "reservation:approve",
+        )
+      ) {
         continue;
       }
       // Not every approver has linked Google yet (email is only populated
@@ -496,7 +583,9 @@ export class ReservationsService {
         items.some(
           (item) =>
             item.status !== "PENDING" ||
-            item.reservation.status !== "PENDING_APPROVAL",
+            !["PENDING_APPROVAL", "PARTIALLY_APPROVED"].includes(
+              item.reservation.status,
+            ),
         )
       ) {
         throw this.invalidStatus(
@@ -566,6 +655,21 @@ export class ReservationsService {
         where: { id: reservationId },
         data: { status: newStatus, updatedAt: decidedAt },
       });
+      for (const item of items) {
+        await this.logActivity(tx, {
+          reservationId,
+          actorId: actor.user.id,
+          action: status === "APPROVED" ? "ITEM_APPROVED" : "ITEM_REJECTED",
+          entityType: "RESERVATION_ITEM",
+          entityId: item.id,
+          details: {
+            assetId: item.assetId,
+            assetName: item.asset.name,
+            quantity: item.quantity,
+            comment: input.comment ?? null,
+          },
+        });
+      }
       return newStatus;
     });
     const detail = await this.get(actor, reservationId);
@@ -686,6 +790,14 @@ export class ReservationsService {
             reason: input.reason ?? null,
           },
         });
+        await this.logActivity(tx, {
+          reservationId,
+          actorId: actor.user.id,
+          action: "CHANGE_REQUESTED",
+          entityType: "CHANGE_REQUEST",
+          entityId: id,
+          details: { reason: input.reason ?? null },
+        });
       });
     } catch (error) {
       if (this.prismaCode(error) === "P2002") {
@@ -779,6 +891,14 @@ export class ReservationsService {
             reviewedBy: actor.user.id,
             reviewedAt: decidedAt,
           },
+        });
+        await this.logActivity(tx, {
+          reservationId,
+          actorId: actor.user.id,
+          action: "CHANGE_REJECTED",
+          entityType: "CHANGE_REQUEST",
+          entityId: changeRequestId,
+          details: { reason: current.reason },
         });
         return;
       }
@@ -933,6 +1053,14 @@ export class ReservationsService {
           reviewedAt: decidedAt,
         },
       });
+      await this.logActivity(tx, {
+        reservationId,
+        actorId: actor.user.id,
+        action: "CHANGE_APPROVED",
+        entityType: "CHANGE_REQUEST",
+        entityId: changeRequestId,
+        details: { reason: current.reason },
+      });
     });
     return this.get(actor, reservationId);
   }
@@ -1002,23 +1130,51 @@ export class ReservationsService {
 
     const deliveredAt = new Date();
     const itemIdsToDeliver = targetItems.map((item) => item.id);
+    const handoverId = randomUUID();
+
+    const itemPhotoMap = new Map<string, string>();
+    if (input?.itemPhotos) {
+      for (const ip of input.itemPhotos) {
+        if (ip.photoUrl) itemPhotoMap.set(ip.itemId, ip.photoUrl);
+      }
+    }
+
+    const photoUrls = input?.photoUrls ?? [];
+    const note = input?.note?.trim() || null;
 
     await this.prisma.$transaction(async (tx) => {
-      // 1. Update selected items to DELIVERED
-      await tx.reservationItem.updateMany({
-        where: {
-          id: { in: itemIdsToDeliver },
-          reservationId,
-        },
+      // 1. Create ReservationHandover record
+      await tx.reservationHandover.create({
         data: {
-          status: "DELIVERED",
-          checkedOutAt: deliveredAt,
-          checkedOutBy: actor.user.id,
-          updatedAt: deliveredAt,
+          id: handoverId,
+          reservationId,
+          handledBy: actor.user.id,
+          photoUrls,
+          note,
+          handedOverAt: deliveredAt,
+          createdAt: deliveredAt,
         },
       });
 
-      // 2. Check if all approved/active items on the manifest are now DELIVERED or RETURNED
+      // 2. Update selected items to DELIVERED with handoverId & photoUrl
+      for (const item of targetItems) {
+        const itemPhoto =
+          itemPhotoMap.get(item.id) ||
+          (photoUrls.length > 0 ? photoUrls[0] : null);
+        await tx.reservationItem.update({
+          where: { id: item.id },
+          data: {
+            status: "DELIVERED",
+            checkedOutAt: deliveredAt,
+            checkedOutBy: actor.user.id,
+            handoverId,
+            handoverPhotoUrl: itemPhoto,
+            updatedAt: deliveredAt,
+          },
+        });
+      }
+
+      // 3. Check if all approved/active items on the manifest are now DELIVERED or RETURNED
       const allItems = await tx.reservationItem.findMany({
         where: { reservationId },
         select: { id: true, status: true },
@@ -1050,6 +1206,19 @@ export class ReservationsService {
           },
         });
       }
+
+      await this.logActivity(tx, {
+        reservationId,
+        actorId: actor.user.id,
+        action: "HANDOVER_CONFIRMED",
+        entityType: "HANDOVER",
+        entityId: handoverId,
+        details: {
+          handledBy: actor.user.id,
+          itemCount: targetItems.length,
+          note,
+        },
+      });
     });
 
     return this.get(actor, reservationId);
@@ -1099,6 +1268,14 @@ export class ReservationsService {
           reviewedBy: actor.user.id,
           reviewedAt: cancelledAt,
         },
+      });
+      await this.logActivity(tx, {
+        reservationId,
+        actorId: actor.user.id,
+        action: "RESERVATION_CANCELLED",
+        entityType: "RESERVATION",
+        entityId: reservationId,
+        details: { reason: input?.reason ?? null },
       });
     });
     this.reservationEvents.emitCancelled({
@@ -1162,7 +1339,9 @@ export class ReservationsService {
     const actionableItems = reservation.items.filter(
       (item) =>
         item.status === "PENDING" &&
-        reservation.status === "PENDING_APPROVAL" &&
+        ["PENDING_APPROVAL", "PARTIALLY_APPROVED"].includes(
+          reservation.status,
+        ) &&
         (this.areaIsPermitted(approveAreaIds, item.asset.managementAreaId) ||
           this.areaIsPermitted(rejectAreaIds, item.asset.managementAreaId)),
     ).length;
@@ -1232,7 +1411,7 @@ export class ReservationsService {
           canManage &&
           [
             "DRAFT",
-            "PENDING",
+
             "PENDING_APPROVAL",
             "PARTIALLY_APPROVED",
             "APPROVED",
@@ -1254,7 +1433,7 @@ export class ReservationsService {
         : [...new Set([...approveAreaIds, ...rejectAreaIds])];
     if (decisionAreaIds === null || decisionAreaIds.length) {
       conditions.push({
-        status: { in: ["PENDING", "PENDING_APPROVAL"] },
+        status: { in: ["PENDING_APPROVAL", "PARTIALLY_APPROVED"] },
         items: {
           some: {
             status: "PENDING",
@@ -1283,6 +1462,86 @@ export class ReservationsService {
       });
     }
     return conditions;
+  }
+
+  private approvalHistoryConditions(
+    approveAreaIds: string[] | null,
+    rejectAreaIds: string[] | null,
+  ): Prisma.ReservationWhereInput[] {
+    const conditions: Prisma.ReservationWhereInput[] = [];
+    const decisionAreaIds =
+      approveAreaIds === null || rejectAreaIds === null
+        ? null
+        : [...new Set([...approveAreaIds, ...rejectAreaIds])];
+    if (decisionAreaIds === null || decisionAreaIds.length) {
+      conditions.push({
+        status: {
+          in: [
+            "APPROVED",
+            "PARTIALLY_APPROVED",
+            "DELIVERY_CONFIRMED",
+            "RETURN_PENDING",
+            "RETURN_CONFIRMED",
+            "COMPLETED",
+            "REJECTED",
+          ],
+        },
+        items: {
+          some: {
+            approval: { isNot: null },
+            ...(decisionAreaIds === null
+              ? {}
+              : {
+                  asset: { managementAreaId: { in: decisionAreaIds } },
+                }),
+          },
+        },
+      });
+    }
+    for (const areaIds of [approveAreaIds, rejectAreaIds]) {
+      if (areaIds !== null && !areaIds.length) continue;
+      conditions.push({
+        changeRequests: { some: { status: { in: ["APPROVED", "REJECTED"] } } },
+        ...(areaIds === null
+          ? {}
+          : {
+              items: {
+                every: {
+                  asset: { managementAreaId: { in: areaIds } },
+                },
+              },
+            }),
+      });
+    }
+    return conditions;
+  }
+
+  private async logActivity(
+    tx: Prisma.TransactionClient | PrismaService,
+    data: {
+      reservationId?: string;
+      actorId: string;
+      action: string;
+      entityType: string;
+      entityId?: string;
+      details?: Prisma.InputJsonValue;
+    },
+  ) {
+    try {
+      await tx.activityLog.create({
+        data: {
+          id: randomUUID(),
+          reservationId: data.reservationId ?? null,
+          actorId: data.actorId,
+          action: data.action,
+          entityType: data.entityType,
+          entityId: data.entityId ?? null,
+          details: data.details ?? Prisma.JsonNull,
+        },
+      });
+    } catch {
+      // Non-blocking activity log
+    }
   }
 
   private permissionAreaIds(
@@ -1411,15 +1670,11 @@ export class ReservationsService {
               id: item.asset.managementArea.id,
               name: item.asset.managementArea.name,
             },
-            template: item.asset.assetTemplate
-              ? {
-                  id: item.asset.assetTemplate.id,
-                  name: item.asset.assetTemplate.name,
-                }
-              : null,
           },
           quantity: item.quantity,
           status: item.status,
+          handoverPhotoUrl: item.handoverPhotoUrl ?? null,
+          handoverId: item.handoverId ?? null,
           returnSummary: {
             returnedQuantity,
             brokenQuantity,
@@ -1453,7 +1708,9 @@ export class ReservationsService {
           capabilities: {
             canApprove:
               item.status === "PENDING" &&
-              reservation.status === "PENDING_APPROVAL" &&
+              ["PENDING_APPROVAL", "PARTIALLY_APPROVED"].includes(
+                reservation.status,
+              ) &&
               hasAreaPermission(
                 actor,
                 "reservation:approve",
@@ -1461,25 +1718,23 @@ export class ReservationsService {
               ),
             canReject:
               item.status === "PENDING" &&
-              reservation.status === "PENDING_APPROVAL" &&
+              ["PENDING_APPROVAL", "PARTIALLY_APPROVED"].includes(
+                reservation.status,
+              ) &&
               hasAreaPermission(
                 actor,
                 "reservation:reject",
                 item.asset.managementAreaId,
               ),
             canConfirmDelivery:
-              [
-                "APPROVED",
-                "PARTIALLY_APPROVED",
-                "DELIVERY_CONFIRMED",
-              ].includes(reservation.status) &&
+              ["APPROVED", "PARTIALLY_APPROVED", "DELIVERY_CONFIRMED"].includes(
+                reservation.status,
+              ) &&
               ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status) &&
               this.canConfirmDeliveryItem(actor, reservation, item),
             canReturn:
               [
                 "DELIVERY_CONFIRMED",
-                "ACTIVE",
-                "RETURN",
                 "RETURN_PENDING",
                 "RETURN_CONFIRMED",
                 "COMPLETED",
@@ -1501,6 +1756,16 @@ export class ReservationsService {
         reviewedAt: request.reviewedAt?.toISOString() ?? null,
         createdAt: request.createdAt.toISOString(),
       })),
+      handovers: (reservation.handovers ?? []).map((h) => ({
+        id: h.id,
+        reservationId: h.reservationId,
+        handledBy: h.handledBy,
+        handler: this.userDto(h.handler),
+        photoUrls: h.photoUrls,
+        note: h.note,
+        handedOverAt: h.handedOverAt.toISOString(),
+        createdAt: h.createdAt.toISOString(),
+      })),
       returns: reservation.returns.map((item) => {
         const canApprove =
           item.status === "PENDING" &&
@@ -1515,6 +1780,8 @@ export class ReservationsService {
           id: item.id,
           reservationId: item.reservationId,
           status: item.status,
+          photoUrls: item.photoUrls,
+          note: item.note,
           returnedAt: item.returnedAt?.toISOString() ?? null,
           returnedBy: this.userDto(item.returner),
           items: item.items.map((retItem) => ({
@@ -1522,6 +1789,7 @@ export class ReservationsService {
             reservationItemId: retItem.reservationItemId,
             assetId: retItem.reservationItem.asset.id,
             assetName: retItem.reservationItem.asset.name,
+            photoUrl: retItem.photoUrl ?? null,
             managementArea: {
               id: retItem.reservationItem.asset.managementArea.id,
               name: retItem.reservationItem.asset.managementArea.name,
@@ -1555,20 +1823,18 @@ export class ReservationsService {
           canManage &&
           editableReservationStatuses.includes(reservation.status),
         canConfirmDelivery:
-          [
-            "APPROVED",
-            "PARTIALLY_APPROVED",
-            "DELIVERY_CONFIRMED",
-          ].includes(reservation.status) &&
-          reservation.items.some((item) =>
-            ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status) &&
-            this.canConfirmDeliveryItem(actor, reservation, item),
+          ["APPROVED", "PARTIALLY_APPROVED", "DELIVERY_CONFIRMED"].includes(
+            reservation.status,
+          ) &&
+          reservation.items.some(
+            (item) =>
+              ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status) &&
+              this.canConfirmDeliveryItem(actor, reservation, item),
           ),
         canCancel:
           canManage &&
           [
             "DRAFT",
-            "PENDING",
             "PENDING_APPROVAL",
             "PARTIALLY_APPROVED",
             "APPROVED",
@@ -1576,8 +1842,6 @@ export class ReservationsService {
         canReturn:
           [
             "DELIVERY_CONFIRMED",
-            "ACTIVE",
-            "RETURN",
             "RETURN_PENDING",
             "RETURN_CONFIRMED",
             "COMPLETED",
@@ -1589,6 +1853,17 @@ export class ReservationsService {
               item.status !== "APPROVED",
           ),
       },
+      activityLogs: ((reservation as any).activityLogs ?? []).map(
+        (log: any) => ({
+          id: log.id,
+          action: log.action,
+          entityType: log.entityType,
+          entityId: log.entityId,
+          details: log.details,
+          actor: this.userDto(log.actor),
+          createdAt: log.createdAt.toISOString(),
+        }),
+      ),
       createdAt: reservation.createdAt.toISOString(),
       updatedAt: reservation.updatedAt.toISOString(),
     };
@@ -1641,7 +1916,9 @@ export class ReservationsService {
         (item) =>
           item.assetId === asset.id &&
           item.status === "PENDING" &&
-          item.reservation.status === "PENDING_APPROVAL",
+          ["PENDING_APPROVAL", "PARTIALLY_APPROVED"].includes(
+            item.reservation.status,
+          ),
       );
       const approvedQuantity = approved.reduce(
         (sum, item) => sum + item.quantity,
@@ -1752,6 +2029,15 @@ export class ReservationsService {
         "VALIDATION_ERROR",
         "The reservation end time must be after its start time.",
         { endAt: "endAt must be later than startAt." },
+      );
+    }
+    const now = new Date(Date.now() - 60_000);
+    if (startAt < now) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        "The reservation start time cannot be in the past.",
+        { startAt: "startAt must be in the future." },
       );
     }
   }
@@ -1870,9 +2156,7 @@ export class ReservationsService {
       if (!operationalAccess) this.permissionDenied();
     } else {
       const canViewGeneral =
-        hasAnyPermission(actor, "reservation:create") ||
-        hasAnyPermission(actor, "asset:view") ||
-        operationalAccess;
+        hasAnyPermission(actor, "reservation:view") || operationalAccess;
       if (!canViewGeneral) this.permissionDenied();
     }
   }

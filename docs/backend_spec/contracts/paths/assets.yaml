@@ -11,11 +11,6 @@
         schema:
           type: string
           format: uuid
-      - name: templateId
-        in: query
-        schema:
-          type: string
-          format: uuid
       - name: isActive
         in: query
         schema:
@@ -235,41 +230,6 @@
           application/json:
             schema:
               $ref: "#/components/schemas/AssetSummary"
-      "400":
-        $ref: "#/components/responses/BadRequest"
-      "401":
-        $ref: "#/components/responses/Unauthorized"
-      "403":
-        $ref: "#/components/responses/Forbidden"
-      "404":
-        $ref: "#/components/responses/NotFound"
-      "409":
-        $ref: "#/components/responses/Conflict"
-      "422":
-        $ref: "#/components/responses/ValidationError"
-/assets/{assetId}/template:
-  post:
-    tags:
-      - Assets
-      - Asset Templates
-    summary: Save asset metadata as a picture-free template
-    description: Copies name and description only. Requires asset:create in the source asset's area.
-    operationId: saveAssetAsTemplate
-    parameters:
-      - $ref: "#/components/parameters/AssetId"
-    requestBody:
-      required: false
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/SaveAssetAsTemplateRequest"
-    responses:
-      "201":
-        description: Created asset template.
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AssetTemplate"
       "400":
         $ref: "#/components/responses/BadRequest"
       "401":

@@ -95,7 +95,7 @@ export function ManagementAreasPage() {
           {areas.map((area) => (
             <article className="template-card" key={area.id}>
               <div className="template-card__icon">
-                <Building2 size={23} />
+                <Building2 size={27} />
               </div>
               <div className="template-card__main">
                 <p className="eyebrow mono">
@@ -114,7 +114,7 @@ export function ManagementAreasPage() {
                       onClick={() => setEditing(area)}
                       aria-label={`Edit ${area.name}`}
                     >
-                      <Edit3 size={15} />
+                      <Edit3 size={16} />
                       Edit
                     </Button>
                     <Button
@@ -124,7 +124,7 @@ export function ManagementAreasPage() {
                       style={{ color: "var(--red)" }}
                       aria-label={`Delete ${area.name}`}
                     >
-                      <Trash2 size={15} />
+                      <Trash2 size={16} />
                       Delete
                     </Button>
                   </div>

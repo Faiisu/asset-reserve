@@ -252,7 +252,11 @@ export function AssetFormPage() {
 
   function validate() {
     const nextFields: Record<string, string> = {};
-    if (!form.name.trim()) nextFields.name = "Asset name is required";
+    if (!form.name.trim()) {
+      nextFields.name = "Asset name is required";
+    } else if (form.name.trim().length > 40) {
+      nextFields.name = "Asset name must be 40 characters or fewer";
+    }
     if (!form.managementAreaId)
       nextFields.managementAreaId = "Select a management area";
     if (
@@ -534,14 +538,19 @@ export function AssetFormPage() {
                   <p>Enter asset information, quantity, and assign a management area.</p>
                 </div>
               </div>
-              <Field label="Asset name" required error={fields.name}>
+              <Field
+                label="Asset name"
+                required
+                hint={`${form.name.length}/40`}
+                error={fields.name}
+              >
                 <Input
                   value={form.name}
                   onChange={(event) =>
                     setForm({ ...form, name: event.target.value })
                   }
                   placeholder="For example, Sony FX3 Cinema Camera"
-                  maxLength={150}
+                  maxLength={40}
                   required
                 />
               </Field>
@@ -747,6 +756,16 @@ function BatchAssetForm({
       return;
     }
 
+    const invalidLengthIndex = rows.findIndex(
+      (row) => row.name.trim().length > 40,
+    );
+    if (invalidLengthIndex !== -1) {
+      setError(
+        `Row ${invalidLengthIndex + 1}: Asset name must be 40 characters or fewer.`,
+      );
+      return;
+    }
+
     const names = rows.map((row) => row.name.trim().toLowerCase());
     const duplicateIndex = names.findIndex((name, i) => names.indexOf(name) !== i);
     if (duplicateIndex !== -1) {
@@ -890,12 +909,19 @@ function BatchAssetForm({
             <div className="batch-row" key={row.key}>
               <div className="batch-row__header">
                 <span className="batch-row__index">{index + 1}</span>
-                <Field label="Asset name" required className="batch-row__field--name">
+                <Field
+                  label="Asset name"
+                  required
+                  hint={`${row.name.length}/40`}
+                  className="batch-row__field--name"
+                >
                   <Input
                     value={row.name}
                     onChange={(event) =>
                       update(row.key, { name: event.target.value })
                     }
+                    placeholder="Asset name"
+                    maxLength={40}
                     required
                   />
                 </Field>

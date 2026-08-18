@@ -1,10 +1,7 @@
 import {
   ArrowRight,
   ArrowLeft,
-  CalendarClock,
   Check,
-  Clock3,
-  PackageSearch,
   Plus,
   Save,
   Search,
@@ -26,9 +23,7 @@ import {
 } from "../components/ui";
 import {
   defaultReservationWindow,
-  readRecentReservations,
   rememberReservation,
-  reservationStatusLabel,
   toLocalDateTime,
 } from "../reservations";
 import type { AssetSummary } from "../types";
@@ -86,7 +81,6 @@ export function ReservationCreatePage() {
   const [error, setError] = useState<unknown>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [reservationReference, setReservationReference] = useState("");
-  const recent = useMemo(readRecentReservations, []);
   const availabilityWindow = useMemo(() => {
     const start = new Date(startAt);
     const end = new Date(endAt);
@@ -255,6 +249,11 @@ export function ReservationCreatePage() {
       setFields({ endAt: "End time must be later than start time." });
       return;
     }
+    const now = new Date(Date.now() - 60_000);
+    if (new Date(startAt) < now) {
+      setFields({ startAt: "Reservation start time cannot be in the past." });
+      return;
+    }
     setSubmitting(status);
     try {
       const result = await api.createReservation({
@@ -288,7 +287,7 @@ export function ReservationCreatePage() {
 
   if (!hasPermission("reservation:create")) {
     return (
-      <div className="page-stack reservation-page">
+      <div className="page-stack page-stack--form reservation-page">
         <div className="reservation-review-landing">
           <section className="reservation-panel">
             <div className="reservation-panel__heading">
@@ -323,14 +322,13 @@ export function ReservationCreatePage() {
               </Button>
             </form>
           </section>
-          <RecentReservations items={recent} />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="page-stack reservation-page">
+    <div className="page-stack page-stack--form reservation-page">
       <form
         className="reservation-compose"
         onSubmit={(event) => void submit(event, "PENDING_APPROVAL")}
@@ -368,6 +366,7 @@ export function ReservationCreatePage() {
                 <Input
                   type="datetime-local"
                   value={startAt}
+                  min={toLocalDateTime(new Date().toISOString())}
                   onChange={(event) => setStartAt(event.target.value)}
                   required
                 />
@@ -376,7 +375,7 @@ export function ReservationCreatePage() {
                 <Input
                   type="datetime-local"
                   value={endAt}
-                  min={startAt}
+                  min={startAt || toLocalDateTime(new Date().toISOString())}
                   onChange={(event) => setEndAt(event.target.value)}
                   required
                 />
@@ -532,92 +531,7 @@ export function ReservationCreatePage() {
             </Button>
           </div>
         </div>
-
-        <aside className="reservation-compose__rail">
-          <div className="schedule-card">
-            <p className="eyebrow eyebrow--light">Event window</p>
-            <h3>{eventName || "Untitled event"}</h3>
-            <div className="schedule-track">
-              <span>
-                <CalendarClock size={18} />
-              </span>
-              <div>
-                <small>Starts</small>
-                <strong>{formatPreviewDate(startAt)}</strong>
-              </div>
-              <i />
-              <span>
-                <Clock3 size={18} />
-              </span>
-              <div>
-                <small>Ends</small>
-                <strong>{formatPreviewDate(endAt)}</strong>
-              </div>
-            </div>
-            <div className="schedule-card__manifest">
-              <PackageSearch size={18} />
-              <span>
-                <strong>{selected.length}</strong> asset types
-              </span>
-              <span>
-                <strong>
-                  {selected.reduce(
-                    (sum, item) => sum + (item.quantity || 0),
-                    0,
-                  )}
-                </strong>{" "}
-                total units
-              </span>
-            </div>
-          </div>
-
-          <RecentReservations items={recent} />
-        </aside>
       </form>
     </div>
   );
-}
-
-function RecentReservations({
-  items,
-}: {
-  items: ReturnType<typeof readRecentReservations>;
-}) {
-  return (
-    <section className="recent-reservations">
-      <header>
-        <div>
-          <p className="eyebrow">On this device</p>
-          <h3>Recent reservations</h3>
-        </div>
-      </header>
-      {items.length ? (
-        <div>
-          {items.map((item) => (
-            <Link to={`/reservations/${item.id}`} key={item.id}>
-              <span>
-                <strong>{item.eventName}</strong>
-                <small>{reservationStatusLabel[item.status]}</small>
-              </span>
-              <ArrowRight size={16} />
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <p>Your recently opened reservations will appear here.</p>
-      )}
-    </section>
-  );
-}
-
-function formatPreviewDate(value: string) {
-  if (!value || Number.isNaN(new Date(value).getTime()))
-    return "Set a date and time";
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
 }

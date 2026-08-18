@@ -23,7 +23,6 @@ const actor: AuthenticatedActor = {
 
 const asset = {
   id: assetId,
-  assetTemplateId: null,
   managementAreaId: "00000000-0000-4000-8000-000000000301",
   createdById: null,
   name: "Stage camera",
@@ -33,7 +32,6 @@ const asset = {
   isActive: true,
   createdAt: new Date("2026-08-01T00:00:00.000Z"),
   updatedAt: new Date("2026-08-01T00:00:00.000Z"),
-  assetTemplate: null,
   managementArea: {
     id: "00000000-0000-4000-8000-000000000301",
     name: "Production",

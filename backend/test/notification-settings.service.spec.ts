@@ -35,7 +35,10 @@ const existingRow = {
 };
 
 function makeEmailService(overrides?: Partial<EmailService>): EmailService {
-  return { sendTestEmail: vi.fn().mockResolvedValue(undefined), ...overrides } as unknown as EmailService;
+  return {
+    sendTestEmail: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  } as unknown as EmailService;
 }
 
 afterEach(() => {
@@ -45,7 +48,9 @@ afterEach(() => {
 describe("NotificationSettingsService.get", () => {
   it("returns a default, unconfigured shape when no row exists yet", async () => {
     const findUnique = vi.fn().mockResolvedValue(null);
-    const prisma = { notificationSettings: { findUnique } } as unknown as PrismaService;
+    const prisma = {
+      notificationSettings: { findUnique },
+    } as unknown as PrismaService;
     const service = new NotificationSettingsService(prisma, makeEmailService());
 
     const result = await service.get();
@@ -56,7 +61,9 @@ describe("NotificationSettingsService.get", () => {
 
   it("reports smtpPasswordSet: true without ever decrypting the password", async () => {
     const findUnique = vi.fn().mockResolvedValue(existingRow);
-    const prisma = { notificationSettings: { findUnique } } as unknown as PrismaService;
+    const prisma = {
+      notificationSettings: { findUnique },
+    } as unknown as PrismaService;
     const service = new NotificationSettingsService(prisma, makeEmailService());
 
     const result = await service.get();
@@ -71,7 +78,9 @@ describe("NotificationSettingsService.get", () => {
 describe("NotificationSettingsService.update", () => {
   it("rejects the first-ever save if no App Password is provided", async () => {
     const findUnique = vi.fn().mockResolvedValue(null);
-    const prisma = { notificationSettings: { findUnique } } as unknown as PrismaService;
+    const prisma = {
+      notificationSettings: { findUnique },
+    } as unknown as PrismaService;
     const service = new NotificationSettingsService(prisma, makeEmailService());
 
     await expect(service.update(actorId, baseDto)).rejects.toThrow(
@@ -131,7 +140,10 @@ describe("NotificationSettingsService.update", () => {
     } as unknown as PrismaService;
     const service = new NotificationSettingsService(prisma, makeEmailService());
 
-    await service.update(actorId, { ...baseDto, smtpPassword: "rotated-password" });
+    await service.update(actorId, {
+      ...baseDto,
+      smtpPassword: "rotated-password",
+    });
 
     expect(encryptSecret).toHaveBeenCalledWith("rotated-password");
     expect(upsert).toHaveBeenCalledWith(
@@ -148,7 +160,10 @@ describe("NotificationSettingsService.sendTest", () => {
   it("delegates to EmailService.sendTestEmail with the actor's own email", async () => {
     const sendTestEmail = vi.fn().mockResolvedValue(undefined);
     const prisma = {} as unknown as PrismaService;
-    const service = new NotificationSettingsService(prisma, makeEmailService({ sendTestEmail }));
+    const service = new NotificationSettingsService(
+      prisma,
+      makeEmailService({ sendTestEmail }),
+    );
 
     await service.sendTest(actorEmail);
 
@@ -158,7 +173,10 @@ describe("NotificationSettingsService.sendTest", () => {
   it("wraps a send failure into a clean ApiException instead of leaking the raw error", async () => {
     const sendTestEmail = vi.fn().mockRejectedValue(new Error("Invalid login"));
     const prisma = {} as unknown as PrismaService;
-    const service = new NotificationSettingsService(prisma, makeEmailService({ sendTestEmail }));
+    const service = new NotificationSettingsService(
+      prisma,
+      makeEmailService({ sendTestEmail }),
+    );
 
     await expect(service.sendTest(actorEmail)).rejects.toThrow("Invalid login");
   });

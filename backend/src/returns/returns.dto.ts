@@ -14,7 +14,10 @@ import {
   ValidateIf,
   ValidateNested,
 } from "class-validator";
-import { SearchPaginationQueryDto, parseOptionalBoolean } from "../common/dto.js";
+import {
+  SearchPaginationQueryDto,
+  parseOptionalBoolean,
+} from "../common/dto.js";
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === "string" ? value.trim() : value;
@@ -44,6 +47,13 @@ export class CreateReturnItemDto {
   @IsString()
   @MaxLength(2_000)
   description?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_object, value) => value !== null && value !== undefined)
+  @Transform(trim)
+  @IsString()
+  @MaxLength(1000)
+  photoUrl?: string | null;
 }
 
 export class CreateReturnDto {
@@ -53,6 +63,13 @@ export class CreateReturnDto {
   @ValidateNested({ each: true })
   @Type(() => CreateReturnItemDto)
   items!: CreateReturnItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @MaxLength(1000, { each: true })
+  photoUrls?: string[];
 
   @IsOptional()
   @ValidateIf((_object, value) => value !== null && value !== undefined)
@@ -92,6 +109,13 @@ export class DecideReturnItemDto {
   @IsString()
   @MaxLength(2_000)
   description?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_object, value) => value !== null && value !== undefined)
+  @Transform(trim)
+  @IsString()
+  @MaxLength(1000)
+  photoUrl?: string | null;
 }
 
 export class ReturnDecisionDto {

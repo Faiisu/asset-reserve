@@ -21,12 +21,16 @@ import type {
 } from "./assets.dto.js";
 
 const assetInclude = {
-  assetTemplate: true,
   managementArea: true,
   createdBy: { include: { profile: true } },
 } satisfies Prisma.AssetInclude;
 
-const allocatedItemStatuses = ["APPROVED", "PREPARED", "CHECKED_OUT", "DELIVERED"];
+const allocatedItemStatuses = [
+  "APPROVED",
+  "PREPARED",
+  "CHECKED_OUT",
+  "DELIVERED",
+];
 const allocatedReservationStatuses = [
   "PARTIALLY_APPROVED",
   "APPROVED",
@@ -68,12 +72,9 @@ export class AssetsService {
       conditions.push({ managementAreaId: { in: allowedAreaIds } });
     }
     if (query.areaId) conditions.push({ managementAreaId: query.areaId });
-    if (query.templateId)
-      conditions.push({ assetTemplateId: query.templateId });
     if (query.isActive !== undefined)
       conditions.push({ isActive: query.isActive });
-    if (query.status !== undefined)
-      conditions.push({ status: query.status });
+    if (query.status !== undefined) conditions.push({ status: query.status });
     if (query.search) {
       conditions.push({
         OR: [
@@ -193,7 +194,6 @@ export class AssetsService {
 
     const prepared = input.items.map((item) => ({
       id: randomUUID(),
-      assetTemplateId: item.assetTemplateId ?? null,
       managementAreaId: item.managementAreaId,
       createdById: actor.user.id,
       name: item.name,
@@ -271,10 +271,6 @@ export class AssetsService {
     await this.assertReferences([
       {
         managementAreaId: input.managementAreaId ?? current.managementAreaId,
-        assetTemplateId:
-          input.assetTemplateId === undefined
-            ? current.assetTemplateId
-            : input.assetTemplateId,
       },
     ]);
     try {
@@ -287,9 +283,6 @@ export class AssetsService {
           ...(input.name !== undefined ? { name: input.name } : {}),
           ...(input.managementAreaId !== undefined
             ? { managementAreaId: input.managementAreaId }
-            : {}),
-          ...(input.assetTemplateId !== undefined
-            ? { assetTemplateId: input.assetTemplateId }
             : {}),
           ...(input.description !== undefined
             ? { description: input.description }
@@ -319,7 +312,8 @@ export class AssetsService {
       current.managementAreaId,
     );
     const isActive = input.status === "ACTIVE";
-    const status = input.status === "INACTIVE" ? (current.status || "ACTIVE") : input.status;
+    const status =
+      input.status === "INACTIVE" ? current.status || "ACTIVE" : input.status;
     const result = await this.prisma.asset.updateMany({
       where: { id: assetId, updatedAt: new Date(input.expectedUpdatedAt) },
       data: {
@@ -464,41 +458,18 @@ export class AssetsService {
   private async assertReferences(
     items: Array<{
       managementAreaId: string;
-      assetTemplateId?: string | null;
     }>,
   ) {
     const areaIds = [...new Set(items.map((item) => item.managementAreaId))];
-    const templateIds = [
-      ...new Set(
-        items.flatMap((item) =>
-          item.assetTemplateId ? [item.assetTemplateId] : [],
-        ),
-      ),
-    ];
-    const [areas, templates] = await Promise.all([
-      this.prisma.managementArea.findMany({
-        where: { id: { in: areaIds } },
-        select: { id: true },
-      }),
-      templateIds.length
-        ? this.prisma.assetTemplate.findMany({
-            where: { id: { in: templateIds } },
-            select: { id: true },
-          })
-        : Promise.resolve([]),
-    ]);
+    const areas = await this.prisma.managementArea.findMany({
+      where: { id: { in: areaIds } },
+      select: { id: true },
+    });
     if (areas.length !== areaIds.length) {
       throw new ApiException(
         404,
         "MANAGEMENT_AREA_NOT_FOUND",
         "One or more management areas were not found.",
-      );
-    }
-    if (templates.length !== templateIds.length) {
-      throw new ApiException(
-        404,
-        "ASSET_TEMPLATE_NOT_FOUND",
-        "One or more asset templates were not found.",
       );
     }
   }
@@ -536,17 +507,7 @@ export class AssetsService {
       availableQuantity: Math.max(asset.totalQuantity - allocatedQuantity, 0),
       isActive: asset.isActive,
       status: (asset.status ?? (asset.isActive ? "ACTIVE" : "INACTIVE")) as
-        | "ACTIVE"
-        | "BROKEN"
-        | "LOST"
-        | "INACTIVE",
-      assetTemplate: asset.assetTemplate
-        ? {
-            id: asset.assetTemplate.id,
-            name: asset.assetTemplate.name,
-            description: asset.assetTemplate.description,
-          }
-        : null,
+        "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE",
       managementArea: {
         id: asset.managementArea.id,
         name: asset.managementArea.name,

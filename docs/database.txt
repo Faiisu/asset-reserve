@@ -169,28 +169,12 @@ Table user_roles {
 
 
 // =====================================================
-// ASSET TEMPLATE
-// =====================================================
-
-Table asset_templates {
-  id uuid [pk]
-
-  name varchar(150) [not null, unique]
-  description text
-
-  created_at timestamptz [not null, default: `now()`]
-  updated_at timestamptz [not null, default: `now()`]
-}
-
-
-// =====================================================
 // ASSETS
 // =====================================================
 
 Table assets {
   id uuid [pk]
 
-  asset_template_id uuid
   management_area_id uuid [not null]
 
   name varchar(150) [not null]
@@ -527,7 +511,6 @@ Ref: user_roles.assigned_by > users.id
 
 // ASSET
 
-Ref: assets.asset_template_id > asset_templates.id
 Ref: assets.management_area_id > management_areas.id
 
 

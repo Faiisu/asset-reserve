@@ -2,16 +2,20 @@ import {
   ArchiveX,
   ArrowDownToLine,
   ArrowUpFromLine,
+  Boxes,
+  ChevronDown,
   Eye,
   Filter,
   Plus,
   Search,
   SlidersHorizontal,
+  UserRound,
 } from "lucide-react";
 import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -21,7 +25,6 @@ import { useAuth } from "../auth";
 import {
   AssetPicture,
   Button,
-  CheckboxDropdownFilter,
   Dialog,
   EmptyState,
   ErrorState,
@@ -31,12 +34,13 @@ import {
   Select,
   StatusBadge,
   Textarea,
-  WorkspaceCheckboxFilter,
   apiError,
   cx,
   formatDate,
 } from "../components/ui";
 import type { AssetSummary, ManagementArea } from "../types";
+
+type AssetView = "ALL" | "MINE";
 
 interface Filters {
   search: string;
@@ -44,13 +48,32 @@ interface Filters {
   statuses: string[];
 }
 
+const assetStatusOptions = [
+  { value: "ACTIVE", label: "Active", colorClass: "asset-status-swatch--active" },
+  { value: "BROKEN", label: "Broken", colorClass: "asset-status-swatch--broken" },
+  { value: "LOST", label: "Lost", colorClass: "asset-status-swatch--lost" },
+  { value: "INACTIVE", label: "Inactive", colorClass: "asset-status-swatch--inactive" },
+];
+
+export function getNormalizedAssetStatus(asset: {
+  status?: string | null;
+  isActive: boolean;
+}): "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE" {
+  const s = (asset.status ?? "").toUpperCase();
+  if (s === "BROKEN") return "BROKEN";
+  if (s === "LOST") return "LOST";
+  if (!asset.isActive || s === "INACTIVE") return "INACTIVE";
+  return "ACTIVE";
+}
+
 export function AssetsPage() {
-  const { hasPermission } = useAuth();
+  const { session, hasPermission, hasAreaPermission } = useAuth();
+  const [view, setView] = useState<AssetView>("ALL");
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [filters, setFilters] = useState<Filters>({
     search: "",
     areaIds: [],
-    statuses: ["ACTIVE"],
+    statuses: [],
   });
   const [draftSearch, setDraftSearch] = useState("");
   const [assets, setAssets] = useState<AssetSummary[]>([]);
@@ -65,22 +88,100 @@ export function AssetsPage() {
   >(null);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    const onPointerDown = (event: globalThis.PointerEvent) => {
+      if (!filterRef.current?.contains(event.target as Node)) {
+        setFilterOpen(false);
+      }
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setFilterOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [filterOpen]);
+
+  const isAssetEditable = useCallback(
+    (asset: AssetSummary) =>
+      Boolean(
+        asset.capabilities.canEdit ||
+        asset.capabilities.canAdjustQuantity ||
+        asset.capabilities.canDeactivate ||
+        (hasAreaPermission &&
+          hasAreaPermission("asset:update", asset.managementArea.id)) ||
+        (hasAreaPermission &&
+          hasAreaPermission("asset:delete", asset.managementArea.id)),
+      ),
+    [hasAreaPermission],
+  );
+
+  const isMyAsset = useCallback(
+    (asset: AssetSummary) => {
+      const isOwner = Boolean(
+        session?.user?.id && asset.owner?.id === session.user.id,
+      );
+      const isEditable = isAssetEditable(asset);
+      return isOwner || isEditable;
+    },
+    [session?.user?.id, isAssetEditable],
+  );
+
+  const displayAssets = useMemo(() => {
+    let filtered = assets;
+    if (view === "MINE") {
+      filtered = filtered.filter(isMyAsset);
+    }
+    return [...filtered].sort((a, b) => {
+      const aEditable = isAssetEditable(a);
+      const bEditable = isAssetEditable(b);
+      if (aEditable && !bEditable) return -1;
+      if (!aEditable && bEditable) return 1;
+      const dateA = new Date(a.updatedAt).getTime();
+      const dateB = new Date(b.updatedAt).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+      return a.name.localeCompare(b.name);
+    });
+  }, [assets, isAssetEditable, isMyAsset, view]);
 
   const load = useCallback(
     async (cursor?: string, append = false) => {
       append ? setLoadingMore(true) : setLoading(true);
       setError(null);
       try {
+        const singleStatus =
+          filters.statuses.length === 1
+            ? filters.statuses[0].toUpperCase()
+            : undefined;
+
+        let apiStatus: "ACTIVE" | "BROKEN" | "LOST" | undefined = undefined;
+        let apiIsActive: boolean | undefined = undefined;
+
+        if (singleStatus === "ACTIVE") {
+          apiStatus = "ACTIVE";
+          apiIsActive = true;
+        } else if (singleStatus === "BROKEN") {
+          apiStatus = "BROKEN";
+        } else if (singleStatus === "LOST") {
+          apiStatus = "LOST";
+        } else if (singleStatus === "INACTIVE") {
+          apiIsActive = false;
+        }
+
         const response = await api.assets({
           search: filters.search || undefined,
           areaId: filters.areaIds.length === 1 ? filters.areaIds[0] : undefined,
-          status:
-            filters.statuses.length === 1 &&
-            ["ACTIVE", "BROKEN", "LOST"].includes(filters.statuses[0].toUpperCase())
-              ? (filters.statuses[0].toUpperCase() as "ACTIVE" | "BROKEN" | "LOST")
-              : undefined,
+          status: apiStatus,
+          isActive: apiIsActive,
           cursor,
-          limit: 20,
+          limit: 50,
         });
         let list = response.data;
         if (filters.areaIds.length > 1) {
@@ -89,14 +190,12 @@ export function AssetsPage() {
           );
         }
         if (filters.statuses.length > 0) {
+          const selectedStatuses = new Set(
+            filters.statuses.map((s) => s.toUpperCase()),
+          );
           list = list.filter((asset) => {
-            const assetStatus = (asset.status || (asset.isActive ? "ACTIVE" : "INACTIVE")).toUpperCase();
-            return filters.statuses.some(
-              (s) =>
-                s.toUpperCase() === assetStatus ||
-                (s.toLowerCase() === "active" && asset.isActive && assetStatus === "ACTIVE") ||
-                (s.toLowerCase() === "inactive" && !asset.isActive),
-            );
+            const assetStatus = getNormalizedAssetStatus(asset);
+            return selectedStatuses.has(assetStatus);
           });
         }
         setAssets((current) =>
@@ -127,10 +226,10 @@ export function AssetsPage() {
   }, []);
 
   const selectedAssets = useMemo(
-    () => assets.filter((asset) => selected.includes(asset.id)),
-    [assets, selected],
+    () => displayAssets.filter((asset) => selected.includes(asset.id)),
+    [displayAssets, selected],
   );
-  const selectable = assets.filter(
+  const selectable = displayAssets.filter(
     (asset) =>
       asset.capabilities.canAdjustQuantity || asset.capabilities.canDeactivate,
   );
@@ -181,13 +280,48 @@ export function AssetsPage() {
     }
   }
 
+  const totalFilterCount = filters.areaIds.length + filters.statuses.length;
+  const hasActiveFilters = totalFilterCount > 0;
+
   return (
     <div className="page-stack">
       {notice && <Notice>{notice}</Notice>}
 
+      <div
+        className="asset-view-tabs"
+        role="tablist"
+        aria-label="Asset view"
+      >
+        <button
+          role="tab"
+          aria-selected={view === "ALL"}
+          className={cx(view === "ALL" && "is-active")}
+          onClick={() => setView("ALL")}
+        >
+          <Boxes size={16} /> All assets
+        </button>
+        <button
+          role="tab"
+          aria-selected={view === "MINE"}
+          className={cx(view === "MINE" && "is-active")}
+          onClick={() => setView("MINE")}
+        >
+          <UserRound size={16} /> My assets
+        </button>
+        {hasPermission("asset:create") && (
+          <Link
+            style={{ marginLeft: "auto" }}
+            className="button button--primary button--sm"
+            to="/assets/new"
+          >
+            <Plus size={16} /> Add asset
+          </Link>
+        )}
+      </div>
+
       <section className="toolbar" aria-label="Asset filters">
         <form className="search-box" onSubmit={submitSearch}>
-          <Search size={18} aria-hidden />
+          <Search size={17} />
           <input
             value={draftSearch}
             onChange={(event) => setDraftSearch(event.target.value)}
@@ -197,48 +331,227 @@ export function AssetsPage() {
           <button type="submit">Search</button>
         </form>
         <div className="toolbar__filters">
-          <span className="toolbar__filter-label">
-            <Filter size={15} />
-            Filters
-          </span>
-          <WorkspaceCheckboxFilter
-            areas={areas}
-            selectedIds={filters.areaIds}
-            onChange={(ids) =>
-              setFilters((current) => ({
-                ...current,
-                areaIds: ids,
-              }))
-            }
-          />
-          <CheckboxDropdownFilter
-            label="Statuses"
-            allLabel="All statuses"
-            options={[
-              { value: "ACTIVE", label: "Active" },
-              { value: "BROKEN", label: "Broken" },
-              { value: "LOST", label: "Lost" },
-              { value: "INACTIVE", label: "Inactive" },
-            ]}
-            selectedValues={filters.statuses}
-            onChange={(statuses) =>
-              setFilters((current) => ({
-                ...current,
-                statuses,
-              }))
-            }
-            ariaLabel="Filter statuses"
-          />
+          <div className="calendar-filter-picker" ref={filterRef}>
+            <button
+              id="asset-filter-toggle"
+              type="button"
+              className={cx(
+                "calendar-filter-btn",
+                (hasActiveFilters || filterOpen) && "calendar-filter-btn--active",
+              )}
+              onClick={() => setFilterOpen((prev) => !prev)}
+              aria-haspopup="dialog"
+              aria-expanded={filterOpen}
+              aria-label="Filter assets by workspace and status"
+              title={
+                hasActiveFilters
+                  ? `${totalFilterCount} filter${totalFilterCount > 1 ? "s" : ""} applied`
+                  : "Filter by workspace and status"
+              }
+            >
+              <Filter size={13} />
+              <span>Filters</span>
+              {hasActiveFilters && (
+                <span className="calendar-filter-btn__badge">
+                  {totalFilterCount}
+                </span>
+              )}
+              <ChevronDown
+                size={14}
+                className={cx(
+                  "calendar-filter-btn__chevron",
+                  filterOpen && "calendar-filter-btn__chevron--open",
+                )}
+                aria-hidden
+              />
+            </button>
+
+            {filterOpen && (
+              <div
+                className="calendar-filter-popover"
+                role="dialog"
+                aria-label="Filter assets"
+              >
+                <div className="calendar-filter-popover__top">
+                  <div className="calendar-filter-popover__title">
+                    <Filter size={13} />
+                    <strong>Filters</strong>
+                  </div>
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      className="calendar-filter-popover__reset"
+                      onClick={() => {
+                        setFilters((current) => ({
+                          ...current,
+                          areaIds: [],
+                          statuses: [],
+                        }));
+                      }}
+                    >
+                      Clear all
+                    </button>
+                  )}
+                </div>
+
+                <div className="calendar-filter-popover__columns">
+                  <section className="calendar-filter-popover__section">
+                    <div className="calendar-filter-popover__section-header">
+                      <span>Workspaces</span>
+                      <div className="calendar-filter-popover__actions">
+                        <button
+                          type="button"
+                          className="calendar-filter-popover__action"
+                          onClick={() =>
+                            setFilters((current) => ({
+                              ...current,
+                              areaIds: [],
+                            }))
+                          }
+                        >
+                          All
+                        </button>
+                        {filters.areaIds.length > 0 && (
+                          <button
+                            type="button"
+                            className="calendar-filter-popover__action"
+                            onClick={() =>
+                              setFilters((current) => ({
+                                ...current,
+                                areaIds: [],
+                              }))
+                            }
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="calendar-filter-popover__list">
+                      {areas.length === 0 ? (
+                        <p className="calendar-filter-popover__empty">
+                          No workspaces found
+                        </p>
+                      ) : (
+                        areas.map((area) => {
+                          const checked = filters.areaIds.includes(area.id);
+                          return (
+                            <label
+                              key={area.id}
+                              className={cx(
+                                "workspace-filter-checkbox-item",
+                                checked &&
+                                  "workspace-filter-checkbox-item--checked",
+                              )}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setFilters((current) => ({
+                                    ...current,
+                                    areaIds: current.areaIds.includes(area.id)
+                                      ? current.areaIds.filter(
+                                          (id) => id !== area.id,
+                                        )
+                                      : [...current.areaIds, area.id],
+                                  }));
+                                }}
+                                aria-label={area.name}
+                              />
+                              <span className="workspace-filter-checkbox-item__name">
+                                {area.name}
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="calendar-filter-popover__section">
+                    <div className="calendar-filter-popover__section-header">
+                      <span>Statuses</span>
+                      <div className="calendar-filter-popover__actions">
+                        <button
+                          type="button"
+                          className="calendar-filter-popover__action"
+                          onClick={() =>
+                            setFilters((current) => ({
+                              ...current,
+                              statuses: [],
+                            }))
+                          }
+                        >
+                          All
+                        </button>
+                        {filters.statuses.length > 0 && (
+                          <button
+                            type="button"
+                            className="calendar-filter-popover__action"
+                            onClick={() =>
+                              setFilters((current) => ({
+                                ...current,
+                                statuses: [],
+                              }))
+                            }
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="calendar-filter-popover__list">
+                      {assetStatusOptions.map((option) => {
+                        const checked = filters.statuses.includes(option.value);
+                        return (
+                          <label
+                            key={option.value}
+                            className={cx(
+                              "workspace-filter-checkbox-item",
+                              checked &&
+                                "workspace-filter-checkbox-item--checked",
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                setFilters((current) => ({
+                                  ...current,
+                                  statuses: current.statuses.includes(
+                                    option.value,
+                                  )
+                                    ? current.statuses.filter(
+                                        (val) => val !== option.value,
+                                      )
+                                    : [...current.statuses, option.value],
+                                }));
+                              }}
+                              aria-label={option.label}
+                            />
+                            {option.colorClass ? (
+                              <i
+                                className={cx(
+                                  "workspace-filter-checkbox-item__swatch",
+                                  option.colorClass,
+                                )}
+                                aria-hidden
+                              />
+                            ) : null}
+                            <span className="workspace-filter-checkbox-item__name">
+                              {option.label}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </section>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-        {hasPermission("asset:create") && (
-          <Link
-            className="button button--primary button--md"
-            to="/assets/new"
-          >
-            <Plus size={17} />
-            Add asset
-          </Link>
-        )}
       </section>
 
       {selected.length > 0 && (
@@ -289,13 +602,17 @@ export function AssetsPage() {
         <AssetTableSkeleton />
       ) : error ? (
         <ErrorState error={error} onRetry={() => void load()} />
-      ) : assets.length === 0 ? (
+      ) : displayAssets.length === 0 ? (
         <EmptyState
-          title="No assets found"
+          title={
+            view === "MINE" ? "No managed assets found" : "No assets found"
+          }
           description={
-            filters.search || filters.areaIds.length > 0
-              ? "Try changing your search or filters."
-              : "Start by adding the first asset in your area."
+            view === "MINE"
+              ? "You do not own or manage any assets matching the current filters."
+              : filters.search || filters.areaIds.length > 0
+                ? "Try changing your search or filters."
+                : "Start by adding the first asset in your area."
           }
           action={
             hasPermission("asset:create") ? (
@@ -333,7 +650,7 @@ export function AssetsPage() {
                 </tr>
               </thead>
               <tbody>
-                {assets.map((asset) => {
+                {displayAssets.map((asset) => {
                   const isSelectable =
                     asset.capabilities.canAdjustQuantity ||
                     asset.capabilities.canDeactivate;
@@ -403,7 +720,7 @@ export function AssetsPage() {
                           className="button button--secondary button--sm"
                           to={`/assets/${asset.id}`}
                         >
-                          <Eye size={15} /> View
+                          <Eye size={17} /> View
                         </Link>
                       </td>
                     </tr>
@@ -413,7 +730,7 @@ export function AssetsPage() {
             </table>
           </div>
           <div className="asset-card-list">
-            {assets.map((asset) => {
+            {displayAssets.map((asset) => {
               const isSelectable =
                 asset.capabilities.canAdjustQuantity ||
                 asset.capabilities.canDeactivate;
@@ -465,7 +782,7 @@ export function AssetsPage() {
                       className="button button--secondary button--sm"
                       to={`/assets/${asset.id}`}
                     >
-                      <Eye size={15} /> View
+                      <Eye size={17} /> View
                     </Link>
                   </div>
                 </article>
@@ -670,18 +987,10 @@ function AssetMasterStatusBadge({
   status,
   isActive,
 }: {
-  status?: string;
+  status?: string | null;
   isActive: boolean;
 }) {
-  const normStatus = (status || (isActive ? "ACTIVE" : "INACTIVE")).toUpperCase();
-  if (!isActive || normStatus === "INACTIVE") {
-    return (
-      <span className="status-badge status-badge--inactive">
-        <span />
-        Disabled
-      </span>
-    );
-  }
+  const normStatus = getNormalizedAssetStatus({ status, isActive });
   if (normStatus === "BROKEN") {
     return (
       <span className="status-badge status-badge--broken">
@@ -695,6 +1004,14 @@ function AssetMasterStatusBadge({
       <span className="status-badge status-badge--lost">
         <span />
         Lost
+      </span>
+    );
+  }
+  if (normStatus === "INACTIVE") {
+    return (
+      <span className="status-badge status-badge--inactive">
+        <span />
+        Inactive
       </span>
     );
   }

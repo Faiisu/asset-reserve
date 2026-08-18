@@ -23,6 +23,7 @@ const titles: Array<[string, string]> = [
   ["/reservations/new", "New reservation"],
   ["/reservations/", "Reservation details"],
   ["/reservations", "Reservations"],
+  ["/approvals", "Approval request"],
   ["/assets/new", "Add asset"],
   ["/assets/", "Asset details"],
   ["/assets", "Asset registry"],
@@ -76,9 +77,16 @@ export function AppShell() {
       show: [
         "reservation:create",
         "reservation:update",
-        "reservation:approve",
-        "reservation:reject",
+        "reservation:view",
       ].some((permission) => hasPermission(permission as "reservation:create")),
+    },
+    {
+      to: "/approvals",
+      label: "Approval request",
+      icon: ShieldCheck,
+      show:
+        hasPermission("reservation:approve") ||
+        hasPermission("reservation:reject"),
     },
     {
       to: "/admin/areas",
@@ -154,17 +162,6 @@ export function AppShell() {
               </NavLink>
             ))}
         </nav>
-        <div className="sidebar__scope">
-          <span className="scope-pulse" aria-hidden />
-          <div>
-            <small>Access scope</small>
-            <strong>
-              {session?.roles.some((role) => !role.managementArea)
-                ? "All areas"
-                : `${session?.effectivePermissions.byManagementArea.length ?? 0} areas`}
-            </strong>
-          </div>
-        </div>
       </aside>
 
       <div className="app-main">

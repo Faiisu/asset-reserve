@@ -31,7 +31,6 @@ const returnDetailInclude = {
           asset: {
             include: {
               managementArea: true,
-              assetTemplate: true,
             },
           },
         },
@@ -150,7 +149,11 @@ export class ReturnsService {
       const search = query.search.trim();
       conditions.push({
         OR: [
-          { reservation: { eventName: { contains: search, mode: "insensitive" } } },
+          {
+            reservation: {
+              eventName: { contains: search, mode: "insensitive" },
+            },
+          },
           {
             items: {
               some: {
@@ -183,7 +186,7 @@ export class ReturnsService {
 
     const hasNextPage = rows.length > limit;
     const data = hasNextPage ? rows.slice(0, limit) : rows;
-    const nextCursor = hasNextPage ? data[data.length - 1]?.id ?? null : null;
+    const nextCursor = hasNextPage ? (data[data.length - 1]?.id ?? null) : null;
 
     return {
       data: data.map((record) => this.returnDto(actor, record)),
@@ -197,7 +200,11 @@ export class ReturnsService {
       include: returnDetailInclude,
     });
     if (!record) {
-      throw new ApiException(404, "RETURN_NOT_FOUND", "The return was not found.");
+      throw new ApiException(
+        404,
+        "RETURN_NOT_FOUND",
+        "The return was not found.",
+      );
     }
     return this.returnDto(actor, record);
   }
@@ -241,7 +248,11 @@ export class ReturnsService {
       "RETURN_CONFIRMED",
       "COMPLETED",
     ];
-    if (!allowedReservationStatuses.includes(reservation.status)) {
+    const isPastEndAt = new Date() >= new Date(reservation.endAt);
+    if (
+      !allowedReservationStatuses.includes(reservation.status) &&
+      !isPastEndAt
+    ) {
       throw new ApiException(
         409,
         "INVALID_STATUS",
@@ -279,7 +290,9 @@ export class ReturnsService {
           404,
           "RESERVATION_ITEM_NOT_FOUND",
           `Reservation item ${line.reservationItemId} not found in this reservation.`,
-          { [`items.${i}.reservationItemId`]: "Item not found in reservation." },
+          {
+            [`items.${i}.reservationItemId`]: "Item not found in reservation.",
+          },
         );
       }
 
@@ -394,6 +407,8 @@ export class ReturnsService {
           returnedBy: actor.user.id,
           status: "PENDING",
           returnedAt: now,
+          photoUrls: input.photoUrls ?? [],
+          note: input.note ?? null,
           items: {
             create: input.items.map((line) => ({
               id: randomUUID(),
@@ -402,6 +417,7 @@ export class ReturnsService {
               quantityBroken: line.quantityBroken ?? 0,
               quantityLost: line.quantityLost ?? 0,
               description: line.description ?? input.note ?? null,
+              photoUrl: line.photoUrl ?? null,
             })),
           },
           approval: {
@@ -413,6 +429,15 @@ export class ReturnsService {
             },
           },
         },
+      });
+
+      await this.logActivity(tx, {
+        reservationId,
+        actorId: actor.user.id,
+        action: "RETURN_SUBMITTED",
+        entityType: "RETURN",
+        entityId: returnId,
+        details: { note: input.note ?? null, itemCount: input.items.length },
       });
     });
 
@@ -783,6 +808,16 @@ export class ReturnsService {
           },
         });
       }
+
+      await this.logActivity(tx, {
+        reservationId,
+        actorId: actor.user.id,
+        action:
+          input.decision === "APPROVE" ? "RETURN_APPROVED" : "RETURN_REJECTED",
+        entityType: "RETURN",
+        entityId: returnId,
+        details: { description: input.description ?? null },
+      });
     });
 
     const detail = await this.get(actor, returnId);
@@ -814,6 +849,8 @@ export class ReturnsService {
       id: record.id,
       reservationId: record.reservationId,
       status: record.status,
+      photoUrls: record.photoUrls ?? [],
+      note: record.note ?? null,
       returnedAt: record.returnedAt?.toISOString() ?? null,
       returnedBy: this.userDto(record.returner),
       reservation: {
@@ -826,6 +863,7 @@ export class ReturnsService {
         reservationItemId: item.reservationItemId,
         assetId: item.reservationItem.asset.id,
         assetName: item.reservationItem.asset.name,
+        photoUrl: item.photoUrl ?? null,
         managementArea: {
           id: item.reservationItem.asset.managementArea.id,
           name: item.reservationItem.asset.managementArea.name,
@@ -913,5 +951,33 @@ export class ReturnsService {
       name: user.profile?.name ?? null,
       profilePictureUrl: user.profile?.profilePictureUrl ?? null,
     };
+  }
+
+  private async logActivity(
+    tx: Prisma.TransactionClient | PrismaService,
+    data: {
+      reservationId?: string;
+      actorId: string;
+      action: string;
+      entityType: string;
+      entityId?: string;
+      details?: Prisma.InputJsonValue;
+    },
+  ) {
+    try {
+      await tx.activityLog.create({
+        data: {
+          id: randomUUID(),
+          reservationId: data.reservationId ?? null,
+          actorId: data.actorId,
+          action: data.action,
+          entityType: data.entityType,
+          entityId: data.entityId ?? null,
+          details: data.details ?? Prisma.JsonNull,
+        },
+      });
+    } catch {
+      // Non-blocking activity log
+    }
   }
 }

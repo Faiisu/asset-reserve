@@ -27,8 +27,10 @@ model User {
   reservationApprovals        ReservationItemApproval[]
   requestedChanges            ReservationChangeRequest[] @relation("ReservationChangeRequestedBy")
   reviewedChanges             ReservationChangeRequest[] @relation("ReservationChangeReviewedBy")
+  reservationHandovers        ReservationHandover[]      @relation("ReservationHandoverHandledBy")
   returns                     Return[]                   @relation("ReturnReturnedBy")
   returnApprovals             ReturnApproval[]
+  activityLogs                ActivityLog[]              @relation("UserActivityLogs")
   updatedNotificationSettings NotificationSettings[]
   updatedEmailTemplates       EmailTemplate[]
 

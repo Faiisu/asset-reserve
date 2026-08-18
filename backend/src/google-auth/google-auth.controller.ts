@@ -4,9 +4,16 @@ import type { FastifyReply } from "fastify";
 import { appConfig } from "../config.js";
 import { ApiException } from "../common/api-exception.js";
 import { PrismaService } from "../database/prisma.service.js";
-import { CurrentActor, Public, SkipAccountLinkCheck } from "../auth/auth.decorators.js";
+import {
+  CurrentActor,
+  Public,
+  SkipAccountLinkCheck,
+} from "../auth/auth.decorators.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
-import type { ExternalIdentity, ExternalState } from "../auth/external-identity.js";
+import type {
+  ExternalIdentity,
+  ExternalState,
+} from "../auth/external-identity.js";
 import { ExternalIdentitySessionService } from "../auth/external-identity-session.service.js";
 import { GoogleCallbackQueryDto } from "./google-auth.dto.js";
 import { GoogleAuthService } from "./google-auth.service.js";
@@ -43,13 +50,17 @@ export class GoogleAuthController {
 
   @SkipAccountLinkCheck()
   @Get("connect")
-  async connect(@CurrentActor() actor: AuthenticatedActor): Promise<{ url: string }> {
+  async connect(
+    @CurrentActor() actor: AuthenticatedActor,
+  ): Promise<{ url: string }> {
     this.assertConfigured();
     const signed = await this.session.signState({
       purpose: "connect",
       userId: actor.user.id,
     });
-    return { url: this.googleAuth.buildAuthUrl(SCOPE, signed, { forceConsent: true }) };
+    return {
+      url: this.googleAuth.buildAuthUrl(SCOPE, signed, { forceConsent: true }),
+    };
   }
 
   @Public()
@@ -64,14 +75,23 @@ export class GoogleAuthController {
   @Public()
   @SkipAccountLinkCheck()
   @Get("callback")
-  async callback(@Query() query: GoogleCallbackQueryDto, @Res() reply: FastifyReply) {
+  async callback(
+    @Query() query: GoogleCallbackQueryDto,
+    @Res() reply: FastifyReply,
+  ) {
     const frontendBaseUrl = appConfig.frontendBaseUrl();
     if (!appConfig.googleAuth()) {
-      this.redirect(reply, `${frontendBaseUrl}/login?googleError=google_not_configured`);
+      this.redirect(
+        reply,
+        `${frontendBaseUrl}/login?googleError=google_not_configured`,
+      );
       return;
     }
     if (query.error || !query.code || !query.state) {
-      this.redirect(reply, `${frontendBaseUrl}/login?googleError=google_failed`);
+      this.redirect(
+        reply,
+        `${frontendBaseUrl}/login?googleError=google_failed`,
+      );
       return;
     }
 
@@ -79,7 +99,10 @@ export class GoogleAuthController {
     try {
       state = await this.session.verifyState(query.state);
     } catch {
-      this.redirect(reply, `${frontendBaseUrl}/login?googleError=google_failed`);
+      this.redirect(
+        reply,
+        `${frontendBaseUrl}/login?googleError=google_failed`,
+      );
       return;
     }
 
@@ -87,14 +110,21 @@ export class GoogleAuthController {
       const identity = await this.googleAuth.exchangeCode(query.code);
       if (state.purpose === "connect") {
         await this.handleConnect(state.userId, identity);
-        this.redirect(reply, `${frontendBaseUrl}/connect-account/callback?ok=1`);
+        this.redirect(
+          reply,
+          `${frontendBaseUrl}/connect-account/callback?ok=1`,
+        );
         return;
       }
       await this.handleLogin(identity, reply, frontendBaseUrl);
     } catch (error) {
       console.warn("[google-auth] callback failed:", error);
-      const target = state.purpose === "connect" ? "/connect-account" : "/login";
-      this.redirect(reply, `${frontendBaseUrl}${target}?googleError=google_failed`);
+      const target =
+        state.purpose === "connect" ? "/connect-account" : "/login";
+      this.redirect(
+        reply,
+        `${frontendBaseUrl}${target}?googleError=google_failed`,
+      );
     }
   }
 
@@ -104,7 +134,10 @@ export class GoogleAuthController {
    * extras, not conditions for success (a cosmetic email conflict must
    * never leave a user stuck unable to satisfy the mandatory-link gate).
    */
-  private async handleConnect(userId: string, identity: ExternalIdentity): Promise<void> {
+  private async handleConnect(
+    userId: string,
+    identity: ExternalIdentity,
+  ): Promise<void> {
     try {
       await this.prisma.userAuthIdentity.upsert({
         where: { userId_provider: { userId, provider: "google" } },
@@ -118,7 +151,9 @@ export class GoogleAuthController {
       });
     } catch (error) {
       if (this.prismaCode(error) === "P2002") {
-        throw new Error("This Google account is already linked to a different user.");
+        throw new Error(
+          "This Google account is already linked to a different user.",
+        );
       }
       throw error;
     }
@@ -140,10 +175,16 @@ export class GoogleAuthController {
       }
     }
 
-    const existingProfile = await this.prisma.userProfile.findUnique({ where: { userId } });
+    const existingProfile = await this.prisma.userProfile.findUnique({
+      where: { userId },
+    });
     if (!existingProfile && identity.name) {
       await this.prisma.userProfile.create({
-        data: { userId, name: identity.name, profilePictureUrl: identity.picture },
+        data: {
+          userId,
+          name: identity.name,
+          profilePictureUrl: identity.picture,
+        },
       });
     }
   }
@@ -154,7 +195,12 @@ export class GoogleAuthController {
     frontendBaseUrl: string,
   ): Promise<void> {
     const link = await this.prisma.userAuthIdentity.findUnique({
-      where: { provider_providerUserId: { provider: "google", providerUserId: identity.sub } },
+      where: {
+        provider_providerUserId: {
+          provider: "google",
+          providerUserId: identity.sub,
+        },
+      },
     });
     if (!link) {
       this.redirect(reply, `${frontendBaseUrl}/login?googleError=not_linked`);

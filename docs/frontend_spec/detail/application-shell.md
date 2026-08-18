@@ -7,7 +7,7 @@
 ### Desktop
 
 - Sidebar: Calendar, Assets, Reservations และ Returns
-- Admin section แสดง Users, Management areas และ Asset templates ตาม permission
+- Admin section แสดง Users และ Management areas ตาม permission
 - Top bar แสดง search เฉพาะ asset/reservation, theme switch และ session profile
 - Profile แสดง UserProfile.name; หากไม่มี profile ให้ fallback เป็น User.email
 - แสดง role และ management-area scope จาก session จริง ห้าม hardcode

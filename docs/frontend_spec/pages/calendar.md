@@ -18,21 +18,26 @@ Calendar แสดง Reservation ไม่ใช่ event model แยกต่
   - Approve/Reject ตัดสินใจเฉพาะ pending items ที่ backend ระบุว่าผู้ใช้มีสิทธิ์
   - หลังตัดสินใจสำเร็จ Calendar ต้อง refresh สถานะและจำนวนรายการ
 - Filter ตาม management area และ reservation status
+  - status filter แสดงเป็นรายสถานะรายตัว (เหมือนสี event บน Calendar) ไม่ใช่กลุ่มรวม
 - User เห็นรายการของตนเอง รายการที่เป็น participant และข้อมูลอื่นตาม policy ของ backend
 - Frontend ต้องไม่รับข้อมูลที่ actor ไม่มีสิทธิ์เห็นแล้วค่อยซ่อนด้วย CSS
 
-สีสถานะ:
+สีสถานะ (ไม่ใช้ white/grey เพื่อให้แยกแยะรัฐได้ชัดเจน):
 
-| Reservation status | สี      |
-| ------------------ | ------- |
-| DRAFT              | Neutral |
-| PENDING_APPROVAL   | Amber   |
-| PARTIALLY_APPROVED | Purple  |
-| APPROVED           | Teal    |
-| REJECTED           | Red     |
-| CANCELLED          | Gray    |
-| ACTIVE             | Blue    |
-| COMPLETED          | Green   |
+| Reservation status      | สี      |
+| ----------------------- | ------- |
+| DRAFT                   | Slate   |
+| PENDING                 | Cyan    |
+| PENDING_APPROVAL        | Amber   |
+| PARTIALLY_APPROVED      | Purple  |
+| APPROVED                | Green   |
+| DELIVERY_CONFIRMED      | Teal    |
+| REJECTED                | Red     |
+| CANCELLED               | Amber (เข้ม) |
+| ACTIVE                  | Blue    |
+| RETURN / RETURN_PENDING | Orange  |
+| RETURN_CONFIRMED        | Emerald |
+| COMPLETED               | Green (เข้ม) |
 
 Calendar ไม่แสดง maintenance block เพราะ Prisma ปัจจุบันไม่มี maintenance period model
 

@@ -27,10 +27,10 @@ export class AccountLinkGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     if (!appConfig.requireAccountLink()) return true;
 
-    const skip = this.reflector.getAllAndOverride<boolean>(SKIP_ACCOUNT_LINK_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const skip = this.reflector.getAllAndOverride<boolean>(
+      SKIP_ACCOUNT_LINK_KEY,
+      [context.getHandler(), context.getClass()],
+    );
     if (skip) return true;
 
     const actor = context.switchToHttp().getRequest<FastifyRequest>().actor;

@@ -15,7 +15,9 @@ const sendMail = vi.fn().mockResolvedValue({});
 const createTransport = vi.fn().mockReturnValue({ sendMail });
 
 vi.mock("nodemailer", () => ({
-  default: { createTransport: (...args: unknown[]) => createTransport(...args) },
+  default: {
+    createTransport: (...args: unknown[]) => createTransport(...args),
+  },
 }));
 
 const decryptSecret = vi.fn((cipherText: string) => `decrypted:${cipherText}`);

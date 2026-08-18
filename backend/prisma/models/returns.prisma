@@ -5,6 +5,8 @@ model Return {
   /// Supported values: PENDING, APPROVED, REJECTED, COMPLETED.
   status        String    @default("PENDING") @db.VarChar(20)
   returnedAt    DateTime? @map("returned_at") @db.Timestamptz(6)
+  photoUrls     String[]  @default([]) @map("photo_urls")
+  note          String?   @db.VarChar(2000)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
@@ -28,6 +30,7 @@ model ReturnItem {
   quantityBroken    Int     @default(0) @map("quantity_broken")
   quantityLost      Int     @default(0) @map("quantity_lost")
   description       String?
+  photoUrl          String? @map("photo_url") @db.VarChar(1000)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 

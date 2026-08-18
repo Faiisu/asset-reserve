@@ -17,6 +17,8 @@ model Reservation {
   participants   ReservationParticipant[]
   changeRequests ReservationChangeRequest[]
   returns        Return[]
+  handovers      ReservationHandover[]
+  activityLogs   ActivityLog[]              @relation("ReservationActivityLogs")
 
   // Database CHECK required by the source specification: end_at > start_at.
   @@index([requesterId, createdAt])
@@ -28,16 +30,18 @@ model Reservation {
 }
 
 model ReservationItem {
-  id            String    @id @db.Uuid
-  reservationId String    @map("reservation_id") @db.Uuid
-  assetId       String    @map("asset_id") @db.Uuid
-  quantity      Int
+  id               String    @id @db.Uuid
+  reservationId    String    @map("reservation_id") @db.Uuid
+  assetId          String    @map("asset_id") @db.Uuid
+  quantity         Int
   /// Supported values: PENDING, APPROVED, REJECTED, PREPARED, CHECKED_OUT, DELIVERED, RETURNED.
-  status        String    @default("PENDING") @db.VarChar(30)
-  preparedBy    String?   @map("prepared_by") @db.Uuid
-  preparedAt    DateTime? @map("prepared_at") @db.Timestamptz(6)
-  checkedOutBy  String?   @map("checked_out_by") @db.Uuid
-  checkedOutAt  DateTime? @map("checked_out_at") @db.Timestamptz(6)
+  status           String    @default("PENDING") @db.VarChar(30)
+  preparedBy       String?   @map("prepared_by") @db.Uuid
+  preparedAt       DateTime? @map("prepared_at") @db.Timestamptz(6)
+  checkedOutBy     String?   @map("checked_out_by") @db.Uuid
+  checkedOutAt     DateTime? @map("checked_out_at") @db.Timestamptz(6)
+  handoverPhotoUrl String?   @map("handover_photo_url") @db.VarChar(1000)
+  handoverId       String?   @map("handover_id") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
@@ -46,6 +50,7 @@ model ReservationItem {
   asset            Asset                    @relation(fields: [assetId], references: [id])
   preparer         User?                    @relation("ReservationItemPreparedBy", fields: [preparedBy], references: [id])
   checkedOutByUser User?                    @relation("ReservationItemCheckedOutBy", fields: [checkedOutBy], references: [id])
+  handover         ReservationHandover?     @relation(fields: [handoverId], references: [id])
   approval         ReservationItemApproval?
   returnItems      ReturnItem[]
 
@@ -56,6 +61,7 @@ model ReservationItem {
   @@index([reservationId, status])
   @@index([preparedBy])
   @@index([checkedOutBy])
+  @@index([handoverId])
   @@map("reservation_items")
 }
 
@@ -114,3 +120,22 @@ model ReservationChangeRequest {
   @@unique([reservationId], map: "reservation_change_requests_one_pending", where: { status: "PENDING" })
   @@map("reservation_change_requests")
 }
+
+model ReservationHandover {
+  id            String   @id @db.Uuid
+  reservationId String   @map("reservation_id") @db.Uuid
+  handledBy     String   @map("handled_by") @db.Uuid
+  photoUrls     String[] @default([]) @map("photo_urls")
+  note          String?  @db.VarChar(2000)
+  handedOverAt  DateTime @default(now()) @map("handed_over_at") @db.Timestamptz(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  reservation Reservation       @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  handler     User              @relation("ReservationHandoverHandledBy", fields: [handledBy], references: [id])
+  items       ReservationItem[]
+
+  @@index([reservationId])
+  @@index([handledBy])
+  @@map("reservation_handovers")
+}
+

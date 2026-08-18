@@ -315,11 +315,11 @@
     .qty-badge {
       display: inline-flex;
       align-items: center;
-      padding: 2px 8px;
+      padding: 3px 8px;
       border-radius: 5px;
       font-family: var(--mono);
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 700;
     }
     .qty-badge--full { background: var(--green-soft); color: var(--green); }
     .qty-badge--partial { background: var(--amber-soft); color: var(--amber); }
@@ -327,13 +327,14 @@
 
     /* Asset Option Card Specimen */
     .asset-card {
+      min-height: 84px;
       padding: 12px 14px;
       display: grid;
-      grid-template-columns: 60px minmax(0, 1fr) 22px;
+      grid-template-columns: 58px minmax(0, 1fr) 22px;
       align-items: center;
-      gap: 14px;
+      gap: 13px;
       border: 1px solid var(--line);
-      border-radius: 11px;
+      border-radius: 12px;
       background: var(--surface);
       transition: all 140ms ease;
       cursor: pointer;
@@ -358,9 +359,9 @@
     }
 
     .asset-thumb {
-      width: 60px;
-      height: 60px;
-      border-radius: 8px;
+      width: 58px;
+      height: 58px;
+      border-radius: 10px;
       border: 1px solid var(--line);
       object-fit: cover;
       background: var(--surface-raised);
@@ -786,6 +787,72 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- Size & Layout Specification Table -->
+      <div style="margin-top: 24px; overflow-x: auto;">
+        <table class="spec-table">
+          <thead>
+            <tr>
+              <th>Element / Rule</th>
+              <th>Selector / Class</th>
+              <th>Dimensions & Sizing</th>
+              <th>Typography / Icon Rules</th>
+              <th>Notes & Context</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Option Card Container</strong></td>
+              <td><code>.calendar-asset-option, .asset-card</code></td>
+              <td><code>min-height: 84px</code> (picker: <code>74px</code>), <code>padding: 12px 14px</code>, radius <code>12px</code></td>
+              <td>Grid: <code>58px minmax(0, 1fr) 22px</code>, <code>gap: 13px</code></td>
+              <td>Interactive selectable row with hover elevation and selected outline</td>
+            </tr>
+            <tr>
+              <td><strong>Asset Thumbnail</strong></td>
+              <td><code>.asset-picture, .asset-thumb</code></td>
+              <td><code>width: 58px; height: 58px;</code> radius <code>10px</code></td>
+              <td>Placeholder icon: <code>Archive size=28</code> (Hero: <code>180px × 180px</code> / <code>size=48</code>)</td>
+              <td>Aspect-ratio 1:1, <code>object-fit: cover</code> with soft background fallback</td>
+            </tr>
+            <tr>
+              <td><strong>Asset Title & Name</strong></td>
+              <td><code>.asset-info strong, .asset-name-cell strong</code></td>
+              <td><code>font-size: 14px – 14.5px</code></td>
+              <td>Instrument Sans, <code>font-weight: 650</code>, <code>line-height: 1.35</code></td>
+              <td>Truncates with ellipsis when constrained; highlights on hover</td>
+            </tr>
+            <tr>
+              <td><strong>Area & Scope Subtitle</strong></td>
+              <td><code>.asset-info small, .table-secondary</code></td>
+              <td><code>font-size: 11.5px – 12px</code></td>
+              <td>Instrument Sans, <code>font-weight: 450–500</code>, <code>color: var(--ink-soft)</code></td>
+              <td>Displays Management Area and availability chip inline</td>
+            </tr>
+            <tr>
+              <td><strong>Full Stock Badge (🟢)</strong></td>
+              <td><code>.qty-badge--full, .calendar-asset-option__availability--full</code></td>
+              <td><code>padding: 3px 8px</code>, radius <code>5px</code></td>
+              <td>IBM Plex Mono <code>11px / 700</code>, <code>var(--green)</code> on <code>var(--green-soft)</code></td>
+              <td>Active when <code>availableQuantity === totalQuantity</code> (e.g. <code>10 of 10</code>)</td>
+            </tr>
+            <tr>
+              <td><strong>Partial Stock Badge (🟡)</strong></td>
+              <td><code>.qty-badge--partial, .calendar-asset-option__availability--partial</code></td>
+              <td><code>padding: 3px 8px</code>, radius <code>5px</code></td>
+              <td>IBM Plex Mono <code>11px / 700</code>, <code>var(--amber)</code> on <code>var(--amber-soft)</code></td>
+              <td>Active when <code>availableQuantity &gt; 0 &amp;&amp; &lt; totalQuantity</code> (e.g. <code>9 of 10</code>)</td>
+            </tr>
+            <tr>
+              <td><strong>Fully Booked Badge (🔴)</strong></td>
+              <td><code>.qty-badge--none, .calendar-asset-option__availability--none</code></td>
+              <td><code>padding: 3px 8px</code>, radius <code>5px</code></td>
+              <td>IBM Plex Mono <code>11px / 700</code>, <code>var(--red)</code> on <code>var(--red-soft)</code></td>
+              <td>Active when <code>availableQuantity &lt;= 0</code> (e.g. <code>Fully booked</code>), dims card &amp; disables</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
 

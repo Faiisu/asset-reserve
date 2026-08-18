@@ -2,6 +2,7 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -13,6 +14,7 @@ import {
   PackageSearch,
   Plus,
   Search,
+  User,
   X,
   XCircle,
 } from "lucide-react";
@@ -35,13 +37,11 @@ import { useAuth } from "../auth";
 import {
   AssetPicture,
   Button,
-  CheckboxDropdownFilter,
   Dialog,
   ErrorState,
   Field,
   Select,
   Textarea,
-  WorkspaceCheckboxFilter,
   cx,
 } from "../components/ui";
 import { reservationStatusLabel } from "../reservations";
@@ -53,45 +53,57 @@ import type {
 } from "../types";
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const statusOptions = [
-  {
-    value: "REQUEST",
-    label: "Request",
-    statuses: [
-      "PENDING",
-      "PENDING_APPROVAL",
-      "DRAFT",
-      "PARTIALLY_APPROVED",
-    ] as ReservationStatus[],
-    colorClass: "calendar-legend__pending_approval",
-  },
-  {
-    value: "APPROVE",
-    label: "Approve",
-    statuses: [
-      "APPROVED",
-      "DELIVERY_CONFIRMED",
-      "ACTIVE",
-      "RETURN",
-      "RETURN_PENDING",
-      "RETURN_CONFIRMED",
-      "COMPLETED",
-    ] as ReservationStatus[],
-    colorClass: "calendar-legend__approved",
-  },
-  {
-    value: "REJECT",
-    label: "Reject",
-    statuses: ["REJECTED"] as ReservationStatus[],
-    colorClass: "calendar-legend__rejected",
-  },
-  {
-    value: "CANCEL",
-    label: "Cancel",
-    statuses: ["CANCELLED"] as ReservationStatus[],
-    colorClass: "calendar-legend__cancelled",
-  },
+const STATUS_COLOR_CLASS: Record<ReservationStatus, string> = {
+  DRAFT: "calendar-legend__draft",
+  PENDING: "calendar-legend__pending_approval",
+  PENDING_APPROVAL: "calendar-legend__pending_approval",
+  PARTIALLY_APPROVED: "calendar-legend__partially_approved",
+  APPROVED: "calendar-legend__approved",
+  DELIVERY_CONFIRMED: "calendar-legend__delivery_confirmed",
+  ACTIVE: "calendar-legend__delivery_confirmed",
+  RETURN: "calendar-legend__return_pending",
+  RETURN_PENDING: "calendar-legend__return_pending",
+  RETURN_CONFIRMED: "calendar-legend__return_confirmed",
+  COMPLETED: "calendar-legend__completed",
+  REJECTED: "calendar-legend__rejected",
+  CANCELLED: "calendar-legend__cancelled",
+};
+
+const DISPLAY_STATUSES: ReservationStatus[] = [
+  "DRAFT",
+  "PENDING_APPROVAL",
+  "PARTIALLY_APPROVED",
+  "APPROVED",
+  "DELIVERY_CONFIRMED",
+  "RETURN_PENDING",
+  "RETURN_CONFIRMED",
+  "COMPLETED",
+  "REJECTED",
+  "CANCELLED",
 ];
+
+const STATUS_OPTION_STATUSES: Record<ReservationStatus, ReservationStatus[]> = {
+  DRAFT: ["DRAFT"],
+  PENDING: ["PENDING", "PENDING_APPROVAL"],
+  PENDING_APPROVAL: ["PENDING_APPROVAL", "PENDING"],
+  PARTIALLY_APPROVED: ["PARTIALLY_APPROVED"],
+  APPROVED: ["APPROVED"],
+  DELIVERY_CONFIRMED: ["DELIVERY_CONFIRMED", "ACTIVE"],
+  ACTIVE: ["ACTIVE", "DELIVERY_CONFIRMED"],
+  RETURN: ["RETURN", "RETURN_PENDING"],
+  RETURN_PENDING: ["RETURN_PENDING", "RETURN"],
+  RETURN_CONFIRMED: ["RETURN_CONFIRMED"],
+  COMPLETED: ["COMPLETED"],
+  REJECTED: ["REJECTED"],
+  CANCELLED: ["CANCELLED"],
+};
+
+const statusOptions = DISPLAY_STATUSES.map((status) => ({
+  value: status,
+  label: reservationStatusLabel[status],
+  statuses: STATUS_OPTION_STATUSES[status],
+  colorClass: STATUS_COLOR_CLASS[status],
+}));
 
 type DateSelection = { anchor: Date; focus: Date };
 
@@ -113,11 +125,13 @@ type EventMenu = {
 export function CalendarPage() {
   const { hasPermission, hasAreaPermission } = useAuth();
   const canCreate = hasPermission("reservation:create");
+  const canViewOthers = hasPermission("reservation:view");
   const baseMonth = useMemo(() => startOfMonth(new Date()), []);
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
   const [monthOffsets, setMonthOffsets] = useState({ before: 0, after: 4 });
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [selectedAreaIds, setSelectedAreaIds] = useState<string[]>([]);
+  const [onlyMine, setOnlyMine] = useState(false);
   const [areas, setAreas] = useState<ManagementArea[]>([]);
   const [reservations, setReservations] = useState<ReservationSummary[]>([]);
   const [assets, setAssets] = useState<AssetSummary[]>([]);
@@ -147,6 +161,8 @@ export function CalendarPage() {
   const selectionAnchor = useRef<Date | null>(null);
   const [miniCalendarOpen, setMiniCalendarOpen] = useState(false);
   const miniCalendarRef = useRef<HTMLDivElement>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
   const reservePanel = useRef<HTMLElement>(null);
   const calendarScrollRef = useRef<HTMLDivElement>(null);
   const eventMenuRef = useRef<HTMLElement>(null);
@@ -247,6 +263,24 @@ export function CalendarPage() {
   }, [miniCalendarOpen]);
 
   useEffect(() => {
+    if (!filterOpen) return;
+    const onPointerDown = (event: globalThis.PointerEvent) => {
+      if (!filterRef.current?.contains(event.target as Node)) {
+        setFilterOpen(false);
+      }
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setFilterOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [filterOpen]);
+
+  useEffect(() => {
     if (!canCreate) return;
     let active = true;
     const timer = window.setTimeout(() => {
@@ -324,7 +358,7 @@ export function CalendarPage() {
       );
       do {
         const response = await api.reservations({
-          view: "ALL",
+          view: canViewOthers && !onlyMine ? "ALL" : "MINE",
           status: allowedStatuses.length === 1 ? allowedStatuses[0] : undefined,
           areaId: selectedAreaIds.length === 1 ? selectedAreaIds[0] : undefined,
           from: gridStart.toISOString(),
@@ -360,7 +394,7 @@ export function CalendarPage() {
     } finally {
       if (requestId === requestSequence.current) setLoading(false);
     }
-  }, [gridEnd, gridStart, selectedAreaIds, selectedStatuses]);
+  }, [gridEnd, gridStart, selectedAreaIds, selectedStatuses, canViewOthers, onlyMine]);
 
   useEffect(() => {
     void load();
@@ -390,6 +424,12 @@ export function CalendarPage() {
         Number(right.availableQuantity <= 0)
       );
     });
+  const now = new Date(Date.now() - 60_000);
+  const isPastSelection = selectedSchedule
+    ? selectedSchedule.startAt.getTime() < now.getTime() ||
+      selectedSchedule.endAt.getTime() < now.getTime()
+    : false;
+  const canProceedToReserve = Boolean(selectedRange) && !isPastSelection;
   const createUrl = selectedRange
     ? reservationCreateUrl(
         selectedRange.start,
@@ -397,6 +437,8 @@ export function CalendarPage() {
         selectedAssets.map((asset) => asset.id),
       )
     : "/reservations/new";
+  const totalFilterCount = selectedAreaIds.length + selectedStatuses.length;
+  const hasActiveFilters = totalFilterCount > 0;
 
   // Initial scroll to base month on mount
   useEffect(() => {
@@ -485,7 +527,9 @@ export function CalendarPage() {
     if (!dragging.current || !canCreate) return;
     setVisibleMonth(startOfMonth(date));
     setSelection((current) =>
-      current ? { ...current, focus: date } : { anchor: date, focus: date },
+      current
+        ? { ...current, focus: date }
+        : { anchor: date, focus: date },
     );
   }
 
@@ -744,22 +788,229 @@ export function CalendarPage() {
             </div>
 
             <div className="calendar-filters">
-              <span>
-                <Filter size={14} /> Filters
-              </span>
-              <WorkspaceCheckboxFilter
-                areas={areas}
-                selectedIds={selectedAreaIds}
-                onChange={setSelectedAreaIds}
-              />
-              <CheckboxDropdownFilter
-                label="Statuses"
-                allLabel="All statuses"
-                options={statusOptions}
-                selectedValues={selectedStatuses}
-                onChange={setSelectedStatuses}
-                ariaLabel="Filter statuses"
-              />
+              <div className="calendar-filter-picker" ref={filterRef}>
+                <button
+                  id="calendar-filter-toggle"
+                  type="button"
+                  className={cx(
+                    "calendar-filter-btn",
+                    (hasActiveFilters || filterOpen) && "calendar-filter-btn--active",
+                  )}
+                  onClick={() => setFilterOpen((prev) => !prev)}
+                  aria-haspopup="dialog"
+                  aria-expanded={filterOpen}
+                  aria-label="Filter reservations by workspace and status"
+                  title={
+                    hasActiveFilters
+                      ? `${totalFilterCount} filter${totalFilterCount > 1 ? "s" : ""} applied`
+                      : "Filter by workspace and status"
+                  }
+                >
+                  <Filter size={13} />
+                  <span>Filters</span>
+                  {hasActiveFilters && (
+                    <span className="calendar-filter-btn__badge">
+                      {totalFilterCount}
+                    </span>
+                  )}
+                  <ChevronDown
+                    size={14}
+                    className={cx(
+                      "calendar-filter-btn__chevron",
+                      filterOpen && "calendar-filter-btn__chevron--open",
+                    )}
+                    aria-hidden
+                  />
+                </button>
+
+                {filterOpen && (
+                  <div
+                    className="calendar-filter-popover"
+                    role="dialog"
+                    aria-label="Filter reservations"
+                  >
+                    <div className="calendar-filter-popover__top">
+                      <div className="calendar-filter-popover__title">
+                        <Filter size={13} />
+                        <strong>Filters</strong>
+                      </div>
+                      {hasActiveFilters && (
+                        <button
+                          type="button"
+                          className="calendar-filter-popover__reset"
+                          onClick={() => {
+                            setSelectedAreaIds([]);
+                            setSelectedStatuses([]);
+                          }}
+                        >
+                          Clear all
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="calendar-filter-popover__columns">
+                      <section className="calendar-filter-popover__section">
+                        <div className="calendar-filter-popover__section-header">
+                          <span>Workspaces</span>
+                          <div className="calendar-filter-popover__actions">
+                            <button
+                              type="button"
+                              className="calendar-filter-popover__action"
+                              onClick={() => setSelectedAreaIds([])}
+                            >
+                              All
+                            </button>
+                            {selectedAreaIds.length > 0 && (
+                              <button
+                                type="button"
+                                className="calendar-filter-popover__action"
+                                onClick={() => setSelectedAreaIds([])}
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="calendar-filter-popover__list">
+                          {areas.length === 0 ? (
+                            <p className="calendar-filter-popover__empty">
+                              No workspaces found
+                            </p>
+                          ) : (
+                            areas.map((area) => {
+                              const checked = selectedAreaIds.includes(area.id);
+                              return (
+                                <label
+                                  key={area.id}
+                                  className={cx(
+                                    "workspace-filter-checkbox-item",
+                                    checked &&
+                                      "workspace-filter-checkbox-item--checked",
+                                  )}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => {
+                                      setSelectedAreaIds((prev) =>
+                                        prev.includes(area.id)
+                                          ? prev.filter((id) => id !== area.id)
+                                          : [...prev, area.id],
+                                      );
+                                    }}
+                                    aria-label={area.name}
+                                  />
+                                  <span className="workspace-filter-checkbox-item__name">
+                                    {area.name}
+                                  </span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      </section>
+
+                      <section className="calendar-filter-popover__section">
+                        <div className="calendar-filter-popover__section-header">
+                          <span>Statuses</span>
+                          <div className="calendar-filter-popover__actions">
+                            <button
+                              type="button"
+                              className="calendar-filter-popover__action"
+                              onClick={() => setSelectedStatuses([])}
+                            >
+                              All
+                            </button>
+                            {selectedStatuses.length > 0 && (
+                              <button
+                                type="button"
+                                className="calendar-filter-popover__action"
+                                onClick={() => setSelectedStatuses([])}
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="calendar-filter-popover__list">
+                          {statusOptions.map((option) => {
+                            const checked = selectedStatuses.includes(option.value);
+                            return (
+                              <label
+                                key={option.value}
+                                className={cx(
+                                  "workspace-filter-checkbox-item",
+                                  checked &&
+                                    "workspace-filter-checkbox-item--checked",
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    setSelectedStatuses((prev) =>
+                                      prev.includes(option.value)
+                                        ? prev.filter((val) => val !== option.value)
+                                        : [...prev, option.value],
+                                    );
+                                  }}
+                                  aria-label={option.label}
+                                />
+                                {option.colorClass ? (
+                                  <i
+                                    className={cx(
+                                      "workspace-filter-checkbox-item__swatch",
+                                      option.colorClass,
+                                    )}
+                                    aria-hidden
+                                  />
+                                ) : null}
+                                <span className="workspace-filter-checkbox-item__name">
+                                  {option.label}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {canViewOthers && (
+                <button
+                  id="calendar-only-mine-toggle"
+                  type="button"
+                  className={cx(
+                    "calendar-only-mine-toggle",
+                    onlyMine && "calendar-only-mine-toggle--active",
+                  )}
+                  onClick={() => setOnlyMine((prev) => !prev)}
+                  aria-pressed={onlyMine}
+                  aria-label={
+                    onlyMine
+                      ? "Showing only my reservations. Click to show all reservations."
+                      : "Filter to only my reservations"
+                  }
+                  title={
+                    onlyMine
+                      ? "Showing only my reservations (click to show all)"
+                      : "Filter to only my reservations"
+                  }
+                >
+                  <User size={13} className="calendar-only-mine-toggle__icon" />
+                  <span>Only mine</span>
+                  {onlyMine && (
+                    <span
+                      className="calendar-only-mine-toggle__indicator"
+                      aria-hidden="true"
+                    >
+                      <Check size={11} strokeWidth={2.5} />
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
           </section>
 
@@ -886,7 +1137,10 @@ export function CalendarPage() {
               </button>
             </div>
 
-            <div className="calendar-asset-list" aria-live="polite">
+            <div
+              className="calendar-asset-list data-table-wrap"
+              aria-live="polite"
+            >
               {loadingAssets ? (
                 <div className="calendar-asset-list__message">
                   <LoaderCircle className="spin" size={19} />
@@ -922,19 +1176,21 @@ export function CalendarPage() {
                 </span>
                 <small>
                   {selectedRange
-                    ? "Availability matches the selected schedule."
+                    ? isPastSelection
+                      ? "Past dates cannot be reserved."
+                      : "Availability matches the selected schedule."
                     : "Choose dates to check availability and continue."}
                 </small>
               </div>
               <Link
                 className={cx(
                   "button button--primary button--md",
-                  !selectedRange && "button--disabled",
+                  !canProceedToReserve && "button--disabled",
                 )}
                 to={createUrl}
-                aria-disabled={!selectedRange}
+                aria-disabled={!canProceedToReserve}
                 onClick={(event) => {
-                  if (!selectedRange) event.preventDefault();
+                  if (!canProceedToReserve) event.preventDefault();
                 }}
               >
                 {selectedAssets.length
@@ -1031,6 +1287,7 @@ export function CalendarPage() {
             className={cx(
               "calendar-asset-browser__results",
               `calendar-asset-browser__results--${assetBrowserView}`,
+              assetBrowserView === "list" && "data-table-wrap",
             )}
             aria-live="polite"
           >
@@ -1113,6 +1370,7 @@ function CalendarWeek({
             : false;
           const isFirstOfMonth = date.getDate() === 1;
           const isFirstOfActiveMonth = isFirstOfMonth && !isOutsideMonth;
+          const isPast = date < startOfDay(new Date());
           return (
             <div
               key={dateKey(date)}
@@ -1120,6 +1378,7 @@ function CalendarWeek({
                 "calendar-day",
                 isOutsideMonth && "calendar-day--outside",
                 isToday(date) && "calendar-day--today",
+                isPast && "calendar-day--past",
                 isSelected && "calendar-day--selected",
                 canCreate && "calendar-day--selectable",
                 isFirstOfMonth && "calendar-day--first-of-month",
@@ -1242,10 +1501,15 @@ function CalendarAssetOption({
       onClick={() => onToggle(asset)}
     >
       <AssetPicture src={asset.pictureUrl} name={asset.name} />
-      <span>
-        <strong>{asset.name}</strong>
-        <small>
-          {asset.managementArea.name} ·{" "}
+      <span className="calendar-asset-option__content">
+        <strong title={asset.name}>{asset.name}</strong>
+        <span className="calendar-asset-option__meta">
+          <span
+            className="calendar-asset-option__area"
+            title={asset.managementArea.name}
+          >
+            {asset.managementArea.name}
+          </span>
           <em
             className={cx(
               isFull && "calendar-asset-option__availability--full",
@@ -1259,7 +1523,7 @@ function CalendarAssetOption({
                 ? "Fully booked"
                 : `${asset.availableQuantity} of ${asset.totalQuantity}`}
           </em>
-        </small>
+        </span>
       </span>
       <i aria-hidden>{selected ? <Check size={14} /> : null}</i>
     </button>
@@ -1652,9 +1916,25 @@ function reservationCreateUrl(
 
 function reservationSchedule(startDay: Date, endDay: Date) {
   const startAt = new Date(startDay);
-  startAt.setHours(9, 0, 0, 0);
+  const now = new Date();
+  if (isToday(startDay)) {
+    const nextHour = new Date(now.getTime() + 60 * 60_000);
+    nextHour.setMinutes(0, 0, 0);
+    startAt.setTime(
+      Math.max(nextHour.getTime(), new Date(startDay).setHours(9, 0, 0, 0)),
+    );
+  } else {
+    startAt.setHours(9, 0, 0, 0);
+  }
   const endAt = new Date(endDay);
-  endAt.setHours(17, 0, 0, 0);
+  if (isToday(endDay) && endAt.getTime() <= startAt.getTime()) {
+    endAt.setTime(startAt.getTime() + 4 * 60 * 60_000);
+  } else {
+    endAt.setHours(17, 0, 0, 0);
+  }
+  if (endAt <= startAt) {
+    endAt.setTime(startAt.getTime() + 2 * 60 * 60_000);
+  }
   return { startAt, endAt };
 }
 

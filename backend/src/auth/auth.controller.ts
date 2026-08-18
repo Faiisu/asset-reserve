@@ -1,7 +1,11 @@
 import { Body, Controller, Get, HttpCode, Post } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import type { AuthenticatedActor } from "./auth.types.js";
-import { CurrentActor, Public, SkipAccountLinkCheck } from "./auth.decorators.js";
+import {
+  CurrentActor,
+  Public,
+  SkipAccountLinkCheck,
+} from "./auth.decorators.js";
 import { LoginDto } from "./auth.dto.js";
 import { AuthService } from "./auth.service.js";
 

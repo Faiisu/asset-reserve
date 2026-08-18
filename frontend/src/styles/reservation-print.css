@@ -1,0 +1,677 @@
+/* ==========================================================================
+   OFFICIAL RESERVATION & RETURN MANIFEST PRINT STYLESHEET
+   Supports screen preview modal and hard paper PDF output (A4)
+   ========================================================================== */
+
+/* --- Screen Preview Modal Container --- */
+.res-print-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(10, 18, 30, 0.75);
+  backdrop-filter: blur(6px);
+  overflow-y: auto;
+  padding: 24px 16px 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.res-print-modal-toolbar {
+  position: sticky;
+  top: 12px;
+  z-index: 10;
+  width: 100%;
+  max-width: 860px;
+  background: #10213a;
+  color: #ffffff;
+  padding: 12px 20px;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.res-print-modal-toolbar__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.res-print-modal-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Hidden on screen when not in modal mode */
+.printable-document-container {
+  display: none;
+}
+
+/* --- Document Sheet (A4 Hard Paper Format) --- */
+.res-print-sheet {
+  width: 100%;
+  max-width: 860px;
+  background: #ffffff;
+  color: #111827;
+  padding: 44px 48px;
+  border-radius: 4px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+  box-sizing: border-box;
+  font-family: "Instrument Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Header & Branding */
+.res-print-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  row-gap: 16px;
+  column-gap: 20px;
+  align-items: start;
+}
+
+.res-print-header__brand {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.res-print-logo-mark {
+  background: #10213a;
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  font-size: 13px;
+}
+
+.res-print-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.res-print-org {
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: 0.5px;
+}
+
+.res-print-system {
+  font-size: 10px;
+  color: #4b5563;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.res-print-header__meta-box {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  background: #f9fafb;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 10px 14px;
+  min-width: 220px;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.res-print-meta-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.res-print-meta-lbl {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.res-print-meta-val {
+  color: #111827;
+  font-weight: 600;
+  text-align: right;
+}
+
+.res-print-ref-code {
+  font-family: var(--mono, "IBM Plex Mono", monospace);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: #1e40af;
+}
+
+.res-print-mono {
+  font-family: var(--mono, "IBM Plex Mono", monospace);
+  font-size: 10px;
+  word-break: break-all;
+}
+
+.res-print-status-tag {
+  display: inline;
+  padding: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  color: #374151;
+}
+
+.res-print-status-tag--completed {
+  color: #15803d !important;
+}
+
+.res-print-status-tag--approved {
+  color: #1d4ed8 !important;
+}
+
+.res-print-status-tag--delivery_confirmed,
+.res-print-status-tag--active {
+  color: #0369a1 !important;
+}
+
+.res-print-status-tag--return,
+.res-print-status-tag--return_pending,
+.res-print-status-tag--return_confirmed {
+  color: #b45309 !important;
+}
+
+.res-print-status-tag--rejected,
+.res-print-status-tag--cancelled {
+  color: #b91c1c !important;
+}
+
+.res-print-header__title-block {
+  grid-column: 1;
+}
+
+.res-print-title {
+  margin: 0 0 3px 0;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #111827;
+  text-transform: uppercase;
+}
+
+.res-print-subtitle {
+  font-size: 11px;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.res-print-divider {
+  height: 2px;
+  background: #111827;
+  margin: 18px 0;
+}
+
+/* Sections */
+.res-print-section {
+  margin-bottom: 22px;
+}
+
+.res-print-section-title {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.res-print-sec-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 50%;
+}
+
+/* 2-column info grids */
+.res-print-grid-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.res-print-panel {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.res-print-field {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.res-print-field-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #6b7280;
+  letter-spacing: 0.3px;
+}
+
+.res-print-field-value {
+  font-size: 11.5px;
+  color: #111827;
+}
+
+.res-print-strong {
+  font-weight: 700;
+}
+
+/* Tables */
+.res-print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin-top: 6px;
+}
+
+.res-print-table th,
+.res-print-table td {
+  border: 1px solid #d1d5db;
+  padding: 7px 9px;
+  vertical-align: middle;
+}
+
+.res-print-table th {
+  background: #f3f4f6;
+  color: #1f2937;
+  font-weight: 700;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.res-print-table tbody tr:nth-child(even) {
+  background: #fafafa;
+}
+
+.res-print-table tfoot td {
+  background: #f3f4f6;
+  border-top: 2px solid #9ca3af;
+}
+
+.res-print-asset-name {
+  font-size: 11.5px;
+  color: #111827;
+}
+
+.res-print-asset-desc {
+  font-size: 10px;
+  color: #6b7280;
+  margin-top: 1px;
+}
+
+.res-print-approval-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 10.5px;
+}
+
+.res-print-appr-status {
+  color: #15803d;
+}
+
+.res-print-appr-time {
+  font-size: 9.5px;
+  color: #6b7280;
+}
+
+.res-print-appr-comment {
+  font-size: 9.5px;
+  font-style: italic;
+  color: #4b5563;
+}
+
+.res-print-pending-text {
+  color: #b45309;
+  font-style: italic;
+  font-size: 10.5px;
+}
+
+.res-print-badge {
+  display: inline;
+  padding: 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  color: #374151;
+}
+
+.res-print-badge--approved,
+.res-print-badge--returned {
+  color: #15803d !important;
+}
+
+.res-print-badge--delivered {
+  color: #0369a1 !important;
+}
+
+.res-print-badge--pending {
+  color: #b45309 !important;
+}
+
+.res-print-badge--rejected {
+  color: #b91c1c !important;
+}
+
+/* Return Manifest Section */
+.res-print-return-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.res-print-return-block {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.res-print-return-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.res-print-return-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.res-print-th--good {
+  color: #15803d !important;
+}
+
+.res-print-th--broken {
+  color: #b91c1c !important;
+}
+
+.res-print-th--lost {
+  color: #b45309 !important;
+}
+
+.res-print-inspection-box {
+  margin-top: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 10.5px;
+}
+
+.res-print-inspection-title {
+  margin-bottom: 6px;
+  color: #1f2937;
+}
+
+.res-print-inspection-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.res-print-inspection-remarks {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #e5e7eb;
+  color: #374151;
+}
+
+.res-print-totals-summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20px;
+  padding: 8px 12px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.res-print-blank-desc {
+  font-size: 11px;
+  color: #4b5563;
+  margin: 0 0 6px 0;
+}
+
+.res-print-dotted-line {
+  display: block;
+  width: 100%;
+  height: 1px;
+  border-bottom: 1px dotted #9ca3af;
+  margin-top: 8px;
+}
+
+/* Formal Sign-off Grid */
+.res-print-sign-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.res-print-sign-box {
+  border: 1px solid #9ca3af;
+  border-radius: 4px;
+  padding: 12px 14px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 135px;
+  box-sizing: border-box;
+}
+
+.res-print-sign-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.res-print-sign-header strong {
+  font-size: 11.5px;
+  color: #111827;
+}
+
+.res-print-sign-header small {
+  font-size: 9.5px;
+  color: #6b7280;
+  text-transform: uppercase;
+}
+
+.res-print-sign-statement {
+  font-size: 9.5px;
+  color: #4b5563;
+  line-height: 1.35;
+  margin: 0 0 10px 0;
+}
+
+.res-print-sign-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 10.5px;
+}
+
+.res-print-sign-line {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.res-print-sign-rule {
+  flex: 1;
+  height: 1px;
+  border-bottom: 1px solid #111827;
+  margin-bottom: 2px;
+}
+
+.res-print-date-line {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.res-print-date-rule {
+  flex: 1;
+  font-size: 10px;
+  font-weight: 500;
+  color: #374151;
+}
+
+/* Footer */
+.res-print-footer {
+  margin-top: 24px;
+  padding-top: 10px;
+  border-top: 1px solid #d1d5db;
+  font-size: 9.5px;
+  color: #6b7280;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.res-print-footer__terms {
+  line-height: 1.35;
+}
+
+.res-print-footer__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   PRINT MEDIA QUERY (@media print)
+   Standard A4 Paper / PDF Render Configuration
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 12mm 12mm 12mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 10.5pt !important;
+    line-height: 1.35 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide app navigation chrome, sidebars, buttons, trackers, and toolbars */
+  .sidebar,
+  .topbar,
+  .mobile-nav,
+  .res-detail-top-nav,
+  .res-detail-hero,
+  .res-detail-columns,
+  .res-horizontal-tracker,
+  .res-review-bar,
+  .res-help-card,
+  .res-print-modal-toolbar,
+  .notice,
+  .button,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Force modal overlay to behave as plain document flow */
+  .res-print-modal-overlay {
+    position: static !important;
+    inset: auto !important;
+    background: none !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  .printable-document-container {
+    display: block !important;
+  }
+
+  .res-print-sheet {
+    display: block !important;
+    position: static !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+
+  .print-avoid-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-page-break {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  .res-print-table,
+  .res-print-sign-grid,
+  .res-print-return-block {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}

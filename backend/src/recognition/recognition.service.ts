@@ -58,7 +58,9 @@ export class RecognitionService {
     if (file) {
       form.append(
         "file",
-        new Blob([new Uint8Array(file.buffer)], { type: file.mimetype || "application/octet-stream" }),
+        new Blob([new Uint8Array(file.buffer)], {
+          type: file.mimetype || "application/octet-stream",
+        }),
         file.filename || "upload.jpg",
       );
     }
@@ -69,7 +71,11 @@ export class RecognitionService {
     try {
       res = await fetch(this.url(path), { method: "POST", body: form });
     } catch {
-      throw new ApiException(502, "RECOGNITION_SERVICE_UNREACHABLE", "The recognition service is unreachable.");
+      throw new ApiException(
+        502,
+        "RECOGNITION_SERVICE_UNREACHABLE",
+        "The recognition service is unreachable.",
+      );
     }
     return this.relay(res);
   }
@@ -83,7 +89,11 @@ export class RecognitionService {
         body: JSON.stringify(body),
       });
     } catch {
-      throw new ApiException(502, "RECOGNITION_SERVICE_UNREACHABLE", "The recognition service is unreachable.");
+      throw new ApiException(
+        502,
+        "RECOGNITION_SERVICE_UNREACHABLE",
+        "The recognition service is unreachable.",
+      );
     }
     return this.relay(res);
   }
@@ -93,7 +103,11 @@ export class RecognitionService {
     try {
       res = await fetch(this.url(path));
     } catch {
-      throw new ApiException(502, "RECOGNITION_SERVICE_UNREACHABLE", "The recognition service is unreachable.");
+      throw new ApiException(
+        502,
+        "RECOGNITION_SERVICE_UNREACHABLE",
+        "The recognition service is unreachable.",
+      );
     }
     return this.relay(res);
   }
@@ -105,7 +119,11 @@ export class RecognitionService {
     try {
       res = await fetch(this.url(path));
     } catch {
-      throw new ApiException(502, "RECOGNITION_SERVICE_UNREACHABLE", "The recognition service is unreachable.");
+      throw new ApiException(
+        502,
+        "RECOGNITION_SERVICE_UNREACHABLE",
+        "The recognition service is unreachable.",
+      );
     }
     if (res.status === 404) return null;
     return this.relay(res);
@@ -116,7 +134,11 @@ export class RecognitionService {
     try {
       res = await fetch(this.url(path), { method: "DELETE" });
     } catch {
-      throw new ApiException(502, "RECOGNITION_SERVICE_UNREACHABLE", "The recognition service is unreachable.");
+      throw new ApiException(
+        502,
+        "RECOGNITION_SERVICE_UNREACHABLE",
+        "The recognition service is unreachable.",
+      );
     }
     return this.relay(res);
   }
@@ -126,15 +148,24 @@ export class RecognitionService {
     try {
       res = await fetch(this.url(path));
     } catch {
-      throw new ApiException(502, "RECOGNITION_SERVICE_UNREACHABLE", "The recognition service is unreachable.");
+      throw new ApiException(
+        502,
+        "RECOGNITION_SERVICE_UNREACHABLE",
+        "The recognition service is unreachable.",
+      );
     }
     if (!res.ok) {
-      throw new ApiException(res.status === 404 ? 404 : 502, "RECOGNITION_SERVICE_ERROR", "Image not found.");
+      throw new ApiException(
+        res.status === 404 ? 404 : 502,
+        "RECOGNITION_SERVICE_ERROR",
+        "Image not found.",
+      );
     }
     const arrayBuffer = await res.arrayBuffer();
     return {
       buffer: Buffer.from(arrayBuffer),
-      contentType: res.headers.get("content-type") ?? "application/octet-stream",
+      contentType:
+        res.headers.get("content-type") ?? "application/octet-stream",
     };
   }
 }

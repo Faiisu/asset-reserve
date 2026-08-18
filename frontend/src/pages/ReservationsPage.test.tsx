@@ -39,7 +39,7 @@ const reservation: ReservationSummary = {
 };
 
 describe("ReservationsPage", () => {
-  it("loads my reservations and switches to the approval queue", async () => {
+  it("loads my reservations and switches to the participate tab", async () => {
     vi.spyOn(api, "areas").mockResolvedValue({
       data: [],
       pageInfo: { nextCursor: null, hasNextPage: false },
@@ -60,12 +60,64 @@ describe("ReservationsPage", () => {
       expect.objectContaining({ view: "MINE", limit: 20 }),
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: /approval queue/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /participate/i }));
     await waitFor(() =>
       expect(listSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ view: "APPROVALS", limit: 20 }),
+        expect.objectContaining({ view: "PARTICIPATING", limit: 20 }),
       ),
     );
-    expect(screen.getByLabelText("2 decisions waiting")).toBeInTheDocument();
+  });
+
+  it("filters reservations using merged workspace and status filter dropdown", async () => {
+    vi.spyOn(api, "areas").mockResolvedValue({
+      data: [
+        { id: "area-1", name: "Production", description: null, createdAt: "", updatedAt: "" },
+        { id: "area-2", name: "Audio Lab", description: null, createdAt: "", updatedAt: "" },
+      ],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+    vi.spyOn(api, "reservations").mockResolvedValue({
+      data: [reservation],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <ReservationsPage />
+      </MemoryRouter>,
+    );
+
+    const trigger = screen.getByRole("button", {
+      name: /Filter reservations by workspace and status/i,
+    });
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveTextContent("Filters");
+
+    // Open unified filter popover
+    fireEvent.click(trigger);
+    expect(
+      screen.getByRole("dialog", { name: "Filter reservations" }),
+    ).toBeInTheDocument();
+
+    // Toggle Production workspace checkbox
+    const prodCheckbox = await screen.findByRole("checkbox", { name: "Production" });
+    expect(prodCheckbox).not.toBeChecked();
+    fireEvent.click(prodCheckbox);
+    expect(prodCheckbox).toBeChecked();
+    expect(trigger).toHaveTextContent("1");
+
+    // Toggle Approved status checkbox
+    const approvedCheckbox = screen.getByRole("checkbox", { name: "Approved" });
+    expect(approvedCheckbox).not.toBeChecked();
+    fireEvent.click(approvedCheckbox);
+    expect(approvedCheckbox).toBeChecked();
+    expect(trigger).toHaveTextContent("2");
+
+    // Clear all
+    const clearAllBtn = screen.getByRole("button", { name: "Clear all" });
+    expect(clearAllBtn).toBeInTheDocument();
+    fireEvent.click(clearAllBtn);
+    expect(prodCheckbox).not.toBeChecked();
+    expect(approvedCheckbox).not.toBeChecked();
   });
 });

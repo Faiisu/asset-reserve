@@ -138,7 +138,9 @@ export class EmailService {
   async sendTestEmail(to: string): Promise<void> {
     const smtp = await this.resolveActiveSmtpConfig();
     if (!smtp) {
-      throw new Error("Email is not configured -- save your SMTP settings first.");
+      throw new Error(
+        "Email is not configured -- save your SMTP settings first.",
+      );
     }
     const transporter = nodemailer.createTransport({
       host: smtp.host,
@@ -154,11 +156,17 @@ export class EmailService {
     });
   }
 
-  private async deliver(to: string[], subject: string, html: string): Promise<void> {
+  private async deliver(
+    to: string[],
+    subject: string,
+    html: string,
+  ): Promise<void> {
     if (to.length === 0) return;
     const smtp = await this.resolveActiveSmtpConfig();
     if (!smtp) {
-      console.warn(`[email] SMTP not configured; skipped "${subject}" to ${to.join(", ")}`);
+      console.warn(
+        `[email] SMTP not configured; skipped "${subject}" to ${to.join(", ")}`,
+      );
       return;
     }
     try {
@@ -175,7 +183,10 @@ export class EmailService {
         html,
       });
     } catch (error) {
-      console.warn(`[email] failed to send "${subject}" to ${to.join(", ")}:`, error);
+      console.warn(
+        `[email] failed to send "${subject}" to ${to.join(", ")}:`,
+        error,
+      );
     }
   }
 
@@ -204,7 +215,10 @@ export class EmailService {
           fromName: row.fromName,
         };
       } catch (error) {
-        console.warn("[email] could not decrypt the saved App Password:", error);
+        console.warn(
+          "[email] could not decrypt the saved App Password:",
+          error,
+        );
         return null;
       }
     }

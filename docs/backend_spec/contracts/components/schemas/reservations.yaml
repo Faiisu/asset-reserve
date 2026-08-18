@@ -319,10 +319,6 @@ ReservationAsset:
       type: boolean
     managementArea:
       $ref: "#/components/schemas/ManagementAreaRef"
-    template:
-      oneOf:
-        - $ref: "#/components/schemas/AssetTemplateRef"
-        - type: "null"
 ReservationAvailability:
   type: object
   required:

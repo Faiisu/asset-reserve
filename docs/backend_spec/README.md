@@ -5,6 +5,8 @@
 เอกสารที่เกี่ยวข้อง:
 
 - [Software architecture](../software_spec/README.md)
+- [Asset reservation flow](../software_spec/asset-reservation-flow.md)
+- [Proof photos & image system](../software_spec/reservation-proof-photos-system.md)
 - [File and schema structure conventions](../software_spec/file-and-schema-structure.md)
 - [Frontend specification](../frontend_spec/README.md)
 - [Database specification](../database.txt)

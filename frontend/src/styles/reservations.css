@@ -1,6 +1,5 @@
 .reservations-index {
-  max-width: 1320px;
-  margin: 0 auto;
+  width: 100%;
 }
 .reservation-view-tabs {
   display: flex;
@@ -10,16 +9,16 @@
 }
 .reservation-view-tabs button {
   position: relative;
-  min-height: 43px;
-  padding: 0 14px;
+  min-height: 44px;
+  padding: 0 16px;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   border: 0;
   background: transparent;
   color: var(--ink-faint);
-  font-size: 12px;
-  font-weight: 620;
+  font-size: 13px;
+  font-weight: 650;
   cursor: pointer;
 }
 .reservation-view-tabs button:hover {
@@ -39,12 +38,12 @@
   background: var(--blue);
 }
 .review-lane-banner {
-  padding: 16px 18px;
+  padding: 16px 20px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 13px;
-  border-radius: 12px;
+  border-radius: var(--card-radius-md);
   background: #10213a;
   color: #fff;
 }
@@ -68,19 +67,20 @@
   text-align: right;
 }
 .reservation-list-toolbar {
-  min-height: 66px;
-  padding: 10px;
+  min-height: 60px;
+  padding: 12px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--card-radius-md);
   background: var(--surface);
+  box-sizing: border-box;
 }
 .reservation-list-search {
-  min-width: 280px;
-  height: 43px;
+  min-width: 320px;
+  height: 42px;
   padding-left: 11px;
   display: flex;
   align-items: center;
@@ -164,12 +164,12 @@
 }
 .reservation-list-row {
   position: relative;
-  min-height: 154px;
-  padding: 20px 21px;
+  min-height: 168px;
+  padding: 20px 24px;
   display: grid;
-  grid-template-columns: 54px 20px minmax(0, 1fr) auto;
+  grid-template-columns: 62px 20px minmax(0, 1fr) auto;
   align-items: stretch;
-  gap: 13px;
+  gap: 16px;
   border-bottom: 1px solid var(--line);
   transition: background 160ms ease;
 }
@@ -192,15 +192,17 @@
 .reservation-list-date small {
   color: var(--ink-faint);
   font-family: var(--mono);
-  font-size: 8px;
+  font-size: 9px;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .reservation-list-date strong {
-  margin: 2px 0;
+  margin: 3px 0;
   color: var(--ink);
   font-family: var(--mono);
-  font-size: 25px;
+  font-size: 28px;
+  font-weight: 700;
   line-height: 1;
 }
 .reservation-list-track {
@@ -248,7 +250,8 @@
   margin: 0;
   overflow: hidden;
   color: var(--ink);
-  font-size: 17px;
+  font-size: 18px;
+  font-weight: 700;
   letter-spacing: -0.025em;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -258,12 +261,12 @@
   color: var(--ink-faint);
 }
 .reservation-list-status {
-  padding: 4px 7px;
+  padding: 5px 10px;
   border-radius: 99px;
   background: var(--surface-raised);
   color: var(--ink-faint);
-  font-size: 9px;
-  font-weight: 650;
+  font-size: 11px;
+  font-weight: 700;
   white-space: nowrap;
 }
 .reservation-list-status--approved,
@@ -282,46 +285,61 @@
   background: var(--red-soft);
   color: var(--red);
 }
+.reservation-list-participant-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--blue) 12%, var(--surface));
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .reservation-list-meta {
   margin-top: 13px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 18px;
+  gap: 10px 20px;
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 12px;
+  font-weight: 500;
 }
 .reservation-list-meta > span {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
 .reservation-list-meta .avatar {
-  width: 23px;
-  height: 23px;
-  font-size: 7px;
+  width: 26px;
+  height: 26px;
+  font-size: 9px;
 }
 .reservation-list-areas {
   margin-top: 12px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 6px;
 }
 .reservation-list-areas > span {
-  padding: 4px 6px;
+  padding: 5px 8px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 6px;
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: 550;
 }
 .reservation-list-areas small {
-  margin-left: 5px;
+  margin-left: 6px;
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: 500;
 }
 .reservation-progress {
-  height: 3px;
+  height: 4px;
   margin-top: 14px;
   display: flex;
   gap: 2px;
@@ -383,12 +401,11 @@
    REDESIGNED RESERVATION DETAIL PAGE & HORIZONTAL TRACKING STEPPER
    ========================================================================== */
 .res-detail-layout {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 24px 20px 64px;
+  width: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--page-stack-gap);
 }
 
 .res-detail-top-nav {
@@ -426,8 +443,8 @@
   background:
     linear-gradient(120deg, color-mix(in srgb, var(--blue-soft) 48%, var(--surface)) 0%, var(--surface) 48%);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 30px 32px 24px 144px;
+  border-radius: var(--card-radius-hero);
+  padding: 24px 28px 24px 140px;
   box-shadow: var(--shadow);
 }
 
@@ -443,7 +460,7 @@
 
 .res-detail-date-stamp {
   position: absolute;
-  inset: 24px auto auto 28px;
+  inset: 24px auto auto 24px;
   width: 88px;
   min-height: 104px;
   display: grid;
@@ -617,7 +634,7 @@
 .res-horizontal-tracker {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: var(--card-radius-md);
   padding: 20px 24px;
   box-shadow: var(--shadow);
 }
@@ -703,14 +720,14 @@
 }
 
 .res-step-node--completed {
-  background: var(--green);
+  background: var(--teal);
   color: #ffffff;
 }
 
 .res-step-node--current {
-  background: var(--amber);
+  background: var(--blue);
   color: #ffffff;
-  box-shadow: 0 0 0 4px var(--amber-soft);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 25%, transparent);
 }
 
 .res-step-node--upcoming {
@@ -769,8 +786,8 @@
 .res-card {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 22px 24px;
+  border-radius: var(--card-radius-lg);
+  padding: var(--card-padding-lg);
   box-shadow: var(--shadow);
 }
 
@@ -1016,10 +1033,6 @@
 }
 
 @media (max-width: 720px) {
-  .res-detail-layout {
-    padding: 16px 12px 44px;
-  }
-
   .res-detail-ref-id {
     max-width: 45vw;
     overflow: hidden;

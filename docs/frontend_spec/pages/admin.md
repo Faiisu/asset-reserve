@@ -38,7 +38,3 @@ Action:
 ### Roles and permissions
 
 หน้า `/admin/access` แสดง permission catalog แยกตาม resource, สร้าง role ใหม่ และแก้ description/permission set ของ role เดิม โดย `user:disable` และ `role:assign` บังคับให้เลือก `user:create` ร่วมด้วย การสร้างและแก้ไขจำกัด Global ADMIN
-
-### สถานะ route ของ templates
-
-`/admin/templates` redirect ไป `/admin/areas` ใน first draft ปัจจุบัน แม้ `TemplatesPage.tsx` และ backend asset-template API ยังอยู่ใน source

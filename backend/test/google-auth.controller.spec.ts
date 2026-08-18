@@ -7,7 +7,9 @@ import type { PrismaService } from "../src/database/prisma.service.js";
 import type { GoogleCallbackQueryDto } from "../src/google-auth/google-auth.dto.js";
 
 function fakeReply() {
-  return { redirect: vi.fn() } as unknown as FastifyReply & { redirect: ReturnType<typeof vi.fn> };
+  return { redirect: vi.fn() } as unknown as FastifyReply & {
+    redirect: ReturnType<typeof vi.fn>;
+  };
 }
 
 const identity = {
@@ -20,7 +22,9 @@ const identity = {
 
 function fakeSession(overrides: Partial<Record<string, unknown>> = {}) {
   return {
-    verifyState: vi.fn().mockResolvedValue({ purpose: "connect", userId: "user-1" }),
+    verifyState: vi
+      .fn()
+      .mockResolvedValue({ purpose: "connect", userId: "user-1" }),
     issueSession: vi.fn(),
     signState: vi.fn(),
     ...overrides,
@@ -30,7 +34,10 @@ function fakeSession(overrides: Partial<Record<string, unknown>> = {}) {
 beforeEach(() => {
   vi.stubEnv("GOOGLE_CLIENT_ID", "test-client-id");
   vi.stubEnv("GOOGLE_CLIENT_SECRET", "test-client-secret");
-  vi.stubEnv("GOOGLE_REDIRECT_URI", "http://localhost:3000/api/v1/auth/google/callback");
+  vi.stubEnv(
+    "GOOGLE_REDIRECT_URI",
+    "http://localhost:3000/api/v1/auth/google/callback",
+  );
   vi.stubEnv("FRONTEND_BASE_URL", "http://localhost:5173");
 });
 
@@ -76,7 +83,11 @@ describe("GoogleAuthController.callback -- connect purpose", () => {
       data: { email: "alice@example.com" },
     });
     expect(createProfile).toHaveBeenCalledWith({
-      data: { userId: "user-1", name: "Alice", profilePictureUrl: identity.picture },
+      data: {
+        userId: "user-1",
+        name: "Alice",
+        profilePictureUrl: identity.picture,
+      },
     });
     expect(reply.redirect).toHaveBeenCalledWith(
       "http://localhost:5173/connect-account/callback?ok=1",
@@ -94,7 +105,10 @@ describe("GoogleAuthController.callback -- connect purpose", () => {
     const prisma = {
       userAuthIdentity: { upsert },
       user: { updateMany, create: vi.fn() },
-      userProfile: { findUnique: vi.fn().mockResolvedValue({ userId: "user-1" }), create: vi.fn() },
+      userProfile: {
+        findUnique: vi.fn().mockResolvedValue({ userId: "user-1" }),
+        create: vi.fn(),
+      },
     } as unknown as PrismaService;
 
     const controller = new GoogleAuthController(googleAuth, session, prisma);
@@ -119,7 +133,9 @@ describe("GoogleAuthController.callback -- connect purpose", () => {
     } as unknown as GoogleAuthService;
     const session = fakeSession();
     const prisma = {
-      userAuthIdentity: { upsert: vi.fn().mockRejectedValue({ code: "P2002" }) },
+      userAuthIdentity: {
+        upsert: vi.fn().mockRejectedValue({ code: "P2002" }),
+      },
       user: { updateMany: vi.fn(), create: vi.fn() },
       userProfile: { findUnique: vi.fn(), create: vi.fn() },
     } as unknown as PrismaService;
@@ -149,7 +165,9 @@ describe("GoogleAuthController.callback -- login purpose", () => {
     });
     const prisma = {
       userAuthIdentity: {
-        findUnique: vi.fn().mockResolvedValue({ userId: "user-2", provider: "google" }),
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ userId: "user-2", provider: "google" }),
       },
       user: { create: vi.fn() },
     } as unknown as PrismaService;
@@ -173,7 +191,9 @@ describe("GoogleAuthController.callback -- login purpose", () => {
     const googleAuth = {
       exchangeCode: vi.fn().mockResolvedValue(identity),
     } as unknown as GoogleAuthService;
-    const session = fakeSession({ verifyState: vi.fn().mockResolvedValue({ purpose: "login" }) });
+    const session = fakeSession({
+      verifyState: vi.fn().mockResolvedValue({ purpose: "login" }),
+    });
     const prisma = {
       userAuthIdentity: { findUnique: vi.fn().mockResolvedValue(null) },
       user: { create: vi.fn() },
@@ -204,7 +224,9 @@ describe("GoogleAuthController.callback -- login purpose", () => {
     });
     const prisma = {
       userAuthIdentity: {
-        findUnique: vi.fn().mockResolvedValue({ userId: "user-3", provider: "google" }),
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ userId: "user-3", provider: "google" }),
       },
       user: { create: vi.fn() },
     } as unknown as PrismaService;
@@ -225,13 +247,18 @@ describe("GoogleAuthController.callback -- login purpose", () => {
 
 describe("GoogleAuthController.callback -- shared failure paths", () => {
   it("redirects to login when Google reports an error (consent denied)", async () => {
-    const googleAuth = { exchangeCode: vi.fn() } as unknown as GoogleAuthService;
+    const googleAuth = {
+      exchangeCode: vi.fn(),
+    } as unknown as GoogleAuthService;
     const session = fakeSession();
     const prisma = {} as PrismaService;
     const controller = new GoogleAuthController(googleAuth, session, prisma);
     const reply = fakeReply();
 
-    await controller.callback({ error: "access_denied" } as GoogleCallbackQueryDto, reply);
+    await controller.callback(
+      { error: "access_denied" } as GoogleCallbackQueryDto,
+      reply,
+    );
 
     expect(reply.redirect).toHaveBeenCalledWith(
       "http://localhost:5173/login?googleError=google_failed",
@@ -241,8 +268,12 @@ describe("GoogleAuthController.callback -- shared failure paths", () => {
   });
 
   it("redirects to login when the signed state fails verification", async () => {
-    const googleAuth = { exchangeCode: vi.fn() } as unknown as GoogleAuthService;
-    const session = fakeSession({ verifyState: vi.fn().mockRejectedValue(new Error("expired")) });
+    const googleAuth = {
+      exchangeCode: vi.fn(),
+    } as unknown as GoogleAuthService;
+    const session = fakeSession({
+      verifyState: vi.fn().mockRejectedValue(new Error("expired")),
+    });
     const prisma = {} as PrismaService;
     const controller = new GoogleAuthController(googleAuth, session, prisma);
     const reply = fakeReply();

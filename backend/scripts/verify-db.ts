@@ -19,10 +19,15 @@ async function main() {
       userRoles: { include: { role: true, managementArea: true } },
     },
   });
-  const roles = await prisma.role.findMany({ select: { name: true, permissions: true } });
+  const roles = await prisma.role.findMany({
+    select: { name: true, permissions: true },
+  });
   const assets = await prisma.asset.count();
   const areas = await prisma.managementArea.count();
-  const reservations = await prisma.reservation.count();
+  const reservations = await prisma.reservation.findMany({
+    select: { status: true, eventName: true, id: true },
+    orderBy: { createdAt: "asc" },
+  });
   const returns = await prisma.return.count();
 
   console.log("=========================================");
@@ -30,14 +35,23 @@ async function main() {
   console.log("=========================================");
   console.log(`Users count:        ${users.length}`);
   for (const user of users) {
-    console.log(` - Email: ${user.email} (${user.profile?.name ?? "No profile"})`);
+    console.log(
+      ` - Email: ${user.email} (${user.profile?.name ?? "No profile"})`,
+    );
     console.log(`   Active: ${user.isActive}`);
-    console.log(`   Roles:  ${user.userRoles.map((r) => r.role.name).join(", ")}`);
+    console.log(
+      `   Roles:  ${user.userRoles.map((r) => r.role.name).join(", ")}`,
+    );
   }
-  console.log(`Roles count:        ${roles.length} (${roles.map((r) => r.name).join(", ")})`);
+  console.log(
+    `Roles count:        ${roles.length} (${roles.map((r) => r.name).join(", ")})`,
+  );
   console.log(`Assets count:       ${assets}`);
   console.log(`Areas count:        ${areas}`);
-  console.log(`Reservations count: ${reservations}`);
+  console.log(`Reservations count: ${reservations.length}`);
+  for (const r of reservations) {
+    console.log(` - [${r.status.padEnd(20)}] ${r.eventName}`);
+  }
   console.log(`Returns count:      ${returns}`);
   console.log("=========================================");
 }

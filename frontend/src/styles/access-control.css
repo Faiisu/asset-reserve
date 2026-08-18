@@ -2,11 +2,11 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr)) 1.8fr;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--card-radius-md);
   background: var(--surface);
 }
 .access-overview > div {
-  padding: 17px 20px;
+  padding: 20px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -28,7 +28,7 @@
 }
 .access-overview > p {
   margin: 0;
-  padding: 14px 18px;
+  padding: 16px 20px;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -48,11 +48,11 @@
 .role-list {
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--card-radius-lg);
   background: var(--surface);
 }
 .role-list > header {
-  padding: 19px;
+  padding: 20px 24px;
   border-bottom: 1px solid var(--line);
 }
 .role-list h2 {
@@ -61,8 +61,8 @@
 }
 .role-list__item {
   width: 100%;
-  min-height: 68px;
-  padding: 12px 16px;
+  min-height: 72px;
+  padding: 14px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -87,17 +87,21 @@
   display: grid;
   gap: 5px;
 }
+.role-list__item strong {
+  font-size: 14px;
+  font-weight: 700;
+}
 .role-list__item small {
   color: var(--ink-faint);
-  font-size: 10px;
+  font-size: 11.5px;
 }
 .permission-editor {
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--card-radius-lg);
   background: var(--surface);
 }
 .permission-editor__header {
-  padding: 21px 23px;
+  padding: 20px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -117,7 +121,7 @@
   font-size: 10px;
 }
 .permission-description {
-  padding: 19px 23px;
+  padding: 20px 24px;
   border-bottom: 1px solid var(--line);
 }
 .permission-description label {
@@ -129,7 +133,7 @@
   font-weight: 650;
 }
 .permission-groups {
-  padding: 20px 23px;
+  padding: 20px 24px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
@@ -141,7 +145,7 @@
   background: var(--surface);
 }
 .permission-group > header {
-  padding: 12px 14px;
+  padding: 12px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -172,12 +176,12 @@
 }
 
 .permission-item {
-  min-height: 76px;
-  padding: 12px 14px;
+  min-height: 82px;
+  padding: 14px 18px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
-  gap: 12px;
+  gap: 14px;
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -191,13 +195,13 @@
   pointer-events: none;
 }
 .permission-item__check {
-  width: 19px;
-  height: 19px;
+  width: 21px;
+  height: 21px;
   margin-top: 2px;
   display: grid;
   place-items: center;
   border: 1.5px solid var(--line-strong);
-  border-radius: 5px;
+  border-radius: 6px;
   transition: all 0.15s ease;
 }
 .permission-item--checked .permission-item__check {
@@ -208,40 +212,41 @@
 .permission-item__content {
   min-width: 0;
   display: grid;
-  gap: 2px;
+  gap: 3px;
 }
 .permission-item__header-row {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 .permission-item strong {
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--ink);
 }
 .permission-item__subtext {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-faint);
-  font-weight: 450;
+  font-weight: 500;
   text-transform: capitalize;
 }
 .permission-item code {
   display: inline-block;
-  margin: 2px 0 3px;
-  padding: 1px 6px;
+  margin: 3px 0 4px;
+  padding: 2px 7px;
   background: var(--blue-soft);
   color: var(--blue);
   border-radius: 4px;
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-family: var(--mono);
+  font-weight: 600;
   width: fit-content;
 }
 .permission-item small {
   color: var(--ink-soft);
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: 12px;
+  line-height: 1.45;
 }
 .permission-item__meta {
   display: flex;
@@ -249,8 +254,8 @@
   padding-top: 2px;
 }
 .permission-item__info-trigger {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -308,7 +313,9 @@
 }
 
 .permission-item-wrapper:hover .permission-minipanel,
-.permission-item-wrapper:focus-within .permission-minipanel {
+.permission-item-wrapper:has(.permission-item__info-trigger:focus-visible) .permission-minipanel,
+.permission-item__info-trigger:focus-visible ~ .permission-minipanel,
+.permission-minipanel:hover {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
@@ -491,16 +498,16 @@
 .people-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 16px;
 }
 .person-card {
   min-width: 0;
-  padding: 16px;
+  padding: 20px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 12px;
+  gap: 15px;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--card-radius-md);
   background: var(--surface);
   color: var(--ink);
   text-align: left;
@@ -527,7 +534,8 @@
 }
 .person-card__main strong {
   overflow: hidden;
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -536,18 +544,18 @@
   margin-top: 4px;
   overflow: hidden;
   color: var(--ink-faint);
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .person-card__foot {
   grid-column: 1 / -1;
-  padding-top: 11px;
+  padding-top: 13px;
   display: flex;
   justify-content: space-between;
   border-top: 1px solid var(--line);
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 11px;
 }
 .person-card__foot span {
   display: flex;
@@ -582,14 +590,14 @@
   font-size: 11px;
 }
 .user-drawer__facts {
-  padding: 18px 24px;
+  padding: 20px 24px;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   border-bottom: 1px solid var(--line);
 }
 .user-drawer__facts > div {
-  padding: 12px;
+  padding: 12px 16px;
   display: flex;
   gap: 9px;
   border-radius: 8px;
@@ -610,7 +618,7 @@
   font-size: 11px;
 }
 .assignment-section {
-  padding: 22px 24px;
+  padding: 20px 24px;
 }
 .assignment-section > header {
   display: flex;
@@ -631,7 +639,7 @@
   gap: 7px;
 }
 .assignment-list article {
-  padding: 11px;
+  padding: 12px 16px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -668,13 +676,13 @@
 }
 .user-drawer__footer {
   margin: 0 24px 24px;
-  padding: 15px;
+  padding: 16px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 15px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--card-radius-md);
   background: var(--surface-raised);
 }
 .user-drawer__footer strong,
@@ -693,44 +701,45 @@
 .template-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 .template-card {
   overflow: hidden;
-  min-height: 240px;
+  min-height: 260px;
   display: grid;
   grid-template-rows: auto 1fr auto;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--card-radius-lg);
   background: var(--surface);
 }
 .template-card__icon {
-  width: 46px;
-  height: 46px;
-  margin: 17px 17px 0;
+  width: 54px;
+  height: 54px;
+  margin: 20px 20px 0;
   display: grid;
   place-items: center;
   border: 1px solid color-mix(in srgb, var(--blue) 20%, var(--line));
-  border-radius: 9px;
+  border-radius: 11px;
   background: var(--blue-soft);
   color: var(--blue);
 }
 .template-card__main {
-  padding: 15px 17px 20px;
+  padding: 16px 20px 20px;
 }
 .template-card__main h2 {
-  margin: 0 0 7px;
-  font-size: 18px;
+  margin: 0 0 8px;
+  font-size: 19px;
+  font-weight: 700;
 }
 .template-card__main > p:last-child {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.55;
 }
 .template-card footer {
-  min-height: 49px;
-  padding: 8px 11px 8px 17px;
+  min-height: 54px;
+  padding: 12px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -739,6 +748,6 @@
 }
 .template-card footer > span {
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 10.5px;
 }
 

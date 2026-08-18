@@ -4,9 +4,16 @@ import type { FastifyReply } from "fastify";
 import { appConfig } from "../config.js";
 import { ApiException } from "../common/api-exception.js";
 import { PrismaService } from "../database/prisma.service.js";
-import { CurrentActor, Public, SkipAccountLinkCheck } from "../auth/auth.decorators.js";
+import {
+  CurrentActor,
+  Public,
+  SkipAccountLinkCheck,
+} from "../auth/auth.decorators.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
-import type { ExternalIdentity, ExternalState } from "../auth/external-identity.js";
+import type {
+  ExternalIdentity,
+  ExternalState,
+} from "../auth/external-identity.js";
 import { ExternalIdentitySessionService } from "../auth/external-identity-session.service.js";
 import { MicrosoftCallbackQueryDto } from "./microsoft-auth.dto.js";
 import { MicrosoftAuthService } from "./microsoft-auth.service.js";
@@ -32,13 +39,19 @@ export class MicrosoftAuthController {
 
   @SkipAccountLinkCheck()
   @Get("connect")
-  async connect(@CurrentActor() actor: AuthenticatedActor): Promise<{ url: string }> {
+  async connect(
+    @CurrentActor() actor: AuthenticatedActor,
+  ): Promise<{ url: string }> {
     this.assertConfigured();
     const signed = await this.session.signState({
       purpose: "connect",
       userId: actor.user.id,
     });
-    const url = await this.microsoftAuth.buildAuthUrl(SCOPES, signed, this.redirectUri());
+    const url = await this.microsoftAuth.buildAuthUrl(
+      SCOPES,
+      signed,
+      this.redirectUri(),
+    );
     return { url };
   }
 
@@ -48,21 +61,34 @@ export class MicrosoftAuthController {
   async login(@Res() reply: FastifyReply) {
     this.assertConfigured();
     const signed = await this.session.signState({ purpose: "login" });
-    const url = await this.microsoftAuth.buildAuthUrl(SCOPES, signed, this.redirectUri());
+    const url = await this.microsoftAuth.buildAuthUrl(
+      SCOPES,
+      signed,
+      this.redirectUri(),
+    );
     this.redirect(reply, url);
   }
 
   @Public()
   @SkipAccountLinkCheck()
   @Get("callback")
-  async callback(@Query() query: MicrosoftCallbackQueryDto, @Res() reply: FastifyReply) {
+  async callback(
+    @Query() query: MicrosoftCallbackQueryDto,
+    @Res() reply: FastifyReply,
+  ) {
     const frontendBaseUrl = appConfig.frontendBaseUrl();
     if (!appConfig.microsoftAuth()) {
-      this.redirect(reply, `${frontendBaseUrl}/login?microsoftError=microsoft_not_configured`);
+      this.redirect(
+        reply,
+        `${frontendBaseUrl}/login?microsoftError=microsoft_not_configured`,
+      );
       return;
     }
     if (query.error || !query.code || !query.state) {
-      this.redirect(reply, `${frontendBaseUrl}/login?microsoftError=microsoft_failed`);
+      this.redirect(
+        reply,
+        `${frontendBaseUrl}/login?microsoftError=microsoft_failed`,
+      );
       return;
     }
 
@@ -70,7 +96,10 @@ export class MicrosoftAuthController {
     try {
       state = await this.session.verifyState(query.state);
     } catch {
-      this.redirect(reply, `${frontendBaseUrl}/login?microsoftError=microsoft_failed`);
+      this.redirect(
+        reply,
+        `${frontendBaseUrl}/login?microsoftError=microsoft_failed`,
+      );
       return;
     }
 
@@ -82,19 +111,29 @@ export class MicrosoftAuthController {
       );
       if (state.purpose === "connect") {
         await this.handleConnect(state.userId, identity);
-        this.redirect(reply, `${frontendBaseUrl}/connect-account/callback?ok=1`);
+        this.redirect(
+          reply,
+          `${frontendBaseUrl}/connect-account/callback?ok=1`,
+        );
         return;
       }
       await this.handleLogin(identity, reply, frontendBaseUrl);
     } catch (error) {
       console.warn("[microsoft-auth] callback failed:", error);
-      const target = state.purpose === "connect" ? "/connect-account" : "/login";
-      this.redirect(reply, `${frontendBaseUrl}${target}?microsoftError=microsoft_failed`);
+      const target =
+        state.purpose === "connect" ? "/connect-account" : "/login";
+      this.redirect(
+        reply,
+        `${frontendBaseUrl}${target}?microsoftError=microsoft_failed`,
+      );
     }
   }
 
   /** Same shape as GoogleAuthController.handleConnect() -- see there. */
-  private async handleConnect(userId: string, identity: ExternalIdentity): Promise<void> {
+  private async handleConnect(
+    userId: string,
+    identity: ExternalIdentity,
+  ): Promise<void> {
     try {
       await this.prisma.userAuthIdentity.upsert({
         where: { userId_provider: { userId, provider: "microsoft" } },
@@ -108,7 +147,9 @@ export class MicrosoftAuthController {
       });
     } catch (error) {
       if (this.prismaCode(error) === "P2002") {
-        throw new Error("This Microsoft account is already linked to a different user.");
+        throw new Error(
+          "This Microsoft account is already linked to a different user.",
+        );
       }
       throw error;
     }
@@ -127,10 +168,16 @@ export class MicrosoftAuthController {
       }
     }
 
-    const existingProfile = await this.prisma.userProfile.findUnique({ where: { userId } });
+    const existingProfile = await this.prisma.userProfile.findUnique({
+      where: { userId },
+    });
     if (!existingProfile && identity.name) {
       await this.prisma.userProfile.create({
-        data: { userId, name: identity.name, profilePictureUrl: identity.picture },
+        data: {
+          userId,
+          name: identity.name,
+          profilePictureUrl: identity.picture,
+        },
       });
     }
   }
@@ -142,11 +189,17 @@ export class MicrosoftAuthController {
   ): Promise<void> {
     const link = await this.prisma.userAuthIdentity.findUnique({
       where: {
-        provider_providerUserId: { provider: "microsoft", providerUserId: identity.sub },
+        provider_providerUserId: {
+          provider: "microsoft",
+          providerUserId: identity.sub,
+        },
       },
     });
     if (!link) {
-      this.redirect(reply, `${frontendBaseUrl}/login?microsoftError=not_linked`);
+      this.redirect(
+        reply,
+        `${frontendBaseUrl}/login?microsoftError=not_linked`,
+      );
       return;
     }
     const session = await this.session.issueSession(link.userId);

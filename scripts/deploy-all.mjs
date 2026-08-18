@@ -139,6 +139,7 @@ ${colors.bold}🔑 DEFAULT LOGIN CREDENTIALS:${colors.reset}
   👔 ${colors.bold}Manager:${colors.reset}  ae@example.com      | Password: password123456
   👔 ${colors.bold}Manager:${colors.reset}  mk@example.com      | Password: password123456
   👔 ${colors.bold}Manager:${colors.reset}  hr@example.com      | Password: password123456
+  👔 ${colors.bold}Manager:${colors.reset}  wh@example.com      | Password: password123456
   👤 ${colors.bold}User:${colors.reset}     user1@example.com   | Password: password123456
 
 ${colors.bold}🛠️ MANAGEMENT COMMANDS:${colors.reset}

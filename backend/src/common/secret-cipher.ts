@@ -1,8 +1,4 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  randomBytes,
-} from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { appConfig } from "../config.js";
 
 /**
@@ -38,14 +34,23 @@ export function encryptSecret(plaintext: string): string {
 export function decryptSecret(cipherText: string): string {
   const parts = cipherText.split(".");
   if (parts.length !== 3) {
-    throw new Error("Malformed encrypted secret (expected iv.authTag.ciphertext).");
+    throw new Error(
+      "Malformed encrypted secret (expected iv.authTag.ciphertext).",
+    );
   }
   const [ivPart, authTagPart, ciphertextPart] = parts;
   const iv = Buffer.from(ivPart!, "base64");
   const authTag = Buffer.from(authTagPart!, "base64");
   const ciphertext = Buffer.from(ciphertextPart!, "base64");
-  const decipher = createDecipheriv(ALGORITHM, appConfig.tokenEncryptionKey(), iv);
+  const decipher = createDecipheriv(
+    ALGORITHM,
+    appConfig.tokenEncryptionKey(),
+    iv,
+  );
   decipher.setAuthTag(authTag);
-  const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  const plaintext = Buffer.concat([
+    decipher.update(ciphertext),
+    decipher.final(),
+  ]);
   return plaintext.toString("utf8");
 }

@@ -26,6 +26,7 @@ const roles = [
       "asset:update",
       "asset:delete",
       "reservation:create",
+      "reservation:view",
       "reservation:update",
       "reservation:approve",
       "reservation:reject",
@@ -43,6 +44,7 @@ const roles = [
       "asset:view",
       "asset:update",
       "reservation:create",
+      "reservation:view",
       "reservation:update",
       "reservation:approve",
       "reservation:reject",
@@ -52,6 +54,7 @@ const roles = [
   {
     name: "USER",
     description: "View assets and manage their own reservations.",
+    // No reservation:view — regular users can only see their own reservations.
     permissions: ["asset:view", "reservation:create", "reservation:update"],
   },
 ] as const;
@@ -68,6 +71,10 @@ const initialAreas = [
   {
     name: "Marketing",
     description: "Marketing, event, and media production equipment.",
+  },
+  {
+    name: "Warehouse",
+    description: "Warehouse storage, logistics, and heavy handling equipment.",
   },
 ];
 
@@ -86,7 +93,6 @@ async function wipeDatabase(): Promise<void> {
       "asset_transactions",
       "asset_transaction_batches",
       "assets",
-      "asset_templates",
       "user_roles",
       "management_areas",
       "user_auth_identities",
@@ -145,9 +151,9 @@ async function seedAreasAndAccounts(): Promise<void> {
   });
 
   // 1. Create Admin
-  const adminEmail = (
-    process.env.BOOTSTRAP_ADMIN_EMAIL || "admin@example.com"
-  ).trim().toLowerCase();
+  const adminEmail = (process.env.BOOTSTRAP_ADMIN_EMAIL || "admin@example.com")
+    .trim()
+    .toLowerCase();
   const adminName = process.env.BOOTSTRAP_ADMIN_NAME?.trim() || "System Admin";
 
   console.log(`Creating Admin account: ${adminEmail}...`);
@@ -218,10 +224,17 @@ async function seedAreasAndAccounts(): Promise<void> {
       name: "HR Manager",
       areaName: "Human Resource",
     },
+    {
+      email: "wh@example.com",
+      name: "Warehouse Manager",
+      areaName: "Warehouse",
+    },
   ];
 
   for (const mgr of managerAccounts) {
-    console.log(`Creating Manager account: ${mgr.email} for ${mgr.areaName}...`);
+    console.log(
+      `Creating Manager account: ${mgr.email} for ${mgr.areaName}...`,
+    );
     const user = await prisma.user.create({
       data: {
         id: randomUUID(),
@@ -300,11 +313,13 @@ async function seedAreasAndAccounts(): Promise<void> {
   console.log("  1. Human Resource");
   console.log("  2. Application Engineer");
   console.log("  3. Marketing");
+  console.log("  4. Warehouse");
   console.log("\nAccounts (Password: " + defaultPassword + "):");
   console.log("  - admin@example.com -> Role: ADMIN (Global)");
   console.log("  - ae@example.com    -> Role: MANAGER (Application Engineer)");
   console.log("  - mk@example.com    -> Role: MANAGER (Marketing)");
   console.log("  - hr@example.com    -> Role: MANAGER (Human Resource)");
+  console.log("  - wh@example.com    -> Role: MANAGER (Warehouse)");
   console.log("  - user1@example.com -> Role: USER (General)");
   console.log("  - user2@example.com -> Role: USER (General)");
   console.log("=========================================");

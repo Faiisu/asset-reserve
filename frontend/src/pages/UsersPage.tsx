@@ -263,7 +263,7 @@ export function UsersPage() {
                 </div>
                 <div className="person-card__foot">
                   <span>
-                    <KeyRound size={14} />
+                    <KeyRound size={16} />
                     {user.roleCount} roles
                   </span>
                   <span>{formatDate(user.createdAt)}</span>

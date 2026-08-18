@@ -5,8 +5,8 @@ import {
 } from "../src/access-control/permissions.js";
 
 describe("permission catalog", () => {
-  it("contains the twelve contract permission keys", () => {
-    expect(PERMISSION_KEYS).toHaveLength(12);
+  it("contains the thirteen contract permission keys", () => {
+    expect(PERMISSION_KEYS).toHaveLength(13);
   });
 
   it("deduplicates, sorts, and rejects unknown values", () => {

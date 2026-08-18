@@ -11,6 +11,8 @@
 | [Database specification](../database.txt)                 | ตาราง, field, constraint และ relation ต้นฉบับ                          |
 | [Prisma schema](../../backend/prisma/schema.prisma)       | Data model ที่ backend ใช้งาน                                          |
 | [File and schema structure](file-and-schema-structure.md) | มาตรฐานโครงสร้าง frontend, backend, Prisma และ dependency boundary     |
+| [Asset reservation flow](asset-reservation-flow.md)        | Lifecycle 5 ขั้นตอน, State machines, Actors & Permission matrix         |
+| [Proof photos & image system](reservation-proof-photos-system.md) | สถาปัตยกรรมระบบรูปภาพหลักฐานตอน Handover และ Return, Upload pipeline    |
 
 ## เป้าหมายการออกแบบ
 
