@@ -6,18 +6,15 @@
 
 รายการต่อไปนี้ไม่มี persistence ใน Prisma ปัจจุบัน จึงห้ามระบุว่า backend รองรับแล้ว:
 
-- Notification และ unread state
 - Workspace settings, timezone และ reminder
-- Asset tag/serial number
-- Category และ location
-- Condition ระดับ asset
+- Category และ location ระดับ asset
 - Maintenance period/calendar block
-- Checkout entity แยกจาก ReservationItem
-- File upload metadata
-- Optimistic concurrency version
+- File upload metadata (นอกเหนือจาก URL)
+- Optimistic concurrency version (มี `expectedUpdatedAt` timestamp-based แล้ว แต่ไม่มี numeric version field)
 - Organization scope ที่แยกจาก ManagementArea
-- Audit log ทั่วระบบนอก AssetTransaction
 - Hard delete UI สำหรับข้อมูลหลัก
+
+**อัปเดต:** รายการต่อไปนี้เคยอยู่ในลิสต์นี้แต่ implement แล้ว ไม่ใช่ out-of-scope อีกต่อไป — Notification settings/email delivery (`notification_settings`, `email_templates` table, `/admin/notifications`), Asset serial number (`AssetUnit.serialNumber`), per-unit condition (`AssetUnit.status`, `ReturnItemUnit.condition`), checkout entity แยกจาก ReservationItem (`ReservationItemUnit`), audit log ทั่วระบบ (`activity_logs` table, ไม่ใช่ `AssetTransaction` ซึ่งไม่มีอยู่จริง)
 
 หากต้องการ feature เหล่านี้ ต้องแก้ Prisma/database contract ก่อน แล้วจึงอัปเดต frontend spec และ tests พร้อมกัน
 

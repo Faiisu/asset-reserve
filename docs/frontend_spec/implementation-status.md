@@ -2,14 +2,14 @@
 
 [← กลับไปสารบัญ](README.md)
 
-เอกสารนี้เป็น snapshot ของ **frontend first draft** ที่ตรวจจาก `frontend/src/app.tsx`, `frontend/src/pages`, `frontend/src/components`, `frontend/src/api.ts` และ tests ณ วันที่ 16 สิงหาคม 2026 ใช้แยกสิ่งที่ใช้งานได้จริงออกจากเอกสาร product specification ที่อาจรวม roadmap ในอนาคต
+เอกสารนี้เป็น snapshot ของ frontend ที่ตรวจจาก `frontend/src/app.tsx`, `frontend/src/pages`, `frontend/src/components`, `frontend/src/api.ts` และ tests ณ วันที่ 19 สิงหาคม 2026 (หลังงาน OAuth/Outlook account linking, notifications และ self-service account) ใช้แยกสิ่งที่ใช้งานได้จริงออกจากเอกสาร product specification ที่อาจรวม roadmap ในอนาคต
 
 ## User flow ที่ implement แล้ว
 
 ```mermaid
 flowchart TB
     A([เปิดแอป]) --> B{มี access token ที่ใช้ได้?}
-    B -->|ไม่มี| C[Login ด้วย email/password]
+    B -->|ไม่มี| C[Login ด้วย username/password หรือ Google/Microsoft ที่ link ไว้แล้ว]
     B -->|มี| D[โหลด BFF session]
     C --> D
     D --> E[Calendar]
@@ -35,7 +35,11 @@ flowchart TB
 
 | Route | Page/component | Feature ที่ implement แล้ว | Access ที่ UI ใช้ |
 | --- | --- | --- | --- |
-| `/login` | `LoginPage` | email/password login, field/API error, callback ไป path เดิม, redirect session ที่ login แล้ว | Public |
+| `/login` | `LoginPage` | username/password login, Google/Microsoft OAuth login สำหรับบัญชีที่ link ไว้แล้ว, field/API error, callback ไป path เดิม, redirect session ที่ login แล้ว | Public |
+| `/auth/callback` | `OAuthCallbackPage` | รับ OAuth callback (Google/Microsoft) หลัง provider consent, จัดการ error state | Public |
+| `/connect-account` | `ConnectAccountPage` | mandatory account-link gate เมื่อ `REQUIRE_ACCOUNT_LINK` เปิด บังคับ link Google/Microsoft ก่อนใช้แอปต่อ | Login |
+| `/connect-account/callback` | `ConnectAccountCallbackPage` | callback ของ mandatory-link flow | Login |
+| `/account` | `AccountPage` | self-service แก้ name/email, เปลี่ยน password, link/unlink Google/Microsoft แบบ optional (เข้าถึงได้เสมอไม่ว่า gate เปิดหรือปิด) | Login |
 | `/calendar` | `CalendarPage` | continuous month calendar, Today/date picker, status/workspace filters, event minibox, asset picker search/list/grid, date-range drag/keyboard selection, prefill reservation, approve/reject pending items, cancel reservation | Login; create controlsต้องมี `reservation:create`; review/cancel ใช้ capabilities จาก API |
 | `/assets` | `AssetsPage` | search, workspace/status filters, list/card responsive views, cursor load-more, multi-select, batch stock add/remove, batch disable | `asset:view`; action ตาม `asset:create`, per-asset capabilities |
 | `/assets/new` | `AssetFormPage` | single/batch create, workspace selection, quantity/description, preview, upload file, camera capture, remove/replace photo | `asset:create` ในอย่างน้อยหนึ่ง area |
@@ -44,10 +48,13 @@ flowchart TB
 | `/assets/:assetId/edit` | `AssetFormPage` | edit name, area, description และ picture; quantity แก้ผ่าน inventory action | `canEdit`/backend permission |
 | `/reservations` | `ReservationsPage` | My reservations/Approval queue tabs, search, grouped status/workspace/date filters, cursor load-more | reservation permission อย่างน้อยหนึ่งรายการ; review tab ต้อง approve/reject |
 | `/reservations/new` | `ReservationCreatePage` | event schedule, optional asset manifest, quantity, URL-prefilled dates/assets, recent reservations, reference lookup, create draft หรือ submit | `reservation:create` และ area permission ของ asset |
-| `/reservations/:reservationId` | `ReservationDetailPage` | schedule/requester/participants/items, availability warnings, submit draft, item single/batch approve/reject, cancel, request edit, approve/reject edit request | capabilities จาก reservation detail |
+| `/reservations/:reservationId` | `ReservationDetailPage` | schedule/requester/participants/items, availability warnings, submit draft, item single/batch approve/reject, cancel, request edit, approve/reject edit request, delivery confirm, **submit/decide return** (per-item return slip, Good/Broken/Lost decision) | capabilities จาก reservation detail |
+| `/approvals` | `ApprovalRequestsPage` | รวม pending item approvals และ change-request approvals ที่ actor ตัดสินใจได้ ข้ามหลาย reservation ในหน้าเดียว | reservation permission ที่เกี่ยวกับ approve/reject อย่างน้อยหนึ่งรายการ |
 | `/admin/areas` | `ManagementAreasPage` | search/list, create, edit, delete confirmation | navigation และ mutation UI จำกัด Global ADMIN |
 | `/admin/access` | `AccessPage` | permission catalog grouped by resource, role selection, create role, edit description/permissions, dirty-state save | Global ADMIN |
 | `/admin/users` | `UsersPage` | search/status/role/area filters, detail drawer, create account with optional uploaded/camera photo, enable/disable, assign/remove scoped roles | global `user:create`, `user:disable`, หรือ `role:assign` ตาม action |
+| `/admin/notifications` | `NotificationsPage` | SMTP delivery settings tab และ email-template editor tab (per-situation subject/body) | Global ADMIN |
+| `/admin/templates` | Redirect | compatibility redirect ไป `/admin/areas` | Global ADMIN |
 
 ## Shared application features
 
@@ -59,12 +66,12 @@ flowchart TB
 - Upload รองรับ file picker และกล้องผ่าน `CameraCaptureModal`; backend จำกัดหนึ่งไฟล์ต่อ request และขนาด 10 MiB
 - Layout มี responsive breakpoints สำหรับ navigation, tables/cards, forms, calendar และ dialogs
 
-## สิ่งที่ยังไม่ implement ใน frontend first draft
+## สิ่งที่ยังไม่ implement ใน frontend
 
-- Return creation, partial return และ return approval ไม่มี route/page/API client แม้ Prisma/spec วาง roadmap ไว้
-- Lifecycle actions PREPARED, CHECKED_OUT และ RETURNED ยังไม่มี frontend command
-- External identity buttons ไม่มีใน `LoginPage`; login ปัจจุบันเป็น email/password เท่านั้น
+- `PREPARED` step (`POST /reservations/:id/items/:itemId/prepare` — assign serial-numbered unit ให้ item ก่อนส่งมอบ) ไม่มี `api.ts` client หรือ UI command เลย reservation จึงข้ามจาก `APPROVED` ไป `delivery-confirm` ตรงๆ โดยไม่ผ่านขั้น assign unit ทาง UI
+- `CHECKED_OUT`/`RETURNED` มี frontend command แล้ว (`confirmDelivery`, `createReturn`, `decideReturn` ใน `ReservationDetailPage`) — ไม่ใช่ gap อีกต่อไป
 - ไม่มี standalone inventory-adjustment route; การปรับยอดทำจาก asset list/detail
+- Frontend ยังใช้ `asset.totalQuantity` และ batch stock add/remove ตามโมเดลเก่า ยังไม่ตามโมเดล serial-numbered `AssetUnit` ที่ backend ใช้แล้ว (ดู [assets-and-inventory.md](pages/assets-and-inventory.md))
 
 ## Data flow
 

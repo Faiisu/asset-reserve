@@ -4,6 +4,8 @@
 > **Target Audience:** Frontend Engineers, UI/UX Designers, Full-Stack Developers  
 > **Scope:** Full Reservation Lifecycle, REST API Contracts, State Machines, UI Component Hierarchy, and Redesign Specifications for the Reservations System.
 
+> **⚠️ Status: proposed redesign, not implemented.** Everything below — the API request/response bodies in §4, the UI redesign spec in §5, the component file tree in §6 (`ReservationMetricStrip.tsx` etc. don't exist), and the rebuild checklist in §8 — is a **forward-looking blueprint**, not a description of the current app. The real, currently-shipped reservations UI is documented in [`pages/reservations.md`](pages/reservations.md) and [`implementation-status.md`](implementation-status.md); the real API contract lives in [`docs/backend_spec/contracts/`](../backend_spec/contracts/README.md) (notably: returns are per-serial-unit with `condition: GOOD|BROKEN|LOST`, not the quantity-based `quantityReturned/quantityBroken/quantityLost` shown in §4.4/§4.5 here). The canonical reservation status list is [`ReservationStatus.md`](../backend_spec/detail/ReservationStatus.md) — the bogus `RETURN`/`ACTIVE` values appearing in this doc's diagrams (§2.1, §7.1) are historical and not real statuses.
+
 ---
 
 ## 📑 Table of Contents
@@ -83,7 +85,7 @@ flowchart TD
 83: | `DELIVERY_CONFIRMED` | Delivery Confirmed | Cyan (Teal) | Equipment handed over and in requester possession. Next: `RETURN_PENDING`, `COMPLETED` |
 84: | `RETURN` / `RETURN_PENDING` | Return Pending | Orange (Alert) | User submitted return slip; awaiting manager warehouse inspection. Next: `RETURN_CONFIRMED`, `COMPLETED` |
 85: | `RETURN_CONFIRMED` | Partially Return | Emerald (Success) | Manager completed inspection and ledger updated. Next: `COMPLETED`, `DELIVERY_CONFIRMED` (if partial units remain) |
-86: | `COMPLETED` | Completed | Slate / Green (Muted) | All items accounted for, restocked, or marked broken/lost. Final state. |
+86: | `COMPLETED` | Return Completed | Slate / Green (Muted) | All items accounted for, restocked, or marked broken/lost. Final state. |
 87: | `REJECTED` | Rejected | Red (Danger) | All items rejected by Area Managers. Final state. |
 88: | `CANCELLED` | Cancelled | Zinc (Dimmed) | Cancelled by user before pickup. Final state. |
 

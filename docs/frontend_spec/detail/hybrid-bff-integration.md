@@ -6,31 +6,33 @@ Frontend ใช้ backend แบบ Hybrid BFF โดยแยก page query �
 
 ## Endpoint selection
 
-| UI operation                              | API surface        |
-| ----------------------------------------- | ------------------ |
-| โหลด session/navigation                   | BFF read API       |
-| โหลด Calendar view                        | BFF read API       |
-| โหลด Asset/Reservation/Return detail view | BFF read API       |
-| โหลด approval queue                       | BFF read API       |
-| Create/submit/cancel Reservation          | Domain command API |
-| Approve/reject item                       | Domain command API |
-| Inventory adjustment                      | Domain command API |
-| Prepare/check out                         | Domain command API |
-| Create/approve Return                     | Domain command API |
+**สถานะปัจจุบัน (implemented):** มีแค่ `GET /api/v1/bff/session` เท่านั้นที่เป็น BFF endpoint จริง ทุก UI operation อื่น — Calendar, Asset list/detail, Reservation list/detail, approval queue, return, admin — เรียก domain endpoint ตรงๆ ผ่าน `/api/v1/...` ไม่ผ่าน BFF เลย (`frontend/src/api.ts` เรียก `/reservations`, `/assets`, `/users` ฯลฯ โดยตรง) ตารางด้านล่างคือ**เป้าหมายการออกแบบ** ไม่ใช่สิ่งที่ implement แล้ว:
 
-## Recommended BFF reads
+| UI operation                              | API surface (เป้าหมาย)   | สถานะจริง               |
+| ----------------------------------------- | ------------------------- | ------------------------ |
+| โหลด session/navigation                   | BFF read API               | ✅ Implemented (`/bff/session`) |
+| โหลด Calendar view                        | BFF read API               | ❌ เรียก `/reservations` ตรง |
+| โหลด Asset/Reservation/Return detail view | BFF read API               | ❌ เรียก domain endpoint ตรง |
+| โหลด approval queue                       | BFF read API               | ❌ เรียก domain endpoint ตรง |
+| Create/submit/cancel Reservation          | Domain command API         | ✅ Implemented |
+| Approve/reject item                       | Domain command API         | ✅ Implemented |
+| Register/retire asset unit                | Domain command API         | ✅ Implemented |
+| Prepare/check out                         | Domain command API         | ⚠️ Check out (delivery-confirm) implemented; prepare has no frontend client at all |
+| Create/decide Return                      | Domain command API         | ✅ Implemented (แต่ payload shape ผิด — ดู [frontend-data-contracts.md](frontend-data-contracts.md)) |
 
-| Route                            | Response purpose                                               |
-| -------------------------------- | -------------------------------------------------------------- |
-| GET /api/v1/bff/session          | User, profile, permissions, scopes และ navigation              |
-| GET /api/v1/bff/calendar         | Reservation bars และ filters สำหรับ visible range              |
-| GET /api/v1/bff/assets           | Asset summaries, computed availability และ lookups             |
-| GET /api/v1/bff/reservations/:id | Reservation detail, items, approvals, returns และ capabilities |
-| GET /api/v1/bff/approval-queue   | Waiting, mine, resolved summaries                              |
-| GET /api/v1/bff/returns/:id      | Return detail, remaining quantities และ capabilities           |
-| GET /api/v1/bff/admin/users/:id  | User profile, roles และ scope assignments                      |
+## Recommended BFF reads (proposed, not implemented)
 
-ชื่อ endpoint เป็น contract เป้าหมายและต้องยืนยันใน OpenAPI ก่อน implement
+| Route                            | Response purpose                                               | สถานะ |
+| -------------------------------- | -------------------------------------------------------------- | ------ |
+| GET /api/v1/bff/session          | User, profile, permissions, scopes และ navigation              | ✅ Implemented |
+| GET /api/v1/bff/calendar         | Reservation bars และ filters สำหรับ visible range              | ❌ ไม่มี |
+| GET /api/v1/bff/assets           | Asset summaries, computed availability และ lookups             | ❌ ไม่มี |
+| GET /api/v1/bff/reservations/:id | Reservation detail, items, approvals, returns และ capabilities | ❌ ไม่มี |
+| GET /api/v1/bff/approval-queue   | Waiting, mine, resolved summaries                              | ❌ ไม่มี |
+| GET /api/v1/bff/returns/:id      | Return detail, remaining quantities และ capabilities           | ❌ ไม่มี |
+| GET /api/v1/bff/admin/users/:id  | User profile, roles และ scope assignments                      | ❌ ไม่มี |
+
+ชื่อ endpoint เป็น contract เป้าหมายและต้องยืนยันใน OpenAPI ก่อน implement — ปัจจุบัน frontend ทำงานได้เต็มรูปแบบโดยเรียก domain endpoint ตรง ไม่ได้ blocked จากการไม่มี BFF read เหล่านี้
 
 ## Frontend rules
 

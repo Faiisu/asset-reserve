@@ -6,7 +6,6 @@
 
 - [Software architecture](../software_spec/README.md)
 - [Asset reservation flow](../software_spec/asset-reservation-flow.md)
-- [Proof photos & image system](../software_spec/reservation-proof-photos-system.md)
 - [File and schema structure conventions](../software_spec/file-and-schema-structure.md)
 - [Backend specification](../backend_spec/README.md)
 - [Implemented frontend surface](implementation-status.md) — route และ feature ที่ตรวจจาก source ปัจจุบัน
@@ -14,10 +13,10 @@
 หลักการสำคัญ:
 
 - หนึ่ง Reservation แทนหนึ่งกิจกรรมและมี ReservationItem ได้หลาย asset
-- Asset เป็นรายการทรัพย์สินแบบมีจำนวนรวม ไม่ใช่ทรัพย์สินรายชิ้นที่มี asset tag
+- Asset เป็น catalog/part-number entry แบบมีจำนวนรวม (derive จากการนับ `AssetUnit`) ไม่ใช่ตัว field ที่แก้ได้ตรงๆ ตัวเครื่องจริงแต่ละชิ้นคือ `AssetUnit` แยกตาม serial number
 - ชื่อ field ใน frontend contract ใช้ camelCase ให้ตรงกับ Prisma Client
 - ค่า status ในฐานข้อมูลเป็น String ดังนั้น frontend ต้องใช้ค่าที่กำหนดในเอกสารนี้เท่านั้น
-- Frontend ไม่ใช่ security boundary; backend ต้องตรวจ authentication, permission, management-area scope, quantity และ state transition ทุก mutation
+- Frontend ไม่ใช่ security boundary; backend ต้องตรวจ authentication, permission, management-area scope, availability และ state transition ทุก mutation
 
 ## Documentation structure
 
@@ -66,17 +65,17 @@ docs/frontend_spec/
 
 ## Prisma models ที่เป็นขอบเขตของ MVP
 
-| Domain           | Prisma models                                        | หน้าที่ใน frontend                              |
-| ---------------- | ---------------------------------------------------- | ----------------------------------------------- |
-| User             | User, UserProfile, UserAuthIdentity                  | Session, profile และช่องทางเข้าสู่ระบบ          |
-| Access control   | Role, UserRole, ManagementArea                       | Role แบบ global หรือจำกัด management area       |
-| Inventory        | Asset                                                | ข้อมูล asset แบบมีจำนวน                         |
-| Inventory ledger | AssetTransactionBatch, AssetTransaction              | ประวัติการเพิ่ม ลด สูญหาย ชำรุด ซ่อม และปรับยอด |
-| Reservation      | Reservation, ReservationItem, ReservationParticipant | กิจกรรมจอง หลายรายการ และผู้เข้าร่วม            |
-| Approval/change  | ReservationItemApproval, ReservationChangeRequest    | อนุมัติราย asset และคำขอแก้ไข                   |
-| Return           | Return, ReturnItem, ReturnApproval                   | ส่งคืนเป็นจำนวน พร้อมจำนวนปกติ ชำรุด และสูญหาย  |
+| Domain           | Prisma models                                                | หน้าที่ใน frontend                                          |
+| ---------------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
+| User             | User, UserProfile, UserAuthIdentity                            | Session, profile และช่องทางเข้าสู่ระบบ (รวม Google/Microsoft link) |
+| Access control   | Role, UserRole, ManagementArea                                 | Role แบบ global หรือจำกัด management area                    |
+| Asset catalog    | Asset                                                           | Catalog/part-number entry (name, partNumber, description, isActive) |
+| Asset units      | AssetUnit, AssetUnitEventBatch, AssetUnitEvent                  | ตัวเครื่องจริงแยก serial number, status และ event ledger      |
+| Reservation      | Reservation, ReservationItem, ReservationItemUnit, ReservationParticipant | กิจกรรมจอง หลายรายการ, unit ที่ assign ให้แต่ละ item และผู้เข้าร่วม |
+| Approval/change  | ReservationItemApproval, ReservationChangeRequest               | อนุมัติราย asset และคำขอแก้ไข                                 |
+| Return           | Return, ReturnItem, ReturnItemUnit, ReturnApproval               | ส่งคืนเป็นรายหน่วย (serial) พร้อม condition GOOD/BROKEN/LOST     |
 
-Frontend ต้องไม่สร้าง field หรือ feature ที่ต้อง persist แต่ไม่มี model รองรับ เช่น asset tag, category, location, condition, notification, workspace setting หรือไฟล์แนบ
+Frontend ต้องไม่สร้าง field หรือ feature ที่ต้อง persist แต่ไม่มี model รองรับ เช่น asset category, location, notification workspace setting หรือไฟล์แนบระดับ asset (`Asset.partNumber` และ `AssetUnit.status`/`ownerId`/`visibility` เป็น field จริงที่มีอยู่แล้ว ไม่ใช่ตัวอย่างของสิ่งที่ห้ามสร้าง)
 
 ## MVP user flow
 
@@ -101,23 +100,26 @@ flowchart LR
 
 ## Information architecture
 
-| Route แนะนำ                | หน้า                             | Permission/เจ้าของข้อมูล                   |
-| -------------------------- | -------------------------------- | ------------------------------------------ |
-| /login                     | Sign in                          | Public                                     |
-| /calendar                  | Reservation calendar             | ผู้ใช้ที่เข้าสู่ระบบ                       |
-| /assets                    | Asset inventory                  | asset:view                                 |
-| /assets/:id                | Asset details และ ledger         | asset:view                                 |
-| /assets/new                | Create asset                     | asset:create                               |
-| /assets/:id/edit           | Edit asset                       | asset:update                               |
-| /inventory/adjustments/new | Create transaction batch         | asset:update                               |
-| /reservations              | My reservations / approval queue | Session user / reservation:approve         |
-| /reservations/new          | Create reservation               | reservation:create                         |
-| /reservations/:id          | Reservation details              | Owner, participant หรือผู้มี scope         |
-| /returns                   | Return queue                     | เจ้าของรายการหรือ return:approve           |
-| /returns/:id               | Return details/approval          | เจ้าของรายการหรือ return:approve           |
-| /admin/users               | Users and roles                  | user:create, user:disable หรือ role:assign |
-| /admin/areas               | Management areas                 | Global ADMIN                               |
+| Route                       | หน้า                                  | Permission/เจ้าของข้อมูล                    |
+| ---------------------------- | -------------------------------------- | -------------------------------------------- |
+| /login                      | Sign in                                | Public                                       |
+| /auth/callback              | OAuth callback (Google/Microsoft)      | Public                                       |
+| /connect-account (+callback) | Mandatory account-link gate            | ผู้ใช้ที่เข้าสู่ระบบ                          |
+| /account                    | Self-service profile/password/link     | ผู้ใช้ที่เข้าสู่ระบบ                          |
+| /calendar                   | Reservation calendar                   | ผู้ใช้ที่เข้าสู่ระบบ                          |
+| /assets                     | Asset inventory                        | asset:view                                   |
+| /assets/:id                 | Asset details และ unit event ledger    | asset:view                                   |
+| /assets/new                 | Create asset                           | asset:create                                 |
+| /assets/:id/edit            | Edit asset                             | asset:update                                 |
+| /reservations               | My reservations / approval queue       | Session user / reservation:approve           |
+| /approvals                  | รวม item และ change-request approvals ที่ทำได้ | reservation approve/reject permission |
+| /reservations/new           | Create reservation                     | reservation:create                           |
+| /reservations/:id           | Reservation details (submit/decision/delivery-confirm/return อยู่ในหน้านี้ ไม่ใช่ route แยก) | Owner, participant หรือผู้มี scope |
+| /admin/users                | Users and roles                        | user:create, user:disable หรือ role:assign   |
+| /admin/areas                | Management areas                       | Global ADMIN                                 |
+| /admin/access               | Permission catalog และ role editor     | Global ADMIN                                 |
+| /admin/notifications        | SMTP settings และ email templates      | Global ADMIN                                 |
 
-> ตารางนี้แสดง route ที่ register ใน `frontend/src/app.tsx` จริง สำหรับสถานะ feature รายหน้าและข้อจำกัดของ first draft ดู [Implemented frontend surface](implementation-status.md)
+> ตารางนี้แสดง route ที่ register ใน `frontend/src/app.tsx` จริง — ไม่มี `/returns`, `/returns/:id` หรือ `/inventory/adjustments/new` เป็น route แยกต่างหาก สำหรับสถานะ feature รายหน้าและข้อจำกัดของ frontend ปัจจุบัน ดู [Implemented frontend surface](implementation-status.md)
 
 หลัง login หรือเข้า / ให้ redirect ไป /calendar
