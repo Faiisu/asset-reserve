@@ -6,6 +6,7 @@ PermissionKey:
     - asset:update
     - asset:delete
     - reservation:create
+    - reservation:view
     - reservation:update
     - reservation:approve
     - reservation:reject

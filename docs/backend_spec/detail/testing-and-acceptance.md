@@ -8,8 +8,8 @@
 
 - Permission/scope evaluation
 - Reservation aggregate status
-- Inventory delta validation
-- Return quantity validation
+- Asset unit registration/retirement validation (serial-number uniqueness, part-number scoping, status transitions ACTIVE↔RESERVED↔CHECKED_OUT↔BROKEN/LOST↔IN_REPAIR↔INACTIVE)
+- Return per-unit condition validation (GOOD/BROKEN/LOST via `ReturnItemUnit`)
 - Retry classification
 
 ### Integration tests with PostgreSQL
@@ -17,7 +17,7 @@
 - Prisma constraints และ relations
 - Serializable transaction retry
 - Concurrent reservation/approval ของ asset เดียวกัน
-- Atomic inventory batch
+- Atomic serial-unit batch registration/retirement (`AssetUnitEventBatch`/`AssetUnitEvent`, up to 200 units per call)
 - Partial return และ completion
 - Idempotency behavior
 
@@ -44,7 +44,7 @@ Concept acceptance profile เริ่มต้นคือ 50 concurrent virtu
 
 | ID     | Requirement                                                               |
 | ------ | ------------------------------------------------------------------------- |
-| NFR-01 | Concurrent critical mutations ต้องไม่ทำให้ quantity ติดลบหรือจองเกินจำนวน |
+| NFR-01 | Concurrent critical mutations ต้องไม่ assign asset unit เดียวกัน (ตาม serial number) ให้มากกว่าหนึ่ง reservation พร้อมกัน |
 | NFR-02 | Duplicate request ที่ใช้ idempotency key เดิมต้องไม่สร้างข้อมูลซ้ำ        |
 | NFR-03 | API read P95 เป้าหมายไม่เกิน 500 ms ภายใต้ concept load profile           |
 | NFR-04 | API write P95 เป้าหมายไม่เกิน 1,000 ms โดยไม่รวม file/external I/O        |
@@ -59,7 +59,7 @@ Performance targets ต้องยืนยันบน hardware และ data
 
 ## Acceptance criteria
 
-- ผู้ใช้สองคน submit/approve asset เดียวกันพร้อมกันแล้วมีเพียงผลลัพธ์ที่ไม่เกิน available quantity ที่ commit
+- ผู้ใช้สองคน prepare/checkout asset เดียวกันพร้อมกันแล้วมีเพียงฝ่ายเดียวที่ lock asset unit (serial number) นั้นได้สำเร็จ อีกฝ่าย fail ด้วย `409`
 - Transaction conflict ถูก retry ตาม policy และตอบ structured `409` เมื่อไม่สามารถดำเนินการได้
 - Double click หรือ network retry ไม่สร้าง reservation, approval, ledger หรือ return ซ้ำ
 - Backend ใช้ PrismaClient singleton และ connection count อยู่ใน configured pool limit
@@ -91,7 +91,7 @@ Prisma ปัจจุบันรองรับ core business models แล้
 3. สร้าง migrations รวม database check constraints
 4. สร้าง NestJS modules, validation, error shape และ OpenAPI
 5. ทำ authentication, RBAC และ ManagementArea scope
-6. ทำ Asset/Inventory พร้อม atomic transaction
+6. ทำ Asset catalog (part number) และ serial-unit registration/retirement พร้อม atomic transaction
 7. ทำ Reservation availability และ Serializable retry utility
 8. ทำ approval, prepare และ checkout
 9. ทำ return และ ledger completion

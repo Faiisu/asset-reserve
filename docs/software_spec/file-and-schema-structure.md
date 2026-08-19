@@ -65,6 +65,8 @@ asset-reservation/
 │   ├── prisma/
 │   ├── scripts/
 │   └── test/
+├── recognition-service/      # แยก deployable ต่างหาก (own Dockerfile, docker-compose.yml)
+├── scripts/                  # Repo-level operational script (นอกเหนือจาก backend/scripts/)
 ├── database/                 # PostgreSQL deployment configuration
 ├── docs/                     # Specification และ decision records
 └── .dockerignore
@@ -176,13 +178,19 @@ backend/src/
 ├── app.module.ts
 ├── config.ts
 ├── auth/
+├── google-auth/
+├── microsoft-auth/
 ├── access-control/
 ├── users/
 ├── management-areas/
 ├── assets/
-├── inventory/
 ├── reservations/
 ├── returns/
+├── recognition/
+├── email/
+├── email-templates/
+├── notification-settings/
+├── uploads/
 ├── database/
 └── common/
 ```
@@ -286,7 +294,10 @@ backend/prisma/
 │   ├── management-areas.prisma
 │   ├── assets.prisma
 │   ├── reservations.prisma
-│   └── returns.prisma
+│   ├── returns.prisma
+│   ├── activity-logs.prisma
+│   ├── email-templates.prisma
+│   └── notification-settings.prisma
 └── migrations/
     ├── migration_lock.toml
     └── YYYYMMDDHHMMSS_name/

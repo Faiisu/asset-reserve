@@ -91,12 +91,6 @@ const reservationInclude = {
     },
     orderBy: { createdAt: "desc" },
   },
-  handovers: {
-    include: {
-      handler: { include: { profile: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  },
   activityLogs: {
     include: {
       actor: { include: { profile: true } },
@@ -1179,7 +1173,7 @@ export class ReservationsService {
         await tx.assetUnitEventBatch.create({
           data: {
             id: batchId,
-            description: "Prepared for reservation handover",
+            description: "Prepared for reservation",
             performedBy: actor.user.id,
           },
         });
@@ -1302,48 +1296,19 @@ export class ReservationsService {
 
     const deliveredAt = new Date();
     const itemIdsToDeliver = targetItems.map((item) => item.id);
-    const handoverId = randomUUID();
-
-    const itemPhotoMap = new Map<string, string>();
-    if (input?.itemPhotos) {
-      for (const ip of input.itemPhotos) {
-        if (ip.photoUrl) itemPhotoMap.set(ip.itemId, ip.photoUrl);
-      }
-    }
-
-    const photoUrls = input?.photoUrls ?? [];
-    const note = input?.note?.trim() || null;
 
     await this.prisma.$transaction(async (tx) => {
-      // 1. Create ReservationHandover record
-      await tx.reservationHandover.create({
-        data: {
-          id: handoverId,
-          reservationId,
-          handledBy: actor.user.id,
-          photoUrls,
-          note,
-          handedOverAt: deliveredAt,
-          createdAt: deliveredAt,
-        },
-      });
-
-      // 2. Update selected items to DELIVERED with handoverId & photoUrl, and
-      // check out their assigned asset units (ASSIGNED -> CHECKED_OUT).
+      // 1. Update selected items to DELIVERED, and check out their assigned
+      // asset units (ASSIGNED -> CHECKED_OUT).
       const eventBatchId = randomUUID();
       let checkedOutUnitCount = 0;
       for (const item of targetItems) {
-        const itemPhoto =
-          itemPhotoMap.get(item.id) ||
-          (photoUrls.length > 0 ? photoUrls[0] : null);
         await tx.reservationItem.update({
           where: { id: item.id },
           data: {
             status: "DELIVERED",
             checkedOutAt: deliveredAt,
             checkedOutBy: actor.user.id,
-            handoverId,
-            handoverPhotoUrl: itemPhoto,
             updatedAt: deliveredAt,
           },
         });
@@ -1364,7 +1329,7 @@ export class ReservationsService {
           await tx.assetUnitEventBatch.create({
             data: {
               id: eventBatchId,
-              description: "Checked out at handover",
+              description: "Checked out for delivery",
               performedBy: actor.user.id,
             },
           });
@@ -1419,13 +1384,12 @@ export class ReservationsService {
       await this.logActivity(tx, {
         reservationId,
         actorId: actor.user.id,
-        action: "HANDOVER_CONFIRMED",
-        entityType: "HANDOVER",
-        entityId: handoverId,
+        action: "DELIVERY_CONFIRMED",
+        entityType: "RESERVATION",
+        entityId: reservationId,
         details: {
-          handledBy: actor.user.id,
+          confirmedBy: actor.user.id,
           itemCount: targetItems.length,
-          note,
         },
       });
     });
@@ -1848,8 +1812,6 @@ export class ReservationsService {
           },
           quantity: item.quantity,
           status: item.status,
-          handoverPhotoUrl: item.handoverPhotoUrl ?? null,
-          handoverId: item.handoverId ?? null,
           units: units.map((unit) => ({
             id: unit.id,
             assetUnitId: unit.assetUnitId,
@@ -1943,16 +1905,6 @@ export class ReservationsService {
         reviewedAt: request.reviewedAt?.toISOString() ?? null,
         createdAt: request.createdAt.toISOString(),
       })),
-      handovers: (reservation.handovers ?? []).map((h) => ({
-        id: h.id,
-        reservationId: h.reservationId,
-        handledBy: h.handledBy,
-        handler: this.userDto(h.handler),
-        photoUrls: h.photoUrls,
-        note: h.note,
-        handedOverAt: h.handedOverAt.toISOString(),
-        createdAt: h.createdAt.toISOString(),
-      })),
       returns: reservation.returns.map((item) => {
         const canApprove =
           item.status === "PENDING" &&
@@ -1967,8 +1919,6 @@ export class ReservationsService {
           id: item.id,
           reservationId: item.reservationId,
           status: item.status,
-          photoUrls: item.photoUrls,
-          note: item.note,
           returnedAt: item.returnedAt?.toISOString() ?? null,
           returnedBy: this.userDto(item.returner),
           items: item.items.map((retItem) => ({
@@ -1976,7 +1926,6 @@ export class ReservationsService {
             reservationItemId: retItem.reservationItemId,
             assetId: retItem.reservationItem.asset.id,
             assetName: retItem.reservationItem.asset.name,
-            photoUrl: retItem.photoUrl ?? null,
             managementArea: {
               id: retItem.reservationItem.asset.managementArea.id,
               name: retItem.reservationItem.asset.managementArea.name,
@@ -1988,8 +1937,6 @@ export class ReservationsService {
               assetUnitId: unit.reservationItemUnit.assetUnitId,
               serialNumber: unit.reservationItemUnit.assetUnit.serialNumber,
               condition: unit.condition,
-              photoUrl: unit.photoUrl ?? null,
-              note: unit.note ?? null,
             })),
           })),
           approval: item.approval

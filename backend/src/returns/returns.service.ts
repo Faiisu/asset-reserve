@@ -371,14 +371,11 @@ export class ReturnsService {
             returnedBy: actor.user.id,
             status: "PENDING",
             returnedAt: now,
-            photoUrls: input.photoUrls ?? [],
-            note: input.note ?? null,
             items: {
               create: input.items.map((line) => ({
                 id: randomUUID(),
                 reservationItemId: line.reservationItemId,
-                description: line.description ?? input.note ?? null,
-                photoUrl: line.photoUrl ?? null,
+                description: line.description ?? null,
                 units: {
                   create: line.reservationItemUnitIds.map((unitId) => ({
                     id: randomUUID(),
@@ -405,7 +402,7 @@ export class ReturnsService {
           action: "RETURN_SUBMITTED",
           entityType: "RETURN",
           entityId: returnId,
-          details: { note: input.note ?? null, itemCount: input.items.length },
+          details: { itemCount: input.items.length },
         });
       });
     } catch (error) {
@@ -432,7 +429,7 @@ export class ReturnsService {
       if (canImmediateApprove) {
         return this.decide(actor, reservationId, returnId, {
           decision: "APPROVE",
-          description: input.note ?? "Approved upon return recording.",
+          description: "Approved upon return recording.",
         });
       }
     }
@@ -492,8 +489,6 @@ export class ReturnsService {
       string,
       {
         condition: "GOOD" | "BROKEN" | "LOST";
-        photoUrl: string | null | undefined;
-        note: string | null | undefined;
       }
     >();
     if (input.decision === "APPROVE" && input.items) {
@@ -511,8 +506,6 @@ export class ReturnsService {
           }
           conditionByUnitId.set(unit.reservationItemUnitId, {
             condition: unit.condition,
-            photoUrl: unit.photoUrl,
-            note: unit.note,
           });
         }
       }
@@ -565,15 +558,13 @@ export class ReturnsService {
           for (const unit of returnItem.units) {
             const decision = conditionByUnitId.get(
               unit.reservationItemUnitId,
-            ) ?? { condition: "GOOD" as const, photoUrl: undefined, note: undefined };
+            ) ?? { condition: "GOOD" as const };
             const assetUnitStatus = assetUnitStatusByCondition[decision.condition];
 
             await tx.returnItemUnit.update({
               where: { id: unit.id },
               data: {
                 condition: decision.condition,
-                photoUrl: decision.photoUrl ?? unit.photoUrl,
-                note: decision.note ?? unit.note,
               },
             });
             await tx.reservationItemUnit.update({
@@ -607,7 +598,6 @@ export class ReturnsService {
                 fromStatus: "CHECKED_OUT",
                 toStatus: assetUnitStatus,
                 reservationItemId: returnItem.reservationItemId,
-                reason: decision.note ?? unit.note ?? null,
               },
             });
           }
@@ -714,8 +704,6 @@ export class ReturnsService {
       id: record.id,
       reservationId: record.reservationId,
       status: record.status,
-      photoUrls: record.photoUrls ?? [],
-      note: record.note ?? null,
       returnedAt: record.returnedAt?.toISOString() ?? null,
       returnedBy: this.userDto(record.returner),
       reservation: {
@@ -728,7 +716,6 @@ export class ReturnsService {
         reservationItemId: item.reservationItemId,
         assetId: item.reservationItem.asset.id,
         assetName: item.reservationItem.asset.name,
-        photoUrl: item.photoUrl ?? null,
         managementArea: {
           id: item.reservationItem.asset.managementArea.id,
           name: item.reservationItem.asset.managementArea.name,
@@ -740,8 +727,6 @@ export class ReturnsService {
           assetUnitId: unit.reservationItemUnit.assetUnitId,
           serialNumber: unit.reservationItemUnit.assetUnit.serialNumber,
           condition: unit.condition,
-          photoUrl: unit.photoUrl ?? null,
-          note: unit.note ?? null,
         })),
       })),
       approval: record.approval

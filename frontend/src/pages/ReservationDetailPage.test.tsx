@@ -382,9 +382,6 @@ describe("ReservationDetailPage", () => {
     expect(returnQtyInput).toBeInTheDocument();
     fireEvent.change(returnQtyInput, { target: { value: "2" } });
 
-    const notesInput = screen.getByPlaceholderText(/Drop-off location \/ return notes/i);
-    fireEvent.change(notesInput, { target: { value: "Returned to Cabinet A" } });
-
     const submitReturnBtn = screen.getByRole("button", { name: /Submit Return/i });
     fireEvent.click(submitReturnBtn);
 
@@ -400,7 +397,6 @@ describe("ReservationDetailPage", () => {
               quantityLost: 0,
             },
           ],
-          note: "Returned to Cabinet A",
         }
       );
     });
@@ -808,10 +804,9 @@ describe("ReservationDetailPage", () => {
     expect(screen.getByText(/1 unit intact, 1 unit broken lens hood/i)).toBeInTheDocument();
     expect(screen.getByText(/Restocked functional unit to locker/i)).toBeInTheDocument();
 
-    // Verify 4 Sign-off roles
+    // Verify 3 Sign-off roles
     expect(screen.getByText("1. Requester / Borrower")).toBeInTheDocument();
     expect(screen.getByText("2. Area Custodian / Approver")).toBeInTheDocument();
-    expect(screen.getByText("3. Dispatch Officer")).toBeInTheDocument();
-    expect(screen.getByText("4. Return Receiving Inspector")).toBeInTheDocument();
+    expect(screen.getByText("3. Return Receiving Inspector")).toBeInTheDocument();
   });
 });

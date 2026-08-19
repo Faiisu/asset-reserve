@@ -2,13 +2,10 @@ ReservationStatus:
   type: string
   enum:
     - DRAFT
-    - PENDING
     - PENDING_APPROVAL
     - PARTIALLY_APPROVED
     - APPROVED
     - DELIVERY_CONFIRMED
-    - ACTIVE
-    - RETURN
     - RETURN_PENDING
     - RETURN_CONFIRMED
     - COMPLETED
@@ -541,6 +538,24 @@ ReservationDetail:
     updatedAt:
       type: string
       format: date-time
+PrepareReservationItemRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - assetUnitIds
+  properties:
+    assetUnitIds:
+      type: array
+      description: >-
+        Exact serial units to assign to this item -- must match the item's approved quantity.
+        Each unit must belong to the item's asset and currently be ACTIVE; assigning moves it
+        to RESERVED.
+      minItems: 1
+      maxItems: 200
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
 ConfirmDeliveryRequest:
   type: object
   additionalProperties: false

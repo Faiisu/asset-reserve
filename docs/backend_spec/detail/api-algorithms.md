@@ -2,7 +2,7 @@
 
 [← Backend specification](../README.md) · [Auth and permission contract](authentication-and-permission-api.md) · [Database and concurrency](database-and-concurrency.md)
 
-เอกสารนี้อธิบาย algorithm ของ endpoint ทุกเส้นที่มี implementation อยู่ใน `backend/src` ปัจจุบัน โดยยึด controller, service, guard และ DTO ใน source code เป็นหลัก ครอบคลุม application endpoint 35 เส้นภายใต้ base path `/api/v1` และ documentation route แบบมีเงื่อนไขอีก 2 เส้น
+เอกสารนี้อธิบาย algorithm ของ endpoint ทุกเส้นที่มี implementation อยู่ใน `backend/src` ปัจจุบัน โดยยึด controller, service, guard และ DTO ใน source code เป็นหลัก ครอบคลุม application endpoint 51 เส้นภายใต้ base path `/api/v1` (ดูรายการทั้งหมดใน §2) และ documentation route แบบมีเงื่อนไขอีก 2 เส้น
 
 ## 1. กติกากลางของทุก request
 
@@ -120,7 +120,8 @@ Error กลางที่พบบ่อย:
 
 | Method | Path                                                                     | Authorization                                  | หน้าที่                    |
 | ------ | ------------------------------------------------------------------------ | ---------------------------------------------- | -------------------------- |
-| POST   | `/auth/login`                                                            | Public                                         | Login ด้วย email/password  |
+| POST   | `/auth/login`                                                            | Public                                         | Login ด้วย username/password |
+| GET    | `/auth/google/login`, `/auth/microsoft/login`                           | Public                                         | Login ทางเลือกด้วย provider ที่ link ไว้แล้ว |
 | GET    | `/auth/me`                                                               | Active user                                    | อ่าน session context       |
 | POST   | `/auth/logout`                                                           | Active user                                    | จบ session ฝั่ง client     |
 | GET    | `/bff/session`                                                           | Active user                                    | อ่าน session สำหรับ BFF    |
@@ -131,6 +132,8 @@ Error กลางที่พบบ่อย:
 | GET    | `/users`                                                                 | Global user-admin permission อย่างน้อยหนึ่งค่า | ค้นหา user                 |
 | POST   | `/users`                                                                 | Global `user:create`                           | สร้าง user                 |
 | GET    | `/users/:userId`                                                         | Global user-admin permission อย่างน้อยหนึ่งค่า | อ่าน user detail           |
+| PATCH  | `/users/me`                                                              | Active user                                    | self-service แก้ name/email ของตัวเอง |
+| POST   | `/users/me/password`                                                     | Active user                                    | self-service เปลี่ยน password ของตัวเอง |
 | PATCH  | `/users/:userId/status`                                                  | Global `user:disable`                          | เปิด/ปิด account           |
 | POST   | `/users/:userId/role-assignments`                                        | Global `role:assign`                           | เพิ่ม role assignment      |
 | DELETE | `/users/:userId/role-assignments/:assignmentId`                          | Global `role:assign`                           | ลบ role assignment         |
@@ -143,8 +146,10 @@ Error กลางที่พบบ่อย:
 | POST   | `/assets`                                                                | Scoped `asset:create`                          | สร้าง asset เดียว          |
 | POST   | `/assets/batch`                                                          | Scoped `asset:create` ทุก area                 | สร้าง asset หลายรายการ     |
 | POST   | `/assets/batch-remove`                                                   | Scoped `asset:delete` ทุก asset                | ปิดใช้งาน asset หลายรายการ |
-| POST   | `/assets/inventory/batch-add`                                            | Scoped `asset:update` ทุก asset                | เพิ่ม quantity หลาย asset  |
-| POST   | `/assets/inventory/batch-remove`                                         | Scoped `asset:update` ทุก asset                | ลด quantity หลาย asset     |
+| POST   | `/assets/:assetId/units`                                                 | Scoped `asset:update`                          | ลงทะเบียน asset unit ใหม่ (serial number) |
+| GET    | `/assets/:assetId/units`                                                 | Scoped `asset:view`                            | list asset unit ของ asset  |
+| POST   | `/assets/units/batch-retire`                                             | Scoped `asset:update` ตาม area ของแต่ละ unit   | ปลดระวาง asset unit หลายรายการ |
+| PATCH  | `/assets/units/:assetUnitId/status`                                      | Scoped `asset:update`                          | ปรับ status unit เดียวด้วยมือ |
 | GET    | `/assets/:assetId`                                                       | Scoped `asset:view`                            | อ่าน asset detail          |
 | PATCH  | `/assets/:assetId`                                                       | Scoped `asset:update`                          | แก้ asset detail           |
 | PATCH  | `/assets/:assetId/status`                                                | Scoped `asset:update` หรือ `asset:delete`      | เปลี่ยน status             |
@@ -154,9 +159,15 @@ Error กลางที่พบบ่อย:
 | GET    | `/reservations/:reservationId`                                           | Requester/participant หรือ scoped operator     | อ่าน reservation detail    |
 | POST   | `/reservations/:reservationId/submit`                                    | Requester หรือ scoped `reservation:update`     | ส่ง draft ขออนุมัติ        |
 | POST   | `/reservations/:reservationId/items/:itemId/decision`                    | Scoped `reservation:approve/reject`            | ตัดสิน item                |
+| POST   | `/reservations/:reservationId/items/:itemId/prepare`                     | Scoped `reservation:update`                    | จ่าย asset unit ให้ item ที่ approved ก่อนส่งมอบ |
 | POST   | `/reservations/:reservationId/items/decision`                            | Scoped `reservation:approve/reject`            | ตัดสินหลาย item แบบ atomic |
 | POST   | `/reservations/:reservationId/change-requests`                           | Requester เท่านั้น                             | ขอแก้ reservation          |
 | POST   | `/reservations/:reservationId/change-requests/:changeRequestId/decision` | Scoped `reservation:approve/reject`            | ตัดสินคำขอแก้ไข            |
+| POST   | `/reservations/:reservationId/delivery-confirm`                          | Requester หรือ scoped operator                 | ยืนยันส่งมอบอุปกรณ์        |
+| POST   | `/reservations/:reservationId/returns`                                   | Requester/participant                          | ส่งสลิปคืนอุปกรณ์          |
+| GET    | `/returns`                                                               | Requester/participant หรือ scoped operator     | ค้นหาและ list return slip  |
+| GET    | `/returns/:returnId`                                                     | Requester/participant หรือ scoped operator     | อ่าน return slip detail    |
+| POST   | `/reservations/:reservationId/returns/:returnId/decision`                | Scoped `return:approve`                        | ตรวจรับและตัดสิน return slip |
 | POST   | `/reservations/:reservationId/cancel`                                    | Requester หรือ scoped `reservation:update`     | ยกเลิกและคืน allocation    |
 | POST   | `/uploads/image`                                                         | Active user                                    | Upload image สูงสุด 10 MiB |
 
@@ -181,20 +192,29 @@ OpenAPI source แยกตาม domain โดยมี `docs/backend_spec/cont
 
 สถานะสำเร็จ: `200 OK`  
 Authorization: Public  
-Input: `email`, `password`
+Input: `username`, `password`
 
 Algorithm:
 
-1. Normalize email ด้วย trim และแปลงเป็นตัวพิมพ์เล็ก
-2. ตรวจรูปแบบ email, ความยาว email ไม่เกิน 255 และ password ยาว 1–1024 ตัวอักษร
-3. ค้น user ด้วย email
+1. Normalize username ด้วย trim และแปลงเป็นตัวพิมพ์เล็ก
+2. ตรวจความยาว username ไม่เกิน 50 และ password ยาว 1–1024 ตัวอักษร
+3. ค้น user ด้วย username
 4. ถ้าไม่พบ user ให้ verify password เทียบ dummy Argon2 hash เพื่อลดความแตกต่างของ response timing ระหว่าง user ที่มีและไม่มีจริง
 5. Verify password ด้วย Argon2; ถ้าไม่ผ่านตอบ `401 INVALID_CREDENTIALS`
 6. ตรวจ `User.isActive`; ถ้าปิดอยู่ตอบ `403 ACCOUNT_INACTIVE`
 7. โหลด profile, role assignments, role permissions และ management areas
 8. คำนวณ global/scoped effective permissions และเรียง role ให้ผลลัพธ์คงที่
 9. สร้าง JWT ที่มี `sub = userId` และ `jti` แบบ UUID โดยใช้อายุจาก `JWT_ACCESS_TTL_SECONDS`
-10. คืน `accessToken`, `tokenType`, `expiresIn` และ `session`
+10. คืน `accessToken`, `tokenType`, `expiresIn` และ `session` (รวม `linkedProviders`, `accountLinkRequired`)
+
+### 3.1a `GET /auth/google/login` · `GET /auth/microsoft/login`
+
+สถานะสำเร็จ: `302` redirect ไปหน้า consent ของ provider  
+Authorization: Public  
+วิธี login ทางเลือกสำหรับ user ที่ link บัญชี provider นั้นไว้แล้วเท่านั้น — ไม่มี auto-provisioning
+ด้วย email ถ้า identity ยังไม่ได้ link จะ redirect กลับไป `/login` พร้อม
+`?googleError=not_linked` หรือ `?microsoftError=not_linked` ดู `Account Linking` tag ใน OpenAPI
+และ [`oauth-setup.md`](../../oauth-setup.md) สำหรับ `/connect` (การ link บัญชี) และ `/callback`
 
 ### 3.2 `GET /auth/me`
 
@@ -295,16 +315,15 @@ Algorithm:
 
 สถานะสำเร็จ: `201 Created`  
 Authorization: Global `user:create`  
-Input: `email`, `password`, `profile`
+Input: `username`, `password`
 
 Algorithm:
 
-1. Normalize email; validate password 8–128 ตัวอักษร
-2. Validate profile name, phone number และ profile picture URL
-3. Hash password ด้วย Argon2
-4. สร้าง UUID และ insert `User` พร้อม nested `UserProfile`
-5. Include profile, auth identity และ role assignments เพื่อสร้าง user detail response
-6. ถ้า email ซ้ำ ตอบ `409 EMAIL_ALREADY_EXISTS`
+1. Normalize username ด้วย trim และ lowercase; validate ตรง `^[a-z0-9._-]{3,50}$`; validate password 8–128 ตัวอักษร
+2. Hash password ด้วย Argon2
+3. สร้าง UUID และ insert `User` โดย `email = null`, ไม่มี `UserProfile` ตอนสร้าง — ทั้งสองถูกเติมทีหลังตอน link บัญชี (ดู §3.1a)
+4. Include profile (จะเป็น `null`), auth identity และ role assignments เพื่อสร้าง user detail response
+5. ถ้า username ซ้ำ ตอบ `409 USERNAME_ALREADY_EXISTS`
 
 ### 5.3 `GET /users/:userId`
 
@@ -596,44 +615,44 @@ Availability ใช้ช่วงเวลาแบบ half-open: overlap เ�
 - Approval และการ approve change request lock asset row ตาม UUID, ตรวจ availability ซ้ำใน `SERIALIZABLE` transaction และ retry `P2034` สูงสุด 3 ครั้ง
 - Pending request ไม่กัน quantity แต่ detail จะคืน `PENDING_RESERVATION_OVERLAP`, `pendingQuantity` และ `pendingReservationCount`
 
-### 9.1 `POST /reservations`
+### 8.1 `POST /reservations`
 
 สร้าง `DRAFT` หรือ `PENDING_APPROVAL` พร้อม event details, assets และ participants ตรวจ asset active, permission ทุก area, duplicate asset และ approved overlap ก่อนบันทึก
 เมื่อสร้างหรือ submit ด้วยรายการ items ว่างเปล่า (zero items) สถานะจะถูกปรับเป็น `APPROVED` อัตโนมัติ โดยไม่ต้องผ่าน approval workflow สำหรับ event ที่ไม่มีการจอง asset
 
-### 9.2 `GET /reservations`
+### 8.2 `GET /reservations`
 
 รับ `view=MINE|APPROVALS|ALL`, `status`, `areaId`, `search`, ช่วงเวลา และ opaque cursor แล้วบังคับ visibility จาก requester/participant หรือ permission ของ asset area โดยตรง ใช้ keyset pagination ตาม `(createdAt,id)` และคืน summary, item status counts, pending change flag และจำนวน decision ที่ actor ทำได้โดยไม่เกิด N+1 query
 
-### 9.3 `GET /reservations/:reservationId`
+### 8.3 `GET /reservations/:reservationId`
 
 คืน requester, participants, item/asset/approval, availability, overlap warnings, change requests, returns, timestamps และ capabilities สำหรับ actor
 
-### 9.4 `POST /reservations/:reservationId/submit`
+### 8.4 `POST /reservations/:reservationId/submit`
 
 เปลี่ยน `DRAFT` เป็น `PENDING_APPROVAL` ด้วย `expectedUpdatedAt` และตรวจ approved overlap ซ้ำ หากข้อมูล stale ตอบ `409 STALE_WRITE`
 
-### 9.5 `POST /reservations/:reservationId/items/:itemId/decision`
+### 8.5 `POST /reservations/:reservationId/items/:itemId/decision`
 
 Approve/reject เป็นราย item ตาม area permission เมื่อ approve ต้องมี quantity พอหลังหัก approved overlap อื่น แล้วคำนวณ reservation status ใหม่เป็น `PENDING_APPROVAL`, `PARTIALLY_APPROVED`, `APPROVED` หรือ `REJECTED`
 
-### 9.6 `POST /reservations/:reservationId/items/decision`
+### 8.6 `POST /reservations/:reservationId/items/decision`
 
 รับ itemIds สูงสุด 100 รายการ ตัดสินทั้งหมดใน transaction เดียว ล็อก asset ตาม UUID และ rollback ทั้งชุดเมื่อ item ใดไม่ผ่าน permission/state/availability
 
-### 9.7 `POST /reservations/:reservationId/change-requests`
+### 8.7 `POST /reservations/:reservationId/change-requests`
 
 สร้างคำขอแก้ไขหลัง submit โดย allowlist เฉพาะ `eventName`, `description`, `startAt`, `endAt`, `items`, `participantIds` และอนุญาต pending request ได้หนึ่งรายการต่อ reservation
 
-### 9.8 `POST /reservations/:reservationId/change-requests/:changeRequestId/decision`
+### 8.8 `POST /reservations/:reservationId/change-requests/:changeRequestId/decision`
 
 เมื่อ approve ระบบ apply event/time/item/participant changes และบันทึก reviewer ใน transaction เดียว ถ้า reservation เดิม approved รายการใหม่ถือว่า approved โดย reviewer นี้และต้องผ่าน conflict check ก่อน commit
 
-### 9.9 `POST /reservations/:reservationId/cancel`
+### 8.9 `POST /reservations/:reservationId/cancel`
 
 Requester หรือ actor ที่ manage reservation ได้ยกเลิกสถานะ `DRAFT`, `PENDING_APPROVAL`, `PARTIALLY_APPROVED`, `APPROVED` พร้อม reason optional แล้วเปลี่ยน reservation/item/approval ที่เกี่ยวข้องเป็น cancelled/rejected ตาม domain rule เพื่อคืน allocation
 
-### 9.10 `POST /reservations/:reservationId/delivery-confirm`
+### 8.10 `POST /reservations/:reservationId/delivery-confirm`
 
 เจ้าหน้าที่คลังหรือ Area Manager ยืนยันการส่งมอบอุปกรณ์ (Handover/Pickup):
 1. ตรวจสอบสถานะการจองต้องเป็น `APPROVED` (หรือ `PARTIALLY_APPROVED` ที่มีรายการ approved)
@@ -641,7 +660,7 @@ Requester หรือ actor ที่ manage reservation ได้ยกเล�
 3. เปลี่ยนสถานะภาพรวมของ `reservations` เป็น `DELIVERY_CONFIRMED`
 4. สถานะจะส่งต่อเข้าสู่กระบวนการใช้งานและการรอส่งคืน (Pending Return)
 
-## 10. Return & Inspection APIs
+## 9. Return & Inspection APIs
 
 กระบวนการส่งคืนอุปกรณ์แบ่งเป็น 2 ระยะ (Two-phase return workflow):
 
@@ -652,32 +671,33 @@ flowchart LR
     C -->|All items returned| D[Reservation: COMPLETED]
 ```
 
-### 10.1 `GET /returns` & `GET /returns/:returnId`
+### 9.1 `GET /returns` & `GET /returns/:returnId`
 - รองรับการดูรายการสลิปผ่านมุมมอง `view=MINE` (สลิปที่ตนเองส่งคืน), `APPROVALS` (สลิปในพื้นที่ที่ตนดูแล), `ALL` (ผู้ดูแลระบบ)
-- แสดงรายการอุปกรณ์ในสลิป, จำนวนที่ส่งคืน, และผลการตัดสินสภาพ
+- แสดงรายการ `reservationItem` ในสลิป พร้อม asset unit (serial number) แต่ละชิ้นที่ผูกกับ item นั้น และผลการตัดสิน condition รายหน่วย
 
-### 10.2 `POST /reservations/:reservationId/returns`
-- ผู้ยืมหรือทีมงานส่งสลิปเพื่อคืนอุปกรณ์
-- ตรวจสอบว่าจำนวนที่ส่งคืนไม่เกินยอดคงเหลือที่ยังไม่ได้ส่งคืน ($\text{quantityReturned} \le \text{ApprovedQty} - \text{PreviouslyReturnedQty}$)
-- สร้างเรคคอร์ด `returns` ในสถานะ `PENDING`
+### 9.2 `POST /reservations/:reservationId/returns`
+- ผู้ยืมหรือ participant ส่งสลิปเพื่อคืนอุปกรณ์ ระบุ `items[]` แต่ละรายการมี `reservationItemId` และ `reservationItemUnitIds[]` (1–200 unit ต่อ item, unique) คือ asset unit ที่ยังไม่ได้คืน
+- ตรวจว่า unit แต่ละตัวอยู่ในสถานะ checked-out ของ item นั้นจริง ก่อนสร้างสลิป
+- สร้างเรคคอร์ด `returns` ในสถานะ `PENDING`; รองรับ `immediateApprove` เพื่อให้ผู้ส่งที่มีสิทธิ์ approve ในตัวเองข้ามขั้นตรวจได้ทันที
 
-### 10.3 `POST /reservations/:reservationId/returns/:returnId/decision`
-- ผู้จัดการพื้นที่ตรวจรับสภาพอุปกรณ์และระบุตัวเลข:
-  - **Good (`quantityReturned`)**: อุปกรณ์สภาพดี ไม่ลด `totalQuantity` ในคลัง
-  - **Broken (`quantityBroken`)**: อุปกรณ์ชำรุดเสียหาย บันทึก Transaction `BROKEN` และตัดลดยอดสต็อก `totalQuantity -= Broken` ทันที
-  - **Lost (`quantityLost`)**: อุปกรณ์สูญหาย บันทึก Transaction `LOST` และตัดลดยอดสต็อก `totalQuantity -= Lost` ทันที
-- **Validation Guard**: ผลรวม $\text{Good} + \text{Broken} + \text{Lost}$ ต้องไม่เกินจำนวนอุปกรณ์ที่ระบุในสลิปนั้น หากเกินระบบจะ Reject ด้วย `422 VALIDATION_ERROR`
-- เมื่อทุกรายการในคำขอจองได้รับการตรวจรับครบถ้วน สถานะการจองจะถูกปรับเป็น `COMPLETED` อัตโนมัติ
+### 9.3 `POST /reservations/:reservationId/returns/:returnId/decision`
+- ผู้จัดการพื้นที่ตรวจรับสภาพอุปกรณ์เป็นรายหน่วย (`DecideReturnItemUnitDto`): แต่ละ `reservationItemUnitId` ระบุ `condition` เป็น `GOOD`, `BROKEN` หรือ `LOST` เท่านั้น ไม่มี field แบบ quantity ในระบบ
+  - **`GOOD`**: asset unit กลับสู่ `status = ACTIVE` พร้อมใช้จองใหม่
+  - **`BROKEN`**: asset unit เปลี่ยนเป็น `status = BROKEN`
+  - **`LOST`**: asset unit เปลี่ยนเป็น `status = LOST`
+  - แต่ละการเปลี่ยนบันทึกใน `AssetUnitEvent` (`eventType` = `RETURNED_GOOD` / `RETURNED_BROKEN` / `RETURNED_LOST`) ไม่ใช่การหักลบ `totalQuantity` เพราะระบบไม่มี field นี้แล้ว
+- ทุก unit ที่อยู่ในสลิปต้องถูกตัดสิน condition ครบก่อนเปลี่ยนสถานะ item เป็น `RETURNED`; ถ้า reject ทั้งสลิป ระบบลบ claim (`ReturnItemUnit`) เพื่อปลดปล่อย unit ให้ส่งสลิปใหม่ได้ โดยไม่แตะสถานะ item หรือ asset unit เดิม (unit ยังไม่เคยถูกแก้ตอนส่งสลิป)
+- เมื่อทุก item ที่ active/approved ของ reservation กลายเป็น `RETURNED` ครบ สถานะการจองจะถูกปรับเป็น `COMPLETED` อัตโนมัติ
 
-## 11. Upload API
+## 10. Upload API
 
-### 11.1 `POST /uploads/image`
+### 10.1 `POST /uploads/image`
 
 รับ `multipart/form-data` field `file` หนึ่งไฟล์ Fastify จำกัด 10 MiB ตรวจ MIME เป็น image, stream ไป `uploads/assets/{timestamp}-{uuid}.{ext}` และคืน public URL ใต้ `/uploads/assets/` ไฟล์ static ไม่ใช้ `/api/v1`
 
-## 12. Response data ที่ควรรู้
+## 11. Response data ที่ควรรู้
 
-### 12.1 Asset summary
+### 11.1 Asset summary
 
 ```ts
 type AssetUnitCounts = {
@@ -740,7 +760,7 @@ type ListResponse<T> = {
 | Permission/role            | [access-control.controller.ts](../../../backend/src/access-control/access-control.controller.ts)       | [access-control.service.ts](../../../backend/src/access-control/access-control.service.ts)                                                                                                                                         |
 | Users/assignments          | [users.controller.ts](../../../backend/src/users/users.controller.ts)                                  | [users.service.ts](../../../backend/src/users/users.service.ts)                                                                                                                                                                    |
 | Management areas           | [management-areas.controller.ts](../../../backend/src/management-areas/management-areas.controller.ts) | [management-areas.service.ts](../../../backend/src/management-areas/management-areas.service.ts)                                                                                                                                   |
-| Assets/inventory           | [assets.controller.ts](../../../backend/src/assets/assets.controller.ts)                               | [assets.service.ts](../../../backend/src/assets/assets.service.ts), [inventory.service.ts](../../../backend/src/assets/inventory.service.ts)                                                                                     |
+| Assets/asset units          | [assets.controller.ts](../../../backend/src/assets/assets.controller.ts)                               | [assets.service.ts](../../../backend/src/assets/assets.service.ts), [asset-units.service.ts](../../../backend/src/assets/asset-units.service.ts)                                                                                 |
 | Reservations               | [reservations.controller.ts](../../../backend/src/reservations/reservations.controller.ts)             | [reservations.service.ts](../../../backend/src/reservations/reservations.service.ts)                                                                                                                                               |
 | Returns & Inspection       | [returns.controller.ts](../../../backend/src/returns/returns.controller.ts)                             | [returns.service.ts](../../../backend/src/returns/returns.service.ts)                                                                                                                                                             |
 

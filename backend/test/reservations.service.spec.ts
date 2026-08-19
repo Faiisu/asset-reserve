@@ -992,7 +992,6 @@ describe("reservation change requests", () => {
     Object.assign(approvedReservation.items[0]!, preparedItem());
     const update = vi.fn();
     const updateItem = vi.fn();
-    const handoverCreate = vi.fn();
     const prisma = {
       reservation: {
         findUnique: vi.fn().mockResolvedValue(approvedReservation),
@@ -1007,7 +1006,6 @@ describe("reservation change requests", () => {
       $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
         cb({
           reservation: { update },
-          reservationHandover: { create: handoverCreate },
           reservationItem: {
             findMany: vi
               .fn()
@@ -1034,7 +1032,6 @@ describe("reservation change requests", () => {
         data: expect.objectContaining({ status: "DELIVERED" }),
       }),
     );
-    expect(handoverCreate).toHaveBeenCalled();
     expect(result.id).toBe(reservationId);
   });
 
@@ -1080,7 +1077,6 @@ describe("reservation change requests", () => {
       };
       const update = vi.fn();
       const updateItem = vi.fn();
-      const handoverCreate = vi.fn();
       const prisma = {
         reservation: {
           findUnique: vi.fn().mockResolvedValue(approvedReservation),
@@ -1088,7 +1084,6 @@ describe("reservation change requests", () => {
         $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
           cb({
             reservation: { update },
-            reservationHandover: { create: handoverCreate },
             reservationItem: {
               update: updateItem,
               findMany: vi
@@ -1158,7 +1153,6 @@ describe("reservation change requests", () => {
 
     const update = vi.fn();
     const updateItem = vi.fn();
-    const handoverCreate = vi.fn();
     const prisma = {
       reservation: {
         findUnique: vi.fn().mockResolvedValue(approvedReservation),
@@ -1173,7 +1167,6 @@ describe("reservation change requests", () => {
       $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
         cb({
           reservation: { update },
-          reservationHandover: { create: handoverCreate },
           reservationItem: {
             findMany: vi.fn().mockResolvedValue([
               { id: itemId, status: "DELIVERED" },

@@ -301,27 +301,8 @@ export type ReservationChangeData = {
   participantIds?: string[];
 };
 
-export type ReservationHandover = {
-  id: string;
-  reservationId: string;
-  handledBy: string;
-  handler: ReservationUser;
-  photoUrls: string[];
-  note: string | null;
-  handedOverAt: string;
-  createdAt: string;
-};
-
-export type ConfirmDeliveryItemPhoto = {
-  itemId: string;
-  photoUrl?: string;
-};
-
 export type ConfirmDeliveryInput = {
   itemIds?: string[];
-  itemPhotos?: ConfirmDeliveryItemPhoto[];
-  photoUrls?: string[];
-  note?: string;
 };
 
 export type ReservationDetail = {
@@ -337,8 +318,6 @@ export type ReservationDetail = {
     id: string;
     quantity: number;
     status: ReservationItemStatus;
-    handoverPhotoUrl?: string | null;
-    handoverId?: string | null;
     asset: {
       id: string;
       name: string;
@@ -393,7 +372,6 @@ export type ReservationDetail = {
     reviewedAt: string | null;
     createdAt: string;
   }>;
-  handovers?: ReservationHandover[];
   returns: ReturnDetail[];
   activityLogs?: ActivityLog[];
   capabilities: {
@@ -422,7 +400,6 @@ export type ReturnItemDetail = {
   reservationItemId: string;
   assetId: string;
   assetName: string;
-  photoUrl?: string | null;
   managementArea: ManagementAreaRef;
   quantityReturned: number;
   quantityBroken: number;
@@ -434,8 +411,6 @@ export type ReturnDetail = {
   id: string;
   reservationId: string;
   status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
-  photoUrls?: string[];
-  note?: string | null;
   returnedAt: string | null;
   returnedBy: ReservationUser;
   reservation?: {
@@ -465,13 +440,10 @@ export type CreateReturnItemInput = {
   quantityBroken?: number;
   quantityLost?: number;
   description?: string | null;
-  photoUrl?: string | null;
 };
 
 export type CreateReturnInput = {
   items: CreateReturnItemInput[];
-  photoUrls?: string[];
-  note?: string | null;
   immediateApprove?: boolean;
 };
 
@@ -481,7 +453,6 @@ export type DecideReturnItemInput = {
   quantityBroken?: number;
   quantityLost?: number;
   description?: string | null;
-  photoUrl?: string | null;
 };
 
 export type ReturnDecisionInput = {

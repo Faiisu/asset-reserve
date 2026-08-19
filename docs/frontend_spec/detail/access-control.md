@@ -25,6 +25,7 @@ Frontend ใช้ permission จาก Role.permissions เพื่อแส�
 - asset:update
 - asset:delete
 - reservation:create
+- reservation:view
 - reservation:update
 - reservation:approve
 - reservation:reject

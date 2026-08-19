@@ -38,13 +38,6 @@ export class CreateReturnItemDto {
   @IsString()
   @MaxLength(2_000)
   description?: string | null;
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null && value !== undefined)
-  @Transform(trim)
-  @IsString()
-  @MaxLength(1000)
-  photoUrl?: string | null;
 }
 
 export class CreateReturnDto {
@@ -54,20 +47,6 @@ export class CreateReturnDto {
   @ValidateNested({ each: true })
   @Type(() => CreateReturnItemDto)
   items!: CreateReturnItemDto[];
-
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(10)
-  @IsString({ each: true })
-  @MaxLength(1000, { each: true })
-  photoUrls?: string[];
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null && value !== undefined)
-  @Transform(trim)
-  @IsString()
-  @MaxLength(2_000)
-  note?: string | null;
 
   @IsOptional()
   @Transform(({ value }: { value: unknown }) => parseOptionalBoolean(value))
@@ -81,20 +60,6 @@ export class DecideReturnItemUnitDto {
 
   @IsIn(["GOOD", "BROKEN", "LOST"])
   condition!: "GOOD" | "BROKEN" | "LOST";
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null && value !== undefined)
-  @Transform(trim)
-  @IsString()
-  @MaxLength(1000)
-  photoUrl?: string | null;
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null && value !== undefined)
-  @Transform(trim)
-  @IsString()
-  @MaxLength(2_000)
-  note?: string | null;
 }
 
 export class DecideReturnItemDto {

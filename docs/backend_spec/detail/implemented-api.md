@@ -2,7 +2,7 @@
 
 [← Backend specification](../README.md) · [OpenAPI contract](../contracts/README.md)
 
-เอกสารนี้ตรวจจาก NestJS controllers ที่ register ใน `AppModule` ณ วันที่ 16 สิงหาคม 2026 ทุก endpoint อยู่ใต้ prefix `/api/v1` ยกเว้นไฟล์ที่ serve แบบ static ใต้ `/uploads/` ทุก route ต้องใช้ Bearer token นอกจาก `POST /auth/login`
+เอกสารนี้ตรวจจาก NestJS controllers ที่ register ใน `AppModule` ณ วันที่ 19 สิงหาคม 2026 (หลัง migration serialized asset units, personal asset units และงาน account-link) ทุก endpoint อยู่ใต้ prefix `/api/v1` ยกเว้นไฟล์ที่ serve แบบ static ใต้ `/uploads/` ทุก route ต้องใช้ Bearer token นอกจาก `POST /auth/login`
 
 ## Architecture
 
@@ -27,10 +27,13 @@ Authentication guard สร้าง actor/session จาก JWT ทุก reque
 
 | Method | Path | Behavior/access |
 | --- | --- | --- |
-| POST | `/auth/login` | Public, rate limit 10/minute, password login และคืน bearer token/session |
+| POST | `/auth/login` | Public, rate limit 10/minute, username/password login และคืน bearer token/session |
 | GET | `/auth/me` | คืน current `SessionContext` |
 | POST | `/auth/logout` | คืน 204; token เป็น stateless จึงไม่มี server-side revocation |
 | GET | `/bff/session` | session endpoint ที่ frontend shell ใช้ |
+| GET | `/auth/google/login`, `/auth/microsoft/login` | Public, login ทางเลือกด้วยบัญชีที่ link ไว้แล้ว |
+| GET | `/auth/google/connect`, `/auth/microsoft/connect` | Authenticated, เริ่ม flow link บัญชี provider |
+| GET | `/auth/google/callback`, `/auth/microsoft/callback` | Public, OAuth callback สำหรับทั้ง login และ connect |
 
 ## Access control and administration
 
@@ -48,6 +51,8 @@ Authentication guard สร้าง actor/session จาก JWT ทุก reque
 | GET | `/users` | search/status/role/area list; global user-admin permission อย่างน้อยหนึ่งรายการ |
 | POST | `/users` | สร้าง password user; global `user:create` |
 | GET | `/users/{userId}` | user profile/auth providers/role assignments; global user-admin permission |
+| PATCH | `/users/me` | self-service: user แก้ name/email ของตัวเอง; authenticated เท่านั้น ไม่ต้องมี admin permission |
+| POST | `/users/me/password` | self-service: user เปลี่ยน password ของตัวเอง (ต้องใส่ current password); คืน 204 |
 | PATCH | `/users/{userId}/status` | enable/disable พร้อม `expectedUpdatedAt`; global `user:disable` |
 | POST | `/users/{userId}/role-assignments` | assign global หรือ area-scoped role; global `role:assign` |
 | DELETE | `/users/{userId}/role-assignments/{assignmentId}` | remove assignment, 204; global `role:assign` |
@@ -60,12 +65,14 @@ Authentication guard สร้าง actor/session จาก JWT ทุก reque
 | POST | `/assets` | create one asset |
 | POST | `/assets/batch` | create assets หลายรายการ |
 | POST | `/assets/batch-remove` | soft-disable หลาย asset แบบ optimistic concurrency |
-| POST | `/assets/inventory/batch-add` | atomic audited stock addition |
-| POST | `/assets/inventory/batch-remove` | atomic audited stock removal |
-| GET | `/assets/{assetId}` | detail, active allocations และ inventory ledger |
+| POST | `/assets/units/batch-retire` | atomic audited retirement ของ asset unit หลายรายการ (BROKEN/LOST/INACTIVE) ตาม serial number |
+| PATCH | `/assets/units/{assetUnitId}/status` | เปลี่ยน status asset unit เดียว (ACTIVE/RESERVED/CHECKED_OUT/BROKEN/LOST/IN_REPAIR/INACTIVE) |
+| GET | `/assets/{assetId}` | detail, active allocations และ asset unit ledger |
 | PATCH | `/assets/{assetId}` | edit metadata พร้อม `expectedUpdatedAt` |
 | PATCH | `/assets/{assetId}/status` | activate/deactivate พร้อม `expectedUpdatedAt` |
 | DELETE | `/assets/{assetId}` | compatibility soft-deactivate endpoint |
+| GET | `/assets/{assetId}/units` | list serial-numbered unit ของ asset นี้ พร้อม status filter/cursor |
+| POST | `/assets/{assetId}/units` | atomic audited registration ของ asset unit ใหม่ (serial number) หลายรายการให้ asset นี้ |
 | POST | `/uploads/image` | authenticated multipart upload, field `file`, หนึ่งไฟล์สูงสุด 10 MiB; คืน `/uploads/assets/{filename}` |
 
 Asset and inventory services ตรวจ permission และ management-area scope ตาม operation ส่วน `/uploads/image` ปัจจุบันต้อง login แต่ไม่มี resource permission เพิ่มเติม Static file URL ใต้ `/uploads/` ไม่ผ่าน `/api/v1`
@@ -79,6 +86,7 @@ Asset and inventory services ตรวจ permission และ management-area s
 | GET | `/reservations/{reservationId}` | detail, availability, warnings, approvals, change requests และ capabilities |
 | POST | `/reservations/{reservationId}/submit` | submit draft ด้วย optimistic concurrency; zero-item draft auto-approve |
 | POST | `/reservations/{reservationId}/items/{itemId}/decision` | approve/reject item เดียว |
+| POST | `/reservations/{reservationId}/items/{itemId}/prepare` | assign serial-numbered asset unit ให้ approved item ก่อนส่งมอบ; item ต้องเป็น `APPROVED`, จำนวน unit ต้องตรงกับ approved quantity; item -> `PREPARED` |
 | POST | `/reservations/{reservationId}/items/decision` | atomic batch approve/reject |
 | POST | `/reservations/{reservationId}/change-requests` | request post-submit schedule/item/participant changes |
 | POST | `/reservations/{reservationId}/change-requests/{changeRequestId}/decision` | approve/reject change atomically |

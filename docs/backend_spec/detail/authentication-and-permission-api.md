@@ -39,6 +39,7 @@ Permission catalog ใน MVP:
 | `asset:update`        | แก้ไข asset ใน scope               |
 | `asset:delete`        | deactivate/delete asset ตาม policy |
 | `reservation:create`  | สร้าง reservation                  |
+| `reservation:view`    | ดู reservation ของผู้ใช้อื่น (ตาม scope ของ area หรือทั้งระบบ) |
 | `reservation:update`  | แก้ reservation ที่ policy อนุญาต  |
 | `reservation:approve` | อนุมัติ reservation item ใน scope  |
 | `reservation:reject`  | ปฏิเสธ reservation item ใน scope   |
@@ -89,7 +90,7 @@ List endpoint ใช้ cursor pagination:
     "code": "VALIDATION_ERROR",
     "message": "The request contains invalid fields.",
     "fields": {
-      "email": "Must be a valid email address."
+      "username": "Must be between 1 and 50 characters."
     },
     "requestId": "0192f25f-31a7-7d52-9814-0f0af7f39831"
   }
@@ -99,12 +100,13 @@ List endpoint ใช้ cursor pagination:
 | HTTP | Code ตัวอย่าง                    | ใช้เมื่อ                                              |
 | ---- | -------------------------------- | ----------------------------------------------------- |
 | 400  | `INVALID_REQUEST`                | JSON/header/query ไม่ถูกต้อง                          |
-| 401  | `INVALID_CREDENTIALS`            | Login ไม่สำเร็จ โดยไม่บอกว่าพบ email หรือไม่          |
+| 401  | `INVALID_CREDENTIALS`            | Login ไม่สำเร็จ โดยไม่บอกว่าพบ username หรือไม่        |
 | 401  | `AUTHENTICATION_REQUIRED`        | ไม่มี token, token หมดอายุ หรือลายเซ็นไม่ถูกต้อง      |
 | 403  | `ACCOUNT_INACTIVE`               | บัญชีถูกปิดใช้งาน                                     |
 | 403  | `PERMISSION_DENIED`              | ไม่มี permission หรือ scope                           |
 | 404  | `USER_NOT_FOUND`                 | ไม่พบ resource ที่ caller มีสิทธิ์เห็น                |
-| 409  | `EMAIL_ALREADY_EXISTS`           | Email ซ้ำ                                             |
+| 409  | `USERNAME_ALREADY_EXISTS`        | Username ซ้ำตอนสร้าง user                             |
+| 409  | `EMAIL_ALREADY_IN_USE`           | Email ซ้ำตอน self-service `PATCH /users/me`           |
 | 409  | `ROLE_ASSIGNMENT_ALREADY_EXISTS` | Role และ scope ซ้ำ                                    |
 | 409  | `LAST_GLOBAL_ADMIN`              | การเปลี่ยนแปลงจะทำให้ไม่เหลือ global ADMIN ที่ active |
 | 409  | `STALE_WRITE`                    | `expectedUpdatedAt` ไม่ตรงกับข้อมูลล่าสุด             |
@@ -121,13 +123,16 @@ Response 401 ต้องส่ง `WWW-Authenticate: Bearer` ด้วย
 type SessionContext = {
   user: {
     id: string;
-    email: string;
+    username: string;
+    email: string | null; // null until a Google/Microsoft account is linked
     isActive: true;
     profile: {
       name: string;
       phoneNumber: string | null;
       profilePictureUrl: string | null;
     } | null;
+    linkedProviders: ("google" | "microsoft")[]; // providers with a linked identity
+    accountLinkRequired: boolean; // whether this deployment hard-gates unlinked users
   };
   roles: Array<{
     assignmentId: string;
@@ -153,7 +158,8 @@ Arrays ของ permissions ต้องไม่มีค่าซ้ำแล
 ```ts
 type UserDetail = {
   id: string;
-  email: string;
+  username: string;
+  email: string | null; // null until a Google/Microsoft account is linked
   isActive: boolean;
   profile: {
     name: string;
@@ -180,22 +186,23 @@ type UserDetail = {
 
 ### `POST /auth/login`
 
-Public endpoint สำหรับ password login
+Public endpoint สำหรับ password login ใช้ `username` เป็น login identifier เสมอ ไม่ใช่ email — `email`
+เป็น field ที่ nullable และถูกเติมทีหลังจากการ link บัญชี Google/Microsoft เท่านั้น ไม่เคยใช้ login โดยตรง
 
 Request:
 
 ```json
 {
-  "email": "manager@example.com",
+  "username": "asset.manager",
   "password": "correct horse battery staple"
 }
 ```
 
 Validation:
 
-- email required, normalize ด้วย trim และ lowercase ก่อน lookup
+- username required, normalize ด้วย trim และ lowercase ก่อน lookup, ความยาวไม่เกิน 50 ตัวอักษร
 - password required, ความยาว input ไม่เกิน 1024 ตัวอักษร
-- ห้ามแยก error ระหว่าง email ไม่มีอยู่, password ผิด หรือบัญชี external-only
+- ห้ามแยก error ระหว่าง username ไม่มีอยู่, password ผิด หรือบัญชี external-only
 
 Response `200`:
 
@@ -207,13 +214,16 @@ Response `200`:
   "session": {
     "user": {
       "id": "6e7fd59f-1499-4f7a-bb47-5d6a09d32650",
+      "username": "asset.manager",
       "email": "manager@example.com",
       "isActive": true,
       "profile": {
         "name": "Asset Manager",
         "phoneNumber": null,
         "profilePictureUrl": null
-      }
+      },
+      "linkedProviders": ["google"],
+      "accountLinkRequired": true
     },
     "roles": [
       {
@@ -256,7 +266,20 @@ Response `204` ไม่มี body ในระยะที่ยังไม�
 
 `GET /bff/session` ใช้ SessionContext เดียวกับ `GET /auth/me` และอาจเพิ่ม `navigation` หรือ page capabilities ได้ แต่ห้ามเปลี่ยนความหมายของ user, roles และ effective permissions
 
-External identity ที่มีใน Prisma รองรับการเชื่อม provider ในอนาคต แต่ OAuth/OIDC authorize และ callback endpoints ยังอยู่นอก contract ฉบับนี้ ห้าม client คาดเดา endpoint เองจนกว่าจะเพิ่มลง OpenAPI
+### Login with a linked Google/Microsoft account
+
+`POST /auth/login` (username+password) คือวิธี login หลักที่ใช้ได้กับทุก user เสมอ ไม่ว่าจะ link
+provider ไว้หรือไม่ นอกจากนี้ user ที่ link บัญชีไว้แล้วสามารถ login ด้วยวิธีอื่นได้ผ่าน:
+
+- `GET /auth/google/login` — public, redirect ไปหน้า consent ของ Google แล้ววนกลับผ่าน
+  `/auth/google/callback` เฉพาะ identity ที่ link ไว้แล้วเท่านั้นถึงจะ login สำเร็จ (ไม่มี
+  auto-provisioning ด้วย email) — ถ้ายังไม่ได้ link จะ redirect กลับไปหน้า login พร้อม
+  `?googleError=not_linked`
+- `GET /auth/microsoft/login` — เหมือนกันทุกประการ กับ Microsoft/Entra ID
+
+การ link บัญชีทำผ่าน `GET /auth/google/connect` / `GET /auth/microsoft/connect` (ต้อง authenticated
+อยู่แล้ว) ดู endpoint ทั้งหมดใน tag `Account Linking` ของ OpenAPI และรายละเอียดการตั้งค่าใน
+[`oauth-setup.md`](../../oauth-setup.md)
 
 ## Permission and role endpoints
 
@@ -334,7 +357,7 @@ Query:
 
 | Field      | Type    | Default | รายละเอียด                             |
 | ---------- | ------- | ------- | -------------------------------------- |
-| `search`   | string  | -       | ค้น email หรือ profile name สูงสุด 100 |
+| `search`   | string  | -       | ค้น username, email หรือ profile name สูงสุด 100 |
 | `isActive` | boolean | -       | กรองสถานะ                              |
 | `roleId`   | UUID    | -       | กรองผู้ใช้ที่มี role                   |
 | `areaId`   | UUID    | -       | กรอง assignment ใน management area     |
@@ -348,6 +371,7 @@ Response `200`:
   "data": [
     {
       "id": "6e7fd59f-1499-4f7a-bb47-5d6a09d32650",
+      "username": "asset.manager",
       "email": "manager@example.com",
       "name": "Asset Manager",
       "isActive": true,
@@ -367,30 +391,28 @@ Response `200`:
 
 ต้องมี `user:create` แบบ global ห้ามรับ `passwordHash`, `assignedBy` หรือ ID จาก client
 
+รับแค่ login identifier กับ password เท่านั้น — ไม่มี email หรือ profile ตอนสร้าง เพราะ field
+เหล่านี้ถูกเติมทีหลังตอน user link บัญชี Google/Microsoft (ดู `Account Linking` tag) หรือถ้า
+deployment นั้นไม่ได้บังคับ link (`REQUIRE_ACCOUNT_LINK=false`) user ก็ไปตั้งเองทีหลังผ่าน
+self-service `PATCH /users/me`
+
 Request:
 
 ```json
 {
-  "email": "new.user@example.com",
-  "password": "a-long-initial-password",
-  "profile": {
-    "name": "New User",
-    "phoneNumber": "+66-81-234-5678",
-    "profilePictureUrl": null
-  }
+  "username": "new.user",
+  "password": "a-long-initial-password"
 }
 ```
 
 Validation:
 
-- email required สูงสุด 255 และ unique แบบ normalized lowercase
-- password required สำหรับ password user, 8–128 ตัวอักษร และ hash ด้วย Argon2id
-- profile.name required 1–150 ตัวอักษร
-- phoneNumber optional สูงสุด 30
-- profilePictureUrl optional URL สูงสุด 2048
+- username required, trim และ lowercase ก่อน validate, ต้องตรง `^[a-z0-9._-]{3,50}$` และ unique
+- password required, 8–128 ตัวอักษร และ hash ด้วย Argon2id
 - การสร้าง external-only user ไม่อยู่ใน endpoint นี้
 
-Response `201` คืน `UserDetail` โดย `roleAssignments` เริ่มเป็น array ว่าง
+Response `201` คืน `UserDetail` โดย `email` เป็น `null`, `profile` เป็น `null` และ
+`roleAssignments` เริ่มเป็น array ว่าง
 
 ### `GET /users/{userId}`
 

@@ -84,8 +84,6 @@ CREATE TABLE "return_item_units" (
     "return_item_id" UUID NOT NULL,
     "reservation_item_unit_id" UUID NOT NULL,
     "condition" VARCHAR(10) NOT NULL,
-    "photo_url" VARCHAR(1000),
-    "note" TEXT,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "return_item_units_pkey" PRIMARY KEY ("id")

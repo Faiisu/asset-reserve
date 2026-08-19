@@ -64,7 +64,6 @@ export function ReservationDetailPage() {
 
   // Remarks / notes for each state
   const [approvalComment, setApprovalComment] = useState("");
-  const [returnNote, setReturnNote] = useState("");
   const [inspectionComment, setInspectionComment] = useState("");
 
   // Quantity adjustments
@@ -354,10 +353,8 @@ export function ReservationDetailPage() {
     try {
       await api.createReturn(reservation.id, {
         items: itemsToReturn,
-        note: returnNote.trim() || undefined,
       });
       setSelectedReturnItemIds([]);
-      setReturnNote("");
       setActionNotice("Return slip submitted. Equipment room inspection pending.");
       await loadReservation();
     } catch (err: any) {
@@ -783,14 +780,6 @@ export function ReservationDetailPage() {
                   </span>
                 </div>
                 <div className="res-review-bar__actions">
-                  <input
-                    type="text"
-                    placeholder="Drop-off location / return notes..."
-                    value={returnNote}
-                    onChange={(e) => setReturnNote(e.target.value)}
-                    className="control"
-                    aria-label="Return notes"
-                  />
                   <Button
                     variant="primary"
                     disabled={actionLoading || selectedReturnItemIds.length === 0}

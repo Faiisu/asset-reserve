@@ -49,10 +49,12 @@ type ReservationDto = {
     | "PENDING_APPROVAL"
     | "PARTIALLY_APPROVED"
     | "APPROVED"
+    | "DELIVERY_CONFIRMED"
+    | "RETURN_PENDING"
+    | "RETURN_CONFIRMED"
+    | "COMPLETED"
     | "REJECTED"
-    | "CANCELLED"
-    | "ACTIVE"
-    | "COMPLETED";
+    | "CANCELLED";
   requester: { id: string; name: string; email: string };
   items: Array<{
     id: string;
@@ -64,6 +66,7 @@ type ReservationDto = {
       | "REJECTED"
       | "PREPARED"
       | "CHECKED_OUT"
+      | "DELIVERED"
       | "RETURNED";
     preparedBy: string | null;
     preparedAt: string | null;

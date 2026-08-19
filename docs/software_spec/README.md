@@ -12,7 +12,6 @@
 | [Prisma schema](../../backend/prisma/schema.prisma)       | Data model ที่ backend ใช้งาน                                          |
 | [File and schema structure](file-and-schema-structure.md) | มาตรฐานโครงสร้าง frontend, backend, Prisma และ dependency boundary     |
 | [Asset reservation flow](asset-reservation-flow.md)        | Lifecycle 5 ขั้นตอน, State machines, Actors & Permission matrix         |
-| [Proof photos & image system](reservation-proof-photos-system.md) | สถาปัตยกรรมระบบรูปภาพหลักฐานตอน Handover และ Return, Upload pipeline    |
 
 ## เป้าหมายการออกแบบ
 
@@ -55,7 +54,7 @@ Hybrid BFF จึงแบ่งหน้าที่ดังนี้:
 | API surface        | ใช้สำหรับ                                 | ตัวอย่าง                                                                       |
 | ------------------ | ----------------------------------------- | ------------------------------------------------------------------------------ |
 | BFF read API       | Page-oriented query และข้อมูลประกอบหน้าจอ | Session bootstrap, Calendar view, Reservation detail view, Approval queue      |
-| Domain command API | Business mutation และ reusable operations | Create/submit reservation, approve item, inventory adjustment, return approval |
+| Domain command API | Business mutation และ reusable operations | Create/submit reservation, approve item, asset unit registration/retirement, return decision |
 
 ทั้งสอง surface อยู่ใน NestJS process เดียว จึงไม่มี network hop ภายในและยังไม่ถือเป็น microservices
 
@@ -138,7 +137,7 @@ sequenceDiagram
 - Command endpoint ใช้ application service เดียวกับ BFF และไม่ duplicate business logic
 - BFF controller ไม่มี direct Prisma call
 - Backend ใช้ PrismaClient singleton
-- Concurrent critical mutations ไม่ทำให้ quantity ติดลบหรือจองเกินจำนวน
+- Concurrent critical mutations ไม่ assign asset unit เดียวกัน (ตาม serial number) ให้มากกว่าหนึ่ง reservation พร้อมกัน
 - ระบบเริ่มได้ด้วย Nginx, backend และ PostgreSQL โดยไม่ต้องมี distributed component
 
 ## Scope boundary

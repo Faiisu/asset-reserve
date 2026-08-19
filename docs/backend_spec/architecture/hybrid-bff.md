@@ -100,9 +100,15 @@ asset-reservation/
 │   │   ├── access-control/
 │   │   ├── management-areas/
 │   │   ├── assets/
-│   │   ├── inventory/
 │   │   ├── reservations/
 │   │   ├── returns/
+│   │   ├── google-auth/
+│   │   ├── microsoft-auth/
+│   │   ├── email/
+│   │   ├── email-templates/
+│   │   ├── notification-settings/
+│   │   ├── recognition/
+│   │   ├── uploads/
 │   │   ├── database/
 │   │   └── common/
 │   ├── prisma/
@@ -122,18 +128,22 @@ Frontend และ backend ต้องมี dependency, environment variables,
 
 Backend ใช้ modular monolith โดยแบ่ง module ตาม business domain:
 
-| Module                     | Responsibility                                                     |
-| -------------------------- | ------------------------------------------------------------------ |
-| AuthModule                 | Password/external authentication, token issuance และ guards        |
-| UsersModule                | User, profile และ active state                                     |
-| AccessControlModule        | Role, permissions และ ManagementArea scope                         |
-| ManagementAreasModule      | Management area lookup/administration                              |
-| AssetsModule               | Asset CRUD, availability summary และ active state                  |
-| InventoryModule            | AssetTransactionBatch, AssetTransaction และ atomic quantity update |
-| ReservationsModule         | Reservation, items, participants, availability และ lifecycle       |
-| ReservationApprovalsModule | Item-level approval และ aggregate reservation status               |
-| ReservationChangesModule   | Change request validation/review                                   |
-| ReturnsModule              | Partial return, approval, ledger effects และ completion            |
+| Module                      | Responsibility                                                                          |
+| --------------------------- | ----------------------------------------------------------------------------------------- |
+| AuthModule                  | Password authentication, token issuance และ guards                                       |
+| GoogleAuthModule            | Google OAuth login/connect/callback สำหรับ account linking                               |
+| MicrosoftAuthModule         | Microsoft OAuth login/connect/callback สำหรับ account linking                            |
+| UsersModule                 | User, self-service profile/password และ active state                                    |
+| AccessControlModule         | Role, permissions และ ManagementArea scope                                               |
+| ManagementAreasModule       | Management area lookup/administration                                                    |
+| AssetsModule                | Asset CRUD, serial-numbered asset unit registration/retirement และ availability          |
+| ReservationsModule          | Reservation, items, participants, approval, change request, availability และ lifecycle   |
+| ReturnsModule               | Return slip, per-unit condition inspection (Good/Broken/Lost) และ completion              |
+| RecognitionModule           | Recognition/kudos entry ระหว่าง user                                                     |
+| EmailModule                 | Email dispatch จาก lifecycle event (listener)                                            |
+| EmailTemplatesModule        | Admin-configurable email template CRUD                                                   |
+| NotificationSettingsModule  | Per-user notification preference                                                         |
+| UploadsModule               | Multipart image upload endpoint                                                          |
 | DatabaseModule             | PrismaClient singleton และ transaction utilities                   |
 
 Controller ต้องรับ/ตอบ DTO เท่านั้น Business rule อยู่ใน service/domain layer และ Prisma query อยู่ใน repository หรือ domain service ที่กำหนดชัดเจน

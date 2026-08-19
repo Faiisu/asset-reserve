@@ -198,17 +198,6 @@ export class PrepareReservationItemDto {
   assetUnitIds!: string[];
 }
 
-export class ConfirmDeliveryItemPhotoDto {
-  @IsUUID()
-  itemId!: string;
-
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MaxLength(1000)
-  photoUrl?: string;
-}
-
 export class ConfirmDeliveryDto {
   @IsOptional()
   @IsArray()
@@ -216,25 +205,4 @@ export class ConfirmDeliveryDto {
   @ArrayUnique()
   @IsUUID(undefined, { each: true })
   itemIds?: string[];
-
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(100)
-  @ValidateNested({ each: true })
-  @Type(() => ConfirmDeliveryItemPhotoDto)
-  itemPhotos?: ConfirmDeliveryItemPhotoDto[];
-
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(10)
-  @IsString({ each: true })
-  @MaxLength(1000, { each: true })
-  photoUrls?: string[];
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null && value !== undefined)
-  @Transform(trim)
-  @IsString()
-  @MaxLength(2000)
-  note?: string;
 }

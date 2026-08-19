@@ -159,8 +159,6 @@ function sampleReturnDetailRecord(
     returnedBy: requesterId,
     status,
     returnedAt: new Date("2026-09-01T12:00:00.000Z"),
-    photoUrls: [],
-    note: null,
     createdAt: new Date("2026-09-01T12:00:00.000Z"),
     updatedAt: new Date("2026-09-01T12:00:00.000Z"),
     returner: userRecord,
@@ -175,7 +173,6 @@ function sampleReturnDetailRecord(
         returnId,
         reservationItemId: itemId,
         description: "All intact",
-        photoUrl: null,
         reservationItem: {
           asset: {
             id: assetId,
@@ -188,8 +185,6 @@ function sampleReturnDetailRecord(
             id: "00000000-0000-4000-8000-000000000831",
             reservationItemUnitId,
             condition,
-            photoUrl: null,
-            note: null,
             reservationItemUnit: {
               assetUnitId,
               assetUnit: { serialNumber: "SN-001" },
@@ -233,8 +228,6 @@ function sampleReturnRecordForDecide(status = "PENDING") {
           {
             id: "00000000-0000-4000-8000-000000000831",
             reservationItemUnitId,
-            photoUrl: null,
-            note: null,
             reservationItemUnit: { assetUnitId },
           },
         ],
