@@ -1,0 +1,296 @@
+/recognition/assets:
+  post:
+    tags:
+      - Recognition
+    summary: Register an asset with the recognition service
+    description: >-
+      Proxies to the internal recognition-service (see
+      [modules/recognition.md](../../modules/recognition.md)). If `asset_id` is provided, the
+      caller must already have view access to that asset (`AssetsService.get()` is called
+      first) -- this is the only access control in front of the recognition service, which has
+      none of its own.
+    operationId: registerRecognitionAsset
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [name]
+            properties:
+              name:
+                type: string
+              asset_id:
+                type: string
+                format: uuid
+              extra:
+                type: string
+                description: JSON-encoded free-form metadata, forwarded as-is.
+              file:
+                type: string
+                format: binary
+                description: Optional reference photo.
+    responses:
+      "200":
+        description: Recognition-service response, relayed as-is.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecognitionAsset"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "502":
+        description: Recognition service unreachable or returned an error (`RECOGNITION_SERVICE_UNREACHABLE` / `RECOGNITION_SERVICE_ERROR`).
+/recognition/assets/{assetId}:
+  get:
+    tags:
+      - Recognition
+    summary: Get recognition data for an asset
+    operationId: getRecognitionAsset
+    parameters:
+      - $ref: "#/components/parameters/AssetId"
+    responses:
+      "200":
+        description: Recognition-service asset record.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecognitionAsset"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        description: Asset has no recognition data yet (`NOT_FOUND`), or the asset itself does not exist.
+  patch:
+    tags:
+      - Recognition
+    summary: Update recognition metadata for an asset
+    operationId: updateRecognitionAsset
+    parameters:
+      - $ref: "#/components/parameters/AssetId"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpdateRecognitionAssetRequest"
+    responses:
+      "200":
+        description: Updated recognition-service asset record.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecognitionAsset"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+  delete:
+    tags:
+      - Recognition
+    summary: Delete an asset's recognition record and reference photos
+    operationId: deleteRecognitionAsset
+    parameters:
+      - $ref: "#/components/parameters/AssetId"
+    responses:
+      "200":
+        description: Recognition-service deletion result, relayed as-is.
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+/recognition/assets/{assetId}/photos:
+  get:
+    tags:
+      - Recognition
+    summary: List an asset's reference photos
+    operationId: listRecognitionAssetPhotos
+    parameters:
+      - $ref: "#/components/parameters/AssetId"
+    responses:
+      "200":
+        description: Reference photos, or an empty array if none.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/RecognitionPhoto"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+  post:
+    tags:
+      - Recognition
+    summary: Add a reference photo to an asset
+    operationId: addRecognitionAssetPhoto
+    parameters:
+      - $ref: "#/components/parameters/AssetId"
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file]
+            properties:
+              file:
+                type: string
+                format: binary
+    responses:
+      "200":
+        description: Recognition-service photo record.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecognitionPhoto"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/recognition/assets/{assetId}/photos/{photoId}:
+  delete:
+    tags:
+      - Recognition
+    summary: Delete one reference photo
+    operationId: deleteRecognitionAssetPhoto
+    parameters:
+      - $ref: "#/components/parameters/AssetId"
+      - name: photoId
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Recognition-service deletion result, relayed as-is.
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+/recognition/assets/{assetId}/image:
+  get:
+    tags:
+      - Recognition
+    summary: Fetch the recognition-service's representative image for an asset
+    description: Public (`@Public()`), matching this app's existing precedent for asset thumbnails served under `/uploads/` with no auth check.
+    operationId: getRecognitionAssetImage
+    security: []
+    parameters:
+      - name: assetId
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Raw image bytes; `Content-Type` set from the recognition service's response.
+        content:
+          image/*:
+            schema:
+              type: string
+              format: binary
+      "404":
+        description: Image not found (`RECOGNITION_SERVICE_ERROR`).
+/recognition/photos/{photoId}/image:
+  get:
+    tags:
+      - Recognition
+    summary: Fetch one reference photo's image bytes
+    description: Public (`@Public()`), same rationale as the asset image route above.
+    operationId: getRecognitionPhotoImage
+    security: []
+    parameters:
+      - name: photoId
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Raw image bytes; `Content-Type` set from the recognition service's response.
+        content:
+          image/*:
+            schema:
+              type: string
+              format: binary
+      "404":
+        description: Image not found (`RECOGNITION_SERVICE_ERROR`).
+/recognition/recognize:
+  post:
+    tags:
+      - Recognition
+    summary: Identify the single best-matching asset in a photo
+    operationId: recognizeAsset
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file]
+            properties:
+              file:
+                type: string
+                format: binary
+              threshold:
+                type: string
+                description: Recognition-service match-confidence threshold, forwarded as-is.
+              top_k:
+                type: string
+                description: Max number of candidate matches, forwarded as-is.
+    responses:
+      "200":
+        description: Recognition-service match result, relayed as-is.
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "502":
+        description: Recognition service unreachable or returned an error.
+/recognition/recognize/multi:
+  post:
+    tags:
+      - Recognition
+    summary: Identify multiple assets across bounding boxes in one photo
+    operationId: recognizeAssetMulti
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file]
+            properties:
+              file:
+                type: string
+                format: binary
+              threshold:
+                type: string
+              top_k:
+                type: string
+              min_box_score:
+                type: string
+              max_objects:
+                type: string
+    responses:
+      "200":
+        description: Recognition-service multi-match result, relayed as-is.
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "502":
+        description: Recognition service unreachable or returned an error.

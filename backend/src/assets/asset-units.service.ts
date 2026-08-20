@@ -1,0 +1,343 @@
+import { Injectable } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
+import { Prisma } from "../../generated/prisma/client.js";
+import type { AuthenticatedActor } from "../auth/auth.types.js";
+import { ApiException } from "../common/api-exception.js";
+import { decodeCursor, pageInfo } from "../common/pagination.js";
+import { PrismaService } from "../database/prisma.service.js";
+import { assertAreaPermission } from "./asset-access.js";
+import type {
+  AssetUnitListQueryDto,
+  RegisterAssetUnitsDto,
+  RetireAssetUnitsDto,
+  UpdateAssetUnitStatusDto,
+} from "./assets.dto.js";
+
+@Injectable()
+export class AssetUnitsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async list(
+    actor: AuthenticatedActor,
+    assetId: string,
+    query: AssetUnitListQueryDto,
+  ) {
+    const asset = await this.findAssetOrThrow(assetId);
+    assertAreaPermission(actor, "asset:view", asset.managementAreaId);
+
+    const cursor = decodeCursor(query.cursor);
+    const conditions: Prisma.AssetUnitWhereInput[] = [{ assetId }];
+    if (query.status) conditions.push({ status: query.status });
+    if (query.search) {
+      conditions.push({
+        serialNumber: { contains: query.search, mode: "insensitive" },
+      });
+    }
+    if (cursor) {
+      conditions.push({
+        OR: [
+          { createdAt: { lt: new Date(cursor.createdAt) } },
+          { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } },
+        ],
+      });
+    }
+
+    const rows = await this.prisma.assetUnit.findMany({
+      where: { AND: conditions },
+      take: query.limit + 1,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    const page = pageInfo(rows, query.limit);
+    return {
+      data: page.data.map((unit) => this.unitDto(unit)),
+      pageInfo: page.pageInfo,
+    };
+  }
+
+  async register(
+    actor: AuthenticatedActor,
+    assetId: string,
+    input: RegisterAssetUnitsDto,
+  ) {
+    const asset = await this.findAssetOrThrow(assetId);
+    assertAreaPermission(actor, "asset:update", asset.managementAreaId);
+
+    const serialNumbers = [...new Set(input.serialNumbers)];
+    if (serialNumbers.length !== input.serialNumbers.length) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        "A batch cannot contain duplicate serial numbers.",
+        { serialNumbers: "Remove duplicate serial numbers." },
+      );
+    }
+
+    const prepared = serialNumbers.map((serialNumber) => ({
+      id: randomUUID(),
+      assetId,
+      serialNumber,
+      status: "ACTIVE" as const,
+    }));
+
+    try {
+      const units = await this.runSerializable(async (tx) => {
+        await tx.assetUnit.createMany({ data: prepared });
+        const batchId = randomUUID();
+        await tx.assetUnitEventBatch.create({
+          data: {
+            id: batchId,
+            description: input.reason ?? "Registered new asset units",
+            performedBy: actor.user.id,
+          },
+        });
+        await tx.assetUnitEvent.createMany({
+          data: prepared.map((unit) => ({
+            id: randomUUID(),
+            batchId,
+            assetUnitId: unit.id,
+            eventType: "REGISTERED",
+            toStatus: "ACTIVE",
+            reason: input.reason ?? null,
+          })),
+        });
+        return tx.assetUnit.findMany({
+          where: { id: { in: prepared.map((unit) => unit.id) } },
+          orderBy: { serialNumber: "asc" },
+        });
+      });
+      return { data: units.map((unit) => this.unitDto(unit)) };
+    } catch (error) {
+      this.rethrowUnitWrite(error);
+    }
+  }
+
+  async retire(actor: AuthenticatedActor, input: RetireAssetUnitsDto) {
+    const ids = input.items.map((item) => item.assetUnitId);
+    this.assertUniqueIds(ids);
+    const units = await this.prisma.assetUnit.findMany({
+      where: { id: { in: ids } },
+      include: { asset: { select: { managementAreaId: true } } },
+    });
+    if (units.length !== ids.length) {
+      throw new ApiException(
+        404,
+        "ASSET_UNIT_NOT_FOUND",
+        "One or more asset units were not found.",
+      );
+    }
+    for (const unit of units) {
+      assertAreaPermission(actor, "asset:update", unit.asset.managementAreaId);
+    }
+
+    const sorted = [...units].sort((a, b) => a.id.localeCompare(b.id));
+    await this.runSerializable(async (tx) => {
+      const batchId = randomUUID();
+      await tx.assetUnitEventBatch.create({
+        data: {
+          id: batchId,
+          description: input.reason ?? "Retired asset units",
+          performedBy: actor.user.id,
+        },
+      });
+      for (const unit of sorted) {
+        const requested = input.items.find(
+          (item) => item.assetUnitId === unit.id,
+        )!;
+        const result = await tx.assetUnit.updateMany({
+          where: {
+            id: unit.id,
+            updatedAt: new Date(requested.expectedUpdatedAt),
+            status: { notIn: ["RESERVED", "CHECKED_OUT"] },
+          },
+          data: { status: "INACTIVE", updatedAt: new Date() },
+        });
+        if (!result.count) {
+          const stillExists = await tx.assetUnit.findUnique({
+            where: { id: unit.id },
+            select: { status: true },
+          });
+          if (
+            stillExists &&
+            ["RESERVED", "CHECKED_OUT"].includes(stillExists.status)
+          ) {
+            throw new ApiException(
+              409,
+              "ASSET_UNIT_IN_USE",
+              "Cannot retire a unit that is currently reserved or checked out.",
+            );
+          }
+          this.staleWrite();
+        }
+        await tx.assetUnitEvent.create({
+          data: {
+            id: randomUUID(),
+            batchId,
+            assetUnitId: unit.id,
+            eventType: "RETIRED",
+            fromStatus: unit.status,
+            toStatus: "INACTIVE",
+            reason: input.reason ?? null,
+          },
+        });
+      }
+    });
+    return { data: ids.map((id) => ({ id, status: "INACTIVE" as const })) };
+  }
+
+  async updateStatus(
+    actor: AuthenticatedActor,
+    assetUnitId: string,
+    input: UpdateAssetUnitStatusDto,
+  ) {
+    const unit = await this.prisma.assetUnit.findUnique({
+      where: { id: assetUnitId },
+      include: { asset: { select: { managementAreaId: true } } },
+    });
+    if (!unit)
+      throw new ApiException(
+        404,
+        "ASSET_UNIT_NOT_FOUND",
+        "The asset unit was not found.",
+      );
+    assertAreaPermission(actor, "asset:update", unit.asset.managementAreaId);
+    if (["RESERVED", "CHECKED_OUT"].includes(unit.status)) {
+      throw new ApiException(
+        409,
+        "ASSET_UNIT_IN_USE",
+        "Cannot change status of a unit that is currently reserved or checked out.",
+      );
+    }
+
+    await this.runSerializable(async (tx) => {
+      const result = await tx.assetUnit.updateMany({
+        where: {
+          id: assetUnitId,
+          updatedAt: new Date(input.expectedUpdatedAt),
+          status: { notIn: ["RESERVED", "CHECKED_OUT"] },
+        },
+        data: { status: input.status, updatedAt: new Date() },
+      });
+      if (!result.count) this.staleWrite();
+      const batchId = randomUUID();
+      await tx.assetUnitEventBatch.create({
+        data: {
+          id: batchId,
+          description: input.reason ?? null,
+          performedBy: actor.user.id,
+        },
+      });
+      await tx.assetUnitEvent.create({
+        data: {
+          id: randomUUID(),
+          batchId,
+          assetUnitId,
+          eventType:
+            input.status === "ACTIVE" && unit.status !== "ACTIVE"
+              ? "REACTIVATED"
+              : "ADJUSTMENT",
+          fromStatus: unit.status,
+          toStatus: input.status,
+          reason: input.reason ?? null,
+        },
+      });
+    });
+    const updated = await this.prisma.assetUnit.findUniqueOrThrow({
+      where: { id: assetUnitId },
+    });
+    return this.unitDto(updated);
+  }
+
+  private async findAssetOrThrow(assetId: string) {
+    const asset = await this.prisma.asset.findUnique({
+      where: { id: assetId },
+      select: { id: true, managementAreaId: true },
+    });
+    if (!asset)
+      throw new ApiException(
+        404,
+        "ASSET_NOT_FOUND",
+        "The asset was not found.",
+      );
+    return asset;
+  }
+
+  private assertUniqueIds(ids: string[]) {
+    if (new Set(ids).size !== ids.length) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        "A batch cannot contain duplicate asset units.",
+        { items: "Remove duplicate asset unit entries." },
+      );
+    }
+  }
+
+  private unitDto(unit: {
+    id: string;
+    assetId: string;
+    serialNumber: string;
+    status: string;
+    note: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }) {
+    return {
+      id: unit.id,
+      assetId: unit.assetId,
+      serialNumber: unit.serialNumber,
+      status: unit.status,
+      note: unit.note,
+      createdAt: unit.createdAt.toISOString(),
+      updatedAt: unit.updatedAt.toISOString(),
+    };
+  }
+
+  private staleWrite(): never {
+    throw new ApiException(
+      409,
+      "STALE_WRITE",
+      "The asset unit has changed since it was loaded.",
+    );
+  }
+
+  private rethrowUnitWrite(error: unknown): never {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
+      throw new ApiException(
+        409,
+        "SERIAL_NUMBER_ALREADY_EXISTS",
+        "One or more serial numbers are already registered.",
+      );
+    }
+    throw error;
+  }
+
+  private async runSerializable<T>(
+    work: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(work, {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        });
+      } catch (error) {
+        if (this.prismaCode(error) !== "P2034" || attempt === 3) throw error;
+        await new Promise((resolve) =>
+          setTimeout(resolve, 10 * 2 ** (attempt - 1) + Math.random() * 10),
+        );
+      }
+    }
+    throw new Error("Unreachable asset unit transaction state.");
+  }
+
+  private prismaCode(error: unknown): string | undefined {
+    if (typeof error !== "object" || error === null || !("code" in error)) {
+      return undefined;
+    }
+    return typeof error.code === "string" ? error.code : undefined;
+  }
+}

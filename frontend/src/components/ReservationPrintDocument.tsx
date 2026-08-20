@@ -64,8 +64,6 @@ export function ReservationPrintDocument({
     (item) => item.approval?.approver,
   )?.approval?.approver;
 
-  const firstHandover = reservation.handovers?.[0];
-
   const firstReturn = reservation.returns?.[0];
 
   const nowFormatted = formatDate(new Date().toISOString(), true);
@@ -381,7 +379,7 @@ export function ReservationPrintDocument({
                               <td style={{ textAlign: "center", fontWeight: 700, color: "#b95b0c" }}>
                                 {rItem.quantityLost || 0}
                               </td>
-                              <td>{rItem.description || ret.note || "Item in nominal operational condition."}</td>
+                              <td>{rItem.description || "Item in nominal operational condition."}</td>
                             </tr>
                           ))
                         ) : (
@@ -425,9 +423,9 @@ export function ReservationPrintDocument({
                           </span>
                         </div>
                       </div>
-                      {(ret.approval?.description || ret.note) && (
+                      {ret.approval?.description && (
                         <div className="res-print-inspection-remarks">
-                          <strong>Inspector Remarks:</strong> {ret.approval?.description || ret.note}
+                          <strong>Inspector Remarks:</strong> {ret.approval.description}
                         </div>
                       )}
                     </div>
@@ -540,34 +538,10 @@ export function ReservationPrintDocument({
               </div>
             </div>
 
-            {/* 3. Handover Staff Sign-off */}
+            {/* 3. Receiving & Inspection Officer Sign-off */}
             <div className="res-print-sign-box">
               <div className="res-print-sign-header">
-                <strong>3. Dispatch Officer</strong>
-                <small>Physical Handover Verification</small>
-              </div>
-              <p className="res-print-sign-statement">
-                Physical units inspected, serials verified, and released to the designated requester/participant.
-              </p>
-              <div className="res-print-sign-meta">
-                <span>Name: <strong>{firstHandover?.handler?.name ?? firstHandover?.handler?.email ?? "Equipment Custodian"}</strong></span>
-                <div className="res-print-sign-line">
-                  <span>Signature:</span>
-                  <div className="res-print-sign-rule" />
-                </div>
-                <div className="res-print-date-line">
-                  <span>Date:</span>
-                  <div className="res-print-date-rule">
-                    {firstHandover?.handedOverAt ? formatDate(firstHandover.handedOverAt, true) : "________________"}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 4. Receiving & Inspection Officer Sign-off */}
-            <div className="res-print-sign-box">
-              <div className="res-print-sign-header">
-                <strong>4. Return Receiving Inspector</strong>
+                <strong>3. Return Receiving Inspector</strong>
                 <small>Check-in & Restock Sign-Off</small>
               </div>
               <p className="res-print-sign-statement">

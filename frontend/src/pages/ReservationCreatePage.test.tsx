@@ -18,9 +18,20 @@ const asset: AssetSummary = {
   name: "Stage camera",
   description: null,
   pictureUrl: null,
+  partNumber: null,
   totalQuantity: 4,
   allocatedQuantity: 1,
   availableQuantity: 3,
+  unitCounts: {
+    total: 4,
+    active: 3,
+    reserved: 0,
+    checkedOut: 1,
+    broken: 0,
+    lost: 0,
+    inRepair: 0,
+    inactive: 0,
+  },
   isActive: true,
   status: "ACTIVE",
   managementArea: { id: "area-1", name: "Production" },
@@ -28,7 +39,7 @@ const asset: AssetSummary = {
   capabilities: {
     canEdit: false,
     canDeactivate: false,
-    canAdjustQuantity: false,
+    canManageUnits: false,
   },
   createdAt: "2026-08-01T00:00:00.000Z",
   updatedAt: "2026-08-01T00:00:00.000Z",
@@ -38,7 +49,8 @@ const assetDetail: AssetDetail = {
   ...asset,
   editPolicy: { permission: "asset:update", roles: ["ADMIN", "MANAGER"] },
   activeReservationItems: [],
-  inventoryLedger: [],
+  units: [],
+  unitEventLedger: [],
 };
 
 describe("ReservationCreatePage", () => {

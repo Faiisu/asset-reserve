@@ -2,7 +2,12 @@
   post:
     tags:
       - Authentication
-    summary: Sign in with email and password
+    summary: Sign in with username and password
+    description: >-
+      The primary login method; every user has a username/password whether or not they've
+      linked an external provider. Once a user has linked Google or Microsoft (see the
+      Account Linking tag), `GET /auth/google/login` or `GET /auth/microsoft/login` offer an
+      alternate way to sign in as the same user without the password.
     operationId: login
     security: []
     requestBody:

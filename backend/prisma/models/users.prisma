@@ -14,25 +14,26 @@ model User {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  profile                     UserProfile?
-  authIdentities              UserAuthIdentity[]
-  userRoles                   UserRole[]                 @relation("UserRoleUser")
-  assignedUserRoles           UserRole[]                 @relation("UserRoleAssignedBy")
-  createdAssets               Asset[]                    @relation("AssetCreatedBy")
-  assetTransactionBatches     AssetTransactionBatch[]
-  requestedReservations       Reservation[]              @relation("ReservationRequester")
-  preparedReservationItems    ReservationItem[]          @relation("ReservationItemPreparedBy")
-  checkedOutItems             ReservationItem[]          @relation("ReservationItemCheckedOutBy")
-  reservationParticipants     ReservationParticipant[]
-  reservationApprovals        ReservationItemApproval[]
-  requestedChanges            ReservationChangeRequest[] @relation("ReservationChangeRequestedBy")
-  reviewedChanges             ReservationChangeRequest[] @relation("ReservationChangeReviewedBy")
-  reservationHandovers        ReservationHandover[]      @relation("ReservationHandoverHandledBy")
-  returns                     Return[]                   @relation("ReturnReturnedBy")
-  returnApprovals             ReturnApproval[]
-  activityLogs                ActivityLog[]              @relation("UserActivityLogs")
-  updatedNotificationSettings NotificationSettings[]
-  updatedEmailTemplates       EmailTemplate[]
+  profile                      UserProfile?
+  authIdentities               UserAuthIdentity[]
+  userRoles                    UserRole[]                 @relation("UserRoleUser")
+  assignedUserRoles            UserRole[]                 @relation("UserRoleAssignedBy")
+  createdAssets                Asset[]                    @relation("AssetCreatedBy")
+  ownedAssetUnits              AssetUnit[]                @relation("AssetUnitOwner")
+  assetUnitEventBatches        AssetUnitEventBatch[]
+  requestedReservations        Reservation[]              @relation("ReservationRequester")
+  preparedReservationItems     ReservationItem[]          @relation("ReservationItemPreparedBy")
+  checkedOutItems              ReservationItem[]          @relation("ReservationItemCheckedOutBy")
+  assignedReservationItemUnits ReservationItemUnit[]
+  reservationParticipants      ReservationParticipant[]
+  reservationApprovals         ReservationItemApproval[]
+  requestedChanges             ReservationChangeRequest[] @relation("ReservationChangeRequestedBy")
+  reviewedChanges              ReservationChangeRequest[] @relation("ReservationChangeReviewedBy")
+  returns                      Return[]                   @relation("ReturnReturnedBy")
+  returnApprovals              ReturnApproval[]
+  activityLogs                 ActivityLog[]              @relation("UserActivityLogs")
+  updatedNotificationSettings  NotificationSettings[]
+  updatedEmailTemplates        EmailTemplate[]
 
   @@map("users")
 }

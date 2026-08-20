@@ -1,0 +1,34 @@
+# Shapes below are the internal recognition-service's own response shapes, relayed by
+# NestJS as-is (see modules/recognition.md) -- kept loosely typed here since this backend
+# does not validate or transform them, only proxies.
+RecognitionAsset:
+  type: object
+  description: Recognition-service asset record. Exact fields are owned by the recognition service, not this backend.
+  additionalProperties: true
+  properties:
+    asset_id:
+      type:
+        - string
+        - "null"
+    name:
+      type: string
+    extra:
+      type: object
+      additionalProperties: true
+RecognitionPhoto:
+  type: object
+  description: Recognition-service reference-photo record.
+  additionalProperties: true
+  properties:
+    id:
+      type: string
+UpdateRecognitionAssetRequest:
+  type: object
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      maxLength: 150
+    extra:
+      type: object
+      additionalProperties: true

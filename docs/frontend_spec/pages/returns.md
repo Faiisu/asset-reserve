@@ -1,56 +1,30 @@
 # Returns
 
-> [!WARNING]
-> **NOT YET IMPLEMENTED**
-> This feature is not yet implemented in the frontend. The documentation below describes a planned/future feature.
-
 [← กลับไปสารบัญ](../README.md)
 
-## Return workflow
+> **Implemented, embedded in reservation detail.** Return creation and decision เป็น feature จริง เรียกจาก `ReservationDetailPage.tsx` ไม่มี standalone `/returns` route — flow อยู่ใน `/reservations/:id`
+
+> ปัจจุบัน frontend มี known bug ในการส่ง return payload — ดูสถานะล่าสุดที่ [status/implementation-status.md](../../status/implementation-status.md)
+
+## Return workflow — UI layout
 
 ### Create return
 
-สร้าง Return จาก Reservation ที่มี item สถานะ CHECKED_OUT:
+สร้าง Return จาก Reservation ที่มี item ที่ถูก checked-out UI ให้ผู้ใช้เลือก asset unit (serial) ที่จะคืนต่อ ReservationItem หนึ่งรายการ; Return หนึ่งรายการมี ReturnItem ได้หลายรายการ และ Reservation หนึ่งรายการสามารถมีหลาย Return เพื่อรองรับการคืนบางส่วน
 
-- reservationId required
-- returnedBy มาจาก session
-- status เริ่ม PENDING
-- returnedAt ยังเป็น null จนรับคืนจริงตาม policy
-- Return หนึ่งรายการมี ReturnItem ได้หลายรายการ
-- Reservation หนึ่งรายการสามารถมีหลาย Return เพื่อรองรับการคืนบางส่วน
-
-แต่ละ ReturnItem มี:
-
-- reservationItemId
-- quantityReturned ตั้งแต่ 0
-- quantityBroken ตั้งแต่ 0
-- quantityLost ตั้งแต่ 0
-- description optional
-
-กติกา validation:
-
-- ผลรวม returned + broken + lost ต้องมากกว่า 0
-- ผลรวมต้องไม่เกินจำนวนที่ checkout และยังไม่ถูกคืน
-- reservationItem ต้องอยู่ใน reservation เดียวกับ Return
-- reservationItem เดียวกันซ้ำไม่ได้ภายใน Return เดียว
+Field shape (`reservationItemId`, `reservationItemUnitIds`, `description`) และ validation rule ทั้งหมด (จำนวน unit ที่เลือกได้, uniqueness, สถานะ unit ที่ต้องเป็น checked-out) มาจาก contract จริงใน [backend_spec/contracts/components/schemas/reservations.yaml](../../backend_spec/contracts/components/schemas/reservations.yaml) — ไม่ restate DTO ที่นี่
 
 ### Return approval
 
-ReturnApproval เป็น one-to-one กับ Return:
+UI แสดงผลตัดสินใจของ ReturnApproval (one-to-one กับ Return) โดยผู้มีสิทธิ์ตรวจรับ ระบุ condition ต่อ unit (GOOD/BROKEN/LOST) ผ่านฟอร์มตรวจรับ — decision payload shape ดู [backend_spec/contracts/components/schemas/reservations.yaml](../../backend_spec/contracts/components/schemas/reservations.yaml)
 
-- approverId มาจาก session
-- status: PENDING, APPROVED หรือ REJECTED
-- description optional
-- decidedAt บันทึกเมื่อตัดสินใจ
-- ผู้มี return:approve และ scope ที่ถูกต้องเท่านั้นที่ตัดสินใจได้
+Return status ที่แสดงบน UI:
 
-Return status ที่แสดง:
+| Status    | Label ที่แสดง |
+| --------- | -------------- |
+| PENDING   | รอตรวจรับ      |
+| APPROVED  | ตรวจรับผ่าน    |
+| REJECTED  | ปฏิเสธหรือให้แก้ไข |
+| COMPLETED | ปิดการคืนแล้ว  |
 
-| Status    | ความหมาย                                      |
-| --------- | --------------------------------------------- |
-| PENDING   | รอตรวจรับ                                     |
-| APPROVED  | ตรวจรับผ่าน                                   |
-| REJECTED  | ปฏิเสธหรือให้แก้ไข                            |
-| COMPLETED | backend ประมวลผล item/ledger และปิดการคืนแล้ว |
-
-เมื่อคืนครบ ให้ ReservationItem เป็น RETURNED และเมื่อ item ที่ checkout ทั้งหมดคืนครบ ให้ Reservation เป็น COMPLETED ตาม business rule ของ backend
+ความหมายของแต่ละ status, transition และ business rule ตอนคืนครบ (เช่น item เป็น RETURNED, reservation เป็น COMPLETED) ดู [software_spec/lifecycle-and-state-machines.md](../../software_spec/lifecycle-and-state-machines.md)

@@ -15,6 +15,9 @@ const assetId = "00000000-0000-4000-8000-000000000301";
 const areaId = "00000000-0000-4000-8000-000000000401";
 const otherAreaId = "00000000-0000-4000-8000-000000000402";
 const returnId = "00000000-0000-4000-8000-000000000701";
+const returnItemId = "00000000-0000-4000-8000-000000000801";
+const reservationItemUnitId = "00000000-0000-4000-8000-000000000811";
+const assetUnitId = "00000000-0000-4000-8000-000000000821";
 
 const requesterActor: AuthenticatedActor = {
   user: {
@@ -109,45 +112,47 @@ function sampleReservation(status = "APPROVED") {
         id: itemId,
         reservationId,
         assetId,
-        quantity: 2,
+        quantity: 1,
         status:
           status === "DELIVERY_CONFIRMED"
             ? "DELIVERED"
             : status === "APPROVED"
               ? "APPROVED"
               : "PENDING",
-        preparedBy: null,
-        preparedAt: null,
-        checkedOutBy: null,
-        checkedOutAt: null,
-        createdAt: new Date("2026-08-15T00:00:00.000Z"),
-        updatedAt: new Date("2026-08-15T00:00:00.000Z"),
         asset: {
           id: assetId,
           managementAreaId: areaId,
           createdById: requesterId,
           name: "Camera",
+          partNumber: null,
           description: null,
           pictureUrl: null,
-          totalQuantity: 5,
           isActive: true,
           createdAt: new Date("2026-08-15T00:00:00.000Z"),
           updatedAt: new Date("2026-08-15T00:00:00.000Z"),
-          managementArea: {
-            id: areaId,
-            name: "Media Lab",
-            description: null,
-            createdAt: new Date("2026-08-15T00:00:00.000Z"),
-            updatedAt: new Date("2026-08-15T00:00:00.000Z"),
-          },
         },
-        returnItems: [],
       },
     ],
   };
 }
 
-function sampleReturnRecord(status = "PENDING") {
+function sampleReservationItemUnit(
+  overrides: Partial<{ status: string; returnItemUnit: unknown }> = {},
+) {
+  return {
+    id: reservationItemUnitId,
+    reservationItemId: itemId,
+    assetUnitId,
+    status: "CHECKED_OUT",
+    returnItemUnit: null,
+    ...overrides,
+  };
+}
+
+function sampleReturnDetailRecord(
+  status = "PENDING",
+  condition: "GOOD" | "BROKEN" | "LOST" | null = null,
+) {
   return {
     id: returnId,
     reservationId,
@@ -161,44 +166,31 @@ function sampleReturnRecord(status = "PENDING") {
       id: reservationId,
       eventName: "Product Demo",
       requester: userRecord,
-      participants: [],
-      items: [
-        {
-          id: itemId,
-          quantity: 2,
-          status: "APPROVED",
-          assetId,
-          asset: {
-            id: assetId,
-            name: "Camera",
-            managementAreaId: areaId,
-            managementArea: { id: areaId, name: "Media Lab" },
-          },
-        },
-      ],
     },
     items: [
       {
-        id: "00000000-0000-4000-8000-000000000801",
+        id: returnItemId,
         returnId,
         reservationItemId: itemId,
-        quantityReturned: 2,
-        quantityBroken: 0,
-        quantityLost: 0,
-        description: "Returned in good condition.",
-        createdAt: new Date("2026-09-01T12:00:00.000Z"),
+        description: "All intact",
         reservationItem: {
-          id: itemId,
-          quantity: 2,
-          status: "APPROVED",
-          assetId,
           asset: {
             id: assetId,
             name: "Camera",
-            managementAreaId: areaId,
             managementArea: { id: areaId, name: "Media Lab" },
           },
         },
+        units: [
+          {
+            id: "00000000-0000-4000-8000-000000000831",
+            reservationItemUnitId,
+            condition,
+            reservationItemUnit: {
+              assetUnitId,
+              assetUnit: { serialNumber: "SN-001" },
+            },
+          },
+        ],
       },
     ],
     approval: {
@@ -213,24 +205,57 @@ function sampleReturnRecord(status = "PENDING") {
   };
 }
 
+function sampleReturnRecordForDecide(status = "PENDING") {
+  return {
+    id: returnId,
+    reservationId,
+    status,
+    reservation: {
+      items: [
+        {
+          id: itemId,
+          status: "DELIVERED",
+          asset: { id: assetId, managementAreaId: areaId },
+        },
+      ],
+    },
+    items: [
+      {
+        id: returnItemId,
+        reservationItemId: itemId,
+        reservationItem: { asset: { id: assetId, managementAreaId: areaId } },
+        units: [
+          {
+            id: "00000000-0000-4000-8000-000000000831",
+            reservationItemUnitId,
+            reservationItemUnit: { assetUnitId },
+          },
+        ],
+      },
+    ],
+    approval: { status: "PENDING" },
+  };
+}
+
 describe("ReturnsService", () => {
   it("creates a return record for a delivery confirmed reservation", async () => {
     const reservation = sampleReservation("DELIVERY_CONFIRMED");
-    const returnRecord = sampleReturnRecord("PENDING");
+    const returnDetail = sampleReturnDetailRecord("PENDING");
 
     const prismaMock = {
       reservation: {
         findUnique: vi.fn().mockResolvedValue(reservation),
       },
+      reservationItemUnit: {
+        findMany: vi.fn().mockResolvedValue([sampleReservationItemUnit()]),
+      },
       return: {
-        create: vi.fn().mockResolvedValue(returnRecord),
-        findUnique: vi.fn().mockResolvedValue(returnRecord),
+        findUnique: vi.fn().mockResolvedValue(returnDetail),
       },
       $transaction: vi.fn().mockImplementation(async (callback) => {
         return callback({
-          return: {
-            create: vi.fn().mockResolvedValue(returnRecord),
-          },
+          return: { create: vi.fn().mockResolvedValue({}) },
+          activityLog: { create: vi.fn().mockResolvedValue({}) },
         });
       }),
     } as unknown as PrismaService;
@@ -240,9 +265,7 @@ describe("ReturnsService", () => {
       items: [
         {
           reservationItemId: itemId,
-          quantityReturned: 2,
-          quantityBroken: 0,
-          quantityLost: 0,
+          reservationItemUnitIds: [reservationItemUnitId],
           description: "All intact",
         },
       ],
@@ -250,7 +273,10 @@ describe("ReturnsService", () => {
 
     expect(result.id).toBe(returnId);
     expect(result.status).toBe("PENDING");
-    expect(result.items[0]?.quantityReturned).toBe(2);
+    expect(result.items[0]?.units[0]?.reservationItemUnitId).toBe(
+      reservationItemUnitId,
+    );
+    expect(result.items[0]?.units[0]?.condition).toBeNull();
   });
 
   it("rejects return creation on an unconfirmed delivery reservation", async () => {
@@ -267,9 +293,7 @@ describe("ReturnsService", () => {
         items: [
           {
             reservationItemId: itemId,
-            quantityReturned: 1,
-            quantityBroken: 0,
-            quantityLost: 0,
+            reservationItemUnitIds: [reservationItemUnitId],
           },
         ],
       }),
@@ -278,15 +302,19 @@ describe("ReturnsService", () => {
     );
   });
 
-  it("rejects return quantity exceeding remaining unreturned units", async () => {
+  it("rejects returning a unit that is not checked out", async () => {
     const reservation = sampleReservation("DELIVERY_CONFIRMED");
     const prismaMock = {
       reservation: {
         findUnique: vi.fn().mockResolvedValue(reservation),
       },
-      $transaction: vi
-        .fn()
-        .mockImplementation(async (callback) => callback(prismaMock)),
+      reservationItemUnit: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([
+            sampleReservationItemUnit({ status: "ASSIGNED" }),
+          ]),
+      },
     } as unknown as PrismaService;
 
     const service = new ReturnsService(prismaMock, reservationEvents);
@@ -295,73 +323,90 @@ describe("ReturnsService", () => {
         items: [
           {
             reservationItemId: itemId,
-            quantityReturned: 5, // Approved quantity is only 2
-            quantityBroken: 0,
-            quantityLost: 0,
+            reservationItemUnitIds: [reservationItemUnitId],
           },
         ],
       }),
-    ).rejects.toThrow(/exceeds remaining unreturned quantity/);
+    ).rejects.toThrow(/is not checked out/);
   });
 
-  it("approves return and completes reservation when area manager decides", async () => {
-    const returnRecord = sampleReturnRecord("PENDING");
-    const updatedReturnRecord = {
-      ...returnRecord,
-      status: "COMPLETED",
-      approval: {
-        ...returnRecord.approval,
-        approverId: managerId,
-        status: "APPROVED",
-        description: "Looks good",
-        decidedAt: new Date(),
-        approver: managerRecord,
+  it("rejects claiming a unit that is already part of another return", async () => {
+    const reservation = sampleReservation("DELIVERY_CONFIRMED");
+    const prismaMock = {
+      reservation: {
+        findUnique: vi.fn().mockResolvedValue(reservation),
       },
-    };
+      reservationItemUnit: {
+        findMany: vi.fn().mockResolvedValue([
+          sampleReservationItemUnit({
+            returnItemUnit: { id: "existing-claim" },
+          }),
+        ]),
+      },
+    } as unknown as PrismaService;
 
-    const updateReturn = vi.fn().mockResolvedValue(updatedReturnRecord);
-    const upsertApproval = vi
+    const service = new ReturnsService(prismaMock, reservationEvents);
+    await expect(
+      service.create(requesterActor, reservationId, {
+        items: [
+          {
+            reservationItemId: itemId,
+            reservationItemUnitIds: [reservationItemUnitId],
+          },
+        ],
+      }),
+    ).rejects.toThrow(/already part of another return/);
+  });
+
+  it("approves return, sets the unit condition to good, and completes the reservation", async () => {
+    const returnRecord = sampleReturnRecordForDecide("PENDING");
+    const returnDetail = sampleReturnDetailRecord("COMPLETED", "GOOD");
+
+    const updateReturn = vi.fn().mockResolvedValue({});
+    const upsertApproval = vi.fn().mockResolvedValue({});
+    const updateReturnItemUnit = vi.fn().mockResolvedValue({});
+    const updateReservationItemUnit = vi
       .fn()
-      .mockResolvedValue(updatedReturnRecord.approval);
-    const createBatch = vi.fn().mockResolvedValue({ id: "batch-1" });
-    const createTransaction = vi.fn().mockResolvedValue({});
-    const updateItem = vi.fn().mockResolvedValue({});
-    const updateReservation = vi.fn().mockResolvedValue({});
-    const findReturnItems = vi.fn().mockResolvedValue([
-      {
-        quantityReturned: 2,
-        quantityBroken: 0,
-        quantityLost: 0,
-      },
-    ]);
+      .mockResolvedValue({ assetUnitId });
+    const updateAssetUnit = vi.fn().mockResolvedValue({});
+    const createEventBatch = vi.fn().mockResolvedValue({});
+    const createEvent = vi.fn().mockResolvedValue({});
+    const findReservationItemUnits = vi
+      .fn()
+      .mockResolvedValue([{ status: "RETURNED_GOOD" }]);
+    const updateReservationItem = vi.fn().mockResolvedValue({});
     const findReservationItems = vi
       .fn()
       .mockResolvedValue([{ id: itemId, status: "RETURNED" }]);
+    const updateReservation = vi.fn().mockResolvedValue({});
 
     const prismaMock = {
       return: {
         findFirst: vi.fn().mockResolvedValue(returnRecord),
-        findUnique: vi.fn().mockResolvedValue(updatedReturnRecord),
+        findUnique: vi.fn().mockResolvedValue(returnDetail),
       },
       $transaction: vi.fn().mockImplementation(async (callback) => {
         return callback({
           return: { update: updateReturn },
           returnApproval: { upsert: upsertApproval },
-          assetTransactionBatch: { create: createBatch },
-          assetTransaction: { create: createTransaction },
-          returnItem: { findMany: findReturnItems },
+          returnItemUnit: { update: updateReturnItemUnit },
+          reservationItemUnit: {
+            update: updateReservationItemUnit,
+            findMany: findReservationItemUnits,
+          },
+          assetUnit: { update: updateAssetUnit },
+          assetUnitEventBatch: { create: createEventBatch },
+          assetUnitEvent: { create: createEvent },
           reservationItem: {
-            update: updateItem,
+            update: updateReservationItem,
             findMany: findReservationItems,
           },
           reservation: { update: updateReservation },
+          activityLog: { create: vi.fn().mockResolvedValue({}) },
         });
       }),
     } as unknown as PrismaService;
 
-    // Fresh event bus (not the shared module-level one) so the listener
-    // added here doesn't linger and accumulate across every other test in
-    // this file.
     const events = new ReservationLifecycleEvents();
     const returnDecidedSpy = vi.fn();
     events.onReturnDecided(returnDecidedSpy);
@@ -370,13 +415,22 @@ describe("ReturnsService", () => {
       areaManagerActor,
       reservationId,
       returnId,
-      {
-        decision: "APPROVE",
-        description: "Looks good",
-      },
+      { decision: "APPROVE", description: "Looks good" },
     );
 
     expect(result.status).toBe("COMPLETED");
+    expect(updateAssetUnit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: assetUnitId },
+        data: expect.objectContaining({ status: "ACTIVE" }),
+      }),
+    );
+    expect(updateReservationItemUnit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: reservationItemUnitId },
+        data: expect.objectContaining({ status: "RETURNED_GOOD" }),
+      }),
+    );
     expect(updateReservation).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: reservationId },
@@ -393,7 +447,7 @@ describe("ReturnsService", () => {
   });
 
   it("forbids a manager from deciding returns for an unassigned management area", async () => {
-    const returnRecord = sampleReturnRecord("PENDING");
+    const returnRecord = sampleReturnRecordForDecide("PENDING");
 
     const prismaMock = {
       return: {
@@ -411,127 +465,86 @@ describe("ReturnsService", () => {
     );
   });
 
-  it("allows returning and recovering a previously lost item when found", async () => {
-    const reservationWithLost = {
-      id: reservationId,
-      eventName: "Town Hall",
-      requesterId: requesterActor.user.id,
-      status: "COMPLETED",
-      participants: [],
-      items: [
-        {
-          id: itemId,
-          assetId,
-          quantity: 2,
-          status: "RETURNED",
-          asset: { id: assetId, managementAreaId: "area-1" },
-          returnItems: [
-            {
-              id: "prev-ret-item",
-              quantityReturned: 1,
-              quantityBroken: 0,
-              quantityLost: 1,
-              return: {
-                status: "COMPLETED",
-                approval: { status: "APPROVED" },
-              },
-            },
-          ],
-        },
-      ],
-    };
+  it("sets an explicitly reclassified unit's condition to broken", async () => {
+    const returnRecord = sampleReturnRecordForDecide("PENDING");
+    const returnDetail = sampleReturnDetailRecord("COMPLETED", "BROKEN");
 
-    const updateAsset = vi.fn().mockResolvedValue({});
-    const createTransaction = vi.fn().mockResolvedValue({});
-    const createReturn = vi.fn().mockResolvedValue({});
+    const updateAssetUnit = vi.fn().mockResolvedValue({});
+    const updateReservationItemUnit = vi
+      .fn()
+      .mockResolvedValue({ assetUnitId });
 
     const prismaMock = {
-      reservation: {
-        findUnique: vi.fn().mockResolvedValue(reservationWithLost),
-      },
       return: {
-        create: createReturn,
-        findUnique: vi.fn().mockResolvedValue(sampleReturnRecord("PENDING")),
+        findFirst: vi.fn().mockResolvedValue(returnRecord),
+        findUnique: vi.fn().mockResolvedValue(returnDetail),
       },
       $transaction: vi.fn().mockImplementation(async (callback) => {
         return callback({
-          return: { create: createReturn },
+          return: { update: vi.fn().mockResolvedValue({}) },
+          returnApproval: { upsert: vi.fn().mockResolvedValue({}) },
+          returnItemUnit: { update: vi.fn().mockResolvedValue({}) },
+          reservationItemUnit: {
+            update: updateReservationItemUnit,
+            findMany: vi.fn().mockResolvedValue([{ status: "RETURNED_BROKEN" }]),
+          },
+          assetUnit: { update: updateAssetUnit },
+          assetUnitEventBatch: { create: vi.fn().mockResolvedValue({}) },
+          assetUnitEvent: { create: vi.fn().mockResolvedValue({}) },
+          reservationItem: {
+            update: vi.fn().mockResolvedValue({}),
+            findMany: vi
+              .fn()
+              .mockResolvedValue([{ id: itemId, status: "RETURNED" }]),
+          },
+          reservation: { update: vi.fn().mockResolvedValue({}) },
+          activityLog: { create: vi.fn().mockResolvedValue({}) },
         });
       }),
     } as unknown as PrismaService;
 
     const service = new ReturnsService(prismaMock, reservationEvents);
-    const created = await service.create(requesterActor, reservationId, {
+    await service.decide(areaManagerActor, reservationId, returnId, {
+      decision: "APPROVE",
       items: [
         {
           reservationItemId: itemId,
-          quantityReturned: 1,
-          description: "Found the missing unit in drawer",
+          units: [{ reservationItemUnitId, condition: "BROKEN" }],
         },
       ],
     });
 
-    expect(created.status).toBe("PENDING");
-    expect(createReturn).toHaveBeenCalled();
+    expect(updateAssetUnit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: assetUnitId },
+        data: expect.objectContaining({ status: "BROKEN" }),
+      }),
+    );
+    expect(updateReservationItemUnit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: reservationItemUnitId },
+        data: expect.objectContaining({ status: "RETURNED_BROKEN" }),
+      }),
+    );
   });
 
-  it("decrements asset totalQuantity when items are returned as broken or lost", async () => {
-    const returnRecord = sampleReturnRecord("PENDING");
-    const updatedReturnRecord = {
-      ...returnRecord,
-      status: "COMPLETED",
-      approval: {
-        ...returnRecord.approval,
-        approverId: managerId,
-        status: "APPROVED",
-        description: "1 broken, 1 lost",
-        decidedAt: new Date(),
-        approver: managerRecord,
-      },
-    };
+  it("rejecting a return frees its claimed units for resubmission", async () => {
+    const returnRecord = sampleReturnRecordForDecide("PENDING");
+    const returnDetail = sampleReturnDetailRecord("REJECTED");
 
-    const updateAsset = vi.fn().mockResolvedValue({});
-    const updateReturn = vi.fn().mockResolvedValue(updatedReturnRecord);
-    const updateReturnItem = vi.fn().mockResolvedValue({});
-    const upsertApproval = vi
-      .fn()
-      .mockResolvedValue(updatedReturnRecord.approval);
-    const createBatch = vi.fn().mockResolvedValue({ id: "batch-1" });
-    const createTransaction = vi.fn().mockResolvedValue({});
-    const updateItem = vi.fn().mockResolvedValue({});
-    const updateReservation = vi.fn().mockResolvedValue({});
-    const findReturnItems = vi.fn().mockResolvedValue([
-      {
-        quantityReturned: 0,
-        quantityBroken: 1,
-        quantityLost: 1,
-      },
-    ]);
-    const findReservationItems = vi
-      .fn()
-      .mockResolvedValue([{ id: itemId, status: "RETURNED" }]);
+    const deleteManyReturnItemUnits = vi.fn().mockResolvedValue({ count: 1 });
 
     const prismaMock = {
       return: {
         findFirst: vi.fn().mockResolvedValue(returnRecord),
-        findUnique: vi.fn().mockResolvedValue(updatedReturnRecord),
+        findUnique: vi.fn().mockResolvedValue(returnDetail),
       },
       $transaction: vi.fn().mockImplementation(async (callback) => {
         return callback({
-          asset: { update: updateAsset },
-          return: { update: updateReturn },
-          returnItem: {
-            update: updateReturnItem,
-            findMany: findReturnItems,
-          },
-          returnApproval: { upsert: upsertApproval },
-          assetTransactionBatch: { create: createBatch },
-          assetTransaction: { create: createTransaction },
-          reservationItem: {
-            update: updateItem,
-            findMany: findReservationItems,
-          },
-          reservation: { update: updateReservation },
+          returnItemUnit: { deleteMany: deleteManyReturnItemUnits },
+          return: { update: vi.fn().mockResolvedValue({}) },
+          returnApproval: { upsert: vi.fn().mockResolvedValue({}) },
+          activityLog: { create: vi.fn().mockResolvedValue({}) },
         });
       }),
     } as unknown as PrismaService;
@@ -541,56 +554,14 @@ describe("ReturnsService", () => {
       areaManagerActor,
       reservationId,
       returnId,
-      {
-        decision: "APPROVE",
-        items: [
-          {
-            reservationItemId: itemId,
-            quantityReturned: 0,
-            quantityBroken: 1,
-            quantityLost: 1,
-            description: "1 broken lens, 1 lost tripod",
-          },
-        ],
-        description: "1 broken, 1 lost",
-      },
+      { decision: "REJECT", description: "Not what was checked out" },
     );
 
-    expect(result.status).toBe("COMPLETED");
-    expect(updateAsset).toHaveBeenCalledWith(
+    expect(result.status).toBe("REJECTED");
+    expect(deleteManyReturnItemUnits).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: assetId },
-        data: expect.objectContaining({
-          totalQuantity: { decrement: 1 },
-        }),
+        where: { returnItemId: { in: [returnItemId] } },
       }),
     );
-  });
-
-  it("rejects return approval when sum of good, broken, and lost exceeds returned quantity", async () => {
-    const returnRecord = sampleReturnRecord("PENDING");
-    const prismaMock = {
-      return: {
-        findFirst: vi.fn().mockResolvedValue(returnRecord),
-      },
-      $transaction: vi
-        .fn()
-        .mockImplementation(async (callback) => callback(prismaMock)),
-    } as unknown as PrismaService;
-
-    const service = new ReturnsService(prismaMock, reservationEvents);
-    await expect(
-      service.decide(areaManagerActor, reservationId, returnId, {
-        decision: "APPROVE",
-        items: [
-          {
-            reservationItemId: itemId,
-            quantityReturned: 2,
-            quantityBroken: 1,
-            quantityLost: 1, // Total = 4, but returned limit was only 2
-          },
-        ],
-      }),
-    ).rejects.toThrow(/cannot exceed the returned quantity/);
   });
 });

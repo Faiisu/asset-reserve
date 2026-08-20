@@ -164,7 +164,7 @@ export type UserDetail = {
 export type AssetCapabilities = {
   canEdit: boolean;
   canDeactivate: boolean;
-  canAdjustQuantity: boolean;
+  canManageUnits: boolean;
 };
 
 export type AssetStatus = "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE";
@@ -178,7 +178,19 @@ export type AssetSummary = {
   allocatedQuantity: number;
   availableQuantity: number;
   isActive: boolean;
-  status: AssetStatus;
+  /** No longer sent by the backend -- status now lives per serial unit (see AssetDetail.units). */
+  status?: AssetStatus;
+  partNumber: string | null;
+  unitCounts: {
+    total: number;
+    active: number;
+    reserved: number;
+    checkedOut: number;
+    broken: number;
+    lost: number;
+    inRepair: number;
+    inactive: number;
+  };
   managementArea: ManagementAreaRef;
   owner: {
     id: string;
@@ -205,11 +217,15 @@ export type AssetDetail = AssetSummary & {
       endAt: string;
     };
   }>;
-  inventoryLedger: Array<{
+  units: AssetUnit[];
+  unitEventLedger: Array<{
     id: string;
     batchId: string;
-    transactionType: string;
-    quantityDelta: number;
+    assetUnitId: string;
+    serialNumber: string;
+    eventType: string;
+    fromStatus: string | null;
+    toStatus: string | null;
     reason: string | null;
     createdAt: string;
     batchDescription: string | null;
@@ -222,28 +238,22 @@ export type AssetDetail = AssetSummary & {
   }>;
 };
 
+export type AssetUnit = {
+  id: string;
+  serialNumber: string;
+  status: string;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AssetInput = {
   name: string;
   managementAreaId: string;
+  partNumber?: string | null;
   description?: string | null;
   pictureUrl?: string | null;
-  totalQuantity: number;
   isActive?: boolean;
-};
-
-export type InventoryResult = {
-  id: string;
-  operation: "ADD" | "REMOVE";
-  description: string | null;
-  items: Array<{
-    transactionId: string;
-    assetId: string;
-    assetName: string;
-    quantityDelta: number;
-    totalQuantity: number;
-    reason: string | null;
-  }>;
-  createdAt: string;
 };
 
 export type ReservationStatus =
@@ -291,27 +301,8 @@ export type ReservationChangeData = {
   participantIds?: string[];
 };
 
-export type ReservationHandover = {
-  id: string;
-  reservationId: string;
-  handledBy: string;
-  handler: ReservationUser;
-  photoUrls: string[];
-  note: string | null;
-  handedOverAt: string;
-  createdAt: string;
-};
-
-export type ConfirmDeliveryItemPhoto = {
-  itemId: string;
-  photoUrl?: string;
-};
-
 export type ConfirmDeliveryInput = {
   itemIds?: string[];
-  itemPhotos?: ConfirmDeliveryItemPhoto[];
-  photoUrls?: string[];
-  note?: string;
 };
 
 export type ReservationDetail = {
@@ -327,8 +318,6 @@ export type ReservationDetail = {
     id: string;
     quantity: number;
     status: ReservationItemStatus;
-    handoverPhotoUrl?: string | null;
-    handoverId?: string | null;
     asset: {
       id: string;
       name: string;
@@ -383,7 +372,6 @@ export type ReservationDetail = {
     reviewedAt: string | null;
     createdAt: string;
   }>;
-  handovers?: ReservationHandover[];
   returns: ReturnDetail[];
   activityLogs?: ActivityLog[];
   capabilities: {
@@ -412,7 +400,6 @@ export type ReturnItemDetail = {
   reservationItemId: string;
   assetId: string;
   assetName: string;
-  photoUrl?: string | null;
   managementArea: ManagementAreaRef;
   quantityReturned: number;
   quantityBroken: number;
@@ -424,8 +411,6 @@ export type ReturnDetail = {
   id: string;
   reservationId: string;
   status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
-  photoUrls?: string[];
-  note?: string | null;
   returnedAt: string | null;
   returnedBy: ReservationUser;
   reservation?: {
@@ -455,13 +440,10 @@ export type CreateReturnItemInput = {
   quantityBroken?: number;
   quantityLost?: number;
   description?: string | null;
-  photoUrl?: string | null;
 };
 
 export type CreateReturnInput = {
   items: CreateReturnItemInput[];
-  photoUrls?: string[];
-  note?: string | null;
   immediateApprove?: boolean;
 };
 
@@ -471,7 +453,6 @@ export type DecideReturnItemInput = {
   quantityBroken?: number;
   quantityLost?: number;
   description?: string | null;
-  photoUrl?: string | null;
 };
 
 export type ReturnDecisionInput = {

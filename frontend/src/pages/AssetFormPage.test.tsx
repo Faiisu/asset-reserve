@@ -54,9 +54,6 @@ describe("AssetFormPage", () => {
     expect(nameInput).toBeInTheDocument();
 
     fireEvent.change(nameInput, { target: { value: "New Camera" } });
-    fireEvent.change(screen.getByLabelText(/quantity/i), {
-      target: { value: "3" },
-    });
 
     const submitBtn = screen.getByRole("button", { name: /Add asset/i });
     fireEvent.click(submitBtn);
@@ -66,7 +63,6 @@ describe("AssetFormPage", () => {
         expect.objectContaining({
           name: "New Camera",
           managementAreaId: "area-1",
-          totalQuantity: 3,
         }),
       );
     });

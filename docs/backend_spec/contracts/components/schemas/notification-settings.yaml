@@ -1,0 +1,65 @@
+NotificationSettings:
+  type: object
+  required:
+    - smtpHost
+    - smtpPort
+    - smtpUser
+    - fromEmail
+    - fromName
+    - smtpPasswordSet
+    - updatedAt
+  properties:
+    smtpHost:
+      type: string
+    smtpPort:
+      type: integer
+    smtpUser:
+      type: string
+    fromEmail:
+      type: string
+      format: email
+    fromName:
+      type: string
+    smtpPasswordSet:
+      type: boolean
+      description: Whether an App Password is currently stored. The password itself is never returned.
+    updatedAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+UpdateNotificationSettingsRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - smtpHost
+    - smtpPort
+    - smtpUser
+    - fromEmail
+    - fromName
+  properties:
+    smtpHost:
+      type: string
+      minLength: 1
+      maxLength: 255
+    smtpPort:
+      type: integer
+      minimum: 1
+      maximum: 65535
+    smtpUser:
+      type: string
+      minLength: 1
+      maxLength: 255
+    fromEmail:
+      type: string
+      format: email
+      maxLength: 255
+    fromName:
+      type: string
+      minLength: 1
+      maxLength: 255
+    smtpPassword:
+      type: string
+      maxLength: 255
+      writeOnly: true
+      description: Omit or send blank to keep the currently-saved App Password unchanged. Required on first-ever save.

@@ -11,23 +11,26 @@ import {
 } from "@nestjs/common";
 import { CurrentActor } from "../auth/auth.decorators.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
+import { AssetUnitsService } from "./asset-units.service.js";
 import {
   AssetListQueryDto,
+  AssetUnitListQueryDto,
   BatchCreateAssetsDto,
   BatchRemoveAssetsDto,
   CreateAssetDto,
-  InventoryBatchDto,
+  RegisterAssetUnitsDto,
+  RetireAssetUnitsDto,
   UpdateAssetDto,
   UpdateAssetStatusDto,
+  UpdateAssetUnitStatusDto,
 } from "./assets.dto.js";
 import { AssetsService } from "./assets.service.js";
-import { InventoryService } from "./inventory.service.js";
 
 @Controller("assets")
 export class AssetsController {
   constructor(
     private readonly assets: AssetsService,
-    private readonly inventory: InventoryService,
+    private readonly assetUnits: AssetUnitsService,
   ) {}
 
   @Get()
@@ -62,20 +65,21 @@ export class AssetsController {
     return this.assets.deactivateBatch(actor, input);
   }
 
-  @Post("inventory/batch-add")
-  addInventory(
+  @Post("units/batch-retire")
+  retireUnits(
     @CurrentActor() actor: AuthenticatedActor,
-    @Body() input: InventoryBatchDto,
+    @Body() input: RetireAssetUnitsDto,
   ) {
-    return this.inventory.add(actor, input);
+    return this.assetUnits.retire(actor, input);
   }
 
-  @Post("inventory/batch-remove")
-  removeInventory(
+  @Patch("units/:assetUnitId/status")
+  updateUnitStatus(
     @CurrentActor() actor: AuthenticatedActor,
-    @Body() input: InventoryBatchDto,
+    @Param("assetUnitId", new ParseUUIDPipe()) assetUnitId: string,
+    @Body() input: UpdateAssetUnitStatusDto,
   ) {
-    return this.inventory.remove(actor, input);
+    return this.assetUnits.updateStatus(actor, assetUnitId, input);
   }
 
   @Get(":assetId")
@@ -110,5 +114,23 @@ export class AssetsController {
     @Param("assetId", new ParseUUIDPipe()) assetId: string,
   ) {
     return this.assets.deactivate(actor, assetId);
+  }
+
+  @Get(":assetId/units")
+  listUnits(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Param("assetId", new ParseUUIDPipe()) assetId: string,
+    @Query() query: AssetUnitListQueryDto,
+  ) {
+    return this.assetUnits.list(actor, assetId, query);
+  }
+
+  @Post(":assetId/units")
+  registerUnits(
+    @CurrentActor() actor: AuthenticatedActor,
+    @Param("assetId", new ParseUUIDPipe()) assetId: string,
+    @Body() input: RegisterAssetUnitsDto,
+  ) {
+    return this.assetUnits.register(actor, assetId, input);
   }
 }

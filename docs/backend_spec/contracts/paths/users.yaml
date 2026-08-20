@@ -37,6 +37,12 @@
     tags:
       - Users
     summary: Create a password user
+    description: >-
+      Only a username and password are set at creation. Email and profile (name, phone,
+      picture) are populated later, once the user links a Google or Microsoft account -- see
+      the `Account Linking` tag. In deployments where account linking isn't required
+      (`REQUIRE_ACCOUNT_LINK=false`), the user can instead set their own name/email/password
+      later via the self-service `/users/me` endpoints.
     operationId: createUser
     requestBody:
       required: true
@@ -57,6 +63,54 @@
         $ref: "#/components/responses/Forbidden"
       "409":
         $ref: "#/components/responses/Conflict"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/users/me:
+  patch:
+    tags:
+      - Users
+    summary: Update the signed-in user's own name and/or email
+    description: >-
+      Any authenticated user, scoped to their own record -- no admin permission required.
+      Available regardless of account-linking mode; on deployments where linking isn't
+      mandatory this is how a user sets their own notification email.
+    operationId: updateSelf
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpdateSelfRequest"
+    responses:
+      "200":
+        description: Updated user detail.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserDetail"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "409":
+        $ref: "#/components/responses/Conflict"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/users/me/password:
+  post:
+    tags:
+      - Users
+    summary: Change the signed-in user's own password
+    operationId: changeMyPassword
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ChangeMyPasswordRequest"
+    responses:
+      "204":
+        description: Password changed. No response body.
+      "401":
+        description: Not authenticated, or `currentPassword` did not match (`INVALID_CURRENT_PASSWORD`).
       "422":
         $ref: "#/components/responses/ValidationError"
 /users/{userId}:

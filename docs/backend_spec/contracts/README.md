@@ -1,6 +1,6 @@
 # OpenAPI contract structure
 
-[← Backend specification](../README.md) · [API algorithm reference](../detail/api-algorithms.md)
+[← Backend specification](../README.md) · [Algorithms and validation](../algorithms-and-validation.md)
 
 OpenAPI source ถูกแยกตาม domain เพื่อให้อ่านและแก้ไขได้ง่าย ส่วน Swagger runtime ใช้ไฟล์ bundle ที่สร้างอัตโนมัติจาก source ทั้งหมด
 
@@ -41,11 +41,13 @@ npm run openapi:bundle
 | Session BFF     | `paths/session.yaml`         | ใช้ authentication schemas                |
 | Access control  | `paths/access-control.yaml`  | `components/schemas/access-control.yaml`  |
 | Users           | `paths/users.yaml`           | `components/schemas/users.yaml`           |
-| Assets          | `paths/assets.yaml`          | `components/schemas/assets.yaml`          |
-| Inventory       | `paths/inventory.yaml`       | `components/schemas/inventory.yaml`       |
+| Assets          | `paths/assets.yaml`          | `components/schemas/assets.yaml` (assets + serialized asset units) |
 | Reservations    | `paths/reservations.yaml`    | `components/schemas/reservations.yaml`    |
 | Management areas| `paths/management-areas.yaml` | `components/schemas/access-control.yaml`  |
 | Uploads         | `paths/uploads.yaml`         | inline multipart/response schemas         |
+| Recognition     | `paths/recognition.yaml`     | `components/schemas/recognition.yaml`     |
+| Email templates | `paths/email-templates.yaml` | `components/schemas/email-templates.yaml` |
+| Notification settings | `paths/notification-settings.yaml` | `components/schemas/notification-settings.yaml` |
 | Shared models   | —                            | `components/schemas/common.yaml`          |
 
 เมื่อเพิ่ม API ใหม่ ให้เพิ่ม Path Item ในไฟล์ domain, register `$ref` ใน `openapi.yaml`, เพิ่ม schema/component ที่เกี่ยวข้อง และรัน bundle เพื่อตรวจว่า reference ทุกตัว resolve ได้

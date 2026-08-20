@@ -16,6 +16,13 @@ import {
   ReturnListQueryDto,
 } from "./returns.dto.js";
 
+const assetUnitStatusByCondition: Record<"GOOD" | "BROKEN" | "LOST", string> =
+  {
+    GOOD: "ACTIVE",
+    BROKEN: "BROKEN",
+    LOST: "LOST",
+  };
+
 const returnDetailInclude = {
   returner: { include: { profile: true } },
   reservation: {
@@ -33,6 +40,11 @@ const returnDetailInclude = {
               managementArea: true,
             },
           },
+        },
+      },
+      units: {
+        include: {
+          reservationItemUnit: { include: { assetUnit: true } },
         },
       },
     },
@@ -219,16 +231,7 @@ export class ReturnsService {
       include: {
         requester: { include: { profile: true } },
         participants: true,
-        items: {
-          include: {
-            asset: true,
-            returnItems: {
-              include: {
-                return: { include: { approval: true } },
-              },
-            },
-          },
-        },
+        items: { include: { asset: true } },
       },
     });
 
@@ -276,10 +279,6 @@ export class ReturnsService {
       );
     }
 
-    const returnId = randomUUID();
-    const now = new Date();
-
-    // Validate return lines
     const itemMap = new Map(reservation.items.map((item) => [item.id, item]));
 
     for (let i = 0; i < input.items.length; i += 1) {
@@ -295,8 +294,7 @@ export class ReturnsService {
           },
         );
       }
-
-      if (item.status === "REJECTED" || item.status === "PENDING") {
+      if (["REJECTED", "PENDING", "APPROVED"].includes(item.status)) {
         throw new ApiException(
           409,
           "INVALID_ITEM_STATUS",
@@ -304,145 +302,121 @@ export class ReturnsService {
           { [`items.${i}.reservationItemId`]: `Item is ${item.status}.` },
         );
       }
+    }
 
-      const lineTotal =
-        (line.quantityReturned ?? 0) +
-        (line.quantityBroken ?? 0) +
-        (line.quantityLost ?? 0);
+    const allUnitIds = input.items.flatMap((line) => line.reservationItemUnitIds);
+    if (new Set(allUnitIds).size !== allUnitIds.length) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        "A return cannot list the same unit twice.",
+        { items: "Remove duplicate asset units." },
+      );
+    }
 
-      if (lineTotal <= 0) {
-        throw new ApiException(
-          422,
-          "VALIDATION_ERROR",
-          "Total return quantity (returned + broken + lost) must be greater than 0.",
-          { [`items.${i}.quantityReturned`]: "Quantity must be at least 1." },
-        );
-      }
+    const units = await this.prisma.reservationItemUnit.findMany({
+      where: { id: { in: allUnitIds } },
+      include: { returnItemUnit: true },
+    });
+    const unitsById = new Map(units.map((unit) => [unit.id, unit] as const));
 
-      // Calculate existing approved and pending counts
-      let approvedReturnedOrBroken = 0;
-      let approvedLost = 0;
-      let pendingReturnedOrBroken = 0;
-      let pendingLost = 0;
-
-      for (const returnItem of item.returnItems) {
-        const retStatus = returnItem.return.status;
-        const appStatus = returnItem.return.approval?.status;
-        if (
-          retStatus === "COMPLETED" ||
-          retStatus === "APPROVED" ||
-          appStatus === "APPROVED"
-        ) {
-          approvedReturnedOrBroken +=
-            returnItem.quantityReturned + returnItem.quantityBroken;
-          approvedLost += returnItem.quantityLost;
-        } else if (
-          (retStatus === "PENDING" || appStatus === "PENDING") &&
-          retStatus !== "REJECTED" &&
-          appStatus !== "REJECTED"
-        ) {
-          pendingReturnedOrBroken +=
-            returnItem.quantityReturned + returnItem.quantityBroken;
-          pendingLost += returnItem.quantityLost;
+    for (let i = 0; i < input.items.length; i += 1) {
+      const line = input.items[i]!;
+      for (const unitId of line.reservationItemUnitIds) {
+        const unit = unitsById.get(unitId);
+        if (!unit) {
+          throw new ApiException(
+            404,
+            "ASSET_UNIT_NOT_FOUND",
+            `Reservation item unit ${unitId} was not found.`,
+            { [`items.${i}.reservationItemUnitIds`]: "Unit not found." },
+          );
         }
-      }
-
-      const maxReturnableIntactOrBroken = Math.max(
-        0,
-        item.quantity - (approvedReturnedOrBroken + pendingReturnedOrBroken),
-      );
-
-      const maxReportableLost = Math.max(
-        0,
-        item.quantity -
-          (approvedReturnedOrBroken +
-            approvedLost +
-            pendingReturnedOrBroken +
-            pendingLost),
-      );
-
-      const returnedOrBrokenRequested =
-        (line.quantityReturned ?? 0) + (line.quantityBroken ?? 0);
-      const lostRequested = line.quantityLost ?? 0;
-
-      if (lostRequested > maxReportableLost) {
-        throw new ApiException(
-          409,
-          "EXCEEDS_UNRETURNED_QUANTITY",
-          `Lost quantity (${lostRequested}) exceeds unreturned units available to report lost (${maxReportableLost}).`,
-          {
-            [`items.${i}.quantityLost`]: `Only ${maxReportableLost} unit(s) can be newly reported lost.`,
-          },
-        );
-      }
-
-      if (returnedOrBrokenRequested > maxReturnableIntactOrBroken) {
-        throw new ApiException(
-          409,
-          "EXCEEDS_UNRETURNED_QUANTITY",
-          `Return quantity (${returnedOrBrokenRequested}) exceeds remaining unreturned quantity (${maxReturnableIntactOrBroken}).`,
-          {
-            [`items.${i}.quantityReturned`]: `Only ${maxReturnableIntactOrBroken} unit(s) remaining to return.`,
-          },
-        );
-      }
-
-      if (lineTotal > maxReturnableIntactOrBroken) {
-        throw new ApiException(
-          409,
-          "EXCEEDS_UNRETURNED_QUANTITY",
-          `Total return quantity (${lineTotal}) exceeds allowable remaining units (${maxReturnableIntactOrBroken}).`,
-          {
-            [`items.${i}.quantityReturned`]: `Only ${maxReturnableIntactOrBroken} unit(s) remaining to return.`,
-          },
-        );
+        if (unit.reservationItemId !== line.reservationItemId) {
+          throw new ApiException(
+            400,
+            "INVALID_UNIT_SELECTION",
+            `Unit ${unitId} does not belong to reservation item ${line.reservationItemId}.`,
+            { [`items.${i}.reservationItemUnitIds`]: "Unit belongs to a different item." },
+          );
+        }
+        if (unit.status !== "CHECKED_OUT") {
+          throw new ApiException(
+            409,
+            "INVALID_UNIT_STATUS",
+            `Unit ${unitId} is not checked out (status: ${unit.status}).`,
+            { [`items.${i}.reservationItemUnitIds`]: "Unit is not checked out." },
+          );
+        }
+        if (unit.returnItemUnit) {
+          throw new ApiException(
+            409,
+            "UNIT_ALREADY_CLAIMED",
+            `Unit ${unitId} is already part of another return.`,
+            { [`items.${i}.reservationItemUnitIds`]: "Unit already submitted for return." },
+          );
+        }
       }
     }
 
-    await this.runSerializable(async (tx) => {
-      await tx.return.create({
-        data: {
-          id: returnId,
-          reservationId,
-          returnedBy: actor.user.id,
-          status: "PENDING",
-          returnedAt: now,
-          photoUrls: input.photoUrls ?? [],
-          note: input.note ?? null,
-          items: {
-            create: input.items.map((line) => ({
-              id: randomUUID(),
-              reservationItemId: line.reservationItemId,
-              quantityReturned: line.quantityReturned ?? 0,
-              quantityBroken: line.quantityBroken ?? 0,
-              quantityLost: line.quantityLost ?? 0,
-              description: line.description ?? input.note ?? null,
-              photoUrl: line.photoUrl ?? null,
-            })),
-          },
-          approval: {
-            create: {
-              id: randomUUID(),
-              approverId: actor.user.id,
-              status: "PENDING",
-              description: null,
+    const returnId = randomUUID();
+    const now = new Date();
+
+    try {
+      await this.runSerializable(async (tx) => {
+        await tx.return.create({
+          data: {
+            id: returnId,
+            reservationId,
+            returnedBy: actor.user.id,
+            status: "PENDING",
+            returnedAt: now,
+            items: {
+              create: input.items.map((line) => ({
+                id: randomUUID(),
+                reservationItemId: line.reservationItemId,
+                description: line.description ?? null,
+                units: {
+                  create: line.reservationItemUnitIds.map((unitId) => ({
+                    id: randomUUID(),
+                    reservationItemUnitId: unitId,
+                    condition: null,
+                  })),
+                },
+              })),
+            },
+            approval: {
+              create: {
+                id: randomUUID(),
+                approverId: actor.user.id,
+                status: "PENDING",
+                description: null,
+              },
             },
           },
-        },
-      });
+        });
 
-      await this.logActivity(tx, {
-        reservationId,
-        actorId: actor.user.id,
-        action: "RETURN_SUBMITTED",
-        entityType: "RETURN",
-        entityId: returnId,
-        details: { note: input.note ?? null, itemCount: input.items.length },
+        await this.logActivity(tx, {
+          reservationId,
+          actorId: actor.user.id,
+          action: "RETURN_SUBMITTED",
+          entityType: "RETURN",
+          entityId: returnId,
+          details: { itemCount: input.items.length },
+        });
       });
-    });
+    } catch (error) {
+      if (this.prismaCode(error) === "P2002") {
+        throw new ApiException(
+          409,
+          "UNIT_ALREADY_CLAIMED",
+          "One or more selected units are already part of another return.",
+        );
+      }
+      throw error;
+    }
 
     if (input.immediateApprove) {
-      // Check if actor has return:approve for all areas
       const canImmediateApprove = input.items.every((line) => {
         const item = itemMap.get(line.reservationItemId)!;
         return hasAreaPermission(
@@ -455,7 +429,7 @@ export class ReturnsService {
       if (canImmediateApprove) {
         return this.decide(actor, reservationId, returnId, {
           decision: "APPROVE",
-          description: input.note ?? "Approved upon return recording.",
+          description: "Approved upon return recording.",
         });
       }
     }
@@ -474,20 +448,13 @@ export class ReturnsService {
       include: {
         reservation: {
           include: {
-            items: {
-              include: {
-                asset: true,
-              },
-            },
+            items: { include: { asset: true } },
           },
         },
         items: {
           include: {
-            reservationItem: {
-              include: {
-                asset: true,
-              },
-            },
+            reservationItem: { include: { asset: true } },
+            units: { include: { reservationItemUnit: true } },
           },
         },
         approval: true,
@@ -510,7 +477,6 @@ export class ReturnsService {
       );
     }
 
-    // Check area-scoped permission for every asset in this return
     for (const returnItem of returnRecord.items) {
       this.assertArea(
         actor,
@@ -519,38 +485,28 @@ export class ReturnsService {
       );
     }
 
-    // Validate condition breakdown before processing decision
-    if (input.decision === "APPROVE" && input.items && input.items.length > 0) {
-      for (const [index, itemInput] of input.items.entries()) {
-        const line = returnRecord.items.find(
-          (it) => it.reservationItemId === itemInput.reservationItemId,
-        );
-        if (line) {
-          const good = itemInput.quantityReturned ?? 0;
-          const broken = itemInput.quantityBroken ?? 0;
-          const lost = itemInput.quantityLost ?? 0;
-
-          if (good < 0 || broken < 0 || lost < 0) {
+    const conditionByUnitId = new Map<
+      string,
+      {
+        condition: "GOOD" | "BROKEN" | "LOST";
+      }
+    >();
+    if (input.decision === "APPROVE" && input.items) {
+      const allUnitIds = new Set(
+        returnRecord.items.flatMap((item) => item.units.map((u) => u.reservationItemUnitId)),
+      );
+      for (const line of input.items) {
+        for (const unit of line.units ?? []) {
+          if (!allUnitIds.has(unit.reservationItemUnitId)) {
             throw new ApiException(
-              422,
-              "VALIDATION_ERROR",
-              "Inspected quantities cannot be negative.",
+              400,
+              "INVALID_UNIT_SELECTION",
+              `Unit ${unit.reservationItemUnitId} is not part of this return.`,
             );
           }
-
-          const maxAllowed = line.quantityReturned;
-          const totalInspected = good + broken + lost;
-          if (totalInspected > maxAllowed) {
-            const assetName = line.reservationItem?.asset?.name ?? "asset";
-            throw new ApiException(
-              422,
-              "VALIDATION_ERROR",
-              `Total inspected units (${totalInspected}) cannot exceed the returned quantity of ${maxAllowed} for ${assetName}.`,
-              {
-                [`items.${index}`]: `Good (${good}) + Broken (${broken}) + Lost (${lost}) = ${totalInspected} exceeds returned limit of ${maxAllowed}.`,
-              },
-            );
-          }
+          conditionByUnitId.set(unit.reservationItemUnitId, {
+            condition: unit.condition,
+          });
         }
       }
     }
@@ -559,42 +515,25 @@ export class ReturnsService {
 
     await this.runSerializable(async (tx) => {
       if (input.decision === "APPROVE") {
-        // 1. Update Return status to COMPLETED
         await tx.return.update({
           where: { id: returnId },
-          data: {
-            status: "COMPLETED",
-            updatedAt: decidedAt,
-          },
+          data: { status: "COMPLETED", updatedAt: decidedAt },
         });
 
-        // 1.1 Update item quantities during decision
-        if (input.items && input.items.length > 0) {
-          for (const itemInput of input.items) {
-            const line = returnRecord.items.find(
-              (it) => it.reservationItemId === itemInput.reservationItemId,
+        if (input.items) {
+          for (const line of input.items) {
+            if (line.description === undefined) continue;
+            const returnItem = returnRecord.items.find(
+              (item) => item.reservationItemId === line.reservationItemId,
             );
-            if (line) {
-              line.quantityReturned = itemInput.quantityReturned ?? 0;
-              line.quantityBroken = itemInput.quantityBroken ?? 0;
-              line.quantityLost = itemInput.quantityLost ?? 0;
-              if (itemInput.description !== undefined) {
-                line.description = itemInput.description;
-              }
-              await tx.returnItem.update({
-                where: { id: line.id },
-                data: {
-                  quantityReturned: line.quantityReturned,
-                  quantityBroken: line.quantityBroken,
-                  quantityLost: line.quantityLost,
-                  description: line.description,
-                },
-              });
-            }
+            if (!returnItem) continue;
+            await tx.returnItem.update({
+              where: { id: returnItem.id },
+              data: { description: line.description },
+            });
           }
         }
 
-        // 2. Update or create ReturnApproval
         await tx.returnApproval.upsert({
           where: { returnId },
           create: {
@@ -613,183 +552,99 @@ export class ReturnsService {
           },
         });
 
-        // 3. Create inventory transactions batch
         const batchId = randomUUID();
-        await tx.assetTransactionBatch.create({
-          data: {
-            id: batchId,
-            description: `Return confirmed for "${returnRecord.reservation.eventName}"`,
-            performedBy: actor.user.id,
-          },
-        });
+        let batchCreated = false;
+        for (const returnItem of returnRecord.items) {
+          for (const unit of returnItem.units) {
+            const decision = conditionByUnitId.get(
+              unit.reservationItemUnitId,
+            ) ?? { condition: "GOOD" as const };
+            const assetUnitStatus = assetUnitStatusByCondition[decision.condition];
 
-        for (const line of returnRecord.items) {
-          const assetId = line.reservationItem.assetId;
-
-          // Check if this return recovers previously lost units
-          const otherApprovedReturns = await tx.returnItem.findMany({
-            where: {
-              reservationItemId: line.reservationItemId,
-              return: { status: { in: ["APPROVED", "COMPLETED"] } },
-              id: { not: line.id },
-            },
-          });
-          const priorLost = otherApprovedReturns.reduce(
-            (sum, r) => sum + r.quantityLost,
-            0,
-          );
-          const priorReturnedOrBroken = otherApprovedReturns.reduce(
-            (sum, r) => sum + r.quantityReturned + r.quantityBroken,
-            0,
-          );
-          const itemTotalQuantity = line.reservationItem.quantity;
-          const priorNetLost = Math.max(
-            0,
-            priorLost -
-              Math.max(
-                0,
-                priorReturnedOrBroken - (itemTotalQuantity - priorLost),
-              ),
-          );
-
-          const returnedOrBrokenThisLine =
-            line.quantityReturned + line.quantityBroken;
-          const recoveredFromLost = Math.min(
-            priorNetLost,
-            returnedOrBrokenThisLine,
-          );
-
-          if (recoveredFromLost > 0) {
-            // Restore totalQuantity for recovered units that were previously decremented
-            await tx.asset.update({
-              where: { id: assetId },
+            await tx.returnItemUnit.update({
+              where: { id: unit.id },
               data: {
-                totalQuantity: { increment: recoveredFromLost },
-                updatedAt: decidedAt,
+                condition: decision.condition,
               },
             });
-          }
+            await tx.reservationItemUnit.update({
+              where: { id: unit.reservationItemUnitId },
+              data: {
+                status: `RETURNED_${decision.condition}`,
+                returnedAt: decidedAt,
+              },
+            });
+            await tx.assetUnit.update({
+              where: { id: unit.reservationItemUnit.assetUnitId },
+              data: { status: assetUnitStatus, updatedAt: decidedAt },
+            });
 
-          if (line.quantityReturned > 0) {
-            await tx.assetTransaction.create({
+            if (!batchCreated) {
+              await tx.assetUnitEventBatch.create({
+                data: {
+                  id: batchId,
+                  description: `Return confirmed for "${returnRecord.reservation.eventName}"`,
+                  performedBy: actor.user.id,
+                },
+              });
+              batchCreated = true;
+            }
+            await tx.assetUnitEvent.create({
               data: {
                 id: randomUUID(),
                 batchId,
-                assetId,
-                transactionType: "RETURN",
-                quantityDelta: recoveredFromLost > 0 ? recoveredFromLost : 0,
-                reason:
-                  line.description ??
-                  (recoveredFromLost > 0
-                    ? `Returned intact (recovered ${recoveredFromLost} previously lost unit)`
-                    : "Returned intact"),
-              },
-            });
-          }
-
-          if (line.quantityBroken > 0) {
-            await tx.assetTransaction.create({
-              data: {
-                id: randomUUID(),
-                batchId,
-                assetId,
-                transactionType: "BROKEN",
-                quantityDelta: -line.quantityBroken,
-                reason: line.description ?? "Returned damaged/broken",
-              },
-            });
-
-            // Decrement totalQuantity for broken asset from available pool
-            await tx.asset.update({
-              where: { id: assetId },
-              data: {
-                totalQuantity: { decrement: line.quantityBroken },
-                updatedAt: decidedAt,
-              },
-            });
-          }
-
-          if (line.quantityLost > 0) {
-            await tx.assetTransaction.create({
-              data: {
-                id: randomUUID(),
-                batchId,
-                assetId,
-                transactionType: "LOST",
-                quantityDelta: -line.quantityLost,
-                reason: line.description ?? "Missing / lost during return",
-              },
-            });
-
-            // Decrement totalQuantity for lost asset
-            await tx.asset.update({
-              where: { id: assetId },
-              data: {
-                totalQuantity: { decrement: line.quantityLost },
-                updatedAt: decidedAt,
+                assetUnitId: unit.reservationItemUnit.assetUnitId,
+                eventType: `RETURNED_${decision.condition}`,
+                fromStatus: "CHECKED_OUT",
+                toStatus: assetUnitStatus,
+                reservationItemId: returnItem.reservationItemId,
               },
             });
           }
         }
 
-        // 4. Update ReservationItem statuses if fully returned
         for (const item of returnRecord.reservation.items) {
-          const approvedReturnItems = await tx.returnItem.findMany({
-            where: {
-              reservationItemId: item.id,
-              return: { status: { in: ["APPROVED", "COMPLETED"] } },
-            },
+          const allUnits = await tx.reservationItemUnit.findMany({
+            where: { reservationItemId: item.id },
+            select: { status: true },
           });
-
-          const totalReturned = approvedReturnItems.reduce(
-            (sum, r) =>
-              sum + r.quantityReturned + r.quantityBroken + r.quantityLost,
-            0,
-          );
-
-          if (totalReturned >= item.quantity && item.status !== "RETURNED") {
+          const allTerminal =
+            allUnits.length > 0 &&
+            allUnits.every((unit) => unit.status.startsWith("RETURNED_"));
+          if (allTerminal && item.status !== "RETURNED") {
             await tx.reservationItem.update({
               where: { id: item.id },
-              data: {
-                status: "RETURNED",
-                updatedAt: decidedAt,
-              },
+              data: { status: "RETURNED", updatedAt: decidedAt },
             });
           }
         }
 
-        // 5. Update Reservation status if all approved items are RETURNED
         const currentItems = await tx.reservationItem.findMany({
           where: { reservationId },
         });
-
         const activeOrApprovedItems = currentItems.filter(
           (item) => item.status !== "REJECTED",
         );
-
         const allReturned =
           activeOrApprovedItems.length > 0 &&
           activeOrApprovedItems.every((item) => item.status === "RETURNED");
-
         if (allReturned) {
           await tx.reservation.update({
             where: { id: reservationId },
-            data: {
-              status: "COMPLETED",
-              updatedAt: decidedAt,
-            },
+            data: { status: "COMPLETED", updatedAt: decidedAt },
           });
         }
       } else {
-        // REJECT decision
+        // REJECT: free the claimed units so they can be resubmitted in a
+        // later return -- they were never mutated at submission time, so
+        // there's nothing else to undo.
+        await tx.returnItemUnit.deleteMany({
+          where: { returnItemId: { in: returnRecord.items.map((item) => item.id) } },
+        });
         await tx.return.update({
           where: { id: returnId },
-          data: {
-            status: "REJECTED",
-            updatedAt: decidedAt,
-          },
+          data: { status: "REJECTED", updatedAt: decidedAt },
         });
-
         await tx.returnApproval.upsert({
           where: { returnId },
           create: {
@@ -849,8 +704,6 @@ export class ReturnsService {
       id: record.id,
       reservationId: record.reservationId,
       status: record.status,
-      photoUrls: record.photoUrls ?? [],
-      note: record.note ?? null,
       returnedAt: record.returnedAt?.toISOString() ?? null,
       returnedBy: this.userDto(record.returner),
       reservation: {
@@ -863,15 +716,18 @@ export class ReturnsService {
         reservationItemId: item.reservationItemId,
         assetId: item.reservationItem.asset.id,
         assetName: item.reservationItem.asset.name,
-        photoUrl: item.photoUrl ?? null,
         managementArea: {
           id: item.reservationItem.asset.managementArea.id,
           name: item.reservationItem.asset.managementArea.name,
         },
-        quantityReturned: item.quantityReturned,
-        quantityBroken: item.quantityBroken,
-        quantityLost: item.quantityLost,
         description: item.description,
+        units: item.units.map((unit) => ({
+          id: unit.id,
+          reservationItemUnitId: unit.reservationItemUnitId,
+          assetUnitId: unit.reservationItemUnit.assetUnitId,
+          serialNumber: unit.reservationItemUnit.assetUnit.serialNumber,
+          condition: unit.condition,
+        })),
       })),
       approval: record.approval
         ? {

@@ -3,58 +3,90 @@ model Asset {
   managementAreaId String  @map("management_area_id") @db.Uuid
   createdById      String? @map("created_by") @db.Uuid
   name             String  @db.VarChar(150)
+  partNumber       String? @map("part_number") @db.VarChar(100)
   description      String?
   pictureUrl       String? @map("picture_url")
-  totalQuantity    Int     @default(0) @map("total_quantity")
   isActive         Boolean @default(true) @map("is_active")
-  /// Supported values: ACTIVE, BROKEN, LOST.
-  status           String  @default("ACTIVE") @db.VarChar(20)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  managementArea    ManagementArea     @relation(fields: [managementAreaId], references: [id])
-  createdBy         User?              @relation("AssetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  assetTransactions AssetTransaction[]
-  reservationItems  ReservationItem[]
+  managementArea   ManagementArea    @relation(fields: [managementAreaId], references: [id])
+  createdBy        User?             @relation("AssetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  units            AssetUnit[]
+  reservationItems ReservationItem[]
 
-  // Database CHECK required by the source specification: total_quantity >= 0.
+  // Database UNIQUE required by the source specification: (management_area_id, part_number) where part_number is not null.
   @@unique([managementAreaId, name])
   @@index([createdById])
   @@index([managementAreaId, isActive])
   @@map("assets")
 }
 
-model AssetTransactionBatch {
+model AssetUnit {
+  id           String  @id @db.Uuid
+  assetId      String  @map("asset_id") @db.Uuid
+  serialNumber String  @map("serial_number") @db.VarChar(100)
+  /// Supported values: ACTIVE, RESERVED, CHECKED_OUT, BROKEN, LOST, IN_REPAIR, INACTIVE.
+  status       String  @default("ACTIVE") @db.VarChar(20)
+  /// Supported values: SHARED (management-area RBAC, counted toward company
+  /// reservation availability), PERSONAL (belongs to ownerId alone, excluded
+  /// from the shared pool, managed only by its owner or a global-scope role).
+  visibility   String  @default("SHARED") @db.VarChar(20)
+  /// Required when visibility = PERSONAL, must be null when visibility = SHARED
+  /// (enforced by the asset_units_visibility_owner_check DB constraint).
+  ownerId      String? @map("owner_id") @db.Uuid
+  note         String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  asset                Asset                 @relation(fields: [assetId], references: [id])
+  owner                User?                 @relation("AssetUnitOwner", fields: [ownerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  reservationItemUnits ReservationItemUnit[]
+  events               AssetUnitEvent[]
+  requestedByItems     ReservationItem[]     @relation("ReservationItemRequestedUnit")
+
+  @@unique([serialNumber])
+  @@index([assetId, status])
+  @@index([ownerId])
+  @@map("asset_units")
+}
+
+model AssetUnitEventBatch {
   id          String  @id @db.Uuid
   description String?
   performedBy String  @map("performed_by") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  performer    User               @relation(fields: [performedBy], references: [id])
-  transactions AssetTransaction[]
+  performer User             @relation(fields: [performedBy], references: [id])
+  events    AssetUnitEvent[]
 
   @@index([performedBy])
-  @@map("asset_transaction_batches")
+  @@map("asset_unit_event_batches")
 }
 
-model AssetTransaction {
-  id              String  @id @db.Uuid
-  batchId         String  @map("batch_id") @db.Uuid
-  assetId         String  @map("asset_id") @db.Uuid
-  /// Supported values: ADD, REMOVE, LOST, BROKEN, REPAIR, RETURN, ADJUSTMENT.
-  transactionType String  @map("transaction_type") @db.VarChar(30)
-  /// Signed quantity change; its sign depends on transactionType.
-  quantityDelta   Int     @map("quantity_delta")
-  reason          String?
+model AssetUnitEvent {
+  id                String  @id @db.Uuid
+  batchId           String  @map("batch_id") @db.Uuid
+  assetUnitId       String  @map("asset_unit_id") @db.Uuid
+  /// Supported values: REGISTERED, RETIRED, REACTIVATED, RESERVED, CHECKED_OUT,
+  /// RETURNED_GOOD, RETURNED_BROKEN, RETURNED_LOST, REPAIRED, ADJUSTMENT.
+  eventType         String  @map("event_type") @db.VarChar(30)
+  fromStatus        String? @map("from_status") @db.VarChar(20)
+  toStatus          String? @map("to_status") @db.VarChar(20)
+  reservationItemId String? @map("reservation_item_id") @db.Uuid
+  reason            String?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  batch AssetTransactionBatch @relation(fields: [batchId], references: [id])
-  asset Asset                 @relation(fields: [assetId], references: [id])
+  batch           AssetUnitEventBatch @relation(fields: [batchId], references: [id])
+  assetUnit       AssetUnit           @relation(fields: [assetUnitId], references: [id])
+  reservationItem ReservationItem?    @relation(fields: [reservationItemId], references: [id])
 
-  @@index([assetId, createdAt])
+  @@index([assetUnitId, createdAt])
   @@index([batchId])
-  @@map("asset_transactions")
+  @@index([reservationItemId])
+  @@map("asset_unit_events")
 }

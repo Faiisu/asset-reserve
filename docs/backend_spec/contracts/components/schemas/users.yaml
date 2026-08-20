@@ -2,6 +2,7 @@ UserListItem:
   type: object
   required:
     - id
+    - username
     - email
     - name
     - isActive
@@ -13,9 +14,15 @@ UserListItem:
     id:
       type: string
       format: uuid
-    email:
+    username:
       type: string
+      maxLength: 50
+    email:
+      type:
+        - string
+        - "null"
       format: email
+      description: Null until the user links a Google or Microsoft account.
     name:
       type:
         - string
@@ -126,46 +133,26 @@ UserDetail:
         updatedAt:
           type: string
           format: date-time
-CreateProfileInput:
-  type: object
-  additionalProperties: false
-  required:
-    - name
-  properties:
-    name:
-      type: string
-      minLength: 1
-      maxLength: 150
-    phoneNumber:
-      type:
-        - string
-        - "null"
-      maxLength: 30
-    profilePictureUrl:
-      type:
-        - string
-        - "null"
-      format: uri
-      maxLength: 2048
 CreateUserRequest:
   type: object
   additionalProperties: false
   required:
-    - email
+    - username
     - password
-    - profile
   properties:
-    email:
+    username:
       type: string
-      format: email
-      maxLength: 255
+      description: >-
+        Login identifier only -- no email or profile required up front. Trimmed and lowercased
+        before validation. Must match `^[a-z0-9._-]{3,50}$`.
+      pattern: "^[a-z0-9._-]{3,50}$"
+      minLength: 3
+      maxLength: 50
     password:
       type: string
       minLength: 8
       maxLength: 128
       writeOnly: true
-    profile:
-      $ref: "#/components/schemas/CreateProfileInput"
 UpdateUserStatusRequest:
   type: object
   additionalProperties: false
@@ -193,3 +180,36 @@ AssignRoleRequest:
         - string
         - "null"
       format: uuid
+UpdateSelfRequest:
+  type: object
+  additionalProperties: false
+  description: >-
+    Self-service profile edit, distinct from admin-only POST/PATCH user-management endpoints.
+    Both fields optional and independent so a user can update just their notification email
+    without also touching their name, or vice versa.
+  properties:
+    name:
+      type: string
+      maxLength: 150
+    email:
+      type: string
+      format: email
+      maxLength: 255
+      description: Trimmed and lowercased before validation. Rejected with 409 EMAIL_ALREADY_IN_USE if another user already holds it.
+ChangeMyPasswordRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - currentPassword
+    - newPassword
+  properties:
+    currentPassword:
+      type: string
+      minLength: 1
+      maxLength: 1024
+      writeOnly: true
+    newPassword:
+      type: string
+      minLength: 8
+      maxLength: 128
+      writeOnly: true

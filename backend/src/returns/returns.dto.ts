@@ -2,15 +2,14 @@ import { Transform, Type } from "class-transformer";
 import {
   ArrayMaxSize,
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsIn,
-  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
-  Min,
   ValidateIf,
   ValidateNested,
 } from "class-validator";
@@ -26,20 +25,12 @@ export class CreateReturnItemDto {
   @IsUUID()
   reservationItemId!: string;
 
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  quantityReturned: number = 0;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  quantityBroken: number = 0;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  quantityLost: number = 0;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  reservationItemUnitIds!: string[];
 
   @IsOptional()
   @ValidateIf((_object, value) => value !== null && value !== undefined)
@@ -47,13 +38,6 @@ export class CreateReturnItemDto {
   @IsString()
   @MaxLength(2_000)
   description?: string | null;
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null && value !== undefined)
-  @Transform(trim)
-  @IsString()
-  @MaxLength(1000)
-  photoUrl?: string | null;
 }
 
 export class CreateReturnDto {
@@ -65,23 +49,17 @@ export class CreateReturnDto {
   items!: CreateReturnItemDto[];
 
   @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(10)
-  @IsString({ each: true })
-  @MaxLength(1000, { each: true })
-  photoUrls?: string[];
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null && value !== undefined)
-  @Transform(trim)
-  @IsString()
-  @MaxLength(2_000)
-  note?: string | null;
-
-  @IsOptional()
   @Transform(({ value }: { value: unknown }) => parseOptionalBoolean(value))
   @IsBoolean()
   immediateApprove?: boolean;
+}
+
+export class DecideReturnItemUnitDto {
+  @IsUUID()
+  reservationItemUnitId!: string;
+
+  @IsIn(["GOOD", "BROKEN", "LOST"])
+  condition!: "GOOD" | "BROKEN" | "LOST";
 }
 
 export class DecideReturnItemDto {
@@ -89,19 +67,10 @@ export class DecideReturnItemDto {
   reservationItemId!: string;
 
   @IsOptional()
-  @IsInt()
-  @Min(0)
-  quantityReturned: number = 0;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  quantityBroken: number = 0;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  quantityLost: number = 0;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DecideReturnItemUnitDto)
+  units?: DecideReturnItemUnitDto[];
 
   @IsOptional()
   @ValidateIf((_object, value) => value !== null && value !== undefined)
@@ -109,13 +78,6 @@ export class DecideReturnItemDto {
   @IsString()
   @MaxLength(2_000)
   description?: string | null;
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null && value !== undefined)
-  @Transform(trim)
-  @IsString()
-  @MaxLength(1000)
-  photoUrl?: string | null;
 }
 
 export class ReturnDecisionDto {

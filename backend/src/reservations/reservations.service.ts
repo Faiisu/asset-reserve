@@ -18,6 +18,7 @@ import type {
   ConfirmDeliveryDto,
   CreateReservationChangeRequestDto,
   CreateReservationDto,
+  PrepareReservationItemDto,
   ReservationChangeDataDto,
   ReservationChangeRequestDecisionDto,
   ReservationItemDecisionDto,
@@ -57,6 +58,10 @@ const reservationInclude = {
     include: {
       asset: { include: { managementArea: true } },
       approval: { include: { approver: { include: { profile: true } } } },
+      unitAssignments: {
+        include: { assetUnit: true },
+        orderBy: { assignedAt: "asc" },
+      },
     },
     orderBy: { createdAt: "asc" },
   },
@@ -75,15 +80,14 @@ const reservationInclude = {
           reservationItem: {
             include: { asset: { include: { managementArea: true } } },
           },
+          units: {
+            include: {
+              reservationItemUnit: { include: { assetUnit: true } },
+            },
+          },
         },
       },
       approval: { include: { approver: { include: { profile: true } } } },
-    },
-    orderBy: { createdAt: "desc" },
-  },
-  handovers: {
-    include: {
-      handler: { include: { profile: true } },
     },
     orderBy: { createdAt: "desc" },
   },
@@ -114,7 +118,7 @@ type ReservationDetailRecord = Prisma.ReservationGetPayload<{
 
 type ReservationDb = Pick<
   Prisma.TransactionClient,
-  "asset" | "reservationItem"
+  "asset" | "reservationItem" | "assetUnit"
 >;
 
 type StoredChangeData = {
@@ -1065,6 +1069,158 @@ export class ReservationsService {
     return this.get(actor, reservationId);
   }
 
+  async prepareItem(
+    actor: AuthenticatedActor,
+    reservationId: string,
+    itemId: string,
+    input: PrepareReservationItemDto,
+  ) {
+    const reservation = await this.findDetail(reservationId);
+    if (!["APPROVED", "PARTIALLY_APPROVED"].includes(reservation.status)) {
+      throw this.invalidStatus(
+        "Items can only be prepared for an approved reservation.",
+      );
+    }
+    const item = reservation.items.find((row) => row.id === itemId);
+    if (!item) {
+      throw new ApiException(
+        404,
+        "RESERVATION_ITEM_NOT_FOUND",
+        "The reservation item was not found.",
+      );
+    }
+    if (!this.canConfirmDeliveryItem(actor, reservation, item)) {
+      this.permissionDenied();
+    }
+    if (item.status !== "APPROVED") {
+      throw this.invalidStatus("Only approved items can be prepared.");
+    }
+    const unitIds = [...new Set(input.assetUnitIds)];
+    if (unitIds.length !== input.assetUnitIds.length) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        "Duplicate asset units were selected.",
+        { assetUnitIds: "Remove duplicate units." },
+      );
+    }
+    if (unitIds.length !== item.quantity) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        `Select exactly ${item.quantity} unit(s) to prepare this item.`,
+        { assetUnitIds: `Select exactly ${item.quantity} unit(s).` },
+      );
+    }
+
+    const preparedAt = new Date();
+    try {
+      await this.runSerializable(async (tx) => {
+        await this.assertActiveActor(tx, actor.user.id);
+        const current = await tx.reservationItem.findUniqueOrThrow({
+          where: { id: itemId },
+        });
+        if (current.status !== "APPROVED") {
+          throw this.invalidStatus("Only approved items can be prepared.");
+        }
+        await this.lockAssetUnits(tx, unitIds);
+        const units = await tx.assetUnit.findMany({
+          where: { id: { in: unitIds } },
+        });
+        if (units.length !== unitIds.length) {
+          throw new ApiException(
+            404,
+            "ASSET_UNIT_NOT_FOUND",
+            "One or more asset units were not found.",
+          );
+        }
+        if (
+          units.some(
+            (unit) => unit.assetId !== item.assetId || unit.status !== "ACTIVE",
+          )
+        ) {
+          throw new ApiException(
+            409,
+            "ASSET_UNIT_UNAVAILABLE",
+            "One or more selected units are not available for this asset.",
+          );
+        }
+
+        const updated = await tx.assetUnit.updateMany({
+          where: { id: { in: unitIds }, status: "ACTIVE" },
+          data: { status: "RESERVED", updatedAt: preparedAt },
+        });
+        if (updated.count !== unitIds.length) {
+          throw new ApiException(
+            409,
+            "ASSET_UNIT_UNAVAILABLE",
+            "One or more selected units are no longer available.",
+          );
+        }
+
+        await tx.reservationItemUnit.createMany({
+          data: unitIds.map((assetUnitId) => ({
+            id: randomUUID(),
+            reservationItemId: itemId,
+            assetUnitId,
+            status: "ASSIGNED",
+            assignedBy: actor.user.id,
+            assignedAt: preparedAt,
+          })),
+        });
+
+        const batchId = randomUUID();
+        await tx.assetUnitEventBatch.create({
+          data: {
+            id: batchId,
+            description: "Prepared for reservation",
+            performedBy: actor.user.id,
+          },
+        });
+        await tx.assetUnitEvent.createMany({
+          data: unitIds.map((assetUnitId) => ({
+            id: randomUUID(),
+            batchId,
+            assetUnitId,
+            eventType: "RESERVED",
+            fromStatus: "ACTIVE",
+            toStatus: "RESERVED",
+            reservationItemId: itemId,
+          })),
+        });
+
+        await tx.reservationItem.update({
+          where: { id: itemId },
+          data: {
+            status: "PREPARED",
+            preparedBy: actor.user.id,
+            preparedAt,
+            updatedAt: preparedAt,
+          },
+        });
+
+        await this.logActivity(tx, {
+          reservationId,
+          actorId: actor.user.id,
+          action: "ITEM_PREPARED",
+          entityType: "RESERVATION_ITEM",
+          entityId: itemId,
+          details: { assetId: item.assetId, assetUnitIds: unitIds },
+        });
+      });
+    } catch (error) {
+      if (this.prismaCode(error) === "P2002") {
+        throw new ApiException(
+          409,
+          "ASSET_UNIT_UNAVAILABLE",
+          "One or more selected units are already assigned to another reservation.",
+        );
+      }
+      throw error;
+    }
+    return this.get(actor, reservationId);
+  }
+
   async confirmDelivery(
     actor: AuthenticatedActor,
     reservationId: string,
@@ -1081,7 +1237,7 @@ export class ReservationsService {
       );
     }
 
-    const deliverableItemStatuses = ["APPROVED", "PREPARED", "CHECKED_OUT"];
+    const deliverableItemStatuses = ["PREPARED"];
     const deliverableItems = reservation.items.filter((item) =>
       deliverableItemStatuses.includes(item.status),
     );
@@ -1100,6 +1256,16 @@ export class ReservationsService {
           "One or more selected items do not belong to this reservation.",
         );
       }
+      const unpreparedItems = targetItems.filter(
+        (item) => item.status === "APPROVED",
+      );
+      if (unpreparedItems.length > 0) {
+        throw new ApiException(
+          409,
+          "ITEMS_NOT_PREPARED",
+          "Prepare items (assign serial-numbered units) before confirming delivery.",
+        );
+      }
       const invalidStateItems = targetItems.filter(
         (item) => !deliverableItemStatuses.includes(item.status),
       );
@@ -1107,7 +1273,7 @@ export class ReservationsService {
         throw new ApiException(
           409,
           "INVALID_ITEM_STATUS",
-          "Only approved equipment can be confirmed for delivery.",
+          "Only prepared equipment can be confirmed for delivery.",
         );
       }
       if (
@@ -1124,54 +1290,62 @@ export class ReservationsService {
       throw new ApiException(
         400,
         "NO_ITEMS_TO_DELIVER",
-        "There are no approved items waiting for delivery confirmation.",
+        "There are no prepared items waiting for delivery confirmation.",
       );
     }
 
     const deliveredAt = new Date();
     const itemIdsToDeliver = targetItems.map((item) => item.id);
-    const handoverId = randomUUID();
-
-    const itemPhotoMap = new Map<string, string>();
-    if (input?.itemPhotos) {
-      for (const ip of input.itemPhotos) {
-        if (ip.photoUrl) itemPhotoMap.set(ip.itemId, ip.photoUrl);
-      }
-    }
-
-    const photoUrls = input?.photoUrls ?? [];
-    const note = input?.note?.trim() || null;
 
     await this.prisma.$transaction(async (tx) => {
-      // 1. Create ReservationHandover record
-      await tx.reservationHandover.create({
-        data: {
-          id: handoverId,
-          reservationId,
-          handledBy: actor.user.id,
-          photoUrls,
-          note,
-          handedOverAt: deliveredAt,
-          createdAt: deliveredAt,
-        },
-      });
-
-      // 2. Update selected items to DELIVERED with handoverId & photoUrl
+      // 1. Update selected items to DELIVERED, and check out their assigned
+      // asset units (ASSIGNED -> CHECKED_OUT).
+      const eventBatchId = randomUUID();
+      let checkedOutUnitCount = 0;
       for (const item of targetItems) {
-        const itemPhoto =
-          itemPhotoMap.get(item.id) ||
-          (photoUrls.length > 0 ? photoUrls[0] : null);
         await tx.reservationItem.update({
           where: { id: item.id },
           data: {
             status: "DELIVERED",
             checkedOutAt: deliveredAt,
             checkedOutBy: actor.user.id,
-            handoverId,
-            handoverPhotoUrl: itemPhoto,
             updatedAt: deliveredAt,
           },
         });
+
+        const assignedUnitIds = item.unitAssignments
+          .filter((unit) => unit.status === "ASSIGNED")
+          .map((unit) => unit.assetUnitId);
+        if (!assignedUnitIds.length) continue;
+        await tx.reservationItemUnit.updateMany({
+          where: { reservationItemId: item.id, status: "ASSIGNED" },
+          data: { status: "CHECKED_OUT", checkedOutAt: deliveredAt },
+        });
+        await tx.assetUnit.updateMany({
+          where: { id: { in: assignedUnitIds }, status: "RESERVED" },
+          data: { status: "CHECKED_OUT", updatedAt: deliveredAt },
+        });
+        if (checkedOutUnitCount === 0) {
+          await tx.assetUnitEventBatch.create({
+            data: {
+              id: eventBatchId,
+              description: "Checked out for delivery",
+              performedBy: actor.user.id,
+            },
+          });
+        }
+        await tx.assetUnitEvent.createMany({
+          data: assignedUnitIds.map((assetUnitId) => ({
+            id: randomUUID(),
+            batchId: eventBatchId,
+            assetUnitId,
+            eventType: "CHECKED_OUT",
+            fromStatus: "RESERVED",
+            toStatus: "CHECKED_OUT",
+            reservationItemId: item.id,
+          })),
+        });
+        checkedOutUnitCount += assignedUnitIds.length;
       }
 
       // 3. Check if all approved/active items on the manifest are now DELIVERED or RETURNED
@@ -1210,13 +1384,12 @@ export class ReservationsService {
       await this.logActivity(tx, {
         reservationId,
         actorId: actor.user.id,
-        action: "HANDOVER_CONFIRMED",
-        entityType: "HANDOVER",
-        entityId: handoverId,
+        action: "DELIVERY_CONFIRMED",
+        entityType: "RESERVATION",
+        entityId: reservationId,
         details: {
-          handledBy: actor.user.id,
+          confirmedBy: actor.user.id,
           itemCount: targetItems.length,
-          note,
         },
       });
     });
@@ -1597,65 +1770,31 @@ export class ReservationsService {
       ),
       items: reservation.items.map((item) => {
         const itemAvailability = availability.get(item.assetId)!;
-        const itemReturns = reservation.returns.flatMap((r) =>
-          r.items
-            .filter((ri) => ri.reservationItemId === item.id)
-            .map((ri) => ({
-              returnStatus: r.status,
-              approvalStatus: r.approval?.status,
-              item: ri,
-            })),
-        );
-        const returnedQuantity = itemReturns
+        const units = item.unitAssignments;
+        const returnedGoodCount = units.filter(
+          (unit) => unit.status === "RETURNED_GOOD",
+        ).length;
+        const returnedBrokenCount = units.filter(
+          (unit) => unit.status === "RETURNED_BROKEN",
+        ).length;
+        const returnedLostCount = units.filter(
+          (unit) => unit.status === "RETURNED_LOST",
+        ).length;
+        const checkedOutCount = units.filter(
+          (unit) => unit.status === "CHECKED_OUT",
+        ).length;
+        const itemUnitIds = new Set(units.map((unit) => unit.id));
+        const pendingReturnCount = reservation.returns
+          .flatMap((r) => r.items)
+          .flatMap((ri) => ri.units)
           .filter(
-            (r) =>
-              ["APPROVED", "COMPLETED"].includes(r.returnStatus) ||
-              r.approvalStatus === "APPROVED",
-          )
-          .reduce((sum, r) => sum + r.item.quantityReturned, 0);
-        const brokenQuantity = itemReturns
-          .filter(
-            (r) =>
-              ["APPROVED", "COMPLETED"].includes(r.returnStatus) ||
-              r.approvalStatus === "APPROVED",
-          )
-          .reduce((sum, r) => sum + r.item.quantityBroken, 0);
-        const rawLostQuantity = itemReturns
-          .filter(
-            (r) =>
-              ["APPROVED", "COMPLETED"].includes(r.returnStatus) ||
-              r.approvalStatus === "APPROVED",
-          )
-          .reduce((sum, r) => sum + r.item.quantityLost, 0);
-        const pendingReturnQuantity = itemReturns
-          .filter(
-            (r) =>
-              r.returnStatus === "PENDING" &&
-              r.approvalStatus !== "APPROVED" &&
-              r.approvalStatus !== "REJECTED",
-          )
-          .reduce(
-            (sum, r) =>
-              sum +
-              r.item.quantityReturned +
-              r.item.quantityBroken +
-              r.item.quantityLost,
-            0,
-          );
-        const lostQuantity = Math.max(
-          0,
-          rawLostQuantity -
-            Math.max(
-              0,
-              returnedQuantity +
-                brokenQuantity -
-                (item.quantity - rawLostQuantity),
-            ),
-        );
+            (unit) =>
+              unit.condition === null &&
+              itemUnitIds.has(unit.reservationItemUnitId),
+          ).length;
         const remainingReturnQuantity = Math.max(
           0,
-          item.quantity -
-            (returnedQuantity + brokenQuantity + pendingReturnQuantity),
+          checkedOutCount - pendingReturnCount,
         );
 
         return {
@@ -1673,14 +1812,18 @@ export class ReservationsService {
           },
           quantity: item.quantity,
           status: item.status,
-          handoverPhotoUrl: item.handoverPhotoUrl ?? null,
-          handoverId: item.handoverId ?? null,
+          units: units.map((unit) => ({
+            id: unit.id,
+            assetUnitId: unit.assetUnitId,
+            serialNumber: unit.assetUnit.serialNumber,
+            status: unit.status,
+          })),
           returnSummary: {
-            returnedQuantity,
-            brokenQuantity,
-            lostQuantity,
-            lostRecoverableQuantity: lostQuantity,
-            pendingReturnQuantity,
+            totalUnits: units.length,
+            returnedGoodCount,
+            returnedBrokenCount,
+            returnedLostCount,
+            pendingReturnCount,
             remainingReturnQuantity,
           },
           approval: item.approval
@@ -1726,11 +1869,17 @@ export class ReservationsService {
                 "reservation:reject",
                 item.asset.managementAreaId,
               ),
+            canPrepare:
+              ["APPROVED", "PARTIALLY_APPROVED"].includes(
+                reservation.status,
+              ) &&
+              item.status === "APPROVED" &&
+              this.canConfirmDeliveryItem(actor, reservation, item),
             canConfirmDelivery:
               ["APPROVED", "PARTIALLY_APPROVED", "DELIVERY_CONFIRMED"].includes(
                 reservation.status,
               ) &&
-              ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status) &&
+              item.status === "PREPARED" &&
               this.canConfirmDeliveryItem(actor, reservation, item),
             canReturn:
               [
@@ -1756,16 +1905,6 @@ export class ReservationsService {
         reviewedAt: request.reviewedAt?.toISOString() ?? null,
         createdAt: request.createdAt.toISOString(),
       })),
-      handovers: (reservation.handovers ?? []).map((h) => ({
-        id: h.id,
-        reservationId: h.reservationId,
-        handledBy: h.handledBy,
-        handler: this.userDto(h.handler),
-        photoUrls: h.photoUrls,
-        note: h.note,
-        handedOverAt: h.handedOverAt.toISOString(),
-        createdAt: h.createdAt.toISOString(),
-      })),
       returns: reservation.returns.map((item) => {
         const canApprove =
           item.status === "PENDING" &&
@@ -1780,8 +1919,6 @@ export class ReservationsService {
           id: item.id,
           reservationId: item.reservationId,
           status: item.status,
-          photoUrls: item.photoUrls,
-          note: item.note,
           returnedAt: item.returnedAt?.toISOString() ?? null,
           returnedBy: this.userDto(item.returner),
           items: item.items.map((retItem) => ({
@@ -1789,15 +1926,18 @@ export class ReservationsService {
             reservationItemId: retItem.reservationItemId,
             assetId: retItem.reservationItem.asset.id,
             assetName: retItem.reservationItem.asset.name,
-            photoUrl: retItem.photoUrl ?? null,
             managementArea: {
               id: retItem.reservationItem.asset.managementArea.id,
               name: retItem.reservationItem.asset.managementArea.name,
             },
-            quantityReturned: retItem.quantityReturned,
-            quantityBroken: retItem.quantityBroken,
-            quantityLost: retItem.quantityLost,
             description: retItem.description,
+            units: retItem.units.map((unit) => ({
+              id: unit.id,
+              reservationItemUnitId: unit.reservationItemUnitId,
+              assetUnitId: unit.reservationItemUnit.assetUnitId,
+              serialNumber: unit.reservationItemUnit.assetUnit.serialNumber,
+              condition: unit.condition,
+            })),
           })),
           approval: item.approval
             ? {
@@ -1822,13 +1962,20 @@ export class ReservationsService {
           reservation.requesterId === actor.user.id &&
           canManage &&
           editableReservationStatuses.includes(reservation.status),
+        canPrepare:
+          ["APPROVED", "PARTIALLY_APPROVED"].includes(reservation.status) &&
+          reservation.items.some(
+            (item) =>
+              item.status === "APPROVED" &&
+              this.canConfirmDeliveryItem(actor, reservation, item),
+          ),
         canConfirmDelivery:
           ["APPROVED", "PARTIALLY_APPROVED", "DELIVERY_CONFIRMED"].includes(
             reservation.status,
           ) &&
           reservation.items.some(
             (item) =>
-              ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status) &&
+              item.status === "PREPARED" &&
               this.canConfirmDeliveryItem(actor, reservation, item),
           ),
         canCancel:
@@ -1877,10 +2024,7 @@ export class ReservationsService {
     excludeReservationId?: string,
   ) {
     const uniqueAssetIds = [...new Set(assetIds)];
-    const assets = await db.asset.findMany({
-      where: { id: { in: uniqueAssetIds } },
-      select: { id: true, totalQuantity: true },
-    });
+    const totalQuantities = await this.totalUnitQuantities(db, uniqueAssetIds);
     const overlapping = await db.reservationItem.findMany({
       where: {
         assetId: { in: uniqueAssetIds },
@@ -1905,16 +2049,17 @@ export class ReservationsService {
       },
     });
     const result = new Map<string, Availability>();
-    for (const asset of assets) {
+    for (const assetId of uniqueAssetIds) {
+      const totalQuantity = totalQuantities.get(assetId) ?? 0;
       const approved = overlapping.filter(
         (item) =>
-          item.assetId === asset.id &&
+          item.assetId === assetId &&
           allocatedItemStatuses.includes(item.status) &&
           allocatedReservationStatuses.includes(item.reservation.status),
       );
       const pending = overlapping.filter(
         (item) =>
-          item.assetId === asset.id &&
+          item.assetId === assetId &&
           item.status === "PENDING" &&
           ["PENDING_APPROVAL", "PARTIALLY_APPROVED"].includes(
             item.reservation.status,
@@ -1928,12 +2073,12 @@ export class ReservationsService {
         (sum, item) => sum + item.quantity,
         0,
       );
-      result.set(asset.id, {
-        assetId: asset.id,
-        totalQuantity: asset.totalQuantity,
+      result.set(assetId, {
+        assetId,
+        totalQuantity,
         approvedQuantity,
         pendingQuantity,
-        availableQuantity: Math.max(0, asset.totalQuantity - approvedQuantity),
+        availableQuantity: Math.max(0, totalQuantity - approvedQuantity),
         pendingReservationCount: new Set(
           pending.map((item) => item.reservationId),
         ).size,
@@ -1942,10 +2087,22 @@ export class ReservationsService {
     return result;
   }
 
+  private async totalUnitQuantities(db: ReservationDb, assetIds: string[]) {
+    const result = new Map<string, number>();
+    if (!assetIds.length) return result;
+    const rows = await db.assetUnit.groupBy({
+      by: ["assetId"],
+      where: { assetId: { in: assetIds }, status: { not: "INACTIVE" } },
+      _count: { _all: true },
+    });
+    for (const row of rows) result.set(row.assetId, row._count._all);
+    return result;
+  }
+
   private async assertAvailability(
     db: ReservationDb,
     items: ReadonlyArray<ReservationItemInputDto>,
-    assets: ReadonlyArray<{ id: string; totalQuantity: number }>,
+    assets: ReadonlyArray<{ id: string }>,
     startAt: Date,
     endAt: Date,
     excludeReservationId?: string,
@@ -2266,6 +2423,20 @@ export class ReservationsService {
         SELECT "id"
         FROM "assets"
         WHERE "id" = ${assetId}::uuid
+        FOR UPDATE
+      `;
+    }
+  }
+
+  private async lockAssetUnits(
+    tx: Prisma.TransactionClient,
+    assetUnitIds: string[],
+  ) {
+    for (const assetUnitId of [...new Set(assetUnitIds)].sort()) {
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "asset_units"
+        WHERE "id" = ${assetUnitId}::uuid
         FOR UPDATE
       `;
     }

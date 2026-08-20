@@ -40,13 +40,6 @@ ReservationItemId:
   schema:
     type: string
     format: uuid
-ChangeRequestId:
-  name: changeRequestId
-  in: path
-  required: true
-  schema:
-    type: string
-    format: uuid
 ReturnId:
   name: returnId
   in: path
@@ -74,3 +67,10 @@ Limit:
     minimum: 1
     maximum: 100
     default: 20
+EmailTemplateSituation:
+  name: situation
+  in: path
+  required: true
+  schema:
+    type: string
+    enum: [reservation_submitted, reservation_decided, return_decided]

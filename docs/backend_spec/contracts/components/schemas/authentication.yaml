@@ -24,6 +24,7 @@ UserIdentity:
   type: object
   required:
     - id
+    - username
     - email
     - isActive
     - profile
@@ -31,10 +32,17 @@ UserIdentity:
     id:
       type: string
       format: uuid
-    email:
+    username:
       type: string
+      description: The login identifier. Immutable format `^[a-z0-9._-]{3,50}$`, set at creation.
+      maxLength: 50
+    email:
+      type:
+        - string
+        - "null"
       format: email
       maxLength: 255
+      description: Null until the user links a Google or Microsoft account; never settable directly at creation.
     isActive:
       type: boolean
     profile:
@@ -96,6 +104,24 @@ EffectivePermissions:
       type: array
       items:
         $ref: "#/components/schemas/AreaPermissions"
+SessionUser:
+  description: UserIdentity plus the account-linking state, which only ever applies to the caller's own session actor (not to other users viewed via UserDetail).
+  allOf:
+    - $ref: "#/components/schemas/UserIdentity"
+    - type: object
+      required:
+        - linkedProviders
+        - accountLinkRequired
+      properties:
+        linkedProviders:
+          type: array
+          description: External providers with a linked identity for this user, e.g. `["google"]`. Empty if none linked yet.
+          items:
+            type: string
+            enum: [google, microsoft]
+        accountLinkRequired:
+          type: boolean
+          description: Whether this deployment currently hard-gates unlinked users at `/connect-account` (derived from `REQUIRE_ACCOUNT_LINK` and whether any provider is configured). See [`oauth-setup.md`](../../../integrations/oauth-setup.md).
 SessionContext:
   type: object
   required:
@@ -104,7 +130,7 @@ SessionContext:
     - effectivePermissions
   properties:
     user:
-      $ref: "#/components/schemas/UserIdentity"
+      $ref: "#/components/schemas/SessionUser"
     roles:
       type: array
       items:
@@ -115,13 +141,14 @@ LoginRequest:
   type: object
   additionalProperties: false
   required:
-    - email
+    - username
     - password
   properties:
-    email:
+    username:
       type: string
-      format: email
-      maxLength: 255
+      description: Trimmed and lowercased before lookup. Not an email address — see `UserIdentity.username`.
+      minLength: 1
+      maxLength: 50
     password:
       type: string
       minLength: 1

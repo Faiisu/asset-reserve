@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { api } from "../api";
 import type { AssetSummary } from "../types";
@@ -21,7 +27,19 @@ const mockAsset: AssetSummary = {
   name: "HD Projector",
   description: "1080p projector",
   pictureUrl: null,
+  partNumber: null,
   totalQuantity: 5,
+  unitCounts: {
+    total: 0,
+    active: 0,
+    reserved: 0,
+    checkedOut: 0,
+    broken: 0,
+    lost: 0,
+    inRepair: 0,
+    inactive: 0,
+  },
+
   allocatedQuantity: 0,
   availableQuantity: 5,
   isActive: true,
@@ -30,7 +48,7 @@ const mockAsset: AssetSummary = {
   owner: null,
   capabilities: {
     canEdit: true,
-    canAdjustQuantity: true,
+    canManageUnits: true,
     canDeactivate: true,
   },
   createdAt: "2026-08-15T00:00:00.000Z",
@@ -57,7 +75,9 @@ describe("AssetsPage", () => {
     const elements = await screen.findAllByText(/HD Projector/);
     expect(elements.length).toBeGreaterThan(0);
 
-    const checkbox = screen.getAllByLabelText("Select HD Projector")[0] as HTMLInputElement;
+    const checkbox = screen.getAllByLabelText(
+      "Select HD Projector",
+    )[0] as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
 
     // Clicking row should select checkbox
@@ -84,7 +104,19 @@ describe("AssetsPage", () => {
       name: "AAA View Only Camera",
       description: "Read only",
       pictureUrl: null,
+      partNumber: null,
       totalQuantity: 2,
+      unitCounts: {
+        total: 0,
+        active: 0,
+        reserved: 0,
+        checkedOut: 0,
+        broken: 0,
+        lost: 0,
+        inRepair: 0,
+        inactive: 0,
+      },
+
       allocatedQuantity: 0,
       availableQuantity: 2,
       isActive: true,
@@ -93,7 +125,7 @@ describe("AssetsPage", () => {
       owner: null,
       capabilities: {
         canEdit: false,
-        canAdjustQuantity: false,
+        canManageUnits: false,
         canDeactivate: false,
       },
       createdAt: "2026-08-15T00:00:00.000Z",
@@ -105,7 +137,19 @@ describe("AssetsPage", () => {
       name: "ZZZ Editable Microphone",
       description: "Editable",
       pictureUrl: null,
+      partNumber: null,
       totalQuantity: 10,
+      unitCounts: {
+        total: 0,
+        active: 0,
+        reserved: 0,
+        checkedOut: 0,
+        broken: 0,
+        lost: 0,
+        inRepair: 0,
+        inactive: 0,
+      },
+
       allocatedQuantity: 0,
       availableQuantity: 10,
       isActive: true,
@@ -114,7 +158,7 @@ describe("AssetsPage", () => {
       owner: null,
       capabilities: {
         canEdit: true,
-        canAdjustQuantity: true,
+        canManageUnits: true,
         canDeactivate: true,
       },
       createdAt: "2026-08-14T00:00:00.000Z",
@@ -137,7 +181,9 @@ describe("AssetsPage", () => {
       </MemoryRouter>,
     );
 
-    const editableElements = await screen.findAllByText(/ZZZ Editable Microphone/);
+    const editableElements = await screen.findAllByText(
+      /ZZZ Editable Microphone/,
+    );
     expect(editableElements.length).toBeGreaterThan(0);
 
     const rows = screen.getAllByRole("row");
@@ -154,7 +200,19 @@ describe("AssetsPage", () => {
       name: "AAA Other Team Camera",
       description: "Read only other asset",
       pictureUrl: null,
+      partNumber: null,
       totalQuantity: 2,
+      unitCounts: {
+        total: 0,
+        active: 0,
+        reserved: 0,
+        checkedOut: 0,
+        broken: 0,
+        lost: 0,
+        inRepair: 0,
+        inactive: 0,
+      },
+
       allocatedQuantity: 0,
       availableQuantity: 2,
       isActive: true,
@@ -168,7 +226,7 @@ describe("AssetsPage", () => {
       },
       capabilities: {
         canEdit: false,
-        canAdjustQuantity: false,
+        canManageUnits: false,
         canDeactivate: false,
       },
       createdAt: "2026-08-15T00:00:00.000Z",
@@ -180,7 +238,19 @@ describe("AssetsPage", () => {
       name: "ZZZ My Managed Asset",
       description: "My managed asset",
       pictureUrl: null,
+      partNumber: null,
       totalQuantity: 10,
+      unitCounts: {
+        total: 0,
+        active: 0,
+        reserved: 0,
+        checkedOut: 0,
+        broken: 0,
+        lost: 0,
+        inRepair: 0,
+        inactive: 0,
+      },
+
       allocatedQuantity: 0,
       availableQuantity: 10,
       isActive: true,
@@ -189,7 +259,7 @@ describe("AssetsPage", () => {
       owner: null,
       capabilities: {
         canEdit: true,
-        canAdjustQuantity: true,
+        canManageUnits: true,
         canDeactivate: true,
       },
       createdAt: "2026-08-14T00:00:00.000Z",
@@ -211,20 +281,30 @@ describe("AssetsPage", () => {
       </MemoryRouter>,
     );
 
-    expect((await screen.findAllByText("ZZZ My Managed Asset")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("AAA Other Team Camera").length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("ZZZ My Managed Asset")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("AAA Other Team Camera").length).toBeGreaterThan(
+      0,
+    );
 
     const myTab = screen.getByRole("tab", { name: /my assets/i });
     fireEvent.click(myTab);
 
-    expect(screen.getAllByText("ZZZ My Managed Asset").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("ZZZ My Managed Asset").length).toBeGreaterThan(
+      0,
+    );
     expect(screen.queryAllByText("AAA Other Team Camera")).toHaveLength(0);
 
     const allTab = screen.getByRole("tab", { name: /all assets/i });
     fireEvent.click(allTab);
 
-    expect(screen.getAllByText("ZZZ My Managed Asset").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("AAA Other Team Camera").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("ZZZ My Managed Asset").length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.getAllByText("AAA Other Team Camera").length).toBeGreaterThan(
+      0,
+    );
   });
 
   it("filters assets correctly based on normalized status", async () => {
@@ -282,7 +362,9 @@ describe("AssetsPage", () => {
     );
 
     // Initial filter shows all assets
-    expect((await screen.findAllByText("Active Asset")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Active Asset")).length).toBeGreaterThan(
+      0,
+    );
     expect(screen.getAllByText("Broken Asset").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Lost Asset").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Inactive Asset").length).toBeGreaterThan(0);
@@ -306,12 +388,26 @@ describe("AssetsPage", () => {
   });
 
   it("normalizes asset statuses accurately", () => {
-    expect(getNormalizedAssetStatus({ status: "ACTIVE", isActive: true })).toBe("ACTIVE");
-    expect(getNormalizedAssetStatus({ status: "BROKEN", isActive: false })).toBe("BROKEN");
-    expect(getNormalizedAssetStatus({ status: "LOST", isActive: false })).toBe("LOST");
-    expect(getNormalizedAssetStatus({ status: "ACTIVE", isActive: false })).toBe("INACTIVE");
-    expect(getNormalizedAssetStatus({ status: "INACTIVE", isActive: false })).toBe("INACTIVE");
-    expect(getNormalizedAssetStatus({ status: null, isActive: true })).toBe("ACTIVE");
-    expect(getNormalizedAssetStatus({ status: null, isActive: false })).toBe("INACTIVE");
+    expect(getNormalizedAssetStatus({ status: "ACTIVE", isActive: true })).toBe(
+      "ACTIVE",
+    );
+    expect(
+      getNormalizedAssetStatus({ status: "BROKEN", isActive: false }),
+    ).toBe("BROKEN");
+    expect(getNormalizedAssetStatus({ status: "LOST", isActive: false })).toBe(
+      "LOST",
+    );
+    expect(
+      getNormalizedAssetStatus({ status: "ACTIVE", isActive: false }),
+    ).toBe("INACTIVE");
+    expect(
+      getNormalizedAssetStatus({ status: "INACTIVE", isActive: false }),
+    ).toBe("INACTIVE");
+    expect(getNormalizedAssetStatus({ status: null, isActive: true })).toBe(
+      "ACTIVE",
+    );
+    expect(getNormalizedAssetStatus({ status: null, isActive: false })).toBe(
+      "INACTIVE",
+    );
   });
 });
