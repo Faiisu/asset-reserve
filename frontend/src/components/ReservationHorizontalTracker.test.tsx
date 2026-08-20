@@ -70,11 +70,9 @@ const baseReservation: ReservationDetail = {
       },
     },
   ],
-  changeRequests: [],
   returns: [],
   capabilities: {
     canSubmit: false,
-    canRequestChange: true,
     canConfirmDelivery: true,
     canReturn: false,
     canCancel: true,

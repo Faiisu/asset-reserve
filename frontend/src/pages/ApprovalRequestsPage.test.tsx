@@ -27,11 +27,9 @@ const reservation: ReservationSummary = {
   pendingItemCount: 1,
   approvedItemCount: 0,
   rejectedItemCount: 0,
-  hasPendingChangeRequest: false,
   pendingDecisionCount: 1,
   capabilities: {
     canSubmit: false,
-    canRequestChange: false,
     canReview: true,
   },
   createdAt: "2026-08-15T00:00:00.000Z",

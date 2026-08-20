@@ -74,11 +74,9 @@ const reservation: ReservationSummary = {
   pendingItemCount: 0,
   approvedItemCount: 2,
   rejectedItemCount: 0,
-  hasPendingChangeRequest: false,
   pendingDecisionCount: 0,
   capabilities: {
     canSubmit: false,
-    canRequestChange: true,
     canReview: true,
   },
   createdAt: "2026-08-01T00:00:00.000Z",
@@ -128,9 +126,8 @@ const pendingReservationDetail: ReservationDetail = {
       capabilities: { canApprove: true, canReject: true },
     },
   ],
-  changeRequests: [],
   returns: [],
-  capabilities: { canSubmit: false, canRequestChange: true },
+  capabilities: { canSubmit: false },
   createdAt: pendingReservation.createdAt,
   updatedAt: pendingReservation.updatedAt,
 };
@@ -413,7 +410,6 @@ describe("CalendarPage", () => {
       ...reservation,
       capabilities: {
         canSubmit: false,
-        canRequestChange: true,
         canReview: true,
         canCancel: true,
       },

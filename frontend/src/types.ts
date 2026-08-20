@@ -288,15 +288,6 @@ export type ReservationItemInput = {
   quantity: number;
 };
 
-export type ReservationChangeData = {
-  eventName?: string;
-  description?: string | null;
-  startAt?: string;
-  endAt?: string;
-  items?: ReservationItemInput[];
-  participantIds?: string[];
-};
-
 export type ConfirmDeliveryInput = {
   itemIds?: string[];
 };
@@ -358,21 +349,10 @@ export type ReservationDetail = {
       canReturn?: boolean;
     };
   }>;
-  changeRequests: Array<{
-    id: string;
-    changeData: ReservationChangeData;
-    reason: string | null;
-    status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
-    requestedBy: ReservationUser;
-    reviewedBy: ReservationUser | null;
-    reviewedAt: string | null;
-    createdAt: string;
-  }>;
   returns: ReturnDetail[];
   activityLogs?: ActivityLog[];
   capabilities: {
     canSubmit: boolean;
-    canRequestChange: boolean;
     canConfirmDelivery?: boolean;
     canCancel?: boolean;
     canReturn?: boolean;
@@ -481,11 +461,9 @@ export type ReservationSummary = {
   pendingItemCount: number;
   approvedItemCount: number;
   rejectedItemCount: number;
-  hasPendingChangeRequest: boolean;
   pendingDecisionCount: number;
   capabilities: {
     canSubmit: boolean;
-    canRequestChange: boolean;
     canReview: boolean;
     canConfirmDelivery?: boolean;
     canCancel?: boolean;
