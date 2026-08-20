@@ -161,6 +161,15 @@
   word-break: break-all;
 }
 
+.res-print-serial-row {
+  padding: 1px 0;
+  font-size: 10px;
+}
+
+.res-print-serial-row + .res-print-serial-row {
+  border-top: 1px dotted #d0d0d0;
+}
+
 .res-print-status-tag {
   display: inline;
   padding: 0;

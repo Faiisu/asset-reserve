@@ -33,15 +33,9 @@ import { reservationDuration, reservationStatusLabel } from "../reservations";
 import type {
   ReservationDetail,
   CreateReturnItemInput,
+  DecideReturnItemInput,
+  ReturnItemUnitCondition,
 } from "../types";
-
-export type InspectionItemState = {
-  quantityReturned: number;
-  quantityBroken: number;
-  quantityLost: number;
-  isVerified: boolean;
-  description: string;
-};
 
 export function ReservationDetailPage() {
   const { reservationId } = useParams<{ reservationId: string }>();
@@ -66,10 +60,21 @@ export function ReservationDetailPage() {
   const [approvalComment, setApprovalComment] = useState("");
   const [inspectionComment, setInspectionComment] = useState("");
 
-  // Quantity adjustments
+  // Approval quantity adjustments
   const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
-  const [returnQuantities, setReturnQuantities] = useState<Record<string, number>>({});
-  const [inspectionItemStates, setInspectionItemStates] = useState<Record<string, InspectionItemState>>({});
+
+  // Drop-off: which CHECKED_OUT serial units the borrower is returning, keyed
+  // by reservationItemUnitId.
+  const [selectedReturnUnitIds, setSelectedReturnUnitIds] = useState<
+    Record<string, boolean>
+  >({});
+
+  // Inspection: condition decided per serial unit, keyed by
+  // reservationItemUnitId -- matches DecideReturnItemUnitDto, one entry per
+  // unit (§8.3 of algorithms-and-validation.md: no quantity field exists).
+  const [unitConditions, setUnitConditions] = useState<
+    Record<string, ReturnItemUnitCondition>
+  >({});
 
   // Fetch reservation data
   const loadReservation = useCallback(async () => {
@@ -80,37 +85,39 @@ export function ReservationDetailPage() {
       const data = await api.reservation(reservationId);
       setReservation(data);
 
-      // Initialize return quantities & approvable item quantities
-      const initialReturnQty: Record<string, number> = {};
+      // Default every checked-out (not-yet-claimed) serial unit to selected
+      // for return, and initialize approvable-item quantities.
+      const initialReturnUnits: Record<string, boolean> = {};
       const initialItemQty: Record<string, number> = {};
       data.items.forEach((item) => {
-        const remaining = item.returnSummary?.remainingReturnQuantity ?? item.quantity;
-        initialReturnQty[item.id] = remaining > 0 ? remaining : item.quantity;
+        item.units
+          .filter((unit) => unit.status === "CHECKED_OUT")
+          .forEach((unit) => {
+            initialReturnUnits[unit.id] = true;
+          });
         initialItemQty[item.id] = item.quantity;
       });
-      setReturnQuantities(initialReturnQty);
+      setSelectedReturnUnitIds(initialReturnUnits);
       setItemQuantities(initialItemQty);
 
-      // Initialize inspection checklist states for pending return slips
+      // Initialize inspection state for the pending return slip: default
+      // every undecided unit to GOOD, matching the backend's own default.
       const pendingReturn = data.returns.find(
         (ret) => ret.status === "PENDING" || ret.approval?.status === "PENDING",
       );
-      const initialInspection: Record<string, InspectionItemState> = {};
+      const initialConditions: Record<string, ReturnItemUnitCondition> = {};
       if (pendingReturn && pendingReturn.items && pendingReturn.items.length > 0) {
         pendingReturn.items.forEach((item) => {
-          initialInspection[item.reservationItemId] = {
-            quantityReturned: item.quantityReturned,
-            quantityBroken: item.quantityBroken ?? 0,
-            quantityLost: item.quantityLost ?? 0,
-            isVerified: true,
-            description: item.description ?? "",
-          };
+          item.units.forEach((unit) => {
+            initialConditions[unit.reservationItemUnitId] =
+              unit.condition ?? "GOOD";
+          });
         });
         setSelectedInspectItemIds(pendingReturn.items.map((i) => i.reservationItemId));
       } else {
         setSelectedInspectItemIds([]);
       }
-      setInspectionItemStates(initialInspection);
+      setUnitConditions(initialConditions);
 
       // Reset selection state
       setSelectedItemIds([]);
@@ -333,18 +340,23 @@ export function ReservationDetailPage() {
       return;
     }
 
-    const itemsToReturn: CreateReturnItemInput[] = targetIds.map((itemId) => {
-      const item = reservation.items.find((i) => i.id === itemId);
-      const remaining =
-        item?.returnSummary?.remainingReturnQuantity ?? item?.quantity ?? 1;
-      const qty = returnQuantities[itemId] ?? remaining;
-      return {
-        reservationItemId: itemId,
-        quantityReturned: Math.max(1, Math.min(remaining, qty)),
-        quantityBroken: 0,
-        quantityLost: 0,
-      };
-    });
+    const itemsToReturn: CreateReturnItemInput[] = targetIds
+      .map((itemId) => {
+        const item = reservation.items.find((i) => i.id === itemId);
+        const checkedOutUnitIds = (item?.units ?? [])
+          .filter((unit) => unit.status === "CHECKED_OUT")
+          .map((unit) => unit.id);
+        const reservationItemUnitIds = checkedOutUnitIds.filter(
+          (unitId) => selectedReturnUnitIds[unitId],
+        );
+        return { reservationItemId: itemId, reservationItemUnitIds };
+      })
+      .filter((line) => line.reservationItemUnitIds.length > 0);
+
+    if (itemsToReturn.length === 0) {
+      setActionError("Select at least one serial unit to return.");
+      return;
+    }
 
     setActionLoading(true);
     setActionError(null);
@@ -375,46 +387,13 @@ export function ReservationDetailPage() {
       selectedInspectItemIds.length === 0 || selectedInspectItemIds.includes(retItem.reservationItemId)
     );
 
-    const decidedItems = targetReturnItems.map((retItem) => {
-      const itemState = inspectionItemStates[retItem.reservationItemId] ?? {
-        quantityReturned: retItem.quantityReturned,
-        quantityBroken: retItem.quantityBroken ?? 0,
-        quantityLost: retItem.quantityLost ?? 0,
-        description: retItem.description ?? "",
-        isVerified: true,
-      };
-      return {
-        reservationItemId: retItem.reservationItemId,
-        quantityReturned: itemState.quantityReturned,
-        quantityBroken: itemState.quantityBroken,
-        quantityLost: itemState.quantityLost,
-        description: itemState.description.trim() || undefined,
-      };
-    });
-
-    if (decision === "APPROVE") {
-      for (const retItem of targetReturnItems) {
-        const itemState = inspectionItemStates[retItem.reservationItemId] ?? {
-          quantityReturned: retItem.quantityReturned,
-          quantityBroken: 0,
-          quantityLost: 0,
-        };
-        const good = itemState.quantityReturned || 0;
-        const broken = itemState.quantityBroken || 0;
-        const lost = itemState.quantityLost || 0;
-        const total = good + broken + lost;
-        const maxAllowed = retItem.quantityReturned;
-        if (total > maxAllowed) {
-          const resItem = reservation.items.find((i) => i.id === retItem.reservationItemId);
-          const assetName = resItem?.asset.name ?? "item";
-          setActionError(
-            `Total inspected units (${total}) exceeds returned quantity (${maxAllowed}) for ${assetName}.`
-          );
-          setActionLoading(false);
-          return;
-        }
-      }
-    }
+    const decidedItems: DecideReturnItemInput[] = targetReturnItems.map((retItem) => ({
+      reservationItemId: retItem.reservationItemId,
+      units: retItem.units.map((unit) => ({
+        reservationItemUnitId: unit.reservationItemUnitId,
+        condition: unitConditions[unit.reservationItemUnitId] ?? "GOOD",
+      })),
+    }));
 
     try {
       await api.decideReturn(reservation.id, pendingInspectableReturn.id, {
@@ -836,9 +815,9 @@ export function ReservationDetailPage() {
                 <span className="res-grid-th res-grid-th--check"></span>
                 <span className="res-grid-th res-grid-th--media"></span>
                 <span className="res-grid-th res-grid-th--asset">Equipment & Area</span>
-                <span className="res-grid-th res-grid-th--good">Good</span>
-                <span className="res-grid-th res-grid-th--broken">Broken</span>
-                <span className="res-grid-th res-grid-th--lost">Lost</span>
+                <span className="res-grid-th res-grid-th--serials">
+                  Condition per serial unit
+                </span>
               </div>
             )}
 
@@ -885,10 +864,15 @@ export function ReservationDetailPage() {
                   ["DELIVERY_CONFIRMED", "ACTIVE"].includes(reservation.status);
                 const isFullyReturned =
                   item.status === "RETURNED" ||
-                  (item.returnSummary?.returnedQuantity === item.quantity &&
+                  (item.returnSummary !== undefined &&
+                    item.returnSummary.totalUnits > 0 &&
+                    item.returnSummary.remainingReturnQuantity === 0 &&
                     ["RETURN_CONFIRMED", "COMPLETED"].includes(reservation.status));
 
-                const inspectReturnedQty = retItem?.quantityReturned ?? item.quantity;
+                const returnableUnits = item.units.filter(
+                  (unit) => unit.status === "CHECKED_OUT",
+                );
+                const inspectUnitCount = retItem?.units.length ?? 0;
 
                 return (
                   <div
@@ -974,7 +958,7 @@ export function ReservationDetailPage() {
                             </div>
                             <div className="res-item-sub">
                               {isInspectSelectable
-                                ? `Returned by borrower (${inspectReturnedQty} ${inspectReturnedQty === 1 ? "unit" : "units"})`
+                                ? `Returned by borrower (${inspectUnitCount} ${inspectUnitCount === 1 ? "unit" : "units"})`
                                 : isReturnSelectable
                                   ? `Awaiting return (${remainingReturn} units remaining)`
                                   : isDeliverySelectable
@@ -985,89 +969,56 @@ export function ReservationDetailPage() {
                         </div>
 
                         {isInspectSelectable ? (
-                          <>
-                            <div className="res-inspect-col res-inspect-col--good" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                id={`inspect-good-${item.id}`}
-                                aria-label={`Good quantity for ${item.asset.name}`}
-                                type="number"
-                                min={0}
-                                max={inspectReturnedQty}
-                                value={inspectionItemStates[item.id]?.quantityReturned ?? inspectReturnedQty}
-                                onChange={(e) => {
-                                  const val = Math.max(0, parseInt(e.target.value) || 0);
-                                  const currentBroken = inspectionItemStates[item.id]?.quantityBroken ?? 0;
-                                  const currentLost = inspectionItemStates[item.id]?.quantityLost ?? 0;
-                                  const maxGood = Math.max(0, inspectReturnedQty - currentBroken - currentLost);
-                                  const clampedGood = Math.min(maxGood, val);
-                                  setInspectionItemStates((prev) => ({
-                                    ...prev,
-                                    [item.id]: {
-                                      ...(prev[item.id] || { quantityBroken: 0, quantityLost: 0, isVerified: true, description: "" }),
-                                      quantityReturned: clampedGood,
-                                    },
-                                  }));
-                                }}
-                                className="control"
-                              />
-                            </div>
-
-                            <div className="res-inspect-col res-inspect-col--broken" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                id={`inspect-broken-${item.id}`}
-                                aria-label={`Broken quantity for ${item.asset.name}`}
-                                type="number"
-                                min={0}
-                                max={inspectReturnedQty}
-                                value={inspectionItemStates[item.id]?.quantityBroken ?? 0}
-                                onChange={(e) => {
-                                  const val = Math.max(0, parseInt(e.target.value) || 0);
-                                  const currentLost = inspectionItemStates[item.id]?.quantityLost ?? 0;
-                                  const maxBroken = Math.max(0, inspectReturnedQty - currentLost);
-                                  const clampedBroken = Math.min(maxBroken, val);
-                                  const newGood = Math.max(0, inspectReturnedQty - clampedBroken - currentLost);
-                                  setInspectionItemStates((prev) => ({
-                                    ...prev,
-                                    [item.id]: {
-                                      ...(prev[item.id] || { isVerified: true, description: "" }),
-                                      quantityBroken: clampedBroken,
-                                      quantityReturned: newGood,
-                                      quantityLost: currentLost,
-                                    },
-                                  }));
-                                }}
-                                className="control"
-                              />
-                            </div>
-
-                            <div className="res-inspect-col res-inspect-col--lost" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                id={`inspect-lost-${item.id}`}
-                                aria-label={`Lost quantity for ${item.asset.name}`}
-                                type="number"
-                                min={0}
-                                max={inspectReturnedQty}
-                                value={inspectionItemStates[item.id]?.quantityLost ?? 0}
-                                onChange={(e) => {
-                                  const val = Math.max(0, parseInt(e.target.value) || 0);
-                                  const currentBroken = inspectionItemStates[item.id]?.quantityBroken ?? 0;
-                                  const maxLost = Math.max(0, inspectReturnedQty - currentBroken);
-                                  const clampedLost = Math.min(maxLost, val);
-                                  const newGood = Math.max(0, inspectReturnedQty - currentBroken - clampedLost);
-                                  setInspectionItemStates((prev) => ({
-                                    ...prev,
-                                    [item.id]: {
-                                      ...(prev[item.id] || { isVerified: true, description: "" }),
-                                      quantityLost: clampedLost,
-                                      quantityReturned: newGood,
-                                      quantityBroken: currentBroken,
-                                    },
-                                  }));
-                                }}
-                                className="control"
-                              />
-                            </div>
-                          </>
+                          <div
+                            className="res-inspect-serial-list"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {(retItem?.units ?? []).map((unit) => {
+                              const condition =
+                                unitConditions[unit.reservationItemUnitId] ?? "GOOD";
+                              return (
+                                <div
+                                  key={unit.id}
+                                  className="res-inspect-serial-row"
+                                >
+                                  <span className="res-inspect-serial-row__serial mono">
+                                    {unit.serialNumber}
+                                  </span>
+                                  <div
+                                    className="res-condition-toggle"
+                                    role="radiogroup"
+                                    aria-label={`Condition for serial ${unit.serialNumber}`}
+                                  >
+                                    {(["GOOD", "BROKEN", "LOST"] as const).map(
+                                      (option) => (
+                                        <button
+                                          key={option}
+                                          type="button"
+                                          role="radio"
+                                          aria-checked={condition === option}
+                                          className={`res-condition-toggle__option res-condition-toggle__option--${option.toLowerCase()} ${
+                                            condition === option ? "is-active" : ""
+                                          }`}
+                                          onClick={() =>
+                                            setUnitConditions((prev) => ({
+                                              ...prev,
+                                              [unit.reservationItemUnitId]: option,
+                                            }))
+                                          }
+                                        >
+                                          {option === "GOOD"
+                                            ? "Good"
+                                            : option === "BROKEN"
+                                              ? "Broken"
+                                              : "Lost"}
+                                        </button>
+                                      ),
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         ) : (
                           <div className="res-pending-quantity">
                             {isApprovable ? (
@@ -1094,29 +1045,30 @@ export function ReservationDetailPage() {
                                 </span>
                               </>
                             ) : isReturnSelectable ? (
-                              <>
-                                <input
-                                  id={`return-qty-${item.id}`}
-                                  aria-label={`Return quantity for ${item.asset.name}`}
-                                  type="number"
-                                  min={1}
-                                  max={remainingReturn}
-                                  value={returnQuantities[item.id] ?? remainingReturn}
-                                  onChange={(e) => {
-                                    const val = Math.min(
-                                      remainingReturn,
-                                      Math.max(1, parseInt(e.target.value) || 1),
-                                    );
-                                    setReturnQuantities((prev) => ({ ...prev, [item.id]: val }));
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="control"
-                                  style={{ width: 64, height: 32, textAlign: "center", fontWeight: 700 }}
-                                />
-                                <span aria-label={`${remainingReturn} remaining to return`}>
-                                  / {remainingReturn}
-                                </span>
-                              </>
+                              <div
+                                className="res-return-serial-list"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {returnableUnits.map((unit) => (
+                                  <label
+                                    key={unit.id}
+                                    className="res-return-serial-row"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={Boolean(selectedReturnUnitIds[unit.id])}
+                                      onChange={() =>
+                                        setSelectedReturnUnitIds((prev) => ({
+                                          ...prev,
+                                          [unit.id]: !prev[unit.id],
+                                        }))
+                                      }
+                                      aria-label={`Return serial ${unit.serialNumber}`}
+                                    />
+                                    <span className="mono">{unit.serialNumber}</span>
+                                  </label>
+                                ))}
+                              </div>
                             ) : (
                               <>
                                 <strong>{item.quantity}</strong>
@@ -1166,8 +1118,8 @@ export function ReservationDetailPage() {
                               </div>
                             ) : isDelivered ? (
                               <div className="res-item-sub">
-                                {item.returnSummary?.pendingReturnQuantity
-                                  ? `Return slip submitted (${item.returnSummary.pendingReturnQuantity} units pending inspection)`
+                                {item.returnSummary?.pendingReturnCount
+                                  ? `Return slip submitted (${item.returnSummary.pendingReturnCount} units pending inspection)`
                                   : `Equipment handed over • Pending return`}
                               </div>
                             ) : isFullyReturned ? (

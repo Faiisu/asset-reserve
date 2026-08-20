@@ -34,31 +34,25 @@ export function ReservationPrintDocument({
     reservation.returns && reservation.returns.length > 0,
   );
 
-  // Return totals across all return slips
-  const totalReturnedUnits = hasReturns
-    ? reservation.returns.reduce(
-        (acc, ret) =>
-          acc +
-          ret.items.reduce((s, it) => s + (it.quantityReturned || 0), 0),
-        0,
-      )
-    : 0;
+  // Return totals across all return slips -- condition is decided per serial
+  // unit (ReturnItemUnit.condition), not as an item-level quantity.
+  const countUnitsByCondition = (condition: "GOOD" | "BROKEN" | "LOST") =>
+    hasReturns
+      ? reservation.returns.reduce(
+          (acc, ret) =>
+            acc +
+            ret.items.reduce(
+              (s, it) =>
+                s + it.units.filter((unit) => unit.condition === condition).length,
+              0,
+            ),
+          0,
+        )
+      : 0;
 
-  const totalBrokenUnits = hasReturns
-    ? reservation.returns.reduce(
-        (acc, ret) =>
-          acc + ret.items.reduce((s, it) => s + (it.quantityBroken || 0), 0),
-        0,
-      )
-    : 0;
-
-  const totalLostUnits = hasReturns
-    ? reservation.returns.reduce(
-        (acc, ret) =>
-          acc + ret.items.reduce((s, it) => s + (it.quantityLost || 0), 0),
-        0,
-      )
-    : 0;
+  const totalReturnedUnits = countUnitsByCondition("GOOD");
+  const totalBrokenUnits = countUnitsByCondition("BROKEN");
+  const totalLostUnits = countUnitsByCondition("LOST");
 
   const firstApprover = reservation.items.find(
     (item) => item.approval?.approver,
@@ -355,9 +349,7 @@ export function ReservationPrintDocument({
                           <th style={{ width: "36px", textAlign: "center" }}>#</th>
                           <th>Equipment Line Item</th>
                           <th style={{ width: "110px" }}>Area</th>
-                          <th style={{ width: "70px", textAlign: "center" }} className="res-print-th--good">Good (Restocked)</th>
-                          <th style={{ width: "65px", textAlign: "center" }} className="res-print-th--broken">Broken</th>
-                          <th style={{ width: "65px", textAlign: "center" }} className="res-print-th--lost">Lost</th>
+                          <th>Serial Units & Condition</th>
                           <th>Condition Notes / Inspector Findings</th>
                         </tr>
                       </thead>
@@ -370,21 +362,32 @@ export function ReservationPrintDocument({
                                 <strong>{rItem.assetName}</strong>
                               </td>
                               <td>{rItem.managementArea?.name ?? "—"}</td>
-                              <td style={{ textAlign: "center", fontWeight: 700, color: "#0c6a38" }}>
-                                {rItem.quantityReturned}
-                              </td>
-                              <td style={{ textAlign: "center", fontWeight: 700, color: "#b93644" }}>
-                                {rItem.quantityBroken || 0}
-                              </td>
-                              <td style={{ textAlign: "center", fontWeight: 700, color: "#b95b0c" }}>
-                                {rItem.quantityLost || 0}
+                              <td>
+                                {rItem.units.map((unit) => (
+                                  <div key={unit.id} className="res-print-serial-row">
+                                    <span className="res-print-mono">{unit.serialNumber}</span>{" "}
+                                    <span
+                                      style={{
+                                        fontWeight: 700,
+                                        color:
+                                          unit.condition === "BROKEN"
+                                            ? "#b93644"
+                                            : unit.condition === "LOST"
+                                              ? "#b95b0c"
+                                              : "#0c6a38",
+                                      }}
+                                    >
+                                      {unit.condition ?? "Pending inspection"}
+                                    </span>
+                                  </div>
+                                ))}
                               </td>
                               <td>{rItem.description || "Item in nominal operational condition."}</td>
                             </tr>
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={7} style={{ textAlign: "center", fontStyle: "italic", padding: "12px" }}>
+                            <td colSpan={5} style={{ textAlign: "center", fontStyle: "italic", padding: "12px" }}>
                               No detailed item rows recorded on this return slip.
                             </td>
                           </tr>

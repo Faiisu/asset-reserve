@@ -43,7 +43,6 @@ const asset: AssetSummary = {
   allocatedQuantity: 1,
   availableQuantity: 3,
   isActive: true,
-  status: "ACTIVE",
   managementArea: { id: "area-1", name: "Production" },
   owner: null,
   capabilities: {
@@ -113,6 +112,7 @@ const pendingReservationDetail: ReservationDetail = {
         isActive: true,
         managementArea: asset.managementArea,
       },
+      units: [],
       approval: null,
       availability: {
         assetId: asset.id,

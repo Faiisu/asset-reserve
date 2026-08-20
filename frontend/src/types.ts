@@ -313,12 +313,18 @@ export type ReservationDetail = {
       isActive: boolean;
       managementArea: ManagementAreaRef;
     };
+    units: Array<{
+      id: string;
+      assetUnitId: string;
+      serialNumber: string;
+      status: string;
+    }>;
     returnSummary?: {
-      returnedQuantity: number;
-      brokenQuantity: number;
-      lostQuantity: number;
-      lostRecoverableQuantity?: number;
-      pendingReturnQuantity: number;
+      totalUnits: number;
+      returnedGoodCount: number;
+      returnedBrokenCount: number;
+      returnedLostCount: number;
+      pendingReturnCount: number;
       remainingReturnQuantity: number;
     };
     approval: {
@@ -371,22 +377,34 @@ export type ActivityLog = {
   createdAt: string;
 };
 
+export type ReturnItemUnitCondition = "GOOD" | "BROKEN" | "LOST";
+
+export type ReturnItemUnitDetail = {
+  id: string;
+  reservationItemUnitId: string;
+  assetUnitId: string;
+  serialNumber: string;
+  condition: ReturnItemUnitCondition | null;
+  pictureUrl: string | null;
+  note: string | null;
+};
+
 export type ReturnItemDetail = {
   id: string;
   reservationItemId: string;
   assetId: string;
   assetName: string;
   managementArea: ManagementAreaRef;
-  quantityReturned: number;
-  quantityBroken: number;
-  quantityLost: number;
   description: string | null;
+  pictureUrl: string | null;
+  units: ReturnItemUnitDetail[];
 };
 
 export type ReturnDetail = {
   id: string;
   reservationId: string;
   status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
+  note: string | null;
   returnedAt: string | null;
   returnedBy: ReservationUser;
   reservation?: {
@@ -412,22 +430,24 @@ export type ReturnDetail = {
 
 export type CreateReturnItemInput = {
   reservationItemId: string;
-  quantityReturned: number;
-  quantityBroken?: number;
-  quantityLost?: number;
+  reservationItemUnitIds: string[];
   description?: string | null;
 };
 
 export type CreateReturnInput = {
   items: CreateReturnItemInput[];
+  note?: string | null;
   immediateApprove?: boolean;
+};
+
+export type DecideReturnItemUnitInput = {
+  reservationItemUnitId: string;
+  condition: ReturnItemUnitCondition;
 };
 
 export type DecideReturnItemInput = {
   reservationItemId: string;
-  quantityReturned?: number;
-  quantityBroken?: number;
-  quantityLost?: number;
+  units?: DecideReturnItemUnitInput[];
   description?: string | null;
 };
 
