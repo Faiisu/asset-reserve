@@ -69,6 +69,14 @@ export function AssetFormPage() {
   const [error, setError] = useState<unknown>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Serial units to register immediately after a brand-new asset is
+  // created -- create mode only. One POST /assets/{id}/units call right
+  // after POST /assets, same "register units" endpoint the asset-details
+  // page uses, just chained into this same submit instead of requiring a
+  // separate trip to the new asset's detail page.
+  const [unitSerialNumbers, setUnitSerialNumbers] = useState("");
+  const [unitReason, setUnitReason] = useState("");
+
   // Unified asset-photos state: every photo (batch-uploaded or captured) is
   // both a potential thumbnail and a recognition reference photo. Staged
   // locally, same as every other field here -- nothing hits either the main
@@ -262,6 +270,15 @@ export function AssetFormPage() {
     }
     if (!form.managementAreaId)
       nextFields.managementAreaId = "Select a management area";
+    if (!editing) {
+      const parsedUnitSerials = unitSerialNumbers
+        .split(/[\n,]/)
+        .map((value) => value.trim())
+        .filter(Boolean);
+      if (parsedUnitSerials.length > 200) {
+        nextFields.unitSerialNumbers = "Register at most 200 serial numbers at once";
+      }
+    }
     setFields(nextFields);
     return Object.keys(nextFields).length === 0;
   }
@@ -439,8 +456,37 @@ export function AssetFormPage() {
           }
         }
 
+        // Register any serial units entered on this same form. The asset
+        // itself is already created at this point, so a failure here must
+        // not be silently swallowed like the best-effort photo sync above
+        // -- surface it in the redirect notice so the user knows to retry
+        // from the new asset's details page instead.
+        const parsedUnitSerials = unitSerialNumbers
+          .split(/[\n,]/)
+          .map((value) => value.trim())
+          .filter(Boolean);
+        let unitWarning: string | null = null;
+        if (parsedUnitSerials.length > 0) {
+          try {
+            await api.registerAssetUnits(
+              created.id,
+              parsedUnitSerials,
+              unitReason.trim() || undefined,
+            );
+          } catch (caught) {
+            unitWarning =
+              caught instanceof ApiClientError
+                ? caught.message
+                : "Could not register the serial units";
+          }
+        }
+
         navigate(`/assets/${created.id}`, {
-          state: { notice: "New asset created" },
+          state: {
+            notice: unitWarning
+              ? `New asset created. ${unitWarning} -- register the units again from this page.`
+              : "New asset created",
+          },
         });
       }
     } catch (caught) {
@@ -518,9 +564,13 @@ export function AssetFormPage() {
       ) : mode === "batch" && !editing ? (
         <BatchAssetForm
           areas={visibleAreas}
-          onCreated={(ids) =>
+          onCreated={(ids, unitWarning) =>
             navigate(ids[0] ? `/assets/${ids[0]}` : "/assets", {
-              state: { notice: `Added ${ids.length} assets successfully` },
+              state: {
+                notice: unitWarning
+                  ? `Added ${ids.length} assets successfully. ${unitWarning}`
+                  : `Added ${ids.length} assets successfully`,
+              },
             })
           }
         />
@@ -627,6 +677,42 @@ export function AssetFormPage() {
               onSelectThumbnail={setThumbnailKey}
             />
 
+            {!editing && (
+              <section className="form-section">
+                <div className="form-section__heading">
+                  <span>03</span>
+                  <div>
+                    <h2>Serial units (optional)</h2>
+                    <p>
+                      Register the physical, serial-numbered units for this
+                      asset now, or skip and register them later from the
+                      asset details page.
+                    </p>
+                  </div>
+                </div>
+                <Field
+                  label="Serial numbers"
+                  hint="One per line, or comma-separated"
+                  error={fields.unitSerialNumbers}
+                >
+                  <Textarea
+                    value={unitSerialNumbers}
+                    onChange={(event) => setUnitSerialNumbers(event.target.value)}
+                    placeholder={"One serial number per line, e.g.\nSN-001\nSN-002"}
+                    rows={3}
+                  />
+                </Field>
+                <Field label="Reason">
+                  <Input
+                    value={unitReason}
+                    onChange={(event) => setUnitReason(event.target.value)}
+                    placeholder="For example, new stock received"
+                    maxLength={2000}
+                  />
+                </Field>
+              </section>
+            )}
+
             <div className="form-submit">
               <Button type="submit" loading={submitting}>
                 <Save size={17} />
@@ -680,6 +766,10 @@ type BatchRow = {
   // asset's pictureUrl.
   photos: PendingPhoto[];
   thumbnailId: string | null;
+  // Serial numbers to register for this row's asset right after it's
+  // created, one POST /assets/{id}/units call per row -- same pattern as
+  // the single-asset form's "Serial units" section.
+  serialNumbers: string;
 };
 
 function newBatchRow(key: number): BatchRow {
@@ -690,6 +780,7 @@ function newBatchRow(key: number): BatchRow {
     description: "",
     photos: [],
     thumbnailId: null,
+    serialNumbers: "",
   };
 }
 
@@ -698,7 +789,7 @@ function BatchAssetForm({
   onCreated,
 }: {
   areas: ManagementArea[];
-  onCreated: (ids: string[]) => void;
+  onCreated: (ids: string[], unitWarning?: string) => void;
 }) {
   const [areaId, setAreaId] = useState(areas[0]?.id ?? "");
   const [description, setDescription] = useState("");
@@ -849,7 +940,39 @@ function BatchAssetForm({
         }),
       );
 
-      onCreated(created.map((asset) => asset.id));
+      // Register each row's serial units against its newly-created asset.
+      // Unlike photos this isn't best-effort-and-forget: collect failures
+      // and surface them in the redirect notice, since the units just
+      // typed in are lost from this form once we navigate away.
+      const unitFailures: string[] = [];
+      await Promise.all(
+        rows.map(async (row, i) => {
+          const assetId = created[i]?.id;
+          const parsedSerials = row.serialNumbers
+            .split(/[\n,]/)
+            .map((value) => value.trim())
+            .filter(Boolean);
+          if (!assetId || parsedSerials.length === 0) return;
+          try {
+            await api.registerAssetUnits(assetId, parsedSerials);
+          } catch (caught) {
+            unitFailures.push(
+              `"${row.name.trim()}" (${
+                caught instanceof ApiClientError
+                  ? caught.message
+                  : "could not register units"
+              })`,
+            );
+          }
+        }),
+      );
+
+      onCreated(
+        created.map((asset) => asset.id),
+        unitFailures.length > 0
+          ? `Could not register units for: ${unitFailures.join(", ")}. Register them again from each asset's details page.`
+          : undefined,
+      );
     } catch (caught) {
       setError(
         caught instanceof ApiClientError
@@ -970,6 +1093,20 @@ function BatchAssetForm({
                   <Trash2 size={17} />
                 </button>
               </div>
+
+              <Field
+                label="Serial numbers (optional)"
+                hint="One per line, or comma-separated"
+              >
+                <Textarea
+                  value={row.serialNumbers}
+                  onChange={(event) =>
+                    update(row.key, { serialNumbers: event.target.value })
+                  }
+                  placeholder={"One serial number per line, e.g.\nSN-001\nSN-002"}
+                  rows={2}
+                />
+              </Field>
 
               <Field label="Photos" hint="First photo is used as the thumbnail -- pick another with the star.">
                 <div className="batch-row__photos">
