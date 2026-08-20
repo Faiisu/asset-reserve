@@ -262,11 +262,6 @@ export function AssetFormPage() {
     const nextFields: Record<string, string> = {};
     if (!form.name.trim()) {
       nextFields.name = "Asset name is required";
-    } else if (form.name.trim().length > 40) {
-      nextFields.name = "Asset name must be 40 characters or fewer";
-    }
-    if (form.partNumber.trim().length > 100) {
-      nextFields.partNumber = "Part number must be 100 characters or fewer";
     }
     if (!form.managementAreaId)
       nextFields.managementAreaId = "Select a management area";
@@ -588,7 +583,6 @@ export function AssetFormPage() {
               <Field
                 label="Asset name"
                 required
-                hint={`${form.name.length}/40`}
                 error={fields.name}
               >
                 <Input
@@ -597,14 +591,12 @@ export function AssetFormPage() {
                     setForm({ ...form, name: event.target.value })
                   }
                   placeholder="For example, Sony FX3 Cinema Camera"
-                  maxLength={40}
                   required
                 />
               </Field>
               <div className="form-grid form-grid--2">
                 <Field
                   label="Part number (P/N)"
-                  hint={`${form.partNumber.length}/100`}
                   error={fields.partNumber}
                 >
                   <Input
@@ -613,7 +605,6 @@ export function AssetFormPage() {
                       setForm({ ...form, partNumber: event.target.value })
                     }
                     placeholder="For example, EPS-PRJ-100"
-                    maxLength={100}
                   />
                 </Field>
                 <Field
@@ -707,7 +698,6 @@ export function AssetFormPage() {
                     value={unitReason}
                     onChange={(event) => setUnitReason(event.target.value)}
                     placeholder="For example, new stock received"
-                    maxLength={2000}
                   />
                 </Field>
               </section>
@@ -847,26 +837,6 @@ function BatchAssetForm({
     const emptyNameIndex = rows.findIndex((row) => !row.name.trim());
     if (emptyNameIndex !== -1) {
       setError(`Row ${emptyNameIndex + 1} requires an asset name.`);
-      return;
-    }
-
-    const invalidLengthIndex = rows.findIndex(
-      (row) => row.name.trim().length > 40,
-    );
-    if (invalidLengthIndex !== -1) {
-      setError(
-        `Row ${invalidLengthIndex + 1}: Asset name must be 40 characters or fewer.`,
-      );
-      return;
-    }
-
-    const invalidPartNumberIndex = rows.findIndex(
-      (row) => row.partNumber.trim().length > 100,
-    );
-    if (invalidPartNumberIndex !== -1) {
-      setError(
-        `Row ${invalidPartNumberIndex + 1}: Part number must be 100 characters or fewer.`,
-      );
       return;
     }
 
@@ -1048,7 +1018,6 @@ function BatchAssetForm({
                 <Field
                   label="Asset name"
                   required
-                  hint={`${row.name.length}/40`}
                   className="batch-row__field--name"
                 >
                   <Input
@@ -1057,7 +1026,6 @@ function BatchAssetForm({
                       update(row.key, { name: event.target.value })
                     }
                     placeholder="Asset name"
-                    maxLength={40}
                     required
                   />
                 </Field>
@@ -1068,7 +1036,6 @@ function BatchAssetForm({
                       update(row.key, { partNumber: event.target.value })
                     }
                     placeholder="Part number"
-                    maxLength={100}
                   />
                 </Field>
                 <Field label="Description" className="batch-row__field--description">

@@ -140,17 +140,4 @@ describe("AssetFormPage", () => {
     fireEvent.click(takePhotoBtn);
     expect(screen.getByText("Take asset photo")).toBeInTheDocument();
   });
-
-  it("enforces 40 character limit on asset name input", async () => {
-    render(
-      <MemoryRouter initialEntries={["/assets/new"]}>
-        <Routes>
-          <Route path="/assets/new" element={<AssetFormPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    const nameInput = (await screen.findByLabelText(/Asset name/i)) as HTMLInputElement;
-    expect(nameInput.maxLength).toBe(40);
-  });
 });
