@@ -1463,6 +1463,7 @@ export class ReservationsService {
           id: item.id,
           reservationId: item.reservationId,
           status: item.status,
+          note: item.note,
           returnedAt: item.returnedAt?.toISOString() ?? null,
           returnedBy: this.userDto(item.returner),
           items: item.items.map((retItem) => ({
@@ -1475,12 +1476,15 @@ export class ReservationsService {
               name: retItem.reservationItem.asset.managementArea.name,
             },
             description: retItem.description,
+            pictureUrl: retItem.pictureUrl,
             units: retItem.units.map((unit) => ({
               id: unit.id,
               reservationItemUnitId: unit.reservationItemUnitId,
               assetUnitId: unit.reservationItemUnit.assetUnitId,
               serialNumber: unit.reservationItemUnit.assetUnit.serialNumber,
               condition: unit.condition,
+              pictureUrl: unit.pictureUrl,
+              note: unit.note,
             })),
           })),
           approval: item.approval

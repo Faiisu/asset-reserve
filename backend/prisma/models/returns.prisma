@@ -4,6 +4,7 @@ model Return {
   returnedBy    String    @map("returned_by") @db.Uuid
   /// Supported values: PENDING, APPROVED, REJECTED, COMPLETED.
   status        String    @default("PENDING") @db.VarChar(20)
+  note          String?
   returnedAt    DateTime? @map("returned_at") @db.Timestamptz(6)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -25,6 +26,7 @@ model ReturnItem {
   returnId          String  @map("return_id") @db.Uuid
   reservationItemId String  @map("reservation_item_id") @db.Uuid
   description       String?
+  pictureUrl        String? @map("picture_url")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
@@ -44,6 +46,8 @@ model ReturnItemUnit {
   /// Supported values: GOOD, BROKEN, LOST. Null until the return is inspected and decided --
   /// set at that point, not at drop-off submission.
   condition             String? @db.VarChar(10)
+  pictureUrl            String? @map("picture_url")
+  note                  String?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 

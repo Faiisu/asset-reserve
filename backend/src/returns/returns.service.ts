@@ -370,6 +370,7 @@ export class ReturnsService {
             reservationId,
             returnedBy: actor.user.id,
             status: "PENDING",
+            note: input.note ?? null,
             returnedAt: now,
             items: {
               create: input.items.map((line) => ({
@@ -704,6 +705,7 @@ export class ReturnsService {
       id: record.id,
       reservationId: record.reservationId,
       status: record.status,
+      note: record.note,
       returnedAt: record.returnedAt?.toISOString() ?? null,
       returnedBy: this.userDto(record.returner),
       reservation: {
@@ -721,12 +723,15 @@ export class ReturnsService {
           name: item.reservationItem.asset.managementArea.name,
         },
         description: item.description,
+        pictureUrl: item.pictureUrl,
         units: item.units.map((unit) => ({
           id: unit.id,
           reservationItemUnitId: unit.reservationItemUnitId,
           assetUnitId: unit.reservationItemUnit.assetUnitId,
           serialNumber: unit.reservationItemUnit.assetUnit.serialNumber,
           condition: unit.condition,
+          pictureUrl: unit.pictureUrl,
+          note: unit.note,
         })),
       })),
       approval: record.approval
