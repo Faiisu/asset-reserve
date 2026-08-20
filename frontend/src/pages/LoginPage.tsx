@@ -55,7 +55,7 @@ export function LoginPage() {
       setError(
         caught instanceof ApiClientError && caught.status === 403
           ? "This account is disabled. Contact an administrator."
-          : "Incorrect username or password",
+          : "Username or password is incorrect.",
       );
     } finally {
       setSubmitting(false);
@@ -98,7 +98,7 @@ export function LoginPage() {
                 required
               />
             </Field>
-            <Field label="Password" hint="At least 8 characters" required>
+            <Field label="Password" required>
               <Input
                 type="password"
                 name="password"

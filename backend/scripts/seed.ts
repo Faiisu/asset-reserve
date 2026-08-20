@@ -104,14 +104,6 @@ const ids = {
     rejected: "00000000-0000-4000-8000-00000000060c",
     cancelled: "00000000-0000-4000-8000-00000000060d",
   },
-  handovers: {
-    completed: "00000000-0000-4000-8000-000000000641",
-    deliveryConfirmed: "00000000-0000-4000-8000-000000000642",
-    active: "00000000-0000-4000-8000-000000000643",
-    returnPhase: "00000000-0000-4000-8000-000000000644",
-    returnPending: "00000000-0000-4000-8000-000000000645",
-    returnConfirmed: "00000000-0000-4000-8000-000000000646",
-  },
   items: {
     completedLogic: "00000000-0000-4000-8000-000000000611",
     completedKit: "00000000-0000-4000-8000-000000000612",
@@ -876,75 +868,7 @@ async function seedMockData(): Promise<void> {
     });
   }
 
-  // 9. Seed Handovers (for delivered, active, and returned reservations)
-  const handoverInputs = [
-    {
-      id: ids.handovers.completed,
-      reservationId: ids.reservations.completed,
-      handledBy: userMap["ae@example.com"]!,
-      photoUrls: [seedImages.logicAnalyzer.url],
-      note: "Handed over equipment to requester at Lab B.",
-      handedOverAt: new Date("2026-07-20T01:30:00.000Z"),
-    },
-    {
-      id: ids.handovers.deliveryConfirmed,
-      reservationId: ids.reservations.deliveryConfirmed,
-      handledBy: userMap["ae@example.com"]!,
-      photoUrls: [seedImages.logicAnalyzer.url],
-      note: "Items handed over in good condition with cables and accessories.",
-      handedOverAt: new Date("2026-08-17T09:00:00.000Z"),
-    },
-    {
-      id: ids.handovers.active,
-      reservationId: ids.reservations.active,
-      handledBy: userMap["wh@example.com"]!,
-      photoUrls: [seedImages.platformCart.url],
-      note: "Dispatched to expo logistics team at main hall.",
-      handedOverAt: new Date("2026-08-16T00:30:00.000Z"),
-    },
-    {
-      id: ids.handovers.returnPhase,
-      reservationId: ids.reservations.returnPhase,
-      handledBy: userMap["wh@example.com"]!,
-      photoUrls: [seedImages.handTruck.url],
-      note: "Handed over to relocation crew.",
-      handedOverAt: new Date("2026-08-15T01:30:00.000Z"),
-    },
-    {
-      id: ids.handovers.returnPending,
-      reservationId: ids.reservations.returnPending,
-      handledBy: userMap["hr@example.com"]!,
-      photoUrls: [seedImages.ergonomicChair.url],
-      note: "Delivered trial chair to desk 4B.",
-      handedOverAt: new Date("2026-08-14T00:30:00.000Z"),
-    },
-    {
-      id: ids.handovers.returnConfirmed,
-      reservationId: ids.reservations.returnConfirmed,
-      handledBy: userMap["wh@example.com"]!,
-      photoUrls: [seedImages.palletJack.url],
-      note: "Assigned for storage reorganization.",
-      handedOverAt: new Date("2026-08-12T01:30:00.000Z"),
-    },
-  ] as const;
-
-  for (const handover of handoverInputs) {
-    await prisma.reservationHandover.upsert({
-      where: { id: handover.id },
-      update: {
-        handledBy: handover.handledBy,
-        photoUrls: [...handover.photoUrls],
-        note: handover.note,
-        handedOverAt: handover.handedOverAt,
-      },
-      create: {
-        ...handover,
-        photoUrls: [...handover.photoUrls],
-      },
-    });
-  }
-
-  // 10. Seed Reservation Items
+  // 9. Seed Reservation Items
   const itemInputs = [
     // COMPLETED
     {
@@ -957,7 +881,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-07-20T01:00:00.000Z"),
       checkedOutBy: userMap["ae@example.com"]!,
       checkedOutAt: new Date("2026-07-20T01:30:00.000Z"),
-      handoverId: ids.handovers.completed,
     },
     {
       id: ids.items.completedKit,
@@ -969,7 +892,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-07-20T01:00:00.000Z"),
       checkedOutBy: userMap["hr@example.com"]!,
       checkedOutAt: new Date("2026-07-20T01:30:00.000Z"),
-      handoverId: ids.handovers.completed,
     },
     // APPROVED
     {
@@ -982,7 +904,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     {
       id: ids.items.approvedMic,
@@ -994,7 +915,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     // PENDING_APPROVAL
     {
@@ -1007,7 +927,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     // DRAFT
     {
@@ -1020,7 +939,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     {
       id: ids.items.draftScanner,
@@ -1032,7 +950,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     // PENDING
     {
@@ -1045,7 +962,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     {
       id: ids.items.pendingTruck,
@@ -1057,7 +973,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     // PARTIALLY_APPROVED
     {
@@ -1070,7 +985,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     {
       id: ids.items.partialAnalyzer,
@@ -1082,7 +996,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     // DELIVERY_CONFIRMED
     {
@@ -1095,7 +1008,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-17T08:00:00.000Z"),
       checkedOutBy: userMap["ae@example.com"]!,
       checkedOutAt: new Date("2026-08-17T08:30:00.000Z"),
-      handoverId: ids.handovers.deliveryConfirmed,
     },
     {
       id: ids.items.deliveryKit,
@@ -1107,7 +1019,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-17T08:00:00.000Z"),
       checkedOutBy: userMap["hr@example.com"]!,
       checkedOutAt: new Date("2026-08-17T08:30:00.000Z"),
-      handoverId: ids.handovers.deliveryConfirmed,
     },
     // ACTIVE
     {
@@ -1120,7 +1031,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-15T15:00:00.000Z"),
       checkedOutBy: userMap["wh@example.com"]!,
       checkedOutAt: new Date("2026-08-16T00:30:00.000Z"),
-      handoverId: ids.handovers.active,
     },
     {
       id: ids.items.activeScanner,
@@ -1132,7 +1042,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-15T15:00:00.000Z"),
       checkedOutBy: userMap["wh@example.com"]!,
       checkedOutAt: new Date("2026-08-16T00:30:00.000Z"),
-      handoverId: ids.handovers.active,
     },
     // RETURN
     {
@@ -1145,7 +1054,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-15T01:00:00.000Z"),
       checkedOutBy: userMap["wh@example.com"]!,
       checkedOutAt: new Date("2026-08-15T01:30:00.000Z"),
-      handoverId: ids.handovers.returnPhase,
     },
     {
       id: ids.items.returnPhaseTruck,
@@ -1157,7 +1065,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-15T01:00:00.000Z"),
       checkedOutBy: userMap["wh@example.com"]!,
       checkedOutAt: new Date("2026-08-15T01:30:00.000Z"),
-      handoverId: ids.handovers.returnPhase,
     },
     // RETURN_PENDING
     {
@@ -1170,7 +1077,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-14T00:15:00.000Z"),
       checkedOutBy: userMap["hr@example.com"]!,
       checkedOutAt: new Date("2026-08-14T00:30:00.000Z"),
-      handoverId: ids.handovers.returnPending,
     },
     // RETURN_CONFIRMED
     {
@@ -1183,7 +1089,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-12T01:00:00.000Z"),
       checkedOutBy: userMap["wh@example.com"]!,
       checkedOutAt: new Date("2026-08-12T01:30:00.000Z"),
-      handoverId: ids.handovers.returnConfirmed,
     },
     // REJECTED
     {
@@ -1196,7 +1101,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     // CANCELLED
     {
@@ -1209,7 +1113,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     {
       id: ids.items.cancelledMic,
@@ -1221,7 +1124,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
   ] as const;
 
@@ -1235,7 +1137,6 @@ async function seedMockData(): Promise<void> {
         preparedAt: item.preparedAt,
         checkedOutBy: item.checkedOutBy,
         checkedOutAt: item.checkedOutAt,
-        handoverId: item.handoverId,
       },
       create: item,
     });
@@ -1508,8 +1409,6 @@ async function seedMockData(): Promise<void> {
     update: {
       status: "COMPLETED",
       returnedAt: new Date("2026-07-20T11:00:00.000Z"),
-      photoUrls: [seedImages.logicAnalyzer.url],
-      note: "Returned all equipment after successful test session.",
     },
     create: {
       id: ids.returns.completed,
@@ -1517,8 +1416,6 @@ async function seedMockData(): Promise<void> {
       returnedBy: userMap["user1@example.com"]!,
       status: "COMPLETED",
       returnedAt: new Date("2026-07-20T11:00:00.000Z"),
-      photoUrls: [seedImages.logicAnalyzer.url],
-      note: "Returned all equipment after successful test session.",
     },
   });
 
@@ -1584,8 +1481,6 @@ async function seedMockData(): Promise<void> {
     update: {
       status: "PENDING",
       returnedAt: new Date("2026-08-17T05:30:00.000Z"),
-      photoUrls: [seedImages.platformCart.url],
-      note: "Finished moving boxes, returning carts to warehouse.",
     },
     create: {
       id: ids.returns.returnPhase,
@@ -1593,8 +1488,6 @@ async function seedMockData(): Promise<void> {
       returnedBy: userMap["user1@example.com"]!,
       status: "PENDING",
       returnedAt: new Date("2026-08-17T05:30:00.000Z"),
-      photoUrls: [seedImages.platformCart.url],
-      note: "Finished moving boxes, returning carts to warehouse.",
     },
   });
 
@@ -1661,8 +1554,6 @@ async function seedMockData(): Promise<void> {
     update: {
       status: "PENDING",
       returnedAt: new Date("2026-08-16T10:30:00.000Z"),
-      photoUrls: [seedImages.ergonomicChair.url],
-      note: "Trial complete. Chair is in good condition.",
     },
     create: {
       id: ids.returns.returnPending,
@@ -1670,8 +1561,6 @@ async function seedMockData(): Promise<void> {
       returnedBy: userMap["user2@example.com"]!,
       status: "PENDING",
       returnedAt: new Date("2026-08-16T10:30:00.000Z"),
-      photoUrls: [seedImages.ergonomicChair.url],
-      note: "Trial complete. Chair is in good condition.",
     },
   });
 
@@ -1720,8 +1609,6 @@ async function seedMockData(): Promise<void> {
     update: {
       status: "APPROVED",
       returnedAt: new Date("2026-08-14T10:30:00.000Z"),
-      photoUrls: [seedImages.palletJack.url],
-      note: "Returned pallet jack with charging cord plugged in.",
     },
     create: {
       id: ids.returns.returnConfirmed,
@@ -1729,8 +1616,6 @@ async function seedMockData(): Promise<void> {
       returnedBy: userMap["user1@example.com"]!,
       status: "APPROVED",
       returnedAt: new Date("2026-08-14T10:30:00.000Z"),
-      photoUrls: [seedImages.palletJack.url],
-      note: "Returned pallet jack with charging cord plugged in.",
     },
   });
 

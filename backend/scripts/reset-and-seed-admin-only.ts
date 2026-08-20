@@ -90,8 +90,6 @@ async function wipeDatabase(): Promise<void> {
       "reservation_items",
       "reservation_participants",
       "reservations",
-      "asset_transactions",
-      "asset_transaction_batches",
       "assets",
       "user_roles",
       "management_areas",
