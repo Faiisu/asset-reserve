@@ -129,59 +129,6 @@ export class ReservationItemsDecisionDto extends ReservationItemDecisionDto {
   itemIds!: string[];
 }
 
-export class ReservationChangeDataDto {
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(200)
-  eventName?: string;
-
-  @IsOptional()
-  @ValidateIf((_object, value) => value !== null)
-  @IsString()
-  @MaxLength(10_000)
-  description?: string | null;
-
-  @IsOptional()
-  @IsISO8601({ strict: true })
-  startAt?: string;
-
-  @IsOptional()
-  @IsISO8601({ strict: true })
-  endAt?: string;
-
-  @IsOptional()
-  @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(100)
-  @ValidateNested({ each: true })
-  @Type(() => ReservationItemInputDto)
-  items?: ReservationItemInputDto[];
-
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(100)
-  @IsUUID(undefined, { each: true })
-  participantIds?: string[];
-}
-
-export class CreateReservationChangeRequestDto {
-  @ValidateNested()
-  @Type(() => ReservationChangeDataDto)
-  changeData!: ReservationChangeDataDto;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(2_000)
-  reason?: string;
-}
-
-export class ReservationChangeRequestDecisionDto {
-  @IsIn(["APPROVE", "REJECT"])
-  decision!: "APPROVE" | "REJECT";
-}
-
 export class CancelReservationDto {
   @IsOptional()
   @IsString()

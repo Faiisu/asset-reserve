@@ -16,11 +16,8 @@ import {
 import type {
   CancelReservationDto,
   ConfirmDeliveryDto,
-  CreateReservationChangeRequestDto,
   CreateReservationDto,
   PrepareReservationItemDto,
-  ReservationChangeDataDto,
-  ReservationChangeRequestDecisionDto,
   ReservationItemDecisionDto,
   ReservationItemsDecisionDto,
   ReservationItemInputDto,
@@ -42,12 +39,6 @@ const allocatedItemStatuses = [
   "CHECKED_OUT",
   "DELIVERED",
 ];
-const editableReservationStatuses = [
-  "PENDING_APPROVAL",
-  "PARTIALLY_APPROVED",
-  "APPROVED",
-];
-
 const reservationInclude = {
   requester: { include: { profile: true } },
   participants: {
@@ -64,13 +55,6 @@ const reservationInclude = {
       },
     },
     orderBy: { createdAt: "asc" },
-  },
-  changeRequests: {
-    include: {
-      requester: { include: { profile: true } },
-      reviewer: { include: { profile: true } },
-    },
-    orderBy: { createdAt: "desc" },
   },
   returns: {
     include: {
@@ -106,10 +90,6 @@ const reservationListInclude = {
     include: { asset: { include: { managementArea: true } } },
     orderBy: { createdAt: "asc" },
   },
-  changeRequests: {
-    where: { status: "PENDING" },
-    select: { id: true },
-  },
 } satisfies Prisma.ReservationInclude;
 
 type ReservationDetailRecord = Prisma.ReservationGetPayload<{
@@ -120,15 +100,6 @@ type ReservationDb = Pick<
   Prisma.TransactionClient,
   "asset" | "reservationItem" | "assetUnit"
 >;
-
-type StoredChangeData = {
-  eventName?: string;
-  description?: string | null;
-  startAt?: string;
-  endAt?: string;
-  items?: Array<{ assetId: string; quantity: number }>;
-  participantIds?: string[];
-};
 
 type Availability = {
   assetId: string;
@@ -704,371 +675,6 @@ export class ReservationsService {
     return detail;
   }
 
-  async requestChange(
-    actor: AuthenticatedActor,
-    reservationId: string,
-    input: CreateReservationChangeRequestDto,
-  ) {
-    const reservation = await this.findDetail(reservationId);
-    if (reservation.requesterId !== actor.user.id) {
-      this.permissionDenied();
-    }
-    this.assertCanManage(actor, reservation);
-    if (!editableReservationStatuses.includes(reservation.status)) {
-      throw this.invalidStatus(
-        "Changes can only be requested after submission and before activation.",
-      );
-    }
-    const changeData = this.normalizeChangeData(input.changeData);
-    if (!Object.keys(changeData).length) {
-      throw new ApiException(
-        422,
-        "VALIDATION_ERROR",
-        "At least one reservation change is required.",
-        { changeData: "Provide a field to change." },
-      );
-    }
-    const startAt = new Date(changeData.startAt ?? reservation.startAt);
-    const endAt = new Date(changeData.endAt ?? reservation.endAt);
-    this.assertDateRange(startAt, endAt);
-    const items = changeData.items ?? reservation.items;
-    this.assertUniqueItems(items);
-    const assets = await this.findAssets(items.map((item) => item.assetId));
-    for (const asset of assets) {
-      const allowed =
-        hasAreaPermission(
-          actor,
-          "reservation:update",
-          asset.managementAreaId,
-        ) ||
-        (reservation.requesterId === actor.user.id &&
-          hasAreaPermission(
-            actor,
-            "reservation:create",
-            asset.managementAreaId,
-          ));
-      if (!allowed) this.permissionDenied();
-    }
-    if (changeData.participantIds) {
-      await this.assertParticipants(
-        this.normalizeParticipantIds(
-          changeData.participantIds,
-          reservation.requesterId,
-        ),
-      );
-    }
-
-    const id = randomUUID();
-    try {
-      await this.runSerializable(async (tx) => {
-        await this.assertActiveActor(tx, actor.user.id);
-        const editable = await tx.reservation.findFirst({
-          where: {
-            id: reservationId,
-            status: { in: editableReservationStatuses },
-          },
-          select: { id: true },
-        });
-        if (!editable) {
-          throw this.invalidStatus(
-            "The reservation can no longer accept change requests.",
-          );
-        }
-        const pending = await tx.reservationChangeRequest.findFirst({
-          where: { reservationId, status: "PENDING" },
-          select: { id: true },
-        });
-        if (pending) {
-          throw new ApiException(
-            409,
-            "CHANGE_REQUEST_PENDING",
-            "This reservation already has a pending change request.",
-          );
-        }
-        await tx.reservationChangeRequest.create({
-          data: {
-            id,
-            reservationId,
-            requestedBy: actor.user.id,
-            changeData: changeData as Prisma.InputJsonValue,
-            reason: input.reason ?? null,
-          },
-        });
-        await this.logActivity(tx, {
-          reservationId,
-          actorId: actor.user.id,
-          action: "CHANGE_REQUESTED",
-          entityType: "CHANGE_REQUEST",
-          entityId: id,
-          details: { reason: input.reason ?? null },
-        });
-      });
-    } catch (error) {
-      if (this.prismaCode(error) === "P2002") {
-        throw new ApiException(
-          409,
-          "CHANGE_REQUEST_PENDING",
-          "This reservation already has a pending change request.",
-        );
-      }
-      throw error;
-    }
-    return this.get(actor, reservationId);
-  }
-
-  async decideChangeRequest(
-    actor: AuthenticatedActor,
-    reservationId: string,
-    changeRequestId: string,
-    input: ReservationChangeRequestDecisionDto,
-  ) {
-    const current = await this.prisma.reservationChangeRequest.findFirst({
-      where: { id: changeRequestId, reservationId },
-      include: {
-        reservation: { include: { items: { include: { asset: true } } } },
-      },
-    });
-    if (!current) {
-      throw new ApiException(
-        404,
-        "CHANGE_REQUEST_NOT_FOUND",
-        "The reservation change request was not found.",
-      );
-    }
-    const changeData = this.storedChangeData(current.changeData);
-    const permission: PermissionKey =
-      input.decision === "APPROVE"
-        ? "reservation:approve"
-        : "reservation:reject";
-    if (input.decision === "APPROVE") {
-      const desiredItems = changeData.items ?? current.reservation.items;
-      const desiredAssets = await this.findAssets(
-        desiredItems.map((item) => item.assetId),
-      );
-      const affectedAssets = new Map(
-        [
-          ...current.reservation.items.map((item) => item.asset),
-          ...desiredAssets,
-        ].map((asset) => [asset.id, asset] as const),
-      );
-      for (const asset of affectedAssets.values()) {
-        this.assertArea(actor, permission, asset.managementAreaId);
-      }
-    } else {
-      for (const item of current.reservation.items) {
-        this.assertArea(actor, permission, item.asset.managementAreaId);
-      }
-    }
-
-    await this.runSerializable(async (tx) => {
-      await this.assertActiveActor(tx, actor.user.id);
-      const request = await tx.reservationChangeRequest.findFirst({
-        where: { id: changeRequestId, reservationId },
-        include: {
-          reservation: { include: { items: { include: { asset: true } } } },
-        },
-      });
-      if (!request) {
-        throw new ApiException(
-          404,
-          "CHANGE_REQUEST_NOT_FOUND",
-          "The reservation change request was not found.",
-        );
-      }
-      if (request.status !== "PENDING") {
-        throw this.invalidStatus(
-          "This change request has already been decided.",
-        );
-      }
-      if (!editableReservationStatuses.includes(request.reservation.status)) {
-        throw this.invalidStatus(
-          "The reservation can no longer be changed through this request.",
-        );
-      }
-
-      const decidedAt = new Date();
-      if (input.decision === "REJECT") {
-        await tx.reservationChangeRequest.update({
-          where: { id: changeRequestId },
-          data: {
-            status: "REJECTED",
-            reviewedBy: actor.user.id,
-            reviewedAt: decidedAt,
-          },
-        });
-        await this.logActivity(tx, {
-          reservationId,
-          actorId: actor.user.id,
-          action: "CHANGE_REJECTED",
-          entityType: "CHANGE_REQUEST",
-          entityId: changeRequestId,
-          details: { reason: current.reason },
-        });
-        return;
-      }
-
-      const data = this.storedChangeData(request.changeData);
-      const startAt = new Date(data.startAt ?? request.reservation.startAt);
-      const endAt = new Date(data.endAt ?? request.reservation.endAt);
-      this.assertDateRange(startAt, endAt);
-      const requestedItems = data.items ?? request.reservation.items;
-      this.assertUniqueItems(requestedItems);
-      const assets = await tx.asset.findMany({
-        where: { id: { in: requestedItems.map((item) => item.assetId) } },
-      });
-      this.assertAllAssetsFoundAndActive(requestedItems, assets);
-      await this.lockAssets(
-        tx,
-        requestedItems.map((item) => item.assetId),
-      );
-
-      const approvedOnApply = ["APPROVED", "PARTIALLY_APPROVED"].includes(
-        request.reservation.status,
-      );
-      const currentByAsset = new Map(
-        request.reservation.items.map((item) => [item.assetId, item] as const),
-      );
-      const resultingItems = requestedItems.map((item) => ({
-        ...item,
-        status:
-          currentByAsset.get(item.assetId)?.status ??
-          (approvedOnApply ? "APPROVED" : "PENDING"),
-      }));
-      const allocatedItems = resultingItems.filter((item) =>
-        allocatedItemStatuses.includes(item.status),
-      );
-      if (allocatedItems.length) {
-        await this.assertAvailability(
-          tx,
-          allocatedItems,
-          assets,
-          startAt,
-          endAt,
-          reservationId,
-        );
-      }
-
-      if (data.items) {
-        const desiredIds = new Set(data.items.map((item) => item.assetId));
-        const removedIds = request.reservation.items
-          .filter((item) => !desiredIds.has(item.assetId))
-          .map((item) => item.id);
-        if (removedIds.length) {
-          await tx.reservationItemApproval.deleteMany({
-            where: { reservationItemId: { in: removedIds } },
-          });
-          await tx.reservationItem.deleteMany({
-            where: { id: { in: removedIds } },
-          });
-        }
-        for (const item of resultingItems) {
-          const existing = currentByAsset.get(item.assetId);
-          if (existing) {
-            await tx.reservationItem.update({
-              where: { id: existing.id },
-              data: { quantity: item.quantity, updatedAt: decidedAt },
-            });
-            if (allocatedItemStatuses.includes(existing.status)) {
-              await tx.reservationItemApproval.upsert({
-                where: { reservationItemId: existing.id },
-                create: {
-                  id: randomUUID(),
-                  reservationItemId: existing.id,
-                  approverId: actor.user.id,
-                  status: "APPROVED",
-                  comment: "Approved reservation change",
-                  decidedAt,
-                },
-                update: {
-                  approverId: actor.user.id,
-                  status: "APPROVED",
-                  comment: "Approved reservation change",
-                  decidedAt,
-                },
-              });
-            }
-          } else {
-            const created = await tx.reservationItem.create({
-              data: {
-                id: randomUUID(),
-                reservationId,
-                assetId: item.assetId,
-                quantity: item.quantity,
-                status: item.status,
-              },
-            });
-            if (item.status === "APPROVED") {
-              await tx.reservationItemApproval.create({
-                data: {
-                  id: randomUUID(),
-                  reservationItemId: created.id,
-                  approverId: actor.user.id,
-                  status: "APPROVED",
-                  comment: "Approved reservation change",
-                  decidedAt,
-                },
-              });
-            }
-          }
-        }
-      }
-
-      if (data.participantIds) {
-        const participantIds = this.normalizeParticipantIds(
-          data.participantIds,
-          request.reservation.requesterId,
-        );
-        await tx.reservationParticipant.deleteMany({
-          where: { reservationId },
-        });
-        if (participantIds.length) {
-          await tx.reservationParticipant.createMany({
-            data: participantIds.map((userId) => ({ reservationId, userId })),
-          });
-        }
-      }
-
-      const statuses = await tx.reservationItem.findMany({
-        where: { reservationId },
-        select: { status: true },
-      });
-      await tx.reservation.update({
-        where: { id: reservationId },
-        data: {
-          ...(data.eventName !== undefined
-            ? { eventName: data.eventName }
-            : {}),
-          ...(data.description !== undefined
-            ? { description: data.description }
-            : {}),
-          startAt,
-          endAt,
-          status: this.reservationStatusFromItems(
-            statuses.map((row) => row.status),
-          ),
-          updatedAt: decidedAt,
-        },
-      });
-      await tx.reservationChangeRequest.update({
-        where: { id: changeRequestId },
-        data: {
-          status: "APPROVED",
-          reviewedBy: actor.user.id,
-          reviewedAt: decidedAt,
-        },
-      });
-      await this.logActivity(tx, {
-        reservationId,
-        actorId: actor.user.id,
-        action: "CHANGE_APPROVED",
-        entityType: "CHANGE_REQUEST",
-        entityId: changeRequestId,
-        details: { reason: current.reason },
-      });
-    });
-    return this.get(actor, reservationId);
-  }
-
   async prepareItem(
     actor: AuthenticatedActor,
     reservationId: string,
@@ -1434,14 +1040,6 @@ export class ReservationsService {
           updatedAt: cancelledAt,
         },
       });
-      await tx.reservationChangeRequest.updateMany({
-        where: { reservationId, status: "PENDING" },
-        data: {
-          status: "CANCELLED",
-          reviewedBy: actor.user.id,
-          reviewedAt: cancelledAt,
-        },
-      });
       await this.logActivity(tx, {
         reservationId,
         actorId: actor.user.id,
@@ -1518,14 +1116,6 @@ export class ReservationsService {
         (this.areaIsPermitted(approveAreaIds, item.asset.managementAreaId) ||
           this.areaIsPermitted(rejectAreaIds, item.asset.managementAreaId)),
     ).length;
-    const canReviewChange =
-      reservation.changeRequests.length > 0 &&
-      (reservation.items.every((item) =>
-        this.areaIsPermitted(approveAreaIds, item.asset.managementAreaId),
-      ) ||
-        reservation.items.every((item) =>
-          this.areaIsPermitted(rejectAreaIds, item.asset.managementAreaId),
-        ));
     const statusCounts = reservation.items.reduce<Record<string, number>>(
       (counts, item) => ({
         ...counts,
@@ -1558,16 +1148,10 @@ export class ReservationsService {
         (statusCounts.DELIVERED ?? 0) +
         (statusCounts.RETURNED ?? 0),
       rejectedItemCount: statusCounts.REJECTED ?? 0,
-      hasPendingChangeRequest: reservation.changeRequests.length > 0,
-      pendingDecisionCount: actionableItems + (canReviewChange ? 1 : 0),
+      pendingDecisionCount: actionableItems,
       capabilities: {
         canSubmit: canManage && reservation.status === "DRAFT",
-        canRequestChange:
-          reservation.requesterId === actor.user.id &&
-          canManage &&
-          editableReservationStatuses.includes(reservation.status) &&
-          reservation.changeRequests.length === 0,
-        canReview: actionableItems > 0 || canReviewChange,
+        canReview: actionableItems > 0,
         canConfirmDelivery:
           ["APPROVED", "PARTIALLY_APPROVED"].includes(reservation.status) &&
           reservation.items.some(
@@ -1619,21 +1203,6 @@ export class ReservationsService {
         },
       });
     }
-    for (const areaIds of [approveAreaIds, rejectAreaIds]) {
-      if (areaIds !== null && !areaIds.length) continue;
-      conditions.push({
-        changeRequests: { some: { status: "PENDING" } },
-        ...(areaIds === null
-          ? {}
-          : {
-              items: {
-                every: {
-                  asset: { managementAreaId: { in: areaIds } },
-                },
-              },
-            }),
-      });
-    }
     return conditions;
   }
 
@@ -1669,21 +1238,6 @@ export class ReservationsService {
                 }),
           },
         },
-      });
-    }
-    for (const areaIds of [approveAreaIds, rejectAreaIds]) {
-      if (areaIds !== null && !areaIds.length) continue;
-      conditions.push({
-        changeRequests: { some: { status: { in: ["APPROVED", "REJECTED"] } } },
-        ...(areaIds === null
-          ? {}
-          : {
-              items: {
-                every: {
-                  asset: { managementAreaId: { in: areaIds } },
-                },
-              },
-            }),
       });
     }
     return conditions;
@@ -1895,16 +1449,6 @@ export class ReservationsService {
           },
         };
       }),
-      changeRequests: reservation.changeRequests.map((request) => ({
-        id: request.id,
-        changeData: request.changeData,
-        reason: request.reason,
-        status: request.status,
-        requestedBy: this.userDto(request.requester),
-        reviewedBy: request.reviewer ? this.userDto(request.reviewer) : null,
-        reviewedAt: request.reviewedAt?.toISOString() ?? null,
-        createdAt: request.createdAt.toISOString(),
-      })),
       returns: reservation.returns.map((item) => {
         const canApprove =
           item.status === "PENDING" &&
@@ -1958,10 +1502,6 @@ export class ReservationsService {
       }),
       capabilities: {
         canSubmit: canManage && reservation.status === "DRAFT",
-        canRequestChange:
-          reservation.requesterId === actor.user.id &&
-          canManage &&
-          editableReservationStatuses.includes(reservation.status),
         canPrepare:
           ["APPROVED", "PARTIALLY_APPROVED"].includes(reservation.status) &&
           reservation.items.some(
@@ -2227,41 +1767,6 @@ export class ReservationsService {
         "One or more participants were not found or are inactive.",
       );
     }
-  }
-
-  private normalizeChangeData(
-    input: ReservationChangeDataDto,
-  ): StoredChangeData {
-    return {
-      ...(input.eventName !== undefined ? { eventName: input.eventName } : {}),
-      ...(input.description !== undefined
-        ? { description: input.description }
-        : {}),
-      ...(input.startAt !== undefined ? { startAt: input.startAt } : {}),
-      ...(input.endAt !== undefined ? { endAt: input.endAt } : {}),
-      ...(input.items !== undefined
-        ? {
-            items: input.items.map((item) => ({
-              assetId: item.assetId,
-              quantity: item.quantity,
-            })),
-          }
-        : {}),
-      ...(input.participantIds !== undefined
-        ? { participantIds: [...input.participantIds] }
-        : {}),
-    };
-  }
-
-  private storedChangeData(value: Prisma.JsonValue): StoredChangeData {
-    if (!value || Array.isArray(value) || typeof value !== "object") {
-      throw new ApiException(
-        500,
-        "INVALID_CHANGE_REQUEST",
-        "The stored reservation change request is invalid.",
-      );
-    }
-    return value as StoredChangeData;
   }
 
   private reservationStatusFromItems(statuses: string[]) {

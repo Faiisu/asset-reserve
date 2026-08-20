@@ -152,9 +152,6 @@ const ids = {
     cancelledCamera: "00000000-0000-4000-8000-000000000655",
     cancelledMic: "00000000-0000-4000-8000-000000000656",
   },
-  changeRequests: {
-    approvedExt: "00000000-0000-4000-8000-000000000671",
-  },
   returns: {
     completed: "00000000-0000-4000-8000-000000000701",
     returnPhase: "00000000-0000-4000-8000-000000000702",
@@ -1381,25 +1378,6 @@ async function seedMockData(): Promise<void> {
       },
     });
   }
-
-  // 12. Seed Reservation Change Request
-  await prisma.reservationChangeRequest.upsert({
-    where: { id: ids.changeRequests.approvedExt },
-    update: {},
-    create: {
-      id: ids.changeRequests.approvedExt,
-      reservationId: ids.reservations.approved,
-      requestedBy: userMap["user1@example.com"]!,
-      changeData: {
-        eventName: "Product Launch Video Shoot (Extended)",
-        endAt: "2026-09-10T14:00:00.000Z",
-      },
-      reason: "Client extended the shooting schedule by 3 hours.",
-      status: "PENDING",
-      reviewedBy: null,
-      reviewedAt: null,
-    },
-  });
 
   // 13. Seed Return Records
   let returnItemUnitOffset = 0;

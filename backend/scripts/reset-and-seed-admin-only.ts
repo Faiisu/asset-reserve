@@ -85,7 +85,6 @@ async function wipeDatabase(): Promise<void> {
       "return_approvals",
       "return_items",
       "returns",
-      "reservation_change_requests",
       "reservation_item_approvals",
       "reservation_items",
       "reservation_participants",

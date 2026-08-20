@@ -12,12 +12,11 @@ model Reservation {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  requester      User                       @relation("ReservationRequester", fields: [requesterId], references: [id])
-  items          ReservationItem[]
-  participants   ReservationParticipant[]
-  changeRequests ReservationChangeRequest[]
-  returns        Return[]
-  activityLogs   ActivityLog[]              @relation("ReservationActivityLogs")
+  requester    User                     @relation("ReservationRequester", fields: [requesterId], references: [id])
+  items        ReservationItem[]
+  participants ReservationParticipant[]
+  returns      Return[]
+  activityLogs ActivityLog[]            @relation("ReservationActivityLogs")
 
   // Database CHECK required by the source specification: end_at > start_at.
   @@index([requesterId, createdAt])
@@ -116,28 +115,4 @@ model ReservationItemApproval {
 
   @@index([approverId])
   @@map("reservation_item_approvals")
-}
-
-model ReservationChangeRequest {
-  id            String    @id @db.Uuid
-  reservationId String    @map("reservation_id") @db.Uuid
-  requestedBy   String    @map("requested_by") @db.Uuid
-  changeData    Json      @map("change_data") @db.JsonB
-  reason        String?
-  /// Supported values: PENDING, APPROVED, REJECTED, CANCELLED.
-  status        String    @default("PENDING") @db.VarChar(20)
-  reviewedBy    String?   @map("reviewed_by") @db.Uuid
-  reviewedAt    DateTime? @map("reviewed_at") @db.Timestamptz(6)
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  reservation Reservation @relation(fields: [reservationId], references: [id])
-  requester   User        @relation("ReservationChangeRequestedBy", fields: [requestedBy], references: [id])
-  reviewer    User?       @relation("ReservationChangeReviewedBy", fields: [reviewedBy], references: [id])
-
-  @@unique([reservationId], map: "reservation_change_requests_one_pending", where: { status: "PENDING" })
-  @@index([reservationId, status])
-  @@index([requestedBy])
-  @@index([reviewedBy])
-  @@map("reservation_change_requests")
 }

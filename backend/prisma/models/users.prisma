@@ -16,21 +16,19 @@ model User {
 
   profile                      UserProfile?
   authIdentities               UserAuthIdentity[]
-  userRoles                    UserRole[]                 @relation("UserRoleUser")
-  assignedUserRoles            UserRole[]                 @relation("UserRoleAssignedBy")
-  createdAssets                Asset[]                    @relation("AssetCreatedBy")
+  userRoles                    UserRole[]                @relation("UserRoleUser")
+  assignedUserRoles            UserRole[]                @relation("UserRoleAssignedBy")
+  createdAssets                Asset[]                   @relation("AssetCreatedBy")
   assetUnitEventBatches        AssetUnitEventBatch[]
-  requestedReservations        Reservation[]              @relation("ReservationRequester")
-  preparedReservationItems     ReservationItem[]          @relation("ReservationItemPreparedBy")
-  checkedOutItems              ReservationItem[]          @relation("ReservationItemCheckedOutBy")
+  requestedReservations        Reservation[]             @relation("ReservationRequester")
+  preparedReservationItems     ReservationItem[]         @relation("ReservationItemPreparedBy")
+  checkedOutItems              ReservationItem[]         @relation("ReservationItemCheckedOutBy")
   assignedReservationItemUnits ReservationItemUnit[]
   reservationParticipants      ReservationParticipant[]
   reservationApprovals         ReservationItemApproval[]
-  requestedChanges             ReservationChangeRequest[] @relation("ReservationChangeRequestedBy")
-  reviewedChanges              ReservationChangeRequest[] @relation("ReservationChangeReviewedBy")
-  returns                      Return[]                   @relation("ReturnReturnedBy")
+  returns                      Return[]                  @relation("ReturnReturnedBy")
   returnApprovals              ReturnApproval[]
-  activityLogs                 ActivityLog[]              @relation("UserActivityLogs")
+  activityLogs                 ActivityLog[]             @relation("UserActivityLogs")
   updatedNotificationSettings  NotificationSettings[]
   updatedEmailTemplates        EmailTemplate[]
 

@@ -12,10 +12,8 @@ import type { AuthenticatedActor } from "../auth/auth.types.js";
 import {
   CancelReservationDto,
   ConfirmDeliveryDto,
-  CreateReservationChangeRequestDto,
   CreateReservationDto,
   PrepareReservationItemDto,
-  ReservationChangeRequestDecisionDto,
   ReservationItemDecisionDto,
   ReservationItemsDecisionDto,
   SubmitReservationDto,
@@ -77,30 +75,6 @@ export class ReservationsController {
     @Body() input: ReservationItemsDecisionDto,
   ) {
     return this.reservations.decideItems(actor, reservationId, input);
-  }
-
-  @Post(":reservationId/change-requests")
-  requestChange(
-    @CurrentActor() actor: AuthenticatedActor,
-    @Param("reservationId", new ParseUUIDPipe()) reservationId: string,
-    @Body() input: CreateReservationChangeRequestDto,
-  ) {
-    return this.reservations.requestChange(actor, reservationId, input);
-  }
-
-  @Post(":reservationId/change-requests/:changeRequestId/decision")
-  decideChangeRequest(
-    @CurrentActor() actor: AuthenticatedActor,
-    @Param("reservationId", new ParseUUIDPipe()) reservationId: string,
-    @Param("changeRequestId", new ParseUUIDPipe()) changeRequestId: string,
-    @Body() input: ReservationChangeRequestDecisionDto,
-  ) {
-    return this.reservations.decideChangeRequest(
-      actor,
-      reservationId,
-      changeRequestId,
-      input,
-    );
   }
 
   @Post(":reservationId/items/:itemId/prepare")
