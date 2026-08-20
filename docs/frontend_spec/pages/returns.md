@@ -4,8 +4,6 @@
 
 > **Implemented, embedded in reservation detail.** Return creation and decision เป็น feature จริง เรียกจาก `ReservationDetailPage.tsx` ไม่มี standalone `/returns` route — flow อยู่ใน `/reservations/:id`
 
-> ปัจจุบัน frontend มี known bug ในการส่ง return payload — ดูสถานะล่าสุดที่ [status/implementation-status.md](../../status/implementation-status.md)
-
 ## Return workflow — UI layout
 
 ### Create return

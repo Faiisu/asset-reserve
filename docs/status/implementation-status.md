@@ -75,7 +75,7 @@ Permission key ที่ควบคุมแต่ละ action ดู [softwar
 - `PREPARED` step (`POST /reservations/:id/items/:itemId/prepare` — assign serial-numbered unit ให้ item ก่อนส่งมอบ) ไม่มี API client หรือ UI command เลย reservation จึงข้ามจาก `APPROVED` ไป `delivery-confirm` ตรงๆ โดยไม่ผ่านขั้น assign unit ทาง UI
 - `CHECKED_OUT`/`RETURNED` มี frontend command แล้ว (`confirmDelivery`, `createReturn`, `decideReturn` ใน `ReservationDetailPage`) — ไม่ใช่ gap อีกต่อไป
 - ไม่มี standalone inventory-adjustment route; การปรับยอดทำจาก asset list/detail
-- **Return payload shape ปัจจุบันผิดฝั่ง frontend**: backend DTO (`backend/src/returns/returns.dto.ts`) และ contract ([backend_spec/contracts/components/schemas/reservations.yaml](../backend_spec/contracts/components/schemas/reservations.yaml)) ตรวจ per-serial-unit shape (`reservationItemUnitIds` ตอน drop-off, `{reservationItemUnitId, condition}` ตอน decision) แต่ frontend ยังส่ง quantity-based shape เก่า (`quantityReturned`/`quantityBroken`/`quantityLost`) ซึ่งถูก backend validation ปฏิเสธด้วย `422` — ผลคือ submit/decide return ผ่าน UI ใช้งานไม่ได้จริงในปัจจุบัน ต้องแก้ frontend request builder ให้ตรง contract
+- Return payload shape (`reservationItemUnitIds` ตอน drop-off, per-unit `{reservationItemUnitId, condition}` จัดกลุ่มตาม `reservationItemId` ตอน decision) — frontend (`ReservationDetailPage`) แก้ให้ตรง backend DTO แล้ว ไม่ใช่ gap อีกต่อไป
 - Asset units: backend มี `POST /assets/units/batch-retire` และ `PATCH /assets/units/:assetUnitId/status` แต่ frontend ไม่มี UI เรียกเส้นทางเหล่านี้ ต้องปลดระวางหรือแก้ status ผ่าน API/DB ตรงๆ
 - Frontend ยังใช้ `asset.totalQuantity` และ batch stock add/remove ตามโมเดลเก่า ยังไม่ตามโมเดล serial-numbered `AssetUnit` เต็มรูปแบบที่ backend ใช้แล้ว
 

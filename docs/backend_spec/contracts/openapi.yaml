@@ -355,8 +355,10 @@ components:
       $ref: ./components/schemas/reservations.yaml#/ReturnItemInput
     CreateReturnRequest:
       $ref: ./components/schemas/reservations.yaml#/CreateReturnRequest
-    ReturnDecisionItemInput:
-      $ref: ./components/schemas/reservations.yaml#/ReturnDecisionItemInput
+    DecideReturnItemUnitInput:
+      $ref: ./components/schemas/reservations.yaml#/DecideReturnItemUnitInput
+    DecideReturnItemInput:
+      $ref: ./components/schemas/reservations.yaml#/DecideReturnItemInput
     ReturnDecisionRequest:
       $ref: ./components/schemas/reservations.yaml#/ReturnDecisionRequest
     ReturnItemUnitDetail:
