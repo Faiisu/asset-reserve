@@ -1,0 +1,393 @@
+/reservations:
+  get:
+    tags:
+      - Reservations
+    summary: List reservations visible or actionable to the current user
+    operationId: listReservations
+    parameters:
+      - name: view
+        in: query
+        description: >-
+          MINE: reservations the caller requested. PARTICIPATING: reservations the caller is
+          a participant on. APPROVALS: reservations currently awaiting the caller's
+          reservation:approve/reject decision in scope. APPROVAL_HISTORY: reservations the
+          caller has already decided on. ALL: every reservation visible under the caller's
+          reservation:view scope (global or per management area).
+        schema:
+          type: string
+          enum: [MINE, PARTICIPATING, APPROVALS, APPROVAL_HISTORY, ALL]
+          default: MINE
+      - name: status
+        in: query
+        schema:
+          $ref: "#/components/schemas/ReservationStatus"
+      - name: areaId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        description: Include reservations ending after this instant.
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: Include reservations starting before this instant.
+        schema:
+          type: string
+          format: date-time
+      - $ref: "#/components/parameters/Search"
+      - $ref: "#/components/parameters/Cursor"
+      - $ref: "#/components/parameters/Limit"
+    responses:
+      "200":
+        description: Cursor-paginated reservation summaries scoped to the actor.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationListResponse"
+      "400":
+        $ref: "#/components/responses/BadRequest"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+  post:
+    tags:
+      - Reservations
+    summary: Create a draft or pending reservation
+    operationId: createReservation
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CreateReservationRequest"
+    responses:
+      "201":
+        description: Reservation detail with availability and overlap warnings.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationDetail"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+      "409":
+        $ref: "#/components/responses/Conflict"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/reservations/{reservationId}:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+  get:
+    tags:
+      - Reservations
+    summary: Get reservation details, assets, approvals, warnings, changes, and returns
+    operationId: getReservation
+    responses:
+      "200":
+        description: Reservation detail.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationDetail"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+/reservations/{reservationId}/submit:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+  post:
+    tags:
+      - Reservations
+    summary: Submit a draft reservation for approval
+    operationId: submitReservation
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/SubmitReservationRequest"
+    responses:
+      "201":
+        description: Submitted reservation detail.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationDetail"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+      "409":
+        $ref: "#/components/responses/Conflict"
+/reservations/{reservationId}/items/{itemId}/decision:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+    - $ref: "#/components/parameters/ReservationItemId"
+  post:
+    tags:
+      - Reservations
+    summary: Approve or reject one reservation item
+    description: Approval locks the asset and rechecks approved overlapping quantities in a serializable transaction.
+    operationId: decideReservationItem
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ReservationItemDecisionRequest"
+    responses:
+      "201":
+        description: Updated reservation detail.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationDetail"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+      "409":
+        $ref: "#/components/responses/Conflict"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/reservations/{reservationId}/items/{itemId}/prepare:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+    - $ref: "#/components/parameters/ReservationItemId"
+  post:
+    tags:
+      - Reservations
+    summary: Assign serial-numbered units to an approved item before delivery
+    description: >-
+      Requires the item's status to be APPROVED. Assigns exactly the item's approved quantity
+      of ACTIVE asset units, moving each to RESERVED and the item to PREPARED. Run in a
+      serializable transaction; fails with 409 if a selected unit is no longer ACTIVE.
+    operationId: prepareReservationItem
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/PrepareReservationItemRequest"
+    responses:
+      "201":
+        description: Updated reservation detail.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationDetail"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+      "409":
+        $ref: "#/components/responses/Conflict"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/reservations/{reservationId}/items/decision:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+  post:
+    tags:
+      - Reservations
+    summary: Approve or reject selected reservation items together
+    description: The batch is atomic. Approval locks assets in stable order and rechecks approved overlapping quantities before recording any decision.
+    operationId: decideReservationItems
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ReservationItemsDecisionRequest"
+    responses:
+      "201":
+        description: Updated reservation detail.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationDetail"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+      "409":
+        $ref: "#/components/responses/Conflict"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/reservations/{reservationId}/change-requests:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+  post:
+    tags:
+      - Reservations
+    summary: Request changes after a reservation has been submitted
+    description: Supports event details, time range, full asset-item replacement, and participant replacement. Only one request may be pending per reservation.
+    operationId: createReservationChangeRequest
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CreateReservationChangeRequest"
+    responses:
+      "201":
+        description: Reservation detail containing the pending change request.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationDetail"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+      "409":
+        $ref: "#/components/responses/Conflict"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/reservations/{reservationId}/change-requests/{changeRequestId}/decision:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+    - $ref: "#/components/parameters/ChangeRequestId"
+  post:
+    tags:
+      - Reservations
+    summary: Approve or reject a reservation change request
+    description: Approval applies the validated change and rechecks all approved allocations atomically.
+    operationId: decideReservationChangeRequest
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ReservationChangeRequestDecisionRequest"
+    responses:
+      "201":
+        description: Updated reservation detail.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationDetail"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+      "409":
+        $ref: "#/components/responses/Conflict"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/reservations/{reservationId}/delivery-confirm:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+  post:
+    tags: [Reservations]
+    summary: Confirm equipment delivery
+    operationId: confirmDelivery
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ConfirmDeliveryRequest" }
+    responses:
+      "201":
+        description: Reservation detail with delivery confirmed status.
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReservationDetail" }
+      "401": { $ref: "#/components/responses/Unauthorized" }
+      "403": { $ref: "#/components/responses/Forbidden" }
+      "404": { $ref: "#/components/responses/NotFound" }
+      "409": { $ref: "#/components/responses/Conflict" }
+      "422": { $ref: "#/components/responses/ValidationError" }
+/reservations/{reservationId}/returns:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+  post:
+    tags: [Reservations]
+    summary: Submit a return slip for equipment drop-off
+    operationId: createReturnSlip
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/CreateReturnRequest" }
+    responses:
+      "201":
+        description: Created return record awaiting inspection.
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReturnDetail" }
+      "401": { $ref: "#/components/responses/Unauthorized" }
+      "403": { $ref: "#/components/responses/Forbidden" }
+      "404": { $ref: "#/components/responses/NotFound" }
+      "409": { $ref: "#/components/responses/Conflict" }
+      "422": { $ref: "#/components/responses/ValidationError" }
+/reservations/{reservationId}/returns/{returnId}/decision:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+    - $ref: "#/components/parameters/ReturnId"
+  post:
+    tags: [Reservations]
+    summary: Approve or reject return slip inspection with Good, Broken, Lost condition breakdown
+    operationId: decideReturnSlip
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ReturnDecisionRequest" }
+    responses:
+      "201":
+        description: Updated return record and completed reservation.
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReturnDetail" }
+      "401": { $ref: "#/components/responses/Unauthorized" }
+      "403": { $ref: "#/components/responses/Forbidden" }
+      "404": { $ref: "#/components/responses/NotFound" }
+      "409": { $ref: "#/components/responses/Conflict" }
+      "422": { $ref: "#/components/responses/ValidationError" }
+/reservations/{reservationId}/cancel:
+  parameters:
+    - $ref: "#/components/parameters/ReservationId"
+  post:
+    tags: [Reservations]
+    summary: Cancel a reservation and release its allocations
+    operationId: cancelReservation
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/CancelReservationRequest" }
+    responses:
+      "201":
+        description: Cancelled reservation detail.
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReservationDetail" }
+      "401": { $ref: "#/components/responses/Unauthorized" }
+      "403": { $ref: "#/components/responses/Forbidden" }
+      "404": { $ref: "#/components/responses/NotFound" }
+      "409": { $ref: "#/components/responses/Conflict" }
+      "422": { $ref: "#/components/responses/ValidationError" }

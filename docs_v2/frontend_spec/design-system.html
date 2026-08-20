@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asset Reservation — Frontend Design System & UI Baseline</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --font-sans: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --mono: "IBM Plex Mono", monospace;
+
+      /* Light Theme Colors */
+      --ink: #10213a;
+      --ink-soft: #4f6074;
+      --ink-faint: #748296;
+      --canvas: #eef3f5;
+      --surface: #ffffff;
+      --surface-raised: #f8fafb;
+      --line: #d7e0e5;
+      --line-strong: #bdcad2;
+
+      /* Semantic Accents */
+      --blue: #225be2;
+      --blue-dark: #1746b6;
+      --blue-soft: #e9efff;
+      --teal: #087a70;
+      --teal-soft: #dff4ef;
+      --amber: #b95b0c;
+      --amber-soft: #fff0d9;
+      --red: #b93644;
+      --red-soft: #fde9ec;
+      --purple: #7251b5;
+      --purple-soft: #f0eafb;
+      --green: #267447;
+      --green-soft: #e4f4e9;
+
+      --shadow: 0 12px 35px rgba(16, 33, 58, 0.08);
+      --shadow-sm: 0 2px 8px rgba(16, 33, 58, 0.05);
+      --radius: 14px;
+      --radius-sm: 8px;
+    }
+
+    :root[data-theme="dark"] {
+      --ink: #e8eef3;
+      --ink-soft: #b5c1ce;
+      --ink-faint: #8594a5;
+      --canvas: #0e1725;
+      --surface: #152234;
+      --surface-raised: #19283b;
+      --line: #2b3b50;
+      --line-strong: #40536a;
+
+      --blue: #7096ff;
+      --blue-dark: #8baaff;
+      --blue-soft: #1c315c;
+      --teal: #65c6b7;
+      --teal-soft: #163d3a;
+      --amber: #f0a65c;
+      --amber-soft: #49331d;
+      --red: #f0808c;
+      --red-soft: #4d242b;
+      --purple: #bea2f5;
+      --purple-soft: #34294d;
+      --green: #77ce99;
+      --green-soft: #1c3d2b;
+
+      --shadow: 0 18px 45px rgba(0, 0, 0, 0.25);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--canvas);
+      color: var(--ink);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      transition: background 150ms ease, color 150ms ease;
+      padding: 40px 24px 80px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 48px;
+    }
+
+    /* Top Banner / Hero */
+    .hero {
+      padding: 32px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 8px;
+    }
+
+    .page-title {
+      font-size: clamp(30px, 3.5vw, 44px);
+      font-weight: 700;
+      letter-spacing: -0.045em;
+      line-height: 1.1;
+      margin-bottom: 12px;
+    }
+
+    .page-description {
+      font-size: 15px;
+      color: var(--ink-soft);
+      max-width: 680px;
+      line-height: 1.6;
+    }
+
+    .theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-raised);
+      color: var(--ink);
+      cursor: pointer;
+      transition: all 120ms ease;
+    }
+    .theme-toggle:hover {
+      border-color: var(--line-strong);
+      background: var(--surface);
+    }
+
+    /* Section Cards */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .section-header {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      margin-bottom: 4px;
+    }
+
+    .section-desc {
+      font-size: 13px;
+      color: var(--ink-soft);
+    }
+
+    /* Typography Scale Showcase */
+    .type-specimen {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .type-row {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      align-items: baseline;
+      gap: 24px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .type-row:last-child {
+      border-bottom: 0;
+    }
+
+    .type-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .type-meta strong {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .type-meta code {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink-faint);
+    }
+
+    /* Color Swatches Grid */
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .color-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--surface-raised);
+    }
+
+    .color-swatch {
+      height: 70px;
+      width: 100%;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .color-info {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .color-info strong {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .color-info code {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink-soft);
+    }
+
+    /* UI Components Demo */
+    .component-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+    }
+
+    .demo-box {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 20px;
+      background: var(--surface-raised);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .demo-box h4 {
+      font-size: 14px;
+      font-weight: 650;
+      color: var(--ink-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-family: var(--mono);
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 8px;
+    }
+
+    /* Badges */
+    .badge-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+
+    .badge--draft { background: var(--surface-raised); color: var(--ink-soft); border: 1px solid var(--line); }
+    .badge--pending { background: var(--amber-soft); color: var(--amber); }
+    .badge--approved { background: var(--teal-soft); color: var(--teal); }
+    .badge--rejected { background: var(--red-soft); color: var(--red); }
+    .badge--cancelled { background: color-mix(in srgb, var(--ink-faint) 12%, var(--surface)); color: var(--ink-faint); }
+    .badge--active { background: var(--blue-soft); color: var(--blue); }
+    .badge--completed { background: var(--green-soft); color: var(--green); }
+
+    /* Quantity availability badges */
+    .qty-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 5px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .qty-badge--full { background: var(--green-soft); color: var(--green); }
+    .qty-badge--partial { background: var(--amber-soft); color: var(--amber); }
+    .qty-badge--none { background: var(--red-soft); color: var(--red); }
+
+    /* Asset Option Card Specimen */
+    .asset-card {
+      min-height: 84px;
+      padding: 12px 14px;
+      display: grid;
+      grid-template-columns: 58px minmax(0, 1fr) 22px;
+      align-items: center;
+      gap: 13px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface);
+      transition: all 140ms ease;
+      cursor: pointer;
+    }
+    .asset-card:hover {
+      border-color: var(--line-strong);
+      background: var(--surface-raised);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(16, 33, 58, 0.05);
+    }
+    .asset-card--selected {
+      border-color: var(--blue);
+      background: var(--blue-soft);
+      box-shadow: 0 2px 8px color-mix(in srgb, var(--blue) 14%, transparent);
+    }
+    .asset-card--unavailable {
+      border-style: dashed;
+      border-color: var(--line);
+      background: color-mix(in srgb, var(--surface-raised) 75%, var(--surface));
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .asset-thumb {
+      width: 58px;
+      height: 58px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      object-fit: cover;
+      background: var(--surface-raised);
+      display: grid;
+      place-items: center;
+      color: var(--ink-faint);
+    }
+
+    .asset-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .asset-info strong {
+      font-size: 13.5px;
+      font-weight: 650;
+      color: var(--ink);
+      line-height: 1.35;
+    }
+    .asset-info small {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 11.5px;
+      color: var(--ink-soft);
+    }
+
+    .asset-check {
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      border: 1.5px solid var(--line-strong);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--blue);
+    }
+    .asset-card--selected .asset-check {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #fff;
+    }
+
+    /* Buttons */
+    .btn-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 16px;
+      min-height: 40px;
+      font-family: var(--font-sans);
+      font-size: 13.5px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 120ms ease;
+    }
+    .btn--primary {
+      background: var(--blue);
+      color: #ffffff;
+    }
+    .btn--primary:hover {
+      background: var(--blue-dark);
+    }
+    .btn--secondary {
+      background: var(--surface);
+      border-color: var(--line-strong);
+      color: var(--ink);
+    }
+    .btn--secondary:hover {
+      background: var(--surface-raised);
+      border-color: var(--ink-soft);
+    }
+    .btn--danger {
+      background: var(--red-soft);
+      border-color: color-mix(in srgb, var(--red) 30%, var(--line));
+      color: var(--red);
+    }
+    .btn--danger:hover {
+      background: var(--red);
+      color: #ffffff;
+    }
+    .btn--sm {
+      min-height: 32px;
+      padding: 0 11px;
+      font-size: 12px;
+    }
+
+    /* Form Controls */
+    .input-field {
+      width: 100%;
+      height: 40px;
+      padding: 0 12px;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--ink);
+      outline: none;
+      transition: border 120ms ease, box-shadow 120ms ease;
+    }
+    .input-field:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 12%, transparent);
+    }
+
+    /* Reference Table */
+    .spec-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .spec-table th,
+    .spec-table td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+    }
+    .spec-table th {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ink-faint);
+      background: var(--surface-raised);
+    }
+    .spec-table code {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      background: var(--surface-raised);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Top Hero Banner -->
+    <header class="hero">
+      <div>
+        <span class="eyebrow">Frontend Specification</span>
+        <h1 class="page-title">UI Design System & Baseline Guide</h1>
+        <p class="page-description">
+          This standalone design reference provides the standard typography scale, color tokens, component patterns, and availability badge formats for developers implementing frontend features in the Asset Reservation platform.
+        </p>
+      </div>
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
+        🌙 Switch Theme
+      </button>
+    </header>
+
+    <!-- Typography Scale Section -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Typography Scale & Hierarchy</h2>
+        <p class="section-desc">Primary sans font is <strong>Instrument Sans</strong>; data, IDs, and numeric metrics use <strong>IBM Plex Mono</strong>.</p>
+      </div>
+
+      <div class="type-specimen">
+
+        <!-- Eyebrow -->
+        <div class="type-row">
+          <div class="type-meta">
+            <strong>Eyebrow / Super-title</strong>
+            <code>.eyebrow</code>
+            <code>IBM Plex Mono 11px / 600</code>
+          </div>
+          <div>
+            <span class="eyebrow" style="margin:0;">01 / SCHEDULE & ASSETS</span>
+          </div>
+        </div>
+
+        <!-- H1 -->
+        <div class="type-row">
+          <div class="type-meta">
+            <strong>Page Header (H1)</strong>
+            <code>.page-header h1</code>
+            <code>clamp(30px, 3vw, 44px) / 700</code>
+          </div>
+          <div>
+            <h1 style="font-size: 36px; font-weight: 700; letter-spacing: -0.045em; line-height: 1.05; margin: 0;">
+              Production Calendar
+            </h1>
+          </div>
+        </div>
+
+        <!-- Page Description -->
+        <div class="type-row">
+          <div class="type-meta">
+            <strong>Page Description</strong>
+            <code>.page-header__description</code>
+            <code>Instrument Sans 14px / 400</code>
+          </div>
+          <div>
+            <p class="page-description" style="margin: 0;">
+              Review timeline schedules, monitor asset conflicts across departments, and initiate equipment reservations.
+            </p>
+          </div>
+        </div>
+
+        <!-- H2 -->
+        <div class="type-row">
+          <div class="type-meta">
+            <strong>Section Header (H2)</strong>
+            <code>h2, .section-title</code>
+            <code>Instrument Sans 18px–22px / 700</code>
+          </div>
+          <div>
+            <h2 style="font-size: 20px; font-weight: 700; letter-spacing: -0.025em; margin: 0;">
+              Choose Assets for Reservation
+            </h2>
+          </div>
+        </div>
+
+        <!-- H3 -->
+        <div class="type-row">
+          <div class="type-meta">
+            <strong>Panel / Sub-header (H3)</strong>
+            <code>h3, .card-title</code>
+            <code>Instrument Sans 15px–16px / 650</code>
+          </div>
+          <div>
+            <h3 style="font-size: 16px; font-weight: 650; letter-spacing: -0.015em; margin: 0;">
+              Assigned Equipment Manifest
+            </h3>
+          </div>
+        </div>
+
+        <!-- Body Text -->
+        <div class="type-row">
+          <div class="type-meta">
+            <strong>Body Regular</strong>
+            <code>p, span, .text-body</code>
+            <code>Instrument Sans 13.5px / 400</code>
+          </div>
+          <div>
+            <p style="font-size: 13.5px; color: var(--ink); margin: 0;">
+              Standard interface copy for descriptions, input field values, data lists, and general paragraph blocks.
+            </p>
+          </div>
+        </div>
+
+        <!-- Small / Caption -->
+        <div class="type-row">
+          <div class="type-meta">
+            <strong>Caption / Metadata</strong>
+            <code>small, .text-meta</code>
+            <code>Instrument Sans 11.5px / 500</code>
+          </div>
+          <div>
+            <small style="font-size: 11.5px; color: var(--ink-soft);">
+              Audio Engineering Lab · Updated 2 hours ago by admin
+            </small>
+          </div>
+        </div>
+
+        <!-- Data Code / Badges -->
+        <div class="type-row">
+          <div class="type-meta">
+            <strong>Mono Data & Badges</strong>
+            <code>.mono, code, em</code>
+            <code>IBM Plex Mono 10.5px / 600</code>
+          </div>
+          <div>
+            <code style="font-family: var(--mono); font-size: 11px; background: var(--surface-raised); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line);">
+              UUID: res_9832a-f10c · 2026-08-16
+            </code>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Color Palette Section -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Color Palette & Semantic Tokens</h2>
+        <p class="section-desc">Harmonious HSL-tailored tokens with automatic dark mode support.</p>
+      </div>
+
+      <div class="color-grid">
+        <!-- Canvas -->
+        <div class="color-card">
+          <div class="color-swatch" style="background: var(--canvas);"></div>
+          <div class="color-info">
+            <strong>Canvas</strong>
+            <code>var(--canvas)</code>
+          </div>
+        </div>
+
+        <!-- Surface -->
+        <div class="color-card">
+          <div class="color-swatch" style="background: var(--surface);"></div>
+          <div class="color-info">
+            <strong>Surface</strong>
+            <code>var(--surface)</code>
+          </div>
+        </div>
+
+        <!-- Primary Ink -->
+        <div class="color-card">
+          <div class="color-swatch" style="background: var(--ink);"></div>
+          <div class="color-info">
+            <strong>Primary Ink</strong>
+            <code>var(--ink)</code>
+          </div>
+        </div>
+
+        <!-- Blue (Primary) -->
+        <div class="color-card">
+          <div class="color-swatch" style="background: var(--blue);"></div>
+          <div class="color-info">
+            <strong>Brand Blue</strong>
+            <code>var(--blue)</code>
+          </div>
+        </div>
+
+        <!-- Green (Full stock) -->
+        <div class="color-card">
+          <div class="color-swatch" style="background: var(--green);"></div>
+          <div class="color-info">
+            <strong>Green (Success)</strong>
+            <code>var(--green)</code>
+          </div>
+        </div>
+
+        <!-- Amber (Partial stock) -->
+        <div class="color-card">
+          <div class="color-swatch" style="background: var(--amber);"></div>
+          <div class="color-info">
+            <strong>Amber (Warning)</strong>
+            <code>var(--amber)</code>
+          </div>
+        </div>
+
+        <!-- Red (Zero stock) -->
+        <div class="color-card">
+          <div class="color-swatch" style="background: var(--red);"></div>
+          <div class="color-info">
+            <strong>Red (Error/None)</strong>
+            <code>var(--red)</code>
+          </div>
+        </div>
+
+        <!-- Teal -->
+        <div class="color-card">
+          <div class="color-swatch" style="background: var(--teal);"></div>
+          <div class="color-info">
+            <strong>Teal (Approved)</strong>
+            <code>var(--teal)</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Component Patterns: Choose Assets & Availability Badges -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Asset Option Cards & Availability Badge Rules</h2>
+        <p class="section-desc">Standardized asset cards used in Calendar Choose Assets panel and reservation compose flows.</p>
+      </div>
+
+      <div class="component-grid">
+
+        <!-- Asset Card (Full Availability: 10 of 10) -->
+        <div class="demo-box">
+          <h4>1. Full Stock (Green: 10 of 10)</h4>
+          <div class="asset-card">
+            <div class="asset-thumb">📷</div>
+            <div class="asset-info">
+              <strong>Studio Camera 4K Pro</strong>
+              <small>
+                Production Lab · <span class="qty-badge qty-badge--full">10 of 10</span>
+              </small>
+            </div>
+            <div class="asset-check"></div>
+          </div>
+        </div>
+
+        <!-- Asset Card (Partial Availability: 9 of 10) -->
+        <div class="demo-box">
+          <h4>2. Partial Stock (Amber: 9 of 10)</h4>
+          <div class="asset-card asset-card--selected">
+            <div class="asset-thumb">🎙️</div>
+            <div class="asset-info">
+              <strong>Wireless Lavalier Microphone</strong>
+              <small>
+                Audio Lab · <span class="qty-badge qty-badge--partial">9 of 10</span>
+              </small>
+            </div>
+            <div class="asset-check">✓</div>
+          </div>
+        </div>
+
+        <!-- Asset Card (Zero Availability: Fully booked) -->
+        <div class="demo-box">
+          <h4>3. Zero Stock (Red: 0 of 10 / Fully Booked)</h4>
+          <div class="asset-card asset-card--unavailable">
+            <div class="asset-thumb">💡</div>
+            <div class="asset-info">
+              <strong>LED Studio Spotlight Rig</strong>
+              <small>
+                Lighting Lab · <span class="qty-badge qty-badge--none">Fully booked</span>
+              </small>
+            </div>
+            <div class="asset-check"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Size & Layout Specification Table -->
+      <div style="margin-top: 24px; overflow-x: auto;">
+        <table class="spec-table">
+          <thead>
+            <tr>
+              <th>Element / Rule</th>
+              <th>Selector / Class</th>
+              <th>Dimensions & Sizing</th>
+              <th>Typography / Icon Rules</th>
+              <th>Notes & Context</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Option Card Container</strong></td>
+              <td><code>.calendar-asset-option, .asset-card</code></td>
+              <td><code>min-height: 84px</code> (picker: <code>74px</code>), <code>padding: 12px 14px</code>, radius <code>12px</code></td>
+              <td>Grid: <code>58px minmax(0, 1fr) 22px</code>, <code>gap: 13px</code></td>
+              <td>Interactive selectable row with hover elevation and selected outline</td>
+            </tr>
+            <tr>
+              <td><strong>Asset Thumbnail</strong></td>
+              <td><code>.asset-picture, .asset-thumb</code></td>
+              <td><code>width: 58px; height: 58px;</code> radius <code>10px</code></td>
+              <td>Placeholder icon: <code>Archive size=28</code> (Hero: <code>180px × 180px</code> / <code>size=48</code>)</td>
+              <td>Aspect-ratio 1:1, <code>object-fit: cover</code> with soft background fallback</td>
+            </tr>
+            <tr>
+              <td><strong>Asset Title & Name</strong></td>
+              <td><code>.asset-info strong, .asset-name-cell strong</code></td>
+              <td><code>font-size: 14px – 14.5px</code></td>
+              <td>Instrument Sans, <code>font-weight: 650</code>, <code>line-height: 1.35</code></td>
+              <td>Truncates with ellipsis when constrained; highlights on hover</td>
+            </tr>
+            <tr>
+              <td><strong>Area & Scope Subtitle</strong></td>
+              <td><code>.asset-info small, .table-secondary</code></td>
+              <td><code>font-size: 11.5px – 12px</code></td>
+              <td>Instrument Sans, <code>font-weight: 450–500</code>, <code>color: var(--ink-soft)</code></td>
+              <td>Displays Management Area and availability chip inline</td>
+            </tr>
+            <tr>
+              <td><strong>Full Stock Badge (🟢)</strong></td>
+              <td><code>.qty-badge--full, .calendar-asset-option__availability--full</code></td>
+              <td><code>padding: 3px 8px</code>, radius <code>5px</code></td>
+              <td>IBM Plex Mono <code>11px / 700</code>, <code>var(--green)</code> on <code>var(--green-soft)</code></td>
+              <td>Active when <code>availableQuantity === totalQuantity</code> (e.g. <code>10 of 10</code>)</td>
+            </tr>
+            <tr>
+              <td><strong>Partial Stock Badge (🟡)</strong></td>
+              <td><code>.qty-badge--partial, .calendar-asset-option__availability--partial</code></td>
+              <td><code>padding: 3px 8px</code>, radius <code>5px</code></td>
+              <td>IBM Plex Mono <code>11px / 700</code>, <code>var(--amber)</code> on <code>var(--amber-soft)</code></td>
+              <td>Active when <code>availableQuantity &gt; 0 &amp;&amp; &lt; totalQuantity</code> (e.g. <code>9 of 10</code>)</td>
+            </tr>
+            <tr>
+              <td><strong>Fully Booked Badge (🔴)</strong></td>
+              <td><code>.qty-badge--none, .calendar-asset-option__availability--none</code></td>
+              <td><code>padding: 3px 8px</code>, radius <code>5px</code></td>
+              <td>IBM Plex Mono <code>11px / 700</code>, <code>var(--red)</code> on <code>var(--red-soft)</code></td>
+              <td>Active when <code>availableQuantity &lt;= 0</code> (e.g. <code>Fully booked</code>), dims card &amp; disables</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Action Buttons & Status Badges -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Buttons & Lifecycle Status Badges</h2>
+        <p class="section-desc">Interactive buttons and standardized reservation status chips.</p>
+      </div>
+
+      <div class="component-grid">
+        <!-- Buttons Demo -->
+        <div class="demo-box">
+          <h4>Button Styles</h4>
+          <div class="btn-wrap">
+            <button class="btn btn--primary">Primary Action</button>
+            <button class="btn btn--secondary">Secondary</button>
+            <button class="btn btn--danger">Cancel Event</button>
+            <button class="btn btn--secondary btn--sm">Small Button</button>
+          </div>
+        </div>
+
+        <!-- Reservation Status Chips -->
+        <div class="demo-box">
+          <h4>Reservation Status Badges</h4>
+          <div class="badge-wrap">
+            <span class="badge badge--draft">Draft</span>
+            <span class="badge badge--pending">Pending Approval</span>
+            <span class="badge badge--approved">Approved</span>
+            <span class="badge badge--active">Active</span>
+            <span class="badge badge--completed">Completed</span>
+            <span class="badge badge--rejected">Rejected</span>
+            <span class="badge badge--cancelled">Cancelled</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Page Section Layout Patterns Section -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Page Section Layout Patterns</h2>
+        <p class="section-desc">Standard page structures, toolbars, split workspaces, data tables, and notification banners across the application.</p>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 32px;">
+
+        <!-- Pattern 1: Page Header Section -->
+        <div class="demo-box" style="background: var(--surface);">
+          <h4>Pattern 1: Page Header Section (<code>.page-header</code>)</h4>
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; padding: 12px 0;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-faint); margin-bottom: 6px;">
+                <span>Inventory</span> <span>/</span> <span style="color: var(--ink);">Assets</span>
+              </div>
+              <h1 style="font-size: 32px; font-weight: 700; letter-spacing: -0.045em; line-height: 1.1; margin: 0;">Equipment & Assets</h1>
+              <p style="font-size: 14px; color: var(--ink-soft); margin-top: 6px; line-height: 1.5;">Manage asset inventory, check total quantity counts, and monitor area assignments.</p>
+            </div>
+            <div class="btn-wrap">
+              <button class="btn btn--secondary">Export CSV</button>
+              <button class="btn btn--primary">+ Add Asset</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pattern 2: Search & Filter Toolbar Section -->
+        <div class="demo-box" style="background: var(--surface);">
+          <h4>Pattern 2: Filter Toolbar Section (<code>.toolbar</code>)</h4>
+          <div style="padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 260px;">
+              <input class="input-field" style="max-width: 320px;" placeholder="Search assets or serial numbers..." value="" />
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 11.5px; color: var(--ink-faint); font-weight: 600;">Area:</span>
+                <select class="input-field" style="width: auto; height: 38px; padding-right: 28px;">
+                  <option>All Workspaces</option>
+                  <option>Production Lab</option>
+                  <option>Audio Lab</option>
+                </select>
+              </div>
+            </div>
+            <div style="font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft);">
+              Showing <strong>42</strong> assets
+            </div>
+          </div>
+        </div>
+
+        <!-- Pattern 3: 2-Column Split Workspace Section -->
+        <div class="demo-box" style="background: var(--surface);">
+          <h4>Pattern 3: 2-Column Split Layout (<code>.calendar-workspace</code> / <code>.record-form</code>)</h4>
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px;">
+            <!-- Left Main Rail -->
+            <div style="border: 1px solid var(--line); border-radius: 12px; padding: 20px; background: var(--surface-raised); display: flex; flex-direction: column; gap: 12px;">
+              <span class="eyebrow" style="margin:0;">Left Rail (Main Workspace: 1fr)</span>
+              <strong style="font-size: 16px;">Calendar Board / Main Form</strong>
+              <p style="font-size: 13px; color: var(--ink-soft); margin:0;">Contains the primary interactive calendar grid, month controls, filters, and timeline events.</p>
+            </div>
+            <!-- Right Aside Panel -->
+            <div style="border: 1px solid var(--line); border-radius: 12px; padding: 20px; background: var(--surface); display: flex; flex-direction: column; gap: 12px;">
+              <span class="eyebrow" style="margin:0;">Right Aside (360px Fixed)</span>
+              <strong style="font-size: 16px;">Choose Assets / Manifest</strong>
+              <p style="font-size: 13px; color: var(--ink-soft); margin:0;">Displays asset search, availability indicators, selection manifest, and primary booking CTA.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pattern 4: Data Table Section -->
+        <div class="demo-box" style="background: var(--surface);">
+          <h4>Pattern 4: Data Table Section (<code>.data-table-wrap</code>)</h4>
+          <div style="border: 1px solid var(--line); border-radius: 12px; overflow: hidden;">
+            <table class="spec-table" style="margin:0;">
+              <thead>
+                <tr>
+                  <th style="width: 40px; text-align: center;"><input type="checkbox" /></th>
+                  <th>Asset Name</th>
+                  <th>Management Area</th>
+                  <th>Available / Total</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="text-align: center;"><input type="checkbox" /></td>
+                  <td><strong>Studio Camera 4K</strong></td>
+                  <td>Production Lab</td>
+                  <td><span class="qty-badge qty-badge--full">10 of 10</span></td>
+                  <td><span class="badge badge--approved">Active</span></td>
+                </tr>
+                <tr>
+                  <td style="text-align: center;"><input type="checkbox" /></td>
+                  <td><strong>Wireless Microphone Set</strong></td>
+                  <td>Audio Lab</td>
+                  <td><span class="qty-badge qty-badge--partial">3 of 8</span></td>
+                  <td><span class="badge badge--pending">In Use</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Pattern 5: Notice & Alert Banners -->
+        <div class="demo-box" style="background: var(--surface);">
+          <h4>Pattern 5: Notice & Alert Banners (<code>.notice</code>, <code>.error-state</code>)</h4>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="padding: 12px 16px; border: 1px solid color-mix(in srgb, var(--teal) 30%, var(--line)); border-radius: 9px; background: var(--teal-soft); color: var(--teal); font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px;">
+              <span>ℹ️</span> <span>Reservation approved successfully. Notification sent to participants.</span>
+            </div>
+            <div style="padding: 12px 16px; border: 1px solid color-mix(in srgb, var(--amber) 30%, var(--line)); border-radius: 9px; background: var(--amber-soft); color: var(--amber); font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px;">
+              <span>⚠️</span> <span>Selected time range has limited available units for some items.</span>
+            </div>
+            <div style="padding: 12px 16px; border: 1px solid color-mix(in srgb, var(--red) 30%, var(--line)); border-radius: 9px; background: var(--red-soft); color: var(--red); font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px;">
+              <span>🚨</span> <span>Unable to complete reservation: Requested asset is fully booked during this schedule.</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Page Patterns (Archetypes) Section -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">6 Core Page Patterns (Archetypes)</h2>
+        <p class="section-desc">Application page archetypes implemented across routes in the frontend architecture.</p>
+      </div>
+
+      <div class="component-grid" style="grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));">
+
+        <!-- Pattern 1: Interactive Board -->
+        <div class="demo-box" style="background: var(--surface);">
+          <span class="eyebrow" style="margin:0;">Pattern 01</span>
+          <h3 style="font-size: 16px; font-weight: 700; margin: 0;">Interactive Board / Timeline</h3>
+          <p style="font-size: 12.5px; color: var(--ink-soft); margin: 0;"><strong>Route:</strong> <code>/calendar</code></p>
+          <div style="border: 1px dashed var(--line-strong); border-radius: 8px; padding: 12px; font-family: var(--mono); font-size: 11px; background: var(--surface-raised); display: flex; flex-direction: column; gap: 6px;">
+            <div style="background: var(--surface); padding: 6px; border: 1px solid var(--line); border-radius: 4px;">Top: Month & Range Controls + Workspace Filters</div>
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 6px;">
+              <div style="background: var(--blue-soft); color: var(--blue); padding: 12px 6px; text-align: center; border-radius: 4px;">Calendar Grid & Matrix</div>
+              <div style="background: var(--teal-soft); color: var(--teal); padding: 12px 6px; text-align: center; border-radius: 4px;">Live Asset Picker (360px)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pattern 2: List & Data Ledger -->
+        <div class="demo-box" style="background: var(--surface);">
+          <span class="eyebrow" style="margin:0;">Pattern 02</span>
+          <h3 style="font-size: 16px; font-weight: 700; margin: 0;">List & Data Ledger</h3>
+          <p style="font-size: 12.5px; color: var(--ink-soft); margin: 0;"><strong>Routes:</strong> <code>/assets</code>, <code>/reservations</code>, <code>/admin/users</code></p>
+          <div style="border: 1px dashed var(--line-strong); border-radius: 8px; padding: 12px; font-family: var(--mono); font-size: 11px; background: var(--surface-raised); display: flex; flex-direction: column; gap: 6px;">
+            <div style="background: var(--surface); padding: 6px; border: 1px solid var(--line); border-radius: 4px;">Header (Title + "+ New" Action)</div>
+            <div style="background: var(--surface); padding: 6px; border: 1px solid var(--line); border-radius: 4px;">Filter Toolbar (Search + Scope + Status)</div>
+            <div style="background: var(--surface); padding: 16px 6px; text-align: center; border: 1px solid var(--line); border-radius: 4px;">Interactive Data Table with Checkbox Rows</div>
+          </div>
+        </div>
+
+        <!-- Pattern 3: Entity Detail & Lifecycle Review -->
+        <div class="demo-box" style="background: var(--surface);">
+          <span class="eyebrow" style="margin:0;">Pattern 03</span>
+          <h3 style="font-size: 16px; font-weight: 700; margin: 0;">Entity Detail & Review</h3>
+          <p style="font-size: 12.5px; color: var(--ink-soft); margin: 0;"><strong>Routes:</strong> <code>/reservations/:id</code>, <code>/assets/:id</code></p>
+          <div style="border: 1px dashed var(--line-strong); border-radius: 8px; padding: 12px; font-family: var(--mono); font-size: 11px; background: var(--surface-raised); display: flex; flex-direction: column; gap: 6px;">
+            <div style="background: var(--blue-soft); color: var(--blue); padding: 10px; border-radius: 4px;">Hero: Event Name + Status Badge + Actions</div>
+            <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 6px;">
+              <div style="background: var(--surface); padding: 12px 6px; text-align: center; border: 1px solid var(--line); border-radius: 4px;">Item Approvals & Manifest</div>
+              <div style="background: var(--surface); padding: 12px 6px; text-align: center; border: 1px solid var(--line); border-radius: 4px;">Timeline Logs & Audit</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pattern 4: Compose & Form -->
+        <div class="demo-box" style="background: var(--surface);">
+          <span class="eyebrow" style="margin:0;">Pattern 04</span>
+          <h3 style="font-size: 16px; font-weight: 700; margin: 0;">Compose & Multi-Step Form</h3>
+          <p style="font-size: 12.5px; color: var(--ink-soft); margin: 0;"><strong>Routes:</strong> <code>/reservations/new</code>, <code>/assets/new</code></p>
+          <div style="border: 1px dashed var(--line-strong); border-radius: 8px; padding: 12px; font-family: var(--mono); font-size: 11px; background: var(--surface-raised); display: flex; flex-direction: column; gap: 6px;">
+            <div style="background: var(--surface); padding: 6px; border: 1px solid var(--line); border-radius: 4px;">Header: Breadcrumbs + Step Indicator</div>
+            <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 6px;">
+              <div style="background: var(--surface); padding: 14px 6px; text-align: center; border: 1px solid var(--line); border-radius: 4px;">Form Fields & Batch Rows</div>
+              <div style="background: var(--surface-raised); padding: 14px 6px; text-align: center; border: 1px solid var(--line); border-radius: 4px;">Live Order Summary</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pattern 5: Admin & Matrix -->
+        <div class="demo-box" style="background: var(--surface);">
+          <span class="eyebrow" style="margin:0;">Pattern 05</span>
+          <h3 style="font-size: 16px; font-weight: 700; margin: 0;">Admin Matrix & Areas</h3>
+          <p style="font-size: 12.5px; color: var(--ink-soft); margin: 0;"><strong>Routes:</strong> <code>/admin/access</code>, <code>/admin/areas</code></p>
+          <div style="border: 1px dashed var(--line-strong); border-radius: 8px; padding: 12px; font-family: var(--mono); font-size: 11px; background: var(--surface-raised); display: flex; flex-direction: column; gap: 6px;">
+            <div style="background: var(--surface); padding: 6px; border: 1px solid var(--line); border-radius: 4px;">KPI Overview Cards (Total Roles, Scopes)</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+              <div style="background: var(--surface); padding: 12px 6px; text-align: center; border: 1px solid var(--line); border-radius: 4px;">Role Card: Admin</div>
+              <div style="background: var(--surface); padding: 12px 6px; text-align: center; border: 1px solid var(--line); border-radius: 4px;">Role Card: Manager</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pattern 6: Auth & Gate -->
+        <div class="demo-box" style="background: var(--surface);">
+          <span class="eyebrow" style="margin:0;">Pattern 06</span>
+          <h3 style="font-size: 16px; font-weight: 700; margin: 0;">Auth & Session Gate</h3>
+          <p style="font-size: 12.5px; color: var(--ink-soft); margin: 0;"><strong>Route:</strong> <code>/login</code></p>
+          <div style="border: 1px dashed var(--line-strong); border-radius: 8px; padding: 12px; font-family: var(--mono); font-size: 11px; background: var(--surface-raised); display: flex; justify-content: center;">
+            <div style="background: var(--surface); padding: 14px 20px; border: 1px solid var(--line); border-radius: 8px; text-align: center; width: 85%;">
+              <strong style="color: var(--blue);">Asset Reserve Lock</strong><br />
+              <span style="font-size: 10px; color: var(--ink-soft);">Centered Credential Card + Demo Switchers</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Quick Reference Table -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Developer Quick Reference Table</h2>
+        <p class="section-desc">Ready-to-use CSS tokens and element selectors for frontend development.</p>
+      </div>
+
+      <table class="spec-table">
+        <thead>
+          <tr>
+            <th>Element / Role</th>
+            <th>CSS Class / Selector</th>
+            <th>Font Family</th>
+            <th>Size / Weight</th>
+            <th>Color Token</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Page Title</td>
+            <td><code>.page-header h1</code></td>
+            <td>Instrument Sans</td>
+            <td>clamp(30px, 3vw, 44px) / 700</td>
+            <td><code>var(--ink)</code></td>
+          </tr>
+          <tr>
+            <td>Eyebrow Label</td>
+            <td><code>.eyebrow</code></td>
+            <td>IBM Plex Mono</td>
+            <td>11px (compact: 8.5px) / 600</td>
+            <td><code>var(--blue)</code></td>
+          </tr>
+          <tr>
+            <td>Section Header</td>
+            <td><code>h2, .section-title</code></td>
+            <td>Instrument Sans</td>
+            <td>18px–22px / 700</td>
+            <td><code>var(--ink)</code></td>
+          </tr>
+          <tr>
+            <td>Sub-header / Desc</td>
+            <td><code>.page-header__description</code></td>
+            <td>Instrument Sans</td>
+            <td>14px / 400 (line-height: 1.55)</td>
+            <td><code>var(--ink-soft)</code></td>
+          </tr>
+          <tr>
+            <td>Full Stock Badge</td>
+            <td><code>.calendar-asset-option__availability--full</code></td>
+            <td>IBM Plex Mono</td>
+            <td>10.5px / 600</td>
+            <td><code>var(--green)</code> on <code>var(--green-soft)</code></td>
+          </tr>
+          <tr>
+            <td>Partial Stock Badge</td>
+            <td><code>.calendar-asset-option__availability--partial</code></td>
+            <td>IBM Plex Mono</td>
+            <td>10.5px / 600</td>
+            <td><code>var(--amber)</code> on <code>var(--amber-soft)</code></td>
+          </tr>
+          <tr>
+            <td>Fully Booked Badge</td>
+            <td><code>.calendar-asset-option__availability--none</code></td>
+            <td>IBM Plex Mono</td>
+            <td>10.5px / 600</td>
+            <td><code>var(--red)</code> on <code>var(--red-soft)</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const root = document.documentElement;
+      const current = root.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      document.getElementById('themeToggle').textContent = next === 'dark' ? '☀️ Light Theme' : '🌙 Dark Theme';
+    }
+  </script>
+</body>
+</html>

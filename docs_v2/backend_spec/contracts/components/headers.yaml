@@ -1,0 +1,4 @@
+RequestId:
+  description: Request correlation identifier.
+  schema:
+    type: string

@@ -1,0 +1,120 @@
+/email-templates:
+  get:
+    tags:
+      - Email Templates
+    summary: List all email template situations
+    description: Global admin only. Always returns one entry per known situation, falling back to the hardcoded default subject/body for any situation that has not been customized.
+    operationId: listEmailTemplates
+    responses:
+      "200":
+        description: All email templates.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/EmailTemplate"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+/email-templates/{situation}:
+  get:
+    tags:
+      - Email Templates
+    summary: Get one email template
+    operationId: getEmailTemplate
+    parameters:
+      - $ref: "#/components/parameters/EmailTemplateSituation"
+    responses:
+      "200":
+        description: The template, or the default if never customized.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailTemplate"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        description: Unknown situation (`EMAIL_TEMPLATE_NOT_FOUND`).
+  patch:
+    tags:
+      - Email Templates
+    summary: Save a custom subject/body for a situation
+    operationId: updateEmailTemplate
+    parameters:
+      - $ref: "#/components/parameters/EmailTemplateSituation"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpdateEmailTemplateRequest"
+    responses:
+      "200":
+        description: Updated template.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailTemplate"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        description: Unknown situation (`EMAIL_TEMPLATE_NOT_FOUND`).
+      "422":
+        $ref: "#/components/responses/ValidationError"
+  delete:
+    tags:
+      - Email Templates
+    summary: Reset a situation to its hardcoded default
+    description: Idempotent -- deleting a situation that was never customized still succeeds and returns the default template.
+    operationId: resetEmailTemplate
+    parameters:
+      - $ref: "#/components/parameters/EmailTemplateSituation"
+    responses:
+      "200":
+        description: The template, now at its default subject/body.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailTemplate"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        description: Unknown situation (`EMAIL_TEMPLATE_NOT_FOUND`).
+/email-templates/{situation}/preview:
+  post:
+    tags:
+      - Email Templates
+    summary: Render a draft subject/body against sample data
+    description: Renders the given (unsaved) subject/body against one shared sample-value map -- never sends a real email.
+    operationId: previewEmailTemplate
+    parameters:
+      - $ref: "#/components/parameters/EmailTemplateSituation"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpdateEmailTemplateRequest"
+    responses:
+      "200":
+        description: Rendered subject and HTML body.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailTemplatePreview"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        description: Unknown situation (`EMAIL_TEMPLATE_NOT_FOUND`).
+      "422":
+        $ref: "#/components/responses/ValidationError"

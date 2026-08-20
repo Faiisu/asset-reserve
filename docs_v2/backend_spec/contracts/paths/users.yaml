@@ -1,0 +1,225 @@
+/users:
+  get:
+    tags:
+      - Users
+    summary: List users
+    operationId: listUsers
+    parameters:
+      - $ref: "#/components/parameters/Search"
+      - name: isActive
+        in: query
+        schema:
+          type: boolean
+      - name: roleId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: areaId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - $ref: "#/components/parameters/Cursor"
+      - $ref: "#/components/parameters/Limit"
+    responses:
+      "200":
+        description: Paginated users.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserListResponse"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+  post:
+    tags:
+      - Users
+    summary: Create a password user
+    description: >-
+      Only a username and password are set at creation. Email and profile (name, phone,
+      picture) are populated later, once the user links a Google or Microsoft account -- see
+      the `Account Linking` tag. In deployments where account linking isn't required
+      (`REQUIRE_ACCOUNT_LINK=false`), the user can instead set their own name/email/password
+      later via the self-service `/users/me` endpoints.
+    operationId: createUser
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CreateUserRequest"
+    responses:
+      "201":
+        description: Created user.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserDetail"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "409":
+        $ref: "#/components/responses/Conflict"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/users/me:
+  patch:
+    tags:
+      - Users
+    summary: Update the signed-in user's own name and/or email
+    description: >-
+      Any authenticated user, scoped to their own record -- no admin permission required.
+      Available regardless of account-linking mode; on deployments where linking isn't
+      mandatory this is how a user sets their own notification email.
+    operationId: updateSelf
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpdateSelfRequest"
+    responses:
+      "200":
+        description: Updated user detail.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserDetail"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "409":
+        $ref: "#/components/responses/Conflict"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/users/me/password:
+  post:
+    tags:
+      - Users
+    summary: Change the signed-in user's own password
+    operationId: changeMyPassword
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ChangeMyPasswordRequest"
+    responses:
+      "204":
+        description: Password changed. No response body.
+      "401":
+        description: Not authenticated, or `currentPassword` did not match (`INVALID_CURRENT_PASSWORD`).
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/users/{userId}:
+  get:
+    tags:
+      - Users
+    summary: Get a user and role assignments
+    operationId: getUser
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    responses:
+      "200":
+        description: User detail.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserDetail"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+/users/{userId}/status:
+  patch:
+    tags:
+      - Users
+    summary: Activate or deactivate a user
+    operationId: updateUserStatus
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpdateUserStatusRequest"
+    responses:
+      "200":
+        description: Updated user.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserDetail"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+      "409":
+        $ref: "#/components/responses/Conflict"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/users/{userId}/role-assignments:
+  post:
+    tags:
+      - Users
+      - Roles
+    summary: Assign a role to a user
+    operationId: assignRole
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AssignRoleRequest"
+    responses:
+      "201":
+        description: Created role assignment.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleAssignment"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+      "409":
+        $ref: "#/components/responses/Conflict"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+/users/{userId}/role-assignments/{assignmentId}:
+  delete:
+    tags:
+      - Users
+      - Roles
+    summary: Remove a role assignment from a user
+    operationId: removeRoleAssignment
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+      - name: assignmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      "204":
+        description: Role assignment removed. No response body.
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        $ref: "#/components/responses/NotFound"
+      "409":
+        $ref: "#/components/responses/Conflict"

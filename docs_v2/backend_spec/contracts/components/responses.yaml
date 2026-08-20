@@ -1,0 +1,53 @@
+BadRequest:
+  description: A path parameter or pagination cursor is invalid.
+  content:
+    application/json:
+      schema:
+        $ref: "#/components/schemas/ErrorResponse"
+Unauthorized:
+  description: Missing, invalid, or expired credentials.
+  headers:
+    WWW-Authenticate:
+      schema:
+        type: string
+        example: Bearer
+    X-Request-Id:
+      $ref: "#/components/headers/RequestId"
+  content:
+    application/json:
+      schema:
+        $ref: "#/components/schemas/ErrorResponse"
+Forbidden:
+  description: Account inactive or permission denied.
+  content:
+    application/json:
+      schema:
+        $ref: "#/components/schemas/ErrorResponse"
+NotFound:
+  description: Resource not found or not visible to the caller.
+  content:
+    application/json:
+      schema:
+        $ref: "#/components/schemas/ErrorResponse"
+Conflict:
+  description: State, uniqueness, or concurrency conflict.
+  content:
+    application/json:
+      schema:
+        $ref: "#/components/schemas/ErrorResponse"
+ValidationError:
+  description: Request validation failed.
+  content:
+    application/json:
+      schema:
+        $ref: "#/components/schemas/ErrorResponse"
+RateLimited:
+  description: Too many requests.
+  headers:
+    Retry-After:
+      schema:
+        type: integer
+  content:
+    application/json:
+      schema:
+        $ref: "#/components/schemas/ErrorResponse"

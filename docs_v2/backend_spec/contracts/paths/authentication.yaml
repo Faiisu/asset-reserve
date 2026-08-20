@@ -1,0 +1,71 @@
+/auth/login:
+  post:
+    tags:
+      - Authentication
+    summary: Sign in with username and password
+    description: >-
+      The primary login method; every user has a username/password whether or not they've
+      linked an external provider. Once a user has linked Google or Microsoft (see the
+      Account Linking tag), `GET /auth/google/login` or `GET /auth/microsoft/login` offer an
+      alternate way to sign in as the same user without the password.
+    operationId: login
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/LoginRequest"
+    responses:
+      "200":
+        description: Authenticated successfully.
+        headers:
+          X-Request-Id:
+            $ref: "#/components/headers/RequestId"
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginResponse"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+      "429":
+        $ref: "#/components/responses/RateLimited"
+/auth/me:
+  get:
+    tags:
+      - Authentication
+    summary: Get the current session context
+    operationId: getCurrentSession
+    responses:
+      "200":
+        description: Current session context.
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - session
+              properties:
+                session:
+                  $ref: "#/components/schemas/SessionContext"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+/auth/logout:
+  post:
+    tags:
+      - Authentication
+    summary: End the client session
+    operationId: logout
+    responses:
+      "204":
+        description: Client may discard the access token. No response body.
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"

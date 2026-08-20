@@ -1,0 +1,409 @@
+openapi: 3.1.0
+info:
+  title: Asset Reservation API
+  version: 1.5.0
+  description: Contract-first API for authentication, access control, users, management areas, serialized asset units, uploads, reservations, asset-photo recognition, email templates, and notification settings.
+servers:
+  - url: /api/v1
+tags:
+  - name: Authentication
+    description: Username/password login, current session context, and alternate login via a linked Google/Microsoft account.
+  - name: Account Linking
+    description: Linking a Google or Microsoft identity to the signed-in user, and signing in with an identity already linked. See oauth-setup.md for setup and the account-link gate.
+  - name: Session BFF
+    description: Session context for the frontend application shell.
+  - name: Permissions
+    description: Immutable application permission catalog.
+  - name: Roles
+    description: Role definitions and permission sets.
+  - name: Users
+    description: User administration and role assignments.
+  - name: Management Areas
+    description: Management-area lookup for scoped assignments.
+  - name: Assets
+    description: Scoped asset lookup, creation, editing, status, and soft removal.
+  - name: Reservations
+    description: Reservation details, item approvals, availability conflicts, overlap warnings, and post-approval changes.
+  - name: Returns
+    description: Equipment return slips, drop-off verification, and inspection decision workflow.
+  - name: Uploads
+    description: Authenticated local image uploads used by asset and user forms.
+  - name: Recognition
+    description: Proxy to the internal recognition-service for asset reference photos and photo-based asset lookup. See modules/recognition.md.
+  - name: Email Templates
+    description: Global-admin management of the customizable subject/body for each outbound notification situation. See modules/email-templates.md.
+  - name: Notification Settings
+    description: Global-admin SMTP/notification configuration, singleton settings. See modules/notification-settings.md.
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    $ref: ./paths/authentication.yaml#/~1auth~1login
+  /auth/me:
+    $ref: ./paths/authentication.yaml#/~1auth~1me
+  /auth/logout:
+    $ref: ./paths/authentication.yaml#/~1auth~1logout
+  /auth/google/login:
+    $ref: ./paths/oauth-account-linking.yaml#/~1auth~1google~1login
+  /auth/google/connect:
+    $ref: ./paths/oauth-account-linking.yaml#/~1auth~1google~1connect
+  /auth/google/callback:
+    $ref: ./paths/oauth-account-linking.yaml#/~1auth~1google~1callback
+  /auth/microsoft/login:
+    $ref: ./paths/oauth-account-linking.yaml#/~1auth~1microsoft~1login
+  /auth/microsoft/connect:
+    $ref: ./paths/oauth-account-linking.yaml#/~1auth~1microsoft~1connect
+  /auth/microsoft/callback:
+    $ref: ./paths/oauth-account-linking.yaml#/~1auth~1microsoft~1callback
+  /bff/session:
+    $ref: ./paths/session.yaml#/~1bff~1session
+  /permissions:
+    $ref: ./paths/access-control.yaml#/~1permissions
+  /roles:
+    $ref: ./paths/access-control.yaml#/~1roles
+  /roles/{roleId}:
+    $ref: ./paths/access-control.yaml#/~1roles~1{roleId}
+  /management-areas:
+    $ref: ./paths/management-areas.yaml#/~1management-areas
+  /management-areas/{managementAreaId}:
+    $ref: ./paths/management-areas.yaml#/~1management-areas~1{managementAreaId}
+  /users:
+    $ref: ./paths/users.yaml#/~1users
+  /users/me:
+    $ref: ./paths/users.yaml#/~1users~1me
+  /users/me/password:
+    $ref: ./paths/users.yaml#/~1users~1me~1password
+  /users/{userId}:
+    $ref: ./paths/users.yaml#/~1users~1{userId}
+  /users/{userId}/status:
+    $ref: ./paths/users.yaml#/~1users~1{userId}~1status
+  /users/{userId}/role-assignments:
+    $ref: ./paths/users.yaml#/~1users~1{userId}~1role-assignments
+  /users/{userId}/role-assignments/{assignmentId}:
+    $ref: ./paths/users.yaml#/~1users~1{userId}~1role-assignments~1{assignmentId}
+  /assets:
+    $ref: ./paths/assets.yaml#/~1assets
+  /assets/batch:
+    $ref: ./paths/assets.yaml#/~1assets~1batch
+  /assets/batch-remove:
+    $ref: ./paths/assets.yaml#/~1assets~1batch-remove
+  /assets/{assetId}:
+    $ref: ./paths/assets.yaml#/~1assets~1{assetId}
+  /assets/{assetId}/status:
+    $ref: ./paths/assets.yaml#/~1assets~1{assetId}~1status
+  /assets/{assetId}/units:
+    $ref: ./paths/assets.yaml#/~1assets~1{assetId}~1units
+  /assets/units/batch-retire:
+    $ref: ./paths/assets.yaml#/~1assets~1units~1batch-retire
+  /assets/units/{assetUnitId}/status:
+    $ref: ./paths/assets.yaml#/~1assets~1units~1{assetUnitId}~1status
+  /reservations:
+    $ref: ./paths/reservations.yaml#/~1reservations
+  /reservations/{reservationId}:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}
+  /reservations/{reservationId}/submit:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1submit
+  /reservations/{reservationId}/items/{itemId}/decision:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1items~1{itemId}~1decision
+  /reservations/{reservationId}/items/{itemId}/prepare:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1items~1{itemId}~1prepare
+  /reservations/{reservationId}/items/decision:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1items~1decision
+  /reservations/{reservationId}/change-requests:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1change-requests
+  /reservations/{reservationId}/change-requests/{changeRequestId}/decision:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1change-requests~1{changeRequestId}~1decision
+  /reservations/{reservationId}/delivery-confirm:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1delivery-confirm
+  /reservations/{reservationId}/returns:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1returns
+  /reservations/{reservationId}/returns/{returnId}/decision:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1returns~1{returnId}~1decision
+  /reservations/{reservationId}/cancel:
+    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1cancel
+  /returns:
+    $ref: ./paths/returns.yaml#/~1returns
+  /returns/{returnId}:
+    $ref: ./paths/returns.yaml#/~1returns~1{returnId}
+  /uploads/image:
+    $ref: ./paths/uploads.yaml#/~1uploads~1image
+  /recognition/assets:
+    $ref: ./paths/recognition.yaml#/~1recognition~1assets
+  /recognition/assets/{assetId}:
+    $ref: ./paths/recognition.yaml#/~1recognition~1assets~1{assetId}
+  /recognition/assets/{assetId}/photos:
+    $ref: ./paths/recognition.yaml#/~1recognition~1assets~1{assetId}~1photos
+  /recognition/assets/{assetId}/photos/{photoId}:
+    $ref: ./paths/recognition.yaml#/~1recognition~1assets~1{assetId}~1photos~1{photoId}
+  /recognition/assets/{assetId}/image:
+    $ref: ./paths/recognition.yaml#/~1recognition~1assets~1{assetId}~1image
+  /recognition/photos/{photoId}/image:
+    $ref: ./paths/recognition.yaml#/~1recognition~1photos~1{photoId}~1image
+  /recognition/recognize:
+    $ref: ./paths/recognition.yaml#/~1recognition~1recognize
+  /recognition/recognize/multi:
+    $ref: ./paths/recognition.yaml#/~1recognition~1recognize~1multi
+  /email-templates:
+    $ref: ./paths/email-templates.yaml#/~1email-templates
+  /email-templates/{situation}:
+    $ref: ./paths/email-templates.yaml#/~1email-templates~1{situation}
+  /email-templates/{situation}/preview:
+    $ref: ./paths/email-templates.yaml#/~1email-templates~1{situation}~1preview
+  /notification-settings:
+    $ref: ./paths/notification-settings.yaml#/~1notification-settings
+  /notification-settings/test:
+    $ref: ./paths/notification-settings.yaml#/~1notification-settings~1test
+components:
+  securitySchemes:
+    bearerAuth:
+      $ref: ./components/security-schemes.yaml#/bearerAuth
+  headers:
+    RequestId:
+      $ref: ./components/headers.yaml#/RequestId
+  parameters:
+    UserId:
+      $ref: ./components/parameters.yaml#/UserId
+    RoleId:
+      $ref: ./components/parameters.yaml#/RoleId
+    ManagementAreaId:
+      $ref: ./components/parameters.yaml#/ManagementAreaId
+    AssetId:
+      $ref: ./components/parameters.yaml#/AssetId
+    ReservationId:
+      $ref: ./components/parameters.yaml#/ReservationId
+    ReservationItemId:
+      $ref: ./components/parameters.yaml#/ReservationItemId
+    ChangeRequestId:
+      $ref: ./components/parameters.yaml#/ChangeRequestId
+    ReturnId:
+      $ref: ./components/parameters.yaml#/ReturnId
+    Search:
+      $ref: ./components/parameters.yaml#/Search
+    Cursor:
+      $ref: ./components/parameters.yaml#/Cursor
+    Limit:
+      $ref: ./components/parameters.yaml#/Limit
+    EmailTemplateSituation:
+      $ref: ./components/parameters.yaml#/EmailTemplateSituation
+  responses:
+    BadRequest:
+      $ref: ./components/responses.yaml#/BadRequest
+    Unauthorized:
+      $ref: ./components/responses.yaml#/Unauthorized
+    Forbidden:
+      $ref: ./components/responses.yaml#/Forbidden
+    NotFound:
+      $ref: ./components/responses.yaml#/NotFound
+    Conflict:
+      $ref: ./components/responses.yaml#/Conflict
+    ValidationError:
+      $ref: ./components/responses.yaml#/ValidationError
+    RateLimited:
+      $ref: ./components/responses.yaml#/RateLimited
+  schemas:
+    Profile:
+      $ref: ./components/schemas/authentication.yaml#/Profile
+    UserIdentity:
+      $ref: ./components/schemas/authentication.yaml#/UserIdentity
+    SessionUser:
+      $ref: ./components/schemas/authentication.yaml#/SessionUser
+    SessionRole:
+      $ref: ./components/schemas/authentication.yaml#/SessionRole
+    AreaPermissions:
+      $ref: ./components/schemas/authentication.yaml#/AreaPermissions
+    EffectivePermissions:
+      $ref: ./components/schemas/authentication.yaml#/EffectivePermissions
+    SessionContext:
+      $ref: ./components/schemas/authentication.yaml#/SessionContext
+    LoginRequest:
+      $ref: ./components/schemas/authentication.yaml#/LoginRequest
+    LoginResponse:
+      $ref: ./components/schemas/authentication.yaml#/LoginResponse
+    PermissionKey:
+      $ref: ./components/schemas/access-control.yaml#/PermissionKey
+    RoleName:
+      $ref: ./components/schemas/access-control.yaml#/RoleName
+    ManagementAreaRef:
+      $ref: ./components/schemas/access-control.yaml#/ManagementAreaRef
+    PermissionDefinition:
+      $ref: ./components/schemas/access-control.yaml#/PermissionDefinition
+    Role:
+      $ref: ./components/schemas/access-control.yaml#/Role
+    CreateRoleRequest:
+      $ref: ./components/schemas/access-control.yaml#/CreateRoleRequest
+    UpdateRoleRequest:
+      $ref: ./components/schemas/access-control.yaml#/UpdateRoleRequest
+    ManagementArea:
+      $ref: ./components/schemas/access-control.yaml#/ManagementArea
+    ManagementAreaListResponse:
+      $ref: ./components/schemas/access-control.yaml#/ManagementAreaListResponse
+    ManagementAreaDetail:
+      $ref: ./components/schemas/access-control.yaml#/ManagementAreaDetail
+    CreateManagementAreaRequest:
+      $ref: ./components/schemas/access-control.yaml#/CreateManagementAreaRequest
+    UpdateManagementAreaRequest:
+      $ref: ./components/schemas/access-control.yaml#/UpdateManagementAreaRequest
+    UserListItem:
+      $ref: ./components/schemas/users.yaml#/UserListItem
+    UserListResponse:
+      $ref: ./components/schemas/users.yaml#/UserListResponse
+    ActorRef:
+      $ref: ./components/schemas/users.yaml#/ActorRef
+    RoleRef:
+      $ref: ./components/schemas/users.yaml#/RoleRef
+    RoleAssignment:
+      $ref: ./components/schemas/users.yaml#/RoleAssignment
+    UserDetail:
+      $ref: ./components/schemas/users.yaml#/UserDetail
+    CreateUserRequest:
+      $ref: ./components/schemas/users.yaml#/CreateUserRequest
+    UpdateUserStatusRequest:
+      $ref: ./components/schemas/users.yaml#/UpdateUserStatusRequest
+    AssignRoleRequest:
+      $ref: ./components/schemas/users.yaml#/AssignRoleRequest
+    UpdateSelfRequest:
+      $ref: ./components/schemas/users.yaml#/UpdateSelfRequest
+    ChangeMyPasswordRequest:
+      $ref: ./components/schemas/users.yaml#/ChangeMyPasswordRequest
+    AssetStatus:
+      $ref: ./components/schemas/assets.yaml#/AssetStatus
+    AssetUnitStatus:
+      $ref: ./components/schemas/assets.yaml#/AssetUnitStatus
+    AssetOwner:
+      $ref: ./components/schemas/assets.yaml#/AssetOwner
+    AssetCapabilities:
+      $ref: ./components/schemas/assets.yaml#/AssetCapabilities
+    AssetUnitCounts:
+      $ref: ./components/schemas/assets.yaml#/AssetUnitCounts
+    AssetSummary:
+      $ref: ./components/schemas/assets.yaml#/AssetSummary
+    AssetListResponse:
+      $ref: ./components/schemas/assets.yaml#/AssetListResponse
+    ReservationRef:
+      $ref: ./components/schemas/assets.yaml#/ReservationRef
+    ActiveReservationItem:
+      $ref: ./components/schemas/assets.yaml#/ActiveReservationItem
+    AssetUnit:
+      $ref: ./components/schemas/assets.yaml#/AssetUnit
+    AssetUnitEventLedgerItem:
+      $ref: ./components/schemas/assets.yaml#/AssetUnitEventLedgerItem
+    AssetEditPolicy:
+      $ref: ./components/schemas/assets.yaml#/AssetEditPolicy
+    AssetDetail:
+      $ref: ./components/schemas/assets.yaml#/AssetDetail
+    CreateAssetRequest:
+      $ref: ./components/schemas/assets.yaml#/CreateAssetRequest
+    BatchCreateAssetsRequest:
+      $ref: ./components/schemas/assets.yaml#/BatchCreateAssetsRequest
+    AssetBatchResponse:
+      $ref: ./components/schemas/assets.yaml#/AssetBatchResponse
+    UpdateAssetRequest:
+      $ref: ./components/schemas/assets.yaml#/UpdateAssetRequest
+    UpdateAssetStatusRequest:
+      $ref: ./components/schemas/assets.yaml#/UpdateAssetStatusRequest
+    BatchRemoveAssetItem:
+      $ref: ./components/schemas/assets.yaml#/BatchRemoveAssetItem
+    BatchRemoveAssetsRequest:
+      $ref: ./components/schemas/assets.yaml#/BatchRemoveAssetsRequest
+    RemovedAsset:
+      $ref: ./components/schemas/assets.yaml#/RemovedAsset
+    BatchRemoveAssetsResponse:
+      $ref: ./components/schemas/assets.yaml#/BatchRemoveAssetsResponse
+    RegisterAssetUnitsRequest:
+      $ref: ./components/schemas/assets.yaml#/RegisterAssetUnitsRequest
+    RegisterAssetUnitsResponse:
+      $ref: ./components/schemas/assets.yaml#/RegisterAssetUnitsResponse
+    RetireAssetUnitItem:
+      $ref: ./components/schemas/assets.yaml#/RetireAssetUnitItem
+    RetireAssetUnitsRequest:
+      $ref: ./components/schemas/assets.yaml#/RetireAssetUnitsRequest
+    UpdateAssetUnitStatusRequest:
+      $ref: ./components/schemas/assets.yaml#/UpdateAssetUnitStatusRequest
+    ReservationStatus:
+      $ref: ./components/schemas/reservations.yaml#/ReservationStatus
+    ReservationItemStatus:
+      $ref: ./components/schemas/reservations.yaml#/ReservationItemStatus
+    ReservationItemInput:
+      $ref: ./components/schemas/reservations.yaml#/ReservationItemInput
+    ReservationSummary:
+      $ref: ./components/schemas/reservations.yaml#/ReservationSummary
+    ReservationListResponse:
+      $ref: ./components/schemas/reservations.yaml#/ReservationListResponse
+    CreateReservationRequest:
+      $ref: ./components/schemas/reservations.yaml#/CreateReservationRequest
+    CancelReservationRequest:
+      $ref: ./components/schemas/reservations.yaml#/CancelReservationRequest
+    SubmitReservationRequest:
+      $ref: ./components/schemas/reservations.yaml#/SubmitReservationRequest
+    ReservationItemDecisionRequest:
+      $ref: ./components/schemas/reservations.yaml#/ReservationItemDecisionRequest
+    ReservationItemsDecisionRequest:
+      $ref: ./components/schemas/reservations.yaml#/ReservationItemsDecisionRequest
+    ReservationChangeData:
+      $ref: ./components/schemas/reservations.yaml#/ReservationChangeData
+    CreateReservationChangeRequest:
+      $ref: ./components/schemas/reservations.yaml#/CreateReservationChangeRequest
+    ReservationChangeRequestDecisionRequest:
+      $ref: ./components/schemas/reservations.yaml#/ReservationChangeRequestDecisionRequest
+    ReservationUser:
+      $ref: ./components/schemas/reservations.yaml#/ReservationUser
+    ReservationAsset:
+      $ref: ./components/schemas/reservations.yaml#/ReservationAsset
+    ReservationAvailability:
+      $ref: ./components/schemas/reservations.yaml#/ReservationAvailability
+    ReservationWarning:
+      $ref: ./components/schemas/reservations.yaml#/ReservationWarning
+    ReservationApproval:
+      $ref: ./components/schemas/reservations.yaml#/ReservationApproval
+    ReservationDetailItem:
+      $ref: ./components/schemas/reservations.yaml#/ReservationDetailItem
+    ReservationChangeRequest:
+      $ref: ./components/schemas/reservations.yaml#/ReservationChangeRequest
+    ReservationDetail:
+      $ref: ./components/schemas/reservations.yaml#/ReservationDetail
+    PrepareReservationItemRequest:
+      $ref: ./components/schemas/reservations.yaml#/PrepareReservationItemRequest
+    ConfirmDeliveryRequest:
+      $ref: ./components/schemas/reservations.yaml#/ConfirmDeliveryRequest
+    ReturnItemInput:
+      $ref: ./components/schemas/reservations.yaml#/ReturnItemInput
+    CreateReturnRequest:
+      $ref: ./components/schemas/reservations.yaml#/CreateReturnRequest
+    ReturnDecisionItemInput:
+      $ref: ./components/schemas/reservations.yaml#/ReturnDecisionItemInput
+    ReturnDecisionRequest:
+      $ref: ./components/schemas/reservations.yaml#/ReturnDecisionRequest
+    ReturnItemUnitDetail:
+      $ref: ./components/schemas/reservations.yaml#/ReturnItemUnitDetail
+    ReturnItemDetail:
+      $ref: ./components/schemas/reservations.yaml#/ReturnItemDetail
+    ReturnApprovalDetail:
+      $ref: ./components/schemas/reservations.yaml#/ReturnApprovalDetail
+    ReturnDetail:
+      $ref: ./components/schemas/reservations.yaml#/ReturnDetail
+    ReturnListResponse:
+      $ref: ./components/schemas/reservations.yaml#/ReturnListResponse
+    PageInfo:
+      $ref: ./components/schemas/common.yaml#/PageInfo
+    ErrorDetail:
+      $ref: ./components/schemas/common.yaml#/ErrorDetail
+    ErrorResponse:
+      $ref: ./components/schemas/common.yaml#/ErrorResponse
+    RecognitionAsset:
+      $ref: ./components/schemas/recognition.yaml#/RecognitionAsset
+    RecognitionPhoto:
+      $ref: ./components/schemas/recognition.yaml#/RecognitionPhoto
+    UpdateRecognitionAssetRequest:
+      $ref: ./components/schemas/recognition.yaml#/UpdateRecognitionAssetRequest
+    EmailTemplateSituation:
+      $ref: ./components/schemas/email-templates.yaml#/EmailTemplateSituation
+    EmailTemplate:
+      $ref: ./components/schemas/email-templates.yaml#/EmailTemplate
+    UpdateEmailTemplateRequest:
+      $ref: ./components/schemas/email-templates.yaml#/UpdateEmailTemplateRequest
+    EmailTemplatePreview:
+      $ref: ./components/schemas/email-templates.yaml#/EmailTemplatePreview
+    NotificationSettings:
+      $ref: ./components/schemas/notification-settings.yaml#/NotificationSettings
+    UpdateNotificationSettingsRequest:
+      $ref: ./components/schemas/notification-settings.yaml#/UpdateNotificationSettingsRequest

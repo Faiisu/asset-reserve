@@ -1,0 +1,76 @@
+EmailTemplateSituation:
+  type: string
+  enum: [reservation_submitted, reservation_decided, return_decided]
+EmailTemplate:
+  type: object
+  required:
+    - situation
+    - label
+    - description
+    - recipient
+    - placeholders
+    - subject
+    - bodyMarkdown
+    - isCustomized
+    - updatedBy
+    - updatedAt
+  properties:
+    situation:
+      $ref: "#/components/schemas/EmailTemplateSituation"
+    label:
+      type: string
+    description:
+      type: string
+    recipient:
+      type: string
+      description: Human-readable audience, e.g. "Approvers" or "Requester".
+    placeholders:
+      type: array
+      items:
+        type: string
+      description: Placeholder names usable in subject/body for this situation, e.g. `{{eventName}}`.
+    subject:
+      type: string
+      description: Saved subject, or the hardcoded default if never customized.
+    bodyMarkdown:
+      type: string
+      description: Saved markdown-lite body, or the hardcoded default if never customized.
+    isCustomized:
+      type: boolean
+    updatedBy:
+      type:
+        - string
+        - "null"
+      format: uuid
+    updatedAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+UpdateEmailTemplateRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - subject
+    - bodyMarkdown
+  properties:
+    subject:
+      type: string
+      minLength: 1
+      maxLength: 255
+    bodyMarkdown:
+      type: string
+      minLength: 1
+      maxLength: 10000
+EmailTemplatePreview:
+  type: object
+  required:
+    - subject
+    - html
+  properties:
+    subject:
+      type: string
+      description: Subject rendered against the shared sample-value map.
+    html:
+      type: string
+      description: Body rendered to HTML against the shared sample-value map.

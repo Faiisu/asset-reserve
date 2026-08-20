@@ -1,0 +1,70 @@
+/notification-settings:
+  get:
+    tags:
+      - Notification Settings
+    summary: Get the SMTP/notification configuration
+    description: >-
+      Global admin only. Singleton settings -- always the same underlying row. Never returns
+      the App Password itself, only `smtpPasswordSet` (whether the encrypted-password column is
+      non-null).
+    operationId: getNotificationSettings
+    responses:
+      "200":
+        description: "Current settings, or all-blank defaults with `smtpPasswordSet: false` if never configured."
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationSettings"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+  patch:
+    tags:
+      - Notification Settings
+    summary: Update the SMTP/notification configuration
+    description: >-
+      `smtpPassword` omitted or blank keeps the currently-saved App Password unchanged; present
+      and non-blank replaces it. On first-ever save (no existing row), `smtpPassword` is
+      required (`VALIDATION_ERROR`). If `TOKEN_ENCRYPTION_KEY` is not configured server-side,
+      fails with `503 ENCRYPTION_NOT_CONFIGURED` rather than storing the password unencrypted.
+    operationId: updateNotificationSettings
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpdateNotificationSettingsRequest"
+    responses:
+      "200":
+        description: Updated settings.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationSettings"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "422":
+        $ref: "#/components/responses/ValidationError"
+      "503":
+        description: Server-side encryption key missing (`ENCRYPTION_NOT_CONFIGURED`).
+/notification-settings/test:
+  post:
+    tags:
+      - Notification Settings
+    summary: Send a test email to the signed-in admin
+    description: Sends to the caller's own account email (set via My account). Fails with `422 NO_EMAIL_ON_FILE` if the caller has no email on file yet.
+    operationId: sendTestNotificationEmail
+    responses:
+      "200":
+        description: Test email sent.
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "422":
+        description: Caller has no email on file (`NO_EMAIL_ON_FILE`).
+      "502":
+        description: Sending failed (`TEST_EMAIL_FAILED`).
