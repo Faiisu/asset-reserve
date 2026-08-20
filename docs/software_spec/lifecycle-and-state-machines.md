@@ -96,6 +96,32 @@ stateDiagram-v2
 | `DELIVERED` | ส่งมอบให้ผู้ขอแล้ว |
 | `RETURNED` | คืนครบสำหรับ item นี้แล้ว |
 
+## 3a. ReservationItemUnit status {#reservation-item-unit-status}
+
+สถานะต่อ serial-numbered unit ที่ถูกผูกไว้กับ `ReservationItem` หนึ่งรายการ (ผูกตอน `ReservationItem` เข้าสถานะ `PREPARED` — ดู §3)
+
+```mermaid
+stateDiagram-v2
+    [*] --> ASSIGNED: ผูก AssetUnit (serial) เข้ากับ ReservationItem
+    ASSIGNED --> CHECKED_OUT: ยืนยัน handover
+    CHECKED_OUT --> RETURNED_GOOD: ตรวจรับคืน สภาพดี
+    CHECKED_OUT --> RETURNED_BROKEN: ตรวจรับคืน ชำรุด
+    CHECKED_OUT --> RETURNED_LOST: ตรวจรับคืน สูญหาย
+    RETURNED_GOOD --> [*]
+    RETURNED_BROKEN --> [*]
+    RETURNED_LOST --> [*]
+```
+
+| Status | ความหมาย |
+| --- | --- |
+| `ASSIGNED` | ผูกกับ `AssetUnit` (serial) แล้ว ยังไม่ส่งมอบ |
+| `CHECKED_OUT` | ส่งมอบให้ผู้ขอแล้ว (`ReservationItem` ข้ามไป `DELIVERED` พร้อมกัน — §3) |
+| `RETURNED_GOOD` | คืนแล้ว ตรวจสภาพดี → `AssetUnit.status` เป็น `ACTIVE` (§7) |
+| `RETURNED_BROKEN` | คืนแล้ว ชำรุด → `AssetUnit.status` เป็น `BROKEN` (§7) |
+| `RETURNED_LOST` | คืนแล้ว สูญหาย → `AssetUnit.status` เป็น `LOST` (§7) |
+
+Constraint: หน่วยเดียวกัน (`asset_unit_id`) มีได้สูงสุด 1 assignment ที่ยัง active (`ASSIGNED`/`CHECKED_OUT`) ในเวลาเดียวกัน — กันไม่ให้ serial เดียวกันถูกจ่ายให้สองการจองพร้อมกัน
+
 ## 4. Approval / ReturnApproval status {#approval-status}
 
 `ReservationItemApproval` และ `ReturnApproval` ใช้ status ชุดเดียวกัน: `PENDING`, `APPROVED`, `REJECTED`

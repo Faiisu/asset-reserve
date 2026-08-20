@@ -6,7 +6,7 @@ Global-admin management of the customizable subject/body for each outbound notif
 
 ## Why this module exists
 
-Three notification situations exist, fixed by `EmailTemplateSituation` (`reservation_submitted`, `reservation_decided`, `return_decided`) — see [software_spec/business-rules-and-validation.md §6](../../software_spec/business-rules-and-validation.md#6-recognition-email-templates-notification-settings). Each situation has a hardcoded default subject/body (in `email-templates.constants.ts`, also the actual fallback `EmailService` sends when no row is customized) and an optional customized override persisted in the `EmailTemplate` Prisma model, keyed by `situation`.
+The fixed set of notification situations (`EmailTemplateSituation`) is defined in [software_spec/business-rules-and-validation.md §6](../../software_spec/business-rules-and-validation.md#6-recognition-email-templates-notification-settings) — see there for the situation list. Each situation has a hardcoded default subject/body (in `email-templates.constants.ts`, also the actual fallback `EmailService` sends when no row is customized) and an optional customized override persisted in the `EmailTemplate` Prisma model, keyed by `situation`.
 
 ## Routes
 
