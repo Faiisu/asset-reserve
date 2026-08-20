@@ -22,16 +22,16 @@ Asset คือ catalog/part-number entry ใน management area (ไม่ใ�
 
 - pictureUrl หรือ placeholder
 - name
-- description
+- partNumber (P/N)
 - ManagementArea.name
-- totalQuantity
+- unitCounts.active ("Useable units" — จำนวน unit ที่สถานะ `ACTIVE` เท่านั้น ไม่รวม reserved/checked-out/broken/lost/in-repair; ต่างจาก `totalQuantity` ที่รวมทุกสถานะยกเว้น `INACTIVE`)
 - isActive
 
 (`availableQuantity` มีอยู่ใน API response แต่ไม่ถูก render ในหน้านี้ — availability เป็น schedule-based ดูได้จาก Calendar แทน)
 
 Filter:
 
-- Search จาก name/description
+- Search จาก name/description/partNumber
 - Management area
 - Active/Inactive (`isActive` boolean บน `Asset` เอง — ไม่ใช่ `AssetUnitStatus` ระดับ unit อย่าง `BROKEN`/`LOST`; `GET /assets` ไม่มี query param สำหรับกรองด้วย unit status)
 

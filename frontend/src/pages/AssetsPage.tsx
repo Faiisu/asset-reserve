@@ -602,7 +602,7 @@ export function AssetsPage() {
                   </th>
                   <th>Asset</th>
                   <th>Workspace</th>
-                  <th className="cell-number">Total</th>
+                  <th className="cell-number">Useable units</th>
                   <th>Status</th>
                   <th>Updated</th>
                   <th className="cell-action">Action</th>
@@ -648,8 +648,8 @@ export function AssetsPage() {
                           />
                           <span>
                             <strong>{asset.name}</strong>
-                            <small>
-                              {asset.description || "No description"}
+                            <small className="mono">
+                              {asset.partNumber || "No part number"}
                             </small>
                           </span>
                         </div>
@@ -661,7 +661,7 @@ export function AssetsPage() {
                       </td>
                       <td className="cell-number">
                         <strong className="quantity">
-                          {asset.totalQuantity}
+                          {asset.unitCounts.active}
                         </strong>
                         <small>units</small>
                       </td>
@@ -721,13 +721,16 @@ export function AssetsPage() {
                     <div className="asset-card__info">
                       <strong>{asset.name}</strong>
                       <span>{asset.managementArea.name}</span>
+                      <span className="mono">
+                        {asset.partNumber || "No part number"}
+                      </span>
                     </div>
                   </div>
                   <div className="asset-card__footer">
                     <div className="asset-card__numbers">
                       <span>
-                        <small>Total</small>
-                        <strong>{asset.totalQuantity}</strong>
+                        <small>Useable</small>
+                        <strong>{asset.unitCounts.active}</strong>
                       </span>
                       <AssetMasterStatusBadge isActive={asset.isActive} />
                     </div>
