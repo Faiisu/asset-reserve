@@ -29,35 +29,28 @@ model Reservation {
 }
 
 model ReservationItem {
-  id                   String    @id @db.Uuid
-  reservationId        String    @map("reservation_id") @db.Uuid
-  assetId              String    @map("asset_id") @db.Uuid
-  quantity             Int
+  id            String    @id @db.Uuid
+  reservationId String    @map("reservation_id") @db.Uuid
+  assetId       String    @map("asset_id") @db.Uuid
+  quantity      Int
   /// Supported values: PENDING, APPROVED, REJECTED, PREPARED, CHECKED_OUT, DELIVERED, RETURNED.
-  status               String    @default("PENDING") @db.VarChar(30)
-  preparedBy           String?   @map("prepared_by") @db.Uuid
-  preparedAt           DateTime? @map("prepared_at") @db.Timestamptz(6)
-  checkedOutBy         String?   @map("checked_out_by") @db.Uuid
-  checkedOutAt         DateTime? @map("checked_out_at") @db.Timestamptz(6)
-  /// Set when the item borrows one specific PERSONAL asset unit directly from
-  /// its owner instead of drawing from the shared management-area pool.
-  /// Approval then routes to the unit's owner instead of area RBAC. Requires
-  /// quantity = 1 (enforced by the reservation_items_requested_unit_quantity_check
-  /// DB constraint).
-  requestedAssetUnitId String?   @map("requested_asset_unit_id") @db.Uuid
+  status        String    @default("PENDING") @db.VarChar(30)
+  preparedBy    String?   @map("prepared_by") @db.Uuid
+  preparedAt    DateTime? @map("prepared_at") @db.Timestamptz(6)
+  checkedOutBy  String?   @map("checked_out_by") @db.Uuid
+  checkedOutAt  DateTime? @map("checked_out_at") @db.Timestamptz(6)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  reservation        Reservation              @relation(fields: [reservationId], references: [id])
-  asset              Asset                    @relation(fields: [assetId], references: [id])
-  preparer           User?                    @relation("ReservationItemPreparedBy", fields: [preparedBy], references: [id])
-  checkedOutByUser   User?                    @relation("ReservationItemCheckedOutBy", fields: [checkedOutBy], references: [id])
-  requestedAssetUnit AssetUnit?               @relation("ReservationItemRequestedUnit", fields: [requestedAssetUnitId], references: [id])
-  approval           ReservationItemApproval?
-  unitAssignments    ReservationItemUnit[]
-  assetUnitEvents    AssetUnitEvent[]
-  returnItems        ReturnItem[]
+  reservation      Reservation              @relation(fields: [reservationId], references: [id])
+  asset            Asset                    @relation(fields: [assetId], references: [id])
+  preparer         User?                    @relation("ReservationItemPreparedBy", fields: [preparedBy], references: [id])
+  checkedOutByUser User?                    @relation("ReservationItemCheckedOutBy", fields: [checkedOutBy], references: [id])
+  approval         ReservationItemApproval?
+  unitAssignments  ReservationItemUnit[]
+  assetUnitEvents  AssetUnitEvent[]
+  returnItems      ReturnItem[]
 
   // Database CHECK required by the source specification: quantity > 0.
   @@unique([reservationId, assetId])
@@ -66,7 +59,6 @@ model ReservationItem {
   @@index([reservationId, status])
   @@index([preparedBy])
   @@index([checkedOutBy])
-  @@index([requestedAssetUnitId])
   @@map("reservation_items")
 }
 

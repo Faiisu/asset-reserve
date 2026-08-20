@@ -19,7 +19,6 @@ model User {
   userRoles                    UserRole[]                 @relation("UserRoleUser")
   assignedUserRoles            UserRole[]                 @relation("UserRoleAssignedBy")
   createdAssets                Asset[]                    @relation("AssetCreatedBy")
-  ownedAssetUnits              AssetUnit[]                @relation("AssetUnitOwner")
   assetUnitEventBatches        AssetUnitEventBatch[]
   requestedReservations        Reservation[]              @relation("ReservationRequester")
   preparedReservationItems     ReservationItem[]          @relation("ReservationItemPreparedBy")
