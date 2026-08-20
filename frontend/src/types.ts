@@ -167,8 +167,6 @@ export type AssetCapabilities = {
   canManageUnits: boolean;
 };
 
-export type AssetStatus = "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE";
-
 export type AssetSummary = {
   id: string;
   name: string;
@@ -178,8 +176,6 @@ export type AssetSummary = {
   allocatedQuantity: number;
   availableQuantity: number;
   isActive: boolean;
-  /** No longer sent by the backend -- status now lives per serial unit (see AssetDetail.units). */
-  status?: AssetStatus;
   partNumber: string | null;
   unitCounts: {
     total: number;

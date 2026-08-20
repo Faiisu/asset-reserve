@@ -8,7 +8,7 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { api } from "../api";
 import type { AssetSummary } from "../types";
-import { AssetsPage, getNormalizedAssetStatus } from "./AssetsPage";
+import { AssetsPage } from "./AssetsPage";
 
 vi.mock("../auth", () => ({
   useAuth: () => ({ hasPermission: () => true }),
@@ -43,7 +43,6 @@ const mockAsset: AssetSummary = {
   allocatedQuantity: 0,
   availableQuantity: 5,
   isActive: true,
-  status: "ACTIVE",
   managementArea: mockArea,
   owner: null,
   capabilities: {
@@ -120,7 +119,6 @@ describe("AssetsPage", () => {
       allocatedQuantity: 0,
       availableQuantity: 2,
       isActive: true,
-      status: "ACTIVE",
       managementArea: mockArea,
       owner: null,
       capabilities: {
@@ -153,7 +151,6 @@ describe("AssetsPage", () => {
       allocatedQuantity: 0,
       availableQuantity: 10,
       isActive: true,
-      status: "ACTIVE",
       managementArea: mockArea,
       owner: null,
       capabilities: {
@@ -216,7 +213,6 @@ describe("AssetsPage", () => {
       allocatedQuantity: 0,
       availableQuantity: 2,
       isActive: true,
-      status: "ACTIVE",
       managementArea: mockArea,
       owner: {
         id: "user-other",
@@ -254,7 +250,6 @@ describe("AssetsPage", () => {
       allocatedQuantity: 0,
       availableQuantity: 10,
       isActive: true,
-      status: "ACTIVE",
       managementArea: mockArea,
       owner: null,
       capabilities: {
@@ -307,34 +302,18 @@ describe("AssetsPage", () => {
     );
   });
 
-  it("filters assets correctly based on normalized status", async () => {
+  it("filters assets by isActive (Active/Inactive) via GET /assets", async () => {
     const activeAsset: AssetSummary = {
       ...mockAsset,
       id: "asset-active",
       name: "Active Asset",
       isActive: true,
-      status: "ACTIVE",
-    };
-    const brokenAsset: AssetSummary = {
-      ...mockAsset,
-      id: "asset-broken",
-      name: "Broken Asset",
-      isActive: false,
-      status: "BROKEN",
-    };
-    const lostAsset: AssetSummary = {
-      ...mockAsset,
-      id: "asset-lost",
-      name: "Lost Asset",
-      isActive: false,
-      status: "LOST",
     };
     const inactiveAsset: AssetSummary = {
       ...mockAsset,
       id: "asset-inactive",
       name: "Inactive Asset",
       isActive: false,
-      status: "ACTIVE",
     };
 
     vi.spyOn(api, "areas").mockResolvedValue({
@@ -342,10 +321,7 @@ describe("AssetsPage", () => {
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
     vi.spyOn(api, "assets").mockImplementation(async (query?: any) => {
-      let data = [activeAsset, brokenAsset, lostAsset, inactiveAsset];
-      if (query?.status) {
-        data = data.filter((a) => a.status === query.status);
-      }
+      let data = [activeAsset, inactiveAsset];
       if (query?.isActive !== undefined) {
         data = data.filter((a) => a.isActive === query.isActive);
       }
@@ -365,49 +341,21 @@ describe("AssetsPage", () => {
     expect((await screen.findAllByText("Active Asset")).length).toBeGreaterThan(
       0,
     );
-    expect(screen.getAllByText("Broken Asset").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Lost Asset").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Inactive Asset").length).toBeGreaterThan(0);
 
-    // Open unified filter dropdown and toggle Broken
+    // Open unified filter dropdown and toggle Inactive
     const filterBtn = screen.getByRole("button", {
       name: /Filter assets by workspace and status/i,
     });
     fireEvent.click(filterBtn);
 
     const popover = screen.getByRole("dialog", { name: "Filter assets" });
-    fireEvent.click(within(popover).getByText("Broken"));
+    fireEvent.click(within(popover).getByText("Inactive"));
 
-    // Now only Broken should appear
+    // Now only Inactive should appear
     await waitFor(() => {
-      expect(screen.getAllByText("Broken Asset").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Inactive Asset").length).toBeGreaterThan(0);
     });
     expect(screen.queryAllByText("Active Asset")).toHaveLength(0);
-    expect(screen.queryAllByText("Lost Asset")).toHaveLength(0);
-    expect(screen.queryAllByText("Inactive Asset")).toHaveLength(0);
-  });
-
-  it("normalizes asset statuses accurately", () => {
-    expect(getNormalizedAssetStatus({ status: "ACTIVE", isActive: true })).toBe(
-      "ACTIVE",
-    );
-    expect(
-      getNormalizedAssetStatus({ status: "BROKEN", isActive: false }),
-    ).toBe("BROKEN");
-    expect(getNormalizedAssetStatus({ status: "LOST", isActive: false })).toBe(
-      "LOST",
-    );
-    expect(
-      getNormalizedAssetStatus({ status: "ACTIVE", isActive: false }),
-    ).toBe("INACTIVE");
-    expect(
-      getNormalizedAssetStatus({ status: "INACTIVE", isActive: false }),
-    ).toBe("INACTIVE");
-    expect(getNormalizedAssetStatus({ status: null, isActive: true })).toBe(
-      "ACTIVE",
-    );
-    expect(getNormalizedAssetStatus({ status: null, isActive: false })).toBe(
-      "INACTIVE",
-    );
   });
 });

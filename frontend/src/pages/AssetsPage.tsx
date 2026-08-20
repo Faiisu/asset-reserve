@@ -49,21 +49,8 @@ interface Filters {
 
 const assetStatusOptions = [
   { value: "ACTIVE", label: "Active", colorClass: "asset-status-swatch--active" },
-  { value: "BROKEN", label: "Broken", colorClass: "asset-status-swatch--broken" },
-  { value: "LOST", label: "Lost", colorClass: "asset-status-swatch--lost" },
   { value: "INACTIVE", label: "Inactive", colorClass: "asset-status-swatch--inactive" },
 ];
-
-export function getNormalizedAssetStatus(asset: {
-  status?: string | null;
-  isActive: boolean;
-}): "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE" {
-  const s = (asset.status ?? "").toUpperCase();
-  if (s === "BROKEN") return "BROKEN";
-  if (s === "LOST") return "LOST";
-  if (!asset.isActive || s === "INACTIVE") return "INACTIVE";
-  return "ACTIVE";
-}
 
 export function AssetsPage() {
   const { session, hasPermission, hasAreaPermission } = useAuth();
@@ -155,10 +142,6 @@ export function AssetsPage() {
       append ? setLoadingMore(true) : setLoading(true);
       setError(null);
       try {
-        // Asset-level BROKEN/LOST status no longer exists server-side (it
-        // now lives per serial unit) -- isActive is the only status facet
-        // the backend can still pre-filter on; BROKEN/LOST/ACTIVE selections
-        // are applied client-side below via getNormalizedAssetStatus.
         const singleStatus =
           filters.statuses.length === 1
             ? filters.statuses[0].toUpperCase()
@@ -183,15 +166,6 @@ export function AssetsPage() {
           list = list.filter((asset) =>
             filters.areaIds.includes(asset.managementArea.id),
           );
-        }
-        if (filters.statuses.length > 0) {
-          const selectedStatuses = new Set(
-            filters.statuses.map((s) => s.toUpperCase()),
-          );
-          list = list.filter((asset) => {
-            const assetStatus = getNormalizedAssetStatus(asset);
-            return selectedStatuses.has(assetStatus);
-          });
         }
         setAssets((current) =>
           append ? [...current, ...list] : list,
@@ -692,10 +666,7 @@ export function AssetsPage() {
                         <small>units</small>
                       </td>
                       <td>
-                        <AssetMasterStatusBadge
-                          status={asset.status}
-                          isActive={asset.isActive}
-                        />
+                        <AssetMasterStatusBadge isActive={asset.isActive} />
                       </td>
                       <td className="mono table-date">
                         {formatDate(asset.updatedAt)}
@@ -758,10 +729,7 @@ export function AssetsPage() {
                         <small>Total</small>
                         <strong>{asset.totalQuantity}</strong>
                       </span>
-                      <AssetMasterStatusBadge
-                        status={asset.status}
-                        isActive={asset.isActive}
-                      />
+                      <AssetMasterStatusBadge isActive={asset.isActive} />
                     </div>
                     <Link
                       className="button button--secondary button--sm"
@@ -967,31 +935,8 @@ function AssetTableSkeleton() {
   );
 }
 
-function AssetMasterStatusBadge({
-  status,
-  isActive,
-}: {
-  status?: string | null;
-  isActive: boolean;
-}) {
-  const normStatus = getNormalizedAssetStatus({ status, isActive });
-  if (normStatus === "BROKEN") {
-    return (
-      <span className="status-badge status-badge--broken">
-        <span />
-        Broken
-      </span>
-    );
-  }
-  if (normStatus === "LOST") {
-    return (
-      <span className="status-badge status-badge--lost">
-        <span />
-        Lost
-      </span>
-    );
-  }
-  if (normStatus === "INACTIVE") {
+function AssetMasterStatusBadge({ isActive }: { isActive: boolean }) {
+  if (!isActive) {
     return (
       <span className="status-badge status-badge--inactive">
         <span />
