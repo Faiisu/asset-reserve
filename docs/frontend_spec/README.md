@@ -28,7 +28,7 @@
 | Detail | [Engineering conventions](engineering-conventions-frontend.md) | โครงสร้างโฟลเดอร์และ naming convention         |
 
 ```text
-docs_v2/frontend_spec/
+docs/frontend_spec/
 ├── README.md
 ├── design-system.html          # canonical interactive design guide
 ├── design-system.md            # short prose companion
@@ -68,7 +68,7 @@ Data model ที่ frontend อ้างอิง (Prisma models ที่เ�
 | /assets/new                   | Create asset                         |
 | /assets/:id/edit              | Edit asset                           |
 | /reservations                 | My reservations / approval queue     |
-| /approvals                    | รวม item และ change-request approvals ที่ทำได้ |
+| /approvals                    | รวม item approvals ที่ทำได้ |
 | /reservations/new             | Create reservation                   |
 | /reservations/:id             | Reservation details (submit/decision/delivery-confirm/return อยู่ในหน้านี้ ไม่ใช่ route แยก) |
 | /admin/users                  | Users and roles                      |

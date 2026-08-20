@@ -40,13 +40,6 @@ ReservationItemId:
   schema:
     type: string
     format: uuid
-ChangeRequestId:
-  name: changeRequestId
-  in: path
-  required: true
-  schema:
-    type: string
-    format: uuid
 ReturnId:
   name: returnId
   in: path

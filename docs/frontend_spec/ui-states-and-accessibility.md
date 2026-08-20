@@ -31,4 +31,4 @@
 - Status label/สีสอดคล้องกันทุกหน้า (ดู [status-color-mapping.md](status-color-mapping.md))
 - Server error ไม่ทำให้ข้อมูลใน form หาย
 
-Acceptance criteria เชิง business rule (เช่น "adjustment ไม่ทำให้ totalQuantity ติดลบ") และ automated test matrix อยู่ใน [software_spec/acceptance-criteria.md](../software_spec/acceptance-criteria.md) — เอกสารนี้ครอบคลุมเฉพาะ UI state/interaction requirement
+Acceptance criteria เชิง business rule (เช่น "adjustment ไม่ทำให้ totalQuantity ติดลบ") และ automated test matrix อยู่ใน [software_spec/business-rules-and-validation.md](../software_spec/business-rules-and-validation.md) — เอกสารนี้ครอบคลุมเฉพาะ UI state/interaction requirement

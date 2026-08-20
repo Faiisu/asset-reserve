@@ -121,7 +121,7 @@ SessionUser:
             enum: [google, microsoft]
         accountLinkRequired:
           type: boolean
-          description: Whether this deployment currently hard-gates unlinked users at `/connect-account` (derived from `REQUIRE_ACCOUNT_LINK` and whether any provider is configured). See [`oauth-setup.md`](../../../../oauth-setup.md).
+          description: Whether this deployment currently hard-gates unlinked users at `/connect-account` (derived from `REQUIRE_ACCOUNT_LINK` and whether any provider is configured). See [`oauth-setup.md`](../../../integrations/oauth-setup.md).
 SessionContext:
   type: object
   required:

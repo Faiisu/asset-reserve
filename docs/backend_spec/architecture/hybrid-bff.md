@@ -117,7 +117,7 @@ asset-reservation/
 │   │   └── migrations/
 │   ├── prisma.config.ts
 │   └── package.json
-├── docs_v2/
+├── docs/
 ├── docker-compose.yml
 └── package.json
 ```
@@ -137,12 +137,12 @@ Backend ใช้ modular monolith โดยแบ่ง module ตาม busine
 | AccessControlModule         | Role, permissions และ ManagementArea scope                                               |
 | ManagementAreasModule       | Management area lookup/administration                                                    |
 | AssetsModule                | Asset CRUD, serial-numbered asset unit registration/retirement และ availability          |
-| ReservationsModule          | Reservation, items, participants, approval, change request, availability และ lifecycle   |
+| ReservationsModule          | Reservation, items, participants, approval, availability และ lifecycle                   |
 | ReturnsModule               | Return slip, per-unit condition inspection (Good/Broken/Lost) และ completion              |
 | RecognitionModule           | Recognition/kudos entry ระหว่าง user — ดู [modules/recognition.md](../modules/recognition.md) |
 | EmailModule                 | Email dispatch จาก lifecycle event (listener) — ดู [integrations/google-microsoft-auth-and-notifications.md](../integrations/google-microsoft-auth-and-notifications.md) |
 | EmailTemplatesModule        | Admin-configurable email template CRUD — ดู [modules/email-templates.md](../modules/email-templates.md) |
-| NotificationSettingsModule  | Per-user notification preference — ดู [modules/notification-settings.md](../modules/notification-settings.md) |
+| NotificationSettingsModule  | Global (singleton) notification setting, global-admin เท่านั้น — ดู [modules/notification-settings.md](../modules/notification-settings.md) |
 | UploadsModule               | Multipart image upload endpoint                                                          |
 | DatabaseModule              | PrismaClient singleton และ transaction utilities                                         |
 

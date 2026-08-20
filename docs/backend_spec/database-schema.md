@@ -2,7 +2,9 @@
 
 [← Backend specification](README.md) · [Database and concurrency](database-and-concurrency.md)
 
-เอกสารนี้เป็นแหล่งอ้างอิงเดียว (canonical source) สำหรับตาราง, column, type, index และ relation ของฐานข้อมูล เขียนด้วย DBML-style syntax เพื่ออธิบาย schema ก่อนแปลงเป็น Prisma model จริงที่ [`backend/prisma/`](../../backend/prisma/) — ห้ามเอกสารอื่นใน `docs_v2/` restate ชื่อ column, enum value หรือ constraint SQL ซ้ำจากที่นี่ ให้ลิงก์กลับมาแทน
+เอกสารนี้เป็นแหล่งอ้างอิงเดียว (canonical source) สำหรับตาราง, column, type, index และ relation ของฐานข้อมูล เขียนด้วย DBML-style syntax เพื่ออธิบาย schema ก่อนแปลงเป็น Prisma model จริงที่ [`backend/prisma/`](../../backend/prisma/) — ห้ามเอกสารอื่นใน `docs/` restate ชื่อ column หรือ constraint SQL ซ้ำจากที่นี่ ให้ลิงก์กลับมาแทน
+
+Status enum ค่าที่เป็นไปได้, ความหมาย และ transition อยู่ที่ [software_spec/lifecycle-and-state-machines.md](../software_spec/lifecycle-and-state-machines.md) เท่านั้น — ที่นี่เก็บแค่ column type (`varchar(n)`), nullability และ default value แล้วลิงก์กลับไปแทนการ restate ค่า enum เต็ม
 
 Business rationale ของแต่ละ status/flag (เช่น เหตุผลที่เอา `ACTIVE` ออกจาก asset) อยู่ใน [software_spec/lifecycle-and-state-machines.md](../software_spec/lifecycle-and-state-machines.md) และ [software_spec/business-rules-and-validation.md](../software_spec/business-rules-and-validation.md) — ที่นี่เก็บเฉพาะ persisted shape
 
@@ -86,50 +88,7 @@ Table roles {
 
   description text
 
-  permissions jsonb [not null, default: `[]`, note: '''
-    ตัวอย่าง:
-
-    ADMIN:
-    [
-      "asset:create",
-      "asset:view",
-      "asset:update",
-      "asset:delete",
-
-      "reservation:create",
-      "reservation:update",
-      "reservation:approve",
-      "reservation:reject",
-
-      "return:approve",
-
-      "user:create",
-      "user:disable",
-
-      "role:assign"
-    ]
-
-    MANAGER:
-    [
-      "asset:create",
-      "asset:view",
-      "asset:update",
-
-      "reservation:create",
-      "reservation:update",
-      "reservation:approve",
-      "reservation:reject",
-
-      "return:approve"
-    ]
-
-    USER:
-    [
-      "asset:view",
-      "reservation:create",
-      "reservation:update"
-    ]
-  ''']
+  permissions jsonb [not null, default: `[]`, note: 'Array of permission key string. Permission key catalog: software_spec/permissions-and-rbac.md#3-permission-key-catalog']
 
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
@@ -227,15 +186,7 @@ Table asset_units {
 
   serial_number varchar(100) [not null, unique, note: 'Globally unique across the whole system, not just per asset']
 
-  status varchar(20) [not null, default: 'ACTIVE', note: '''
-    ACTIVE
-    RESERVED
-    CHECKED_OUT
-    BROKEN
-    LOST
-    IN_REPAIR
-    INACTIVE
-  ''']
+  status varchar(20) [not null, default: 'ACTIVE', note: 'ค่าและ transition: software_spec/lifecycle-and-state-machines.md#condition-classification']
 
   note text
 
@@ -323,18 +274,7 @@ Table reservations {
   start_at timestamptz [not null]
   end_at timestamptz [not null]
 
-  status varchar(30) [not null, default: 'DRAFT', note: '''
-    DRAFT
-    PENDING_APPROVAL
-    PARTIALLY_APPROVED
-    APPROVED
-    DELIVERY_CONFIRMED
-    RETURN_PENDING
-    RETURN_CONFIRMED
-    COMPLETED
-    REJECTED
-    CANCELLED
-  ''']
+  status varchar(30) [not null, default: 'DRAFT', note: 'ค่าและ transition: software_spec/lifecycle-and-state-machines.md#reservation-status']
 
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
@@ -363,14 +303,7 @@ Table reservation_items {
 
   quantity int [not null, note: 'ต้อง > 0']
 
-  status varchar(30) [not null, default: 'PENDING', note: '''
-    PENDING
-    APPROVED
-    REJECTED
-    PREPARED
-    DELIVERED
-    RETURNED
-  ''']
+  status varchar(30) [not null, default: 'PENDING', note: 'ค่าและ transition: software_spec/lifecycle-and-state-machines.md#reservation-item-status']
 
   prepared_by uuid
   prepared_at timestamptz
@@ -454,49 +387,13 @@ Table reservation_item_approvals {
 
   approver_id uuid [not null]
 
-  status varchar(20) [not null, default: 'PENDING', note: '''
-    PENDING
-    APPROVED
-    REJECTED
-  ''']
+  status varchar(20) [not null, default: 'PENDING', note: 'ค่าและ transition: software_spec/lifecycle-and-state-machines.md#approval-status']
 
   comment text
 
   decided_at timestamptz
 
   created_at timestamptz [not null, default: `now()`]
-}
-
-
-// =====================================================
-// RESERVATION CHANGE REQUEST
-// =====================================================
-
-Table reservation_change_requests {
-  id uuid [pk]
-
-  reservation_id uuid [not null]
-  requested_by uuid [not null]
-
-  change_data jsonb [not null]
-
-  reason text
-
-  status varchar(20) [not null, default: 'PENDING', note: '''
-    PENDING
-    APPROVED
-    REJECTED
-    CANCELLED
-  ''']
-
-  reviewed_by uuid
-  reviewed_at timestamptz
-
-  created_at timestamptz [not null, default: `now()`]
-
-  indexes {
-    (reservation_id, status)
-  }
 }
 
 
@@ -511,12 +408,7 @@ Table returns {
 
   returned_by uuid [not null]
 
-  status varchar(20) [not null, default: 'PENDING', note: '''
-    PENDING
-    APPROVED
-    REJECTED
-    COMPLETED
-  ''']
+  status varchar(20) [not null, default: 'PENDING', note: 'ค่าและ transition: software_spec/lifecycle-and-state-machines.md#return-status']
 
   returned_at timestamptz
 
@@ -564,9 +456,7 @@ Table return_item_units {
   reservation_item_unit_id uuid [not null, unique, note: 'A checked-out unit can be settled by exactly one return_item_unit, ever']
 
   condition varchar(10) [note: '''
-    GOOD
-    BROKEN
-    LOST
+    ค่าและความหมาย: software_spec/lifecycle-and-state-machines.md#condition-classification
 
     NULL until the return is inspected and decided at return-approval time;
     set at drop-off submission only if already known, otherwise decided later.
@@ -594,11 +484,7 @@ Table return_approvals {
 
   approver_id uuid [not null]
 
-  status varchar(20) [not null, default: 'PENDING', note: '''
-    PENDING
-    APPROVED
-    REJECTED
-  ''']
+  status varchar(20) [not null, default: 'PENDING', note: 'ค่าและ transition: software_spec/lifecycle-and-state-machines.md#approval-status']
 
   description text
 
@@ -732,13 +618,6 @@ Ref: reservation_participants.user_id > users.id
 
 Ref: reservation_item_approvals.reservation_item_id > reservation_items.id
 Ref: reservation_item_approvals.approver_id > users.id
-
-
-// RESERVATION CHANGE
-
-Ref: reservation_change_requests.reservation_id > reservations.id
-Ref: reservation_change_requests.requested_by > users.id
-Ref: reservation_change_requests.reviewed_by > users.id
 
 
 // RETURN

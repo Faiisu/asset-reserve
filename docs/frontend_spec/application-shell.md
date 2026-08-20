@@ -7,7 +7,7 @@
 ### Desktop
 
 - Sidebar: Calendar (เสมอ), Assets, Reservations, Approval request — **ไม่มี "Returns" เป็นรายการ nav แยก** return workflow อยู่ในหน้า reservation detail รายการใดแสดงตามสิทธิ์ของ session ดู [software_spec/permissions-and-rbac.md](../software_spec/permissions-and-rbac.md) สำหรับ permission key ที่ควบคุมแต่ละรายการ
-- Admin section มี 4 รายการ: Workspaces (`/admin/areas`), Access and roles (`/admin/access`), Users (`/admin/users`), Notification (`/admin/notifications`) — เข้าถึงได้ตาม permission เดียวกัน
+- Admin section มี 4 รายการ: Management areas (`/admin/areas`), Access and roles (`/admin/access`), Users (`/admin/users`), Notification (`/admin/notifications`) — เข้าถึงได้ตาม permission เดียวกัน
 - Top bar แสดง search เฉพาะ asset/reservation, theme switch และ session profile
 - Profile แสดง UserProfile.name; ถ้าไม่มี profile ให้ fallback เป็น User.email แล้วจึงเป็นข้อความ "User" เป็นค่าสุดท้าย (email เป็น nullable เพราะ login ปัจจุบันใช้ username; profile chip ในเมนูแสดง email หรือ username ถ้าไม่มี email)
 - แสดง role และ management-area scope จาก session จริง ห้าม hardcode

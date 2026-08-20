@@ -2,7 +2,7 @@
 
 [← Backend specification](README.md)
 
-Functional acceptance criteria (business-rule assertions) อยู่ที่ [software_spec/acceptance-criteria.md](../software_spec/acceptance-criteria.md) — เอกสารนี้ครอบคลุมเฉพาะ test strategy และ non-functional requirements
+Functional acceptance criteria (business-rule assertions) อยู่ที่ [software_spec/business-rules-and-validation.md](../software_spec/business-rules-and-validation.md) — เอกสารนี้ครอบคลุมเฉพาะ test strategy และ non-functional requirements
 
 ## Unit tests
 

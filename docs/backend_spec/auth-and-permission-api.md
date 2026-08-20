@@ -93,7 +93,7 @@ Endpoint behavior, algorithm และ validation แต่ละเส้นอ
 ## Consumer workflow while API is under development
 
 1. Bundle contract ด้วย `cd backend && npm run openapi:bundle`
-2. Import `docs_v2/backend_spec/contracts/dist/openapi.bundle.yaml` เข้า mock server หรือ API client generator
+2. Import `docs/backend_spec/contracts/dist/openapi.bundle.yaml` เข้า mock server หรือ API client generator
 3. ตั้ง mock base URL ให้แทน `/api/v1`
 4. ใช้ UUID และ timestamps ที่ valid ใน fixture
 5. ทดสอบทั้ง success, 401, 403, 409 และ 422

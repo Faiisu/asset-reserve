@@ -32,12 +32,12 @@ asset-reservation/
 ├── recognition-service/      # แยก deployable ต่างหาก (own Dockerfile, docker-compose.yml)
 ├── scripts/                  # Repo-level operational script (นอกเหนือจาก backend/scripts/)
 ├── database/                 # PostgreSQL deployment configuration
-├── docs_v2/                  # Specification และ decision records
+├── docs/                  # Specification และ decision records
 └── .dockerignore
 ```
 
 - แต่ละ deployable มี `package.json`, environment, Dockerfile และ build output ของตัวเอง
-- `docs_v2/` อธิบาย contract และ decision; source code ต้องไม่พึ่งการ parse เอกสาร Markdown ตอน runtime
+- `docs/` อธิบาย contract และ decision; source code ต้องไม่พึ่งการ parse เอกสาร Markdown ตอน runtime
 - `database/` ดูแลการรัน PostgreSQL ส่วน schema ของ application อยู่ที่ `backend/prisma/`
 
 frontend รู้จัก backend ผ่าน API contract เท่านั้น และ backend รู้จัก PostgreSQL ผ่าน repository/Prisma เท่านั้น — สถาปัตยกรรม/layer โดยรวมดูที่ [Hybrid BFF architecture](architecture/hybrid-bff.md)
@@ -289,4 +289,4 @@ Model file แบ่งตาม business domain ไม่แบ่งเป็�
 - Migration ถูก review และทดสอบกับ PostgreSQL จริง
 - Unit/integration test อยู่ในระดับที่ตรงกับ behavior
 - ไม่มี secret, generated output หรือ build artifact ถูกเพิ่มเข้า Git
-- เอกสาร architecture ใน `docs_v2/` ถูกอัปเดตเมื่อเพิ่ม layer หรือ convention ใหม่
+- เอกสาร architecture ใน `docs/` ถูกอัปเดตเมื่อเพิ่ม layer หรือ convention ใหม่

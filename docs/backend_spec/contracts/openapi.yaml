@@ -109,10 +109,6 @@ paths:
     $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1items~1{itemId}~1prepare
   /reservations/{reservationId}/items/decision:
     $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1items~1decision
-  /reservations/{reservationId}/change-requests:
-    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1change-requests
-  /reservations/{reservationId}/change-requests/{changeRequestId}/decision:
-    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1change-requests~1{changeRequestId}~1decision
   /reservations/{reservationId}/delivery-confirm:
     $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1delivery-confirm
   /reservations/{reservationId}/returns:
@@ -173,8 +169,6 @@ components:
       $ref: ./components/parameters.yaml#/ReservationId
     ReservationItemId:
       $ref: ./components/parameters.yaml#/ReservationItemId
-    ChangeRequestId:
-      $ref: ./components/parameters.yaml#/ChangeRequestId
     ReturnId:
       $ref: ./components/parameters.yaml#/ReturnId
     Search:
@@ -339,12 +333,6 @@ components:
       $ref: ./components/schemas/reservations.yaml#/ReservationItemDecisionRequest
     ReservationItemsDecisionRequest:
       $ref: ./components/schemas/reservations.yaml#/ReservationItemsDecisionRequest
-    ReservationChangeData:
-      $ref: ./components/schemas/reservations.yaml#/ReservationChangeData
-    CreateReservationChangeRequest:
-      $ref: ./components/schemas/reservations.yaml#/CreateReservationChangeRequest
-    ReservationChangeRequestDecisionRequest:
-      $ref: ./components/schemas/reservations.yaml#/ReservationChangeRequestDecisionRequest
     ReservationUser:
       $ref: ./components/schemas/reservations.yaml#/ReservationUser
     ReservationAsset:
@@ -357,8 +345,6 @@ components:
       $ref: ./components/schemas/reservations.yaml#/ReservationApproval
     ReservationDetailItem:
       $ref: ./components/schemas/reservations.yaml#/ReservationDetailItem
-    ReservationChangeRequest:
-      $ref: ./components/schemas/reservations.yaml#/ReservationChangeRequest
     ReservationDetail:
       $ref: ./components/schemas/reservations.yaml#/ReservationDetail
     PrepareReservationItemRequest:

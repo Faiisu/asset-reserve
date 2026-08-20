@@ -50,7 +50,6 @@ ReservationSummary:
     - pendingItemCount
     - approvedItemCount
     - rejectedItemCount
-    - hasPendingChangeRequest
     - pendingDecisionCount
     - capabilities
     - createdAt
@@ -92,18 +91,14 @@ ReservationSummary:
     rejectedItemCount:
       type: integer
       minimum: 0
-    hasPendingChangeRequest:
-      type: boolean
     pendingDecisionCount:
       type: integer
       minimum: 0
     capabilities:
       type: object
-      required: [canSubmit, canRequestChange, canReview]
+      required: [canSubmit, canReview]
       properties:
         canSubmit:
-          type: boolean
-        canRequestChange:
           type: boolean
         canReview:
           type: boolean
@@ -211,61 +206,6 @@ ReservationItemsDecisionRequest:
     comment:
       type: string
       maxLength: 2000
-ReservationChangeData:
-  type: object
-  additionalProperties: false
-  minProperties: 1
-  properties:
-    eventName:
-      type: string
-      minLength: 1
-      maxLength: 200
-    description:
-      type:
-        - string
-        - "null"
-      maxLength: 10000
-    startAt:
-      type: string
-      format: date-time
-    endAt:
-      type: string
-      format: date-time
-    items:
-      type: array
-      minItems: 1
-      maxItems: 100
-      items:
-        $ref: "#/components/schemas/ReservationItemInput"
-    participantIds:
-      type: array
-      maxItems: 100
-      uniqueItems: true
-      items:
-        type: string
-        format: uuid
-CreateReservationChangeRequest:
-  type: object
-  additionalProperties: false
-  required:
-    - changeData
-  properties:
-    changeData:
-      $ref: "#/components/schemas/ReservationChangeData"
-    reason:
-      type: string
-      maxLength: 2000
-ReservationChangeRequestDecisionRequest:
-  type: object
-  additionalProperties: false
-  required:
-    - decision
-  properties:
-    decision:
-      type: string
-      enum:
-        - APPROVE
-        - REJECT
 ReservationUser:
   type: object
   required:
@@ -421,47 +361,6 @@ ReservationDetailItem:
           type: boolean
         canReject:
           type: boolean
-ReservationChangeRequest:
-  type: object
-  required:
-    - id
-    - changeData
-    - status
-    - requestedBy
-    - reviewedBy
-    - reviewedAt
-    - createdAt
-  properties:
-    id:
-      type: string
-      format: uuid
-    changeData:
-      $ref: "#/components/schemas/ReservationChangeData"
-    reason:
-      type:
-        - string
-        - "null"
-    status:
-      type: string
-      enum:
-        - PENDING
-        - APPROVED
-        - REJECTED
-        - CANCELLED
-    requestedBy:
-      $ref: "#/components/schemas/ReservationUser"
-    reviewedBy:
-      oneOf:
-        - $ref: "#/components/schemas/ReservationUser"
-        - type: "null"
-    reviewedAt:
-      type:
-        - string
-        - "null"
-      format: date-time
-    createdAt:
-      type: string
-      format: date-time
 CancelReservationRequest:
   type: object
   additionalProperties: false
@@ -480,7 +379,6 @@ ReservationDetail:
     - requester
     - participants
     - items
-    - changeRequests
     - returns
     - capabilities
     - createdAt
@@ -513,10 +411,6 @@ ReservationDetail:
       type: array
       items:
         $ref: "#/components/schemas/ReservationDetailItem"
-    changeRequests:
-      type: array
-      items:
-        $ref: "#/components/schemas/ReservationChangeRequest"
     returns:
       type: array
       items:
@@ -525,14 +419,11 @@ ReservationDetail:
       type: object
       required:
         - canSubmit
-        - canRequestChange
         - canConfirmDelivery
         - canReturn
         - canDecideReturn
       properties:
         canSubmit:
-          type: boolean
-        canRequestChange:
           type: boolean
         canConfirmDelivery:
           type: boolean
@@ -812,12 +703,12 @@ ReturnListResponse:
   type: object
   required:
     - data
-    - pagination
+    - pageInfo
   properties:
     data:
       type: array
       items:
         $ref: "#/components/schemas/ReturnDetail"
-    pagination:
+    pageInfo:
       $ref: "#/components/schemas/PageInfo"
 

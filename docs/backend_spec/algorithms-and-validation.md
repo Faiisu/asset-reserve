@@ -453,7 +453,7 @@ Availability ใช้ช่วงเวลาแบบ half-open: overlap เ�
 
 - Hard allocation นับเฉพาะ item สถานะ `APPROVED`, `PREPARED`, `DELIVERED` ใน reservation สถานะ `PARTIALLY_APPROVED`, `APPROVED`, `DELIVERY_CONFIRMED`, `RETURN_PENDING`, `RETURN_CONFIRMED`
 - Soft warning นับ item สถานะ `PENDING` ใน reservation สถานะ `PENDING_APPROVAL`
-- Approval และการ approve change request lock asset row ตาม UUID, ตรวจ availability ซ้ำใน `SERIALIZABLE` transaction และ retry `P2034` สูงสุด 3 ครั้ง (รายละเอียด retry policy: [database-and-concurrency.md](database-and-concurrency.md))
+- Approval lock asset row ตาม UUID, ตรวจ availability ซ้ำใน `SERIALIZABLE` transaction และ retry `P2034` สูงสุด 3 ครั้ง (รายละเอียด retry policy: [database-and-concurrency.md](database-and-concurrency.md))
 - Pending request ไม่กัน quantity แต่ detail จะคืน `PENDING_RESERVATION_OVERLAP`, `pendingQuantity` และ `pendingReservationCount`
 
 Status transitions และความหมายทางธุรกิจของแต่ละ status: [software_spec/lifecycle-and-state-machines.md](../software_spec/lifecycle-and-state-machines.md)
@@ -464,7 +464,7 @@ Status transitions และความหมายทางธุรกิจ�
 
 ### 7.2 `GET /reservations`
 
-รับ `view`, `status` (`ReservationStatus` §2), `areaId`, `search`, ช่วงเวลา และ opaque cursor แล้วบังคับ visibility จาก requester/participant หรือ permission ของ asset area โดยตรง ใช้ keyset pagination ตาม `(createdAt,id)` และคืน summary, item status counts, pending change flag และจำนวน decision ที่ actor ทำได้โดยไม่เกิด N+1 query
+รับ `view`, `status` (`ReservationStatus` §2), `areaId`, `search`, ช่วงเวลา และ opaque cursor แล้วบังคับ visibility จาก requester/participant หรือ permission ของ asset area โดยตรง ใช้ keyset pagination ตาม `(createdAt,id)` และคืน summary, item status counts และจำนวน decision ที่ actor ทำได้โดยไม่เกิด N+1 query
 
 `view` (default `MINE`) มี 5 ค่า:
 
@@ -478,14 +478,13 @@ Status transitions และความหมายทางธุรกิจ�
 
 ### 7.3 `GET /reservations/:reservationId`
 
-คืน requester, participants, item/asset/approval, availability, overlap warnings, change requests, returns, timestamps และ capabilities สำหรับ actor
+คืน requester, participants, item/asset/approval, availability, overlap warnings, returns, timestamps และ capabilities สำหรับ actor
 
-`capabilities` มี 5 flag คำนวณสดต่อ request ตาม actor:
+`capabilities` มี 4 flag คำนวณสดต่อ request ตาม actor:
 
 | Flag | True เมื่อ |
 | --- | --- |
 | `canSubmit` | actor เป็น requester, reservation เป็น `DRAFT` (ตรงกับ precondition ของ §7.4) |
-| `canRequestChange` | actor เป็น requester/participant, reservation submit แล้วและยังไม่มี pending change request ค้าง (ตรงกับ precondition ของ §7.8) |
 | `canConfirmDelivery` | actor เป็นเจ้าหน้าที่คลัง/Area Manager, reservation เป็น `APPROVED` หรือ `PARTIALLY_APPROVED` ที่มี item approved อย่างน้อยหนึ่งรายการ (ตรงกับ precondition ของ §7.11) |
 | `canReturn` | actor เป็นผู้ยืม/participant, มี `ReservationItemUnit` อย่างน้อยหนึ่งหน่วยของ reservation นี้อยู่สถานะ `CHECKED_OUT` (ตรงกับ precondition ของ §8.2) |
 | `canDecideReturn` | actor เป็น Area Manager ของ management area ที่ reservation นี้อยู่, มี `Return` อย่างน้อยหนึ่งใบของ reservation นี้อยู่สถานะ `PENDING` (ตรงกับ precondition ของ §8.3) |
@@ -512,14 +511,6 @@ Warehouse staff ผูก `AssetUnit` จริงเข้ากับ item ท
 4. เมื่อผ่าน: สร้าง `ReservationItemUnit` หนึ่งแถวต่อ unit (ผูก `reservation_item_id` + `asset_unit_id`), เปลี่ยน `AssetUnit.status` จาก `ACTIVE` เป็น `RESERVED` ทีละแถวพร้อม `AssetUnitEvent`, และอัปเดต `reservation_items.status` เป็น `PREPARED` พร้อม `prepared_by = actor.id`, `prepared_at = now` — ทั้งหมด commit พร้อมกันใน transaction เดียว
 5. Reservation status โดยรวมไม่เปลี่ยนจากขั้นตอนนี้ (ยังคง `APPROVED`/`PARTIALLY_APPROVED` จนกว่าจะ delivery-confirm ที่ §7.11)
 
-### 7.8 `POST /reservations/:reservationId/change-requests`
-
-สร้างคำขอแก้ไขหลัง submit โดย allowlist เฉพาะ `eventName`, `description`, `startAt`, `endAt`, `items`, `participantIds` และอนุญาต pending request ได้หนึ่งรายการต่อ reservation
-
-### 7.9 `POST /reservations/:reservationId/change-requests/:changeRequestId/decision`
-
-เมื่อ approve ระบบ apply event/time/item/participant changes และบันทึก reviewer ใน transaction เดียว ถ้า reservation เดิม approved รายการใหม่ถือว่า approved โดย reviewer นี้และต้องผ่าน conflict check ก่อน commit
-
 ### 7.10 `POST /reservations/:reservationId/cancel`
 
 Requester หรือ actor ที่ manage reservation ได้ยกเลิกสถานะที่ยังไม่ถึง delivery พร้อม reason optional แล้วเปลี่ยน reservation/item/approval ที่เกี่ยวข้องเป็น cancelled/rejected ตาม domain rule เพื่อคืน allocation
@@ -534,7 +525,7 @@ Requester หรือ actor ที่ manage reservation ได้ยกเล�
 
 ### 7.12 Past date/time validation (creation and reschedule)
 
-`startAt` ต้องอยู่ในอนาคตเทียบกับเวลาปัจจุบัน (`startAt >= now`, อนุญาต clock skew/network grace 60 วินาที) ถ้า `startAt < now - 60s` backend ตอบ `422 VALIDATION_ERROR` พร้อมข้อความ `"The reservation start time cannot be in the past."` และ `endAt` ต้องมากกว่า `startAt` เสมอ (`endAt > startAt`) กฎนี้ครอบคลุมทั้งตอนสร้างและตอน apply change request
+`startAt` ต้องอยู่ในอนาคตเทียบกับเวลาปัจจุบัน (`startAt >= now`, อนุญาต clock skew/network grace 60 วินาที) ถ้า `startAt < now - 60s` backend ตอบ `422 VALIDATION_ERROR` พร้อมข้อความ `"The reservation start time cannot be in the past."` และ `endAt` ต้องมากกว่า `startAt` เสมอ (`endAt > startAt`) กฎนี้ครอบคลุมทั้งตอนสร้างและตอนแก้ไขกำหนดการ
 
 ## 8. Return & Inspection APIs
 

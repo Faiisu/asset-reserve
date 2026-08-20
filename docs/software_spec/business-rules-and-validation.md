@@ -13,6 +13,7 @@
 - Deactivate asset ใช้ `Asset.isActive = false` ไม่ hard delete เพื่อรักษา relation และ ledger ที่มีอยู่
 - Asset ที่ deactivate แล้วไม่สามารถถูกเพิ่มใน reservation ใหม่ได้
 - การ register/retire หน่วยหลายรายการพร้อมกันบันทึกเป็น batch เดียว (`AssetUnitEventBatch`)
+- Asset list ที่แสดงต่อผู้ใช้ต้องคำนวณ `totalQuantity`/available quantity ถูกต้องตามกติกา derive ข้างต้นเสมอ ไม่ใช่ค่าที่ cache ผิดเวลา
 
 ## 2. Reservation
 
@@ -24,7 +25,7 @@
 - **Conflict detection**: เมื่อ submit, update หรือ approve reservation ระบบต้องตรวจ overlap ของช่วงเวลาต่อ asset — จำนวนที่ขอต้องไม่เกิน headroom ที่เหลือ โดย headroom คำนวณจาก total unit ที่ active ลบด้วยจำนวนที่ถูกจองแล้วในช่วงเวลาที่ทับซ้อนกัน (นับเฉพาะ item/reservation ที่อยู่ใน status ที่ยัง "กันสิทธิ์" อยู่ เช่น approved ขึ้นไป จนถึงก่อน completed) เกินสิทธิ์ให้ปฏิเสธ — รายละเอียด query/algorithm อยู่ใน [backend_spec/algorithms-and-validation.md](../backend_spec/algorithms-and-validation.md)
 - Submit ต้องตรวจ available quantity ซ้ำที่ backend เสมอ (แม้ frontend แสดงเลขมาก่อนแล้ว)
 - อนุมัติราย item แล้ว aggregate status ของ reservation ต้องถูกคำนวณใหม่ตาม [lifecycle-and-state-machines.md#reservation-status](lifecycle-and-state-machines.md#reservation-status)
-- การแก้ไข reservation **หลัง submit แล้ว** ต้องทำผ่าน `ReservationChangeRequest` เท่านั้น แก้ field ตรงไม่ได้
+- การแก้ไข reservation **หลัง submit แล้ว** ไม่รองรับ — `ReservationChangeRequest` ถูกยกเลิก (ดู [scope-and-roadmap.md](scope-and-roadmap.md#feature-ที่ถูกยกเลิก-decommissioned)) ต้องยกเลิก reservation เดิมแล้วสร้างใหม่แทนถ้าต้องการเปลี่ยนกำหนดการ/รายการ
 - Prepare/checkout ต้องบันทึก actor และเวลาที่ดำเนินการ
 
 ## 3. Return
@@ -47,15 +48,26 @@
 
 ## 5. เกณฑ์คุณภาพข้ามหน้า (cross-cutting)
 
-- ทุกหน้าที่ทำ mutation ต้องป้องกัน double submit (idempotency) — รายละเอียด implementation อยู่ใน [backend_spec/algorithms-and-validation.md](../backend_spec/algorithms-and-validation.md)
+- ทุกหน้าที่ทำ mutation ต้องป้องกัน double submit (idempotency) — double click หรือ network retry ต้องไม่สร้าง reservation, approval, ledger หรือ return ซ้ำ — รายละเอียด implementation อยู่ใน [backend_spec/algorithms-and-validation.md](../backend_spec/algorithms-and-validation.md)
 - Adjustment/registration หลาย line บันทึกเป็น batch เดียว และต้องไม่ทำให้ `totalQuantity` ติดลบ
 - จำนวน returned/broken/lost ต้องไม่ติดลบและไม่เกินยอดค้างคืน
+- ผู้ใช้สองคน prepare/checkout asset unit (serial) เดียวกันพร้อมกัน ต้องมีเพียงฝ่ายเดียว lock unit นั้นได้สำเร็จ อีกฝ่าย fail ด้วย `409`
+- Transaction conflict ต้อง retry ตาม policy ที่กำหนด และตอบ structured `409` เมื่อไม่สามารถดำเนินการได้หลัง retry หมด
+- ทุก list endpoint ต้องบังคับ page-size limit
+- Backup และ restore procedure ต้องถูกทดสอบอย่างน้อยหนึ่งครั้งก่อน pilot deployment
 
 ## 6. Recognition, Email templates, Notification settings
 
 - **Recognition**: asset ที่มี `assetId` ต้องผ่าน asset-view access control ปกติก่อนเรียก recognition-service เสมอ (ใช้ permission/scope เดียวกับหน้า asset detail ตาม [permissions-and-rbac.md](permissions-and-rbac.md)) — recognition-service เองไม่มีระบบยืนยันตัวตน ดังนั้น backend เป็นด่านตรวจสิทธิ์เดียว รายละเอียด endpoint: [backend_spec/modules/recognition.md](../backend_spec/modules/recognition.md)
 - **Email templates**: มี situation ที่รองรับตายตัว 3 แบบ (`reservation_submitted`, `reservation_decided`, `return_decided`) เพิ่ม/ลบ situation ใหม่ไม่ได้ผ่าน API นี้ — "reset to default" เป็น idempotent (เรียกซ้ำได้แม้ยังไม่เคย customize) รายละเอียด: [backend_spec/modules/email-templates.md](../backend_spec/modules/email-templates.md)
 - **Notification settings**: เป็น singleton settings (มีแถวเดียวทั้งระบบ) การบันทึกครั้งแรกต้องระบุ App Password เสมอ ครั้งถัดไปเว้นว่างได้เพื่อคงรหัสเดิม — เฉพาะ global admin เท่านั้นที่เข้าถึงได้ รายละเอียด: [backend_spec/modules/notification-settings.md](../backend_spec/modules/notification-settings.md)
+
+## 7. Authentication / access
+
+- ผู้ไม่ login ถูก redirect ไป `/login`
+- User ที่ `isActive = false` ใช้งาน protected route ไม่ได้
+- Navigation และ action ที่แสดงต้องสอดคล้องกับ permissions และ management-area scope ของผู้ใช้จริง ห้าม hardcode
+- Backend ต้องตอบ `403` เมื่อเรียก action นอก scope โดยตรง ไม่พึ่งการซ่อนปุ่มฝั่ง frontend เป็นด่านตรวจสิทธิ์เดียว
 
 ## เอกสารที่เกี่ยวข้อง
 

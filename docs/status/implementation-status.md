@@ -42,16 +42,16 @@ flowchart TB
 | `/connect-account` | `ConnectAccountPage` | mandatory account-link gate เมื่อ `REQUIRE_ACCOUNT_LINK` เปิด บังคับ link Google/Microsoft ก่อนใช้แอปต่อ | Login |
 | `/connect-account/callback` | `ConnectAccountCallbackPage` | callback ของ mandatory-link flow | Login |
 | `/account` | `AccountPage` | self-service แก้ name/email, เปลี่ยน password, link/unlink Google/Microsoft แบบ optional | Login |
-| `/calendar` | `CalendarPage` | continuous month calendar, Today/date picker, status/workspace filters, event minibox, asset picker search/list/grid, date-range drag/keyboard selection, prefill reservation, approve/reject pending items, cancel reservation | Login; permission-gated ตาม capability ที่ API ส่งมา |
-| `/assets` | `AssetsPage` | search, workspace/status filters, list/card responsive views, cursor load-more, multi-select, batch stock add/remove, batch disable | permission-gated |
-| `/assets/new` | `AssetFormPage` | single/batch create, workspace selection, quantity/description, preview, upload file, camera capture, remove/replace photo | permission-gated |
+| `/calendar` | `CalendarPage` | continuous month calendar, Today/date picker, status/management-area filters, event minibox, asset picker search/list/grid, date-range drag/keyboard selection, prefill reservation, approve/reject pending items, cancel reservation | Login; permission-gated ตาม capability ที่ API ส่งมา |
+| `/assets` | `AssetsPage` | search, management-area/status filters, list/card responsive views, cursor load-more, multi-select, batch stock add/remove, batch disable | permission-gated |
+| `/assets/new` | `AssetFormPage` | single/batch create, management-area selection, quantity/description, preview, upload file, camera capture, remove/replace photo | permission-gated |
 | `/asset/new` | Redirect | compatibility redirect ไป `/assets/new` | Login |
 | `/assets/:assetId` | `AssetDetailPage` | metadata/owner/edit policy, allocations, ledger, activate/deactivate, single stock add/remove | visibility และ capabilities จาก API |
 | `/assets/:assetId/edit` | `AssetFormPage` | edit name, area, description และ picture; quantity แก้ผ่าน inventory action | permission-gated |
-| `/reservations` | `ReservationsPage` | My reservations/Approval queue tabs, search, grouped status/workspace/date filters, cursor load-more | permission-gated |
+| `/reservations` | `ReservationsPage` | My reservations/Approval queue tabs, search, grouped status/management-area/date filters, cursor load-more | permission-gated |
 | `/reservations/new` | `ReservationCreatePage` | event schedule, optional asset manifest, quantity, URL-prefilled dates/assets, recent reservations, reference lookup, create draft หรือ submit | permission-gated |
 | `/reservations/:reservationId` | `ReservationDetailPage` | schedule/requester/participants/items, availability warnings, submit draft, item single/batch approve/reject, cancel, request edit, approve/reject edit request, delivery confirm, **submit/decide return** (per-item return slip, Good/Broken/Lost decision) | capabilities จาก reservation detail |
-| `/approvals` | `ApprovalRequestsPage` | รวม pending item approvals และ change-request approvals ที่ actor ตัดสินใจได้ ข้ามหลาย reservation ในหน้าเดียว | permission-gated |
+| `/approvals` | `ApprovalRequestsPage` | รวม pending item approvals ที่ actor ตัดสินใจได้ ข้ามหลาย reservation ในหน้าเดียว | permission-gated |
 | `/admin/areas` | `ManagementAreasPage` | search/list, create, edit, delete confirmation | Global ADMIN |
 | `/admin/access` | `AccessPage` | permission catalog grouped by resource, role selection, create role, edit description/permissions, dirty-state save | Global ADMIN |
 | `/admin/users` | `UsersPage` | search/status/role/area filters, detail drawer, create account with optional uploaded/camera photo, enable/disable, assign/remove scoped roles | permission-gated |

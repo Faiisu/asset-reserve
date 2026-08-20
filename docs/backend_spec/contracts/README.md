@@ -31,7 +31,7 @@ npm run openapi:bundle
 
 คำสั่ง `npm run build` และ `npm run dev` จะ bundle ให้อัตโนมัติก่อนทำงาน ส่วน Docker image จะ generate bundle ภายใน build stage และ copy เฉพาะ runtime artifact เข้า image
 
-หลัง generate แล้ว backend จะโหลด `docs_v2/backend_spec/contracts/dist/openapi.bundle.yaml` เป็นค่าเริ่มต้น หรือโหลด path ที่กำหนดผ่าน `OPENAPI_CONTRACT_PATH`
+หลัง generate แล้ว backend จะโหลด `docs/backend_spec/contracts/dist/openapi.bundle.yaml` เป็นค่าเริ่มต้น หรือโหลด path ที่กำหนดผ่าน `OPENAPI_CONTRACT_PATH`
 
 ## Domain mapping
 

@@ -1,6 +1,6 @@
 # Asset Reservation — Software Specification
 
-เอกสารชุดนี้เป็น single source of truth สำหรับ **สิ่งที่ระบบต้องทำ** (functional requirements): business rules, lifecycle/state machines, permission/RBAC model, scope และ acceptance criteria
+เอกสารชุดนี้เป็น single source of truth สำหรับ **สิ่งที่ระบบต้องทำ** (functional requirements): business rules/acceptance criteria, lifecycle/state machines, permission/RBAC model และ scope
 
 รายละเอียดว่า "จะสร้างอย่างไร" อยู่ใน [backend specification](../backend_spec/README.md) (implementation) และ [frontend specification](../frontend_spec/README.md) (UI/UX design) — เอกสารในชุดนี้ไม่ควรมี API request/response JSON, โค้ด หรือรายละเอียด UI layout ใดๆ หากพบให้แทนที่ด้วยลิงก์ไปยังเอกสารที่เป็นเจ้าของจริง
 
@@ -10,9 +10,8 @@
 | --- | --- |
 | [Lifecycle & state machines](lifecycle-and-state-machines.md) | 5-step lifecycle, canonical status enum ของทุก entity, state diagram, return/inspection flow, return eligibility rule |
 | [Permissions & RBAC](permissions-and-rbac.md) | Role catalog, actor/permission matrix, permission key catalog, management-area scope, cross-user visibility rule |
-| [Business rules & validation](business-rules-and-validation.md) | Validation rule และความหมายเชิงธุรกิจของแต่ละ domain (asset, reservation, return, admin) |
+| [Business rules & validation](business-rules-and-validation.md) | Validation rule, ความหมายเชิงธุรกิจ และเกณฑ์ยอมรับเชิงฟังก์ชันของแต่ละ domain (asset, reservation, return, admin, auth/access, cross-cutting) |
 | [Scope & roadmap](scope-and-roadmap.md) | สิ่งที่ยังไม่อยู่ใน MVP และลำดับพัฒนาที่แนะนำ |
-| [Acceptance criteria](acceptance-criteria.md) | เกณฑ์ยอมรับเชิงฟังก์ชันแยกตาม domain |
 
 ## เอกสารที่เกี่ยวข้อง
 

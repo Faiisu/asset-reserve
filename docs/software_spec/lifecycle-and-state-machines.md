@@ -100,11 +100,7 @@ stateDiagram-v2
 
 `ReservationItemApproval` และ `ReturnApproval` ใช้ status ชุดเดียวกัน: `PENDING`, `APPROVED`, `REJECTED`
 
-## 5. ReservationChangeRequest status {#change-request-status}
-
-`PENDING`, `APPROVED`, `REJECTED`, `CANCELLED`
-
-## 6. Return status {#return-status}
+## 5. Return status {#return-status}
 
 | Status | ความหมาย |
 | --- | --- |
@@ -115,7 +111,7 @@ stateDiagram-v2
 
 เมื่อคืนครบสำหรับ item หนึ่ง ให้ `ReservationItem` เป็น `RETURNED` (§3) และเมื่อทุก item ที่ checkout คืนครบ ให้ `Reservation` เป็น `COMPLETED` (§2)
 
-## 7. Return & inspection flow
+## 6. Return & inspection flow
 
 Return workflow แยก **การส่งคืนโดยผู้ยืม (drop-off)** ออกจาก **การตรวจรับโดยผู้ดูแล (inspection)** อย่างชัดเจน:
 
@@ -134,12 +130,12 @@ sequenceDiagram
     Note over Manager,System: Step 5: Return Approval & Inspection
     Manager->>Manager: ตรวจสภาพอุปกรณ์จริงที่คลัง
     Manager->>System: ส่งผลตรวจสอบต่อหน่วย (condition ต่อ serial) พร้อม decision
-    Note over System: อัปเดต AssetUnit status ต่อ serial (§8)<br/>Reservation -> RETURN_CONFIRMED (-> COMPLETED เมื่อคืนครบ)
+    Note over System: อัปเดต AssetUnit status ต่อ serial (§7)<br/>Reservation -> RETURN_CONFIRMED (-> COMPLETED เมื่อคืนครบ)
 ```
 
 Condition ถูกบันทึก**ต่อ serial-numbered unit** (`ReturnItemUnit.condition`) ไม่ใช่ตัวเลข quantity รวม
 
-## 8. Condition classification → AssetUnit status {#condition-classification}
+## 7. Condition classification → AssetUnit status {#condition-classification}
 
 | Condition | `AssetUnit.status` หลังตัดสินใจ | สี (badge) | ผล |
 | --- | --- | :---: | --- |

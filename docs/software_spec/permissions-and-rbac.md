@@ -22,9 +22,9 @@ Role ที่สร้างเพิ่มเองใช้ permission key �
 
 | Actor | Permission หลักที่ใช้ | ใครเป็นผู้ขอ | ใครเป็นผู้ดำเนินการ | สิ่งที่ทำได้ |
 | --- | --- | :---: | :---: | --- |
-| Requester (Borrower) | `reservation:create`, `reservation:update` | ใช่ | ใช่ | สร้าง/submit reservation, ส่ง change request, ยืนยัน handover, ส่ง return slip, ยกเลิกก่อนรับมอบ |
+| Requester (Borrower) | `reservation:create`, `reservation:update` | ใช่ | ใช่ | สร้าง/submit reservation, ยืนยัน handover, ส่ง return slip, ยกเลิกก่อนรับมอบ |
 | Co-Participant | ผูกใน `ReservationParticipant` | ไม่ | ใช่ | ดู reservation, ส่ง return slip แทนผู้ขอได้ |
-| Area Manager (Asset Custodian) | `reservation:approve`, `reservation:reject`, `return:approve` (scope ตาม management area) | ไม่ | ใช่ | อนุมัติ/ปฏิเสธ item และ change request ในพื้นที่ตน, ปรับจำนวนที่อนุมัติ, ตรวจสภาพอุปกรณ์คืน (Good/Broken/Lost), ตัดสินใจ return |
+| Area Manager (Asset Custodian) | `reservation:approve`, `reservation:reject`, `return:approve` (scope ตาม management area) | ไม่ | ใช่ | อนุมัติ/ปฏิเสธ item ในพื้นที่ตน, ปรับจำนวนที่อนุมัติ, ตรวจสภาพอุปกรณ์คืน (Good/Broken/Lost), ตัดสินใจ return |
 | Admin | Global | ใช่ | ใช่ | Override ข้าม management area ทั้งหมด, force cancel/approve/inventory correction |
 
 ## 3. Permission key catalog

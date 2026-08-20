@@ -1,6 +1,6 @@
-# Asset Reservation — Documentation (v2)
+# Asset Reservation — Documentation
 
-This is the single source of truth for the Asset Reservation system. It replaces `docs/` (v1), which is kept temporarily for comparison during review and will be retired once `docs_v2/` is validated.
+This is the single source of truth for the Asset Reservation system.
 
 ## Ownership split
 
