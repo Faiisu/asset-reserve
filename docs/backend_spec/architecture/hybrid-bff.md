@@ -58,7 +58,7 @@ Infrastructure
 ## API surfaces
 
 | Prefix      | Purpose                                         |
-| ----------- | ----------------------------------------------- |
+| ----------- | ------------------------------------------------ |
 | /api/v1/bff | Page-oriented read endpoints                    |
 | /api/v1     | Domain commands และ resource operations         |
 | /api/docs   | OpenAPI/Swagger สำหรับ development/internal use |
@@ -81,7 +81,7 @@ Dependency ต้องชี้เข้าหา application/domain ห้า�
 
 ## Repository structure
 
-โครงสร้างเป้าหมายด้านล่างเป็นภาพย่อ รายละเอียดการจัดไฟล์ กฎ dependency และ Prisma migration อยู่ที่ [File and schema structure conventions](../../software_spec/file-and-schema-structure.md)
+โครงสร้างเป้าหมายด้านล่างเป็นภาพย่อ รายละเอียดการจัดไฟล์ กฎ dependency และ Prisma migration อยู่ที่ [Backend engineering conventions](../engineering-conventions-backend.md)
 
 ```text
 asset-reservation/
@@ -117,7 +117,7 @@ asset-reservation/
 │   │   └── migrations/
 │   ├── prisma.config.ts
 │   └── package.json
-├── docs/
+├── docs_v2/
 ├── docker-compose.yml
 └── package.json
 ```
@@ -129,7 +129,7 @@ Frontend และ backend ต้องมี dependency, environment variables,
 Backend ใช้ modular monolith โดยแบ่ง module ตาม business domain:
 
 | Module                      | Responsibility                                                                          |
-| --------------------------- | ----------------------------------------------------------------------------------------- |
+| --------------------------- | ------------------------------------------------------------------------------------------ |
 | AuthModule                  | Password authentication, token issuance และ guards                                       |
 | GoogleAuthModule            | Google OAuth login/connect/callback สำหรับ account linking                               |
 | MicrosoftAuthModule         | Microsoft OAuth login/connect/callback สำหรับ account linking                            |
@@ -139,11 +139,11 @@ Backend ใช้ modular monolith โดยแบ่ง module ตาม busine
 | AssetsModule                | Asset CRUD, serial-numbered asset unit registration/retirement และ availability          |
 | ReservationsModule          | Reservation, items, participants, approval, change request, availability และ lifecycle   |
 | ReturnsModule               | Return slip, per-unit condition inspection (Good/Broken/Lost) และ completion              |
-| RecognitionModule           | Recognition/kudos entry ระหว่าง user                                                     |
-| EmailModule                 | Email dispatch จาก lifecycle event (listener)                                            |
-| EmailTemplatesModule        | Admin-configurable email template CRUD                                                   |
-| NotificationSettingsModule  | Per-user notification preference                                                         |
+| RecognitionModule           | Recognition/kudos entry ระหว่าง user — ดู [modules/recognition.md](../modules/recognition.md) |
+| EmailModule                 | Email dispatch จาก lifecycle event (listener) — ดู [integrations/google-microsoft-auth-and-notifications.md](../integrations/google-microsoft-auth-and-notifications.md) |
+| EmailTemplatesModule        | Admin-configurable email template CRUD — ดู [modules/email-templates.md](../modules/email-templates.md) |
+| NotificationSettingsModule  | Per-user notification preference — ดู [modules/notification-settings.md](../modules/notification-settings.md) |
 | UploadsModule               | Multipart image upload endpoint                                                          |
-| DatabaseModule             | PrismaClient singleton และ transaction utilities                   |
+| DatabaseModule              | PrismaClient singleton และ transaction utilities                                         |
 
 Controller ต้องรับ/ตอบ DTO เท่านั้น Business rule อยู่ใน service/domain layer และ Prisma query อยู่ใน repository หรือ domain service ที่กำหนดชัดเจน

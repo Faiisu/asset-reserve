@@ -18,7 +18,6 @@ ReservationItemStatus:
     - APPROVED
     - REJECTED
     - PREPARED
-    - CHECKED_OUT
     - DELIVERED
     - RETURNED
 ReservationItemInput:
@@ -527,11 +526,29 @@ ReservationDetail:
       required:
         - canSubmit
         - canRequestChange
+        - canConfirmDelivery
+        - canReturn
+        - canDecideReturn
       properties:
         canSubmit:
           type: boolean
         canRequestChange:
           type: boolean
+        canConfirmDelivery:
+          type: boolean
+          description: >-
+            True when actor is warehouse staff/Area Manager and the reservation is APPROVED
+            or PARTIALLY_APPROVED with at least one approved item (§7.11 preconditions).
+        canReturn:
+          type: boolean
+          description: >-
+            True when actor is the requester/a participant and at least one
+            ReservationItemUnit on this reservation is CHECKED_OUT (§8.2 preconditions).
+        canDecideReturn:
+          type: boolean
+          description: >-
+            True when actor is the Area Manager of the reservation's management area and
+            at least one Return on this reservation is PENDING (§8.3 preconditions).
     createdAt:
       type: string
       format: date-time
@@ -570,22 +587,22 @@ ReturnItemInput:
   additionalProperties: false
   required:
     - reservationItemId
+    - reservationItemUnitIds
   properties:
     reservationItemId:
       type: string
       format: uuid
-    quantityReturned:
-      type: integer
-      minimum: 0
-      default: 0
-    quantityBroken:
-      type: integer
-      minimum: 0
-      default: 0
-    quantityLost:
-      type: integer
-      minimum: 0
-      default: 0
+    reservationItemUnitIds:
+      type: array
+      description: >-
+        Checked-out reservation_item_unit IDs being dropped off for this item.
+        Each unit must currently be CHECKED_OUT on this item.
+      minItems: 1
+      maxItems: 200
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
     description:
       type: string
       maxLength: 2000
@@ -607,6 +624,24 @@ CreateReturnRequest:
       nullable: true
     immediateApprove:
       type: boolean
+ReturnDecisionItemInput:
+  type: object
+  additionalProperties: false
+  required:
+    - reservationItemUnitId
+    - condition
+  properties:
+    reservationItemUnitId:
+      type: string
+      format: uuid
+    condition:
+      type: string
+      description: Per-unit inspection outcome. Required for every unit in the slip when decision is APPROVE.
+      enum: [GOOD, BROKEN, LOST]
+    description:
+      type: string
+      maxLength: 2000
+      nullable: true
 ReturnDecisionRequest:
   type: object
   additionalProperties: false
@@ -619,20 +654,57 @@ ReturnDecisionRequest:
     items:
       type: array
       items:
-        $ref: "#/components/schemas/ReturnItemInput"
+        $ref: "#/components/schemas/ReturnDecisionItemInput"
     description:
       type: string
       maxLength: 2000
       nullable: true
+ReturnItemUnitDetail:
+  type: object
+  required:
+    - id
+    - returnItemId
+    - reservationItemUnitId
+    - assetUnitId
+    - serialNumber
+    - condition
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    returnItemId:
+      type: string
+      format: uuid
+    reservationItemUnitId:
+      type: string
+      format: uuid
+    assetUnitId:
+      type: string
+      format: uuid
+    serialNumber:
+      type: string
+    condition:
+      type: string
+      description: NULL until inspected and decided at return-approval time.
+      enum: [GOOD, BROKEN, LOST]
+      nullable: true
+    pictureUrl:
+      type: string
+      nullable: true
+    note:
+      type: string
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
 ReturnItemDetail:
   type: object
   required:
     - id
     - returnId
     - reservationItemId
-    - quantityReturned
-    - quantityBroken
-    - quantityLost
+    - units
     - createdAt
   properties:
     id:
@@ -644,15 +716,16 @@ ReturnItemDetail:
     reservationItemId:
       type: string
       format: uuid
-    quantityReturned:
-      type: integer
-    quantityBroken:
-      type: integer
-    quantityLost:
-      type: integer
     description:
       type: string
       nullable: true
+    pictureUrl:
+      type: string
+      nullable: true
+    units:
+      type: array
+      items:
+        $ref: "#/components/schemas/ReturnItemUnitDetail"
     createdAt:
       type: string
       format: date-time
@@ -746,5 +819,5 @@ ReturnListResponse:
       items:
         $ref: "#/components/schemas/ReturnDetail"
     pagination:
-      $ref: "#/components/schemas/CursorPagination"
+      $ref: "#/components/schemas/PageInfo"
 

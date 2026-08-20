@@ -1,57 +1,33 @@
 # Reservations
 
-[← กลับไปสารบัญ](../README.md) · [📖 เอกสารสถาปัตยกรรมและการออกแบบ UI ฉบับสมบูรณ์ (Master Blueprint)](../reservation_flow_and_ui_design.md)
-
----
-
-## 📌 Master Blueprint Reference
-สำหรับพิมพ์เขียวฉบับสมบูรณ์ที่รวม **Flowchart Mermaid**, **State Transitions**, **REST API Contracts**, **UI Component Hierarchy** และ **แนวทางการออกแบบ UI/UX หน้า Reservations ใหม่** สามารถดูได้ที่ไฟล์:
-👉 [`docs/frontend_spec/reservation_flow_and_ui_design.md`](../reservation_flow_and_ui_design.md)
-
----
+[← กลับไปสารบัญ](../README.md)
 
 ## 1. Create Reservation (/reservations/new)
 
 หน้าฟอร์มสร้างการจองแบ่งออกเป็น 3 ส่วนหลัก:
 
 ### Event Details
-- `eventName`: Required (สูงสุด 200 ตัวอักษร)
-- `description`: Optional
-- `startAt` / `endAt`: Required (เงื่อนไข: `endAt > startAt`)
-- `requesterId`: มาจาก Authenticated User Session
+
+- `eventName`, `description`, `startAt`/`endAt` — validation rule เต็ม (max length, `endAt > startAt` ฯลฯ) ดู [software_spec/business-rules-and-validation.md](../../software_spec/business-rules-and-validation.md)
+- `requesterId` มาจาก Authenticated User Session
 
 ### Reservation Items (รายการอุปกรณ์)
-- `assetId`: UUID ของอุปกรณ์
-- `quantity`: จำนวนเต็ม $> 0$
-- ตรวจสอบ `availableQuantity` แบบ Real-time ตามช่วงเวลาที่เลือก
-- แสดง Overlap Warning หากมีความต้องการซ้อนทับ
-- รองรับการบันทึกแบบ **Draft** (`DRAFT`) หรือ **Submit for Approval** (`PENDING_APPROVAL`)
+
+- เลือก asset และระบุ quantity ต่อรายการ
+- ตรวจสอบ `availableQuantity` แบบ real-time ตามช่วงเวลาที่เลือก และแสดง overlap warning หากมีความต้องการซ้อนทับ
+- รองรับการบันทึกแบบ Draft หรือ Submit for approval
 
 ### Participants (ผู้ร่วมกิจกรรม)
+
 - เลือก User ในระบบมาร่วมใช้งานใน Event
 - ห้ามเลือก User ซ้ำ
 
----
+## 2. Detail page layout
 
-## 2. Complete Status Lifecycle & Transitions
+หน้า `/reservations/:id` เป็น Entity Detail pattern ([design-system.html](../design-system.html) §5.3): hero card แสดงชื่อ event, สถานะ badge, key attributes (ผู้จอง, ช่วงเวลา, area) และปุ่ม action ที่มีสิทธิ์ทำได้ ตามด้วย content breakdown (รายการ asset พร้อมสถานะอนุมัติรายชิ้น, ผู้เข้าร่วม, timeline audit log)
 
-```text
-[DRAFT] ───> [PENDING_APPROVAL] ───> [APPROVED / PARTIALLY_APPROVED] ───> [DELIVERY_CONFIRMED] ───> [ACTIVE] ───> [RETURN_PENDING] ───> [COMPLETED]
-   │                 │                              │
-   └──> [CANCELLED]  └──> [REJECTED / CANCELLED]    └──> [CANCELLED]
-```
+Status lifecycle และความหมายของแต่ละ action (submit, approve/reject, delivery-confirm, change request, return) เป็น business rule — ดู [software_spec/lifecycle-and-state-machines.md](../../software_spec/lifecycle-and-state-machines.md) เอกสารนี้ไม่ restate state diagram ซ้ำ
 
-### Reservation Item Status
-```text
-PENDING ───> APPROVED ───> DELIVERED ───> RETURNED
-         ───> REJECTED
-```
+## 3. Actions ที่หน้านี้เปิดให้ทำ (UI-level)
 
----
-
-## 3. Granular Actions & Dialogs
-
-1. **Confirm Delivery (`POST /delivery-confirm`):** ผู้ใช้หรือผู้ดูแลยืนยันการรับมอบอุปกรณ์จริง
-2. **Change Request (`POST /change-requests`):** ส่งคำขอขยายเวลาหรือปรับรายการอุปกรณ์ระหว่างรอใช้งาน
-3. **Return Request (`POST /returns`):** ผู้ใช้แจ้งจำนวนอุปกรณ์ที่นำมาส่งคืน
-4. **Return Inspection Decision (`POST /returns/:id/decision`):** ผู้จัดการพื้นที่ตรวจนับและแยกสภาพอุปกรณ์ (Good / Broken / Lost) พร้อมอัปเดตยอดคงเหลือในคลังอัตโนมัติ
+หน้า reservation detail มี dialog/ปุ่มสำหรับ: confirm delivery, ส่ง change request, ส่ง return request, ตัดสินใจ return (แยกสภาพ Good/Broken/Lost ต่อหน่วย) แต่ละ action เปิดใช้งานตาม capability flag ที่ backend ส่งมาพร้อม reservation detail (`capabilities.canConfirmDelivery`, `canRequestChange`, `canReturn`, `canDecideReturn` ตามลำดับ — ดู `ReservationDetail.capabilities` ใน [backend_spec/contracts/components/schemas/reservations.yaml](../../backend_spec/contracts/components/schemas/reservations.yaml) และ precondition ของแต่ละ flag ใน [backend_spec/algorithms-and-validation.md §7.3](../../backend_spec/algorithms-and-validation.md)) — permission ที่ควบคุมแต่ละ action ดู [software_spec/permissions-and-rbac.md](../../software_spec/permissions-and-rbac.md), request/response contract ดู [backend_spec/contracts/](../../backend_spec/contracts/README.md)

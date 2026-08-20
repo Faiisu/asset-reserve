@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Asset Reservation API
-  version: 1.4.0
-  description: Contract-first API for authentication, access control, users, management areas, serialized asset units, uploads, and reservations.
+  version: 1.5.0
+  description: Contract-first API for authentication, access control, users, management areas, serialized asset units, uploads, reservations, asset-photo recognition, email templates, and notification settings.
 servers:
   - url: /api/v1
 tags:
@@ -28,6 +28,12 @@ tags:
     description: Equipment return slips, drop-off verification, and inspection decision workflow.
   - name: Uploads
     description: Authenticated local image uploads used by asset and user forms.
+  - name: Recognition
+    description: Proxy to the internal recognition-service for asset reference photos and photo-based asset lookup. See modules/recognition.md.
+  - name: Email Templates
+    description: Global-admin management of the customizable subject/body for each outbound notification situation. See modules/email-templates.md.
+  - name: Notification Settings
+    description: Global-admin SMTP/notification configuration, singleton settings. See modules/notification-settings.md.
 security:
   - bearerAuth: []
 paths:
@@ -121,6 +127,32 @@ paths:
     $ref: ./paths/returns.yaml#/~1returns~1{returnId}
   /uploads/image:
     $ref: ./paths/uploads.yaml#/~1uploads~1image
+  /recognition/assets:
+    $ref: ./paths/recognition.yaml#/~1recognition~1assets
+  /recognition/assets/{assetId}:
+    $ref: ./paths/recognition.yaml#/~1recognition~1assets~1{assetId}
+  /recognition/assets/{assetId}/photos:
+    $ref: ./paths/recognition.yaml#/~1recognition~1assets~1{assetId}~1photos
+  /recognition/assets/{assetId}/photos/{photoId}:
+    $ref: ./paths/recognition.yaml#/~1recognition~1assets~1{assetId}~1photos~1{photoId}
+  /recognition/assets/{assetId}/image:
+    $ref: ./paths/recognition.yaml#/~1recognition~1assets~1{assetId}~1image
+  /recognition/photos/{photoId}/image:
+    $ref: ./paths/recognition.yaml#/~1recognition~1photos~1{photoId}~1image
+  /recognition/recognize:
+    $ref: ./paths/recognition.yaml#/~1recognition~1recognize
+  /recognition/recognize/multi:
+    $ref: ./paths/recognition.yaml#/~1recognition~1recognize~1multi
+  /email-templates:
+    $ref: ./paths/email-templates.yaml#/~1email-templates
+  /email-templates/{situation}:
+    $ref: ./paths/email-templates.yaml#/~1email-templates~1{situation}
+  /email-templates/{situation}/preview:
+    $ref: ./paths/email-templates.yaml#/~1email-templates~1{situation}~1preview
+  /notification-settings:
+    $ref: ./paths/notification-settings.yaml#/~1notification-settings
+  /notification-settings/test:
+    $ref: ./paths/notification-settings.yaml#/~1notification-settings~1test
 components:
   securitySchemes:
     bearerAuth:
@@ -151,6 +183,8 @@ components:
       $ref: ./components/parameters.yaml#/Cursor
     Limit:
       $ref: ./components/parameters.yaml#/Limit
+    EmailTemplateSituation:
+      $ref: ./components/parameters.yaml#/EmailTemplateSituation
   responses:
     BadRequest:
       $ref: ./components/responses.yaml#/BadRequest
@@ -335,8 +369,12 @@ components:
       $ref: ./components/schemas/reservations.yaml#/ReturnItemInput
     CreateReturnRequest:
       $ref: ./components/schemas/reservations.yaml#/CreateReturnRequest
+    ReturnDecisionItemInput:
+      $ref: ./components/schemas/reservations.yaml#/ReturnDecisionItemInput
     ReturnDecisionRequest:
       $ref: ./components/schemas/reservations.yaml#/ReturnDecisionRequest
+    ReturnItemUnitDetail:
+      $ref: ./components/schemas/reservations.yaml#/ReturnItemUnitDetail
     ReturnItemDetail:
       $ref: ./components/schemas/reservations.yaml#/ReturnItemDetail
     ReturnApprovalDetail:
@@ -351,3 +389,21 @@ components:
       $ref: ./components/schemas/common.yaml#/ErrorDetail
     ErrorResponse:
       $ref: ./components/schemas/common.yaml#/ErrorResponse
+    RecognitionAsset:
+      $ref: ./components/schemas/recognition.yaml#/RecognitionAsset
+    RecognitionPhoto:
+      $ref: ./components/schemas/recognition.yaml#/RecognitionPhoto
+    UpdateRecognitionAssetRequest:
+      $ref: ./components/schemas/recognition.yaml#/UpdateRecognitionAssetRequest
+    EmailTemplateSituation:
+      $ref: ./components/schemas/email-templates.yaml#/EmailTemplateSituation
+    EmailTemplate:
+      $ref: ./components/schemas/email-templates.yaml#/EmailTemplate
+    UpdateEmailTemplateRequest:
+      $ref: ./components/schemas/email-templates.yaml#/UpdateEmailTemplateRequest
+    EmailTemplatePreview:
+      $ref: ./components/schemas/email-templates.yaml#/EmailTemplatePreview
+    NotificationSettings:
+      $ref: ./components/schemas/notification-settings.yaml#/NotificationSettings
+    UpdateNotificationSettingsRequest:
+      $ref: ./components/schemas/notification-settings.yaml#/UpdateNotificationSettingsRequest

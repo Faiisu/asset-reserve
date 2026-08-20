@@ -74,3 +74,10 @@ Limit:
     minimum: 1
     maximum: 100
     default: 20
+EmailTemplateSituation:
+  name: situation
+  in: path
+  required: true
+  schema:
+    type: string
+    enum: [reservation_submitted, reservation_decided, return_decided]
