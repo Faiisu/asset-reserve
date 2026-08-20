@@ -62,6 +62,7 @@ Field:
 | Field            | Required | หมายเหตุ UI                                        |
 | ----------------- | -------- | --------------------------------------------------- |
 | name              | Yes      | validation rule เต็มดู software_spec (ลิงก์ด้านล่าง) |
+| partNumber        | No       | Text, สูงสุด 100 ตัวอักษร (P/N) — แสดงใน asset list ดู [Asset list](#asset-list) ด้านบน |
 | managementAreaId  | Yes      | เลือกจาก area ที่ actor มีสิทธิ์เท่านั้น             |
 | description       | No       | Text                                                 |
 | pictureUrl        | No       | URL จาก `POST /uploads/image`, file picker หรือ camera capture |

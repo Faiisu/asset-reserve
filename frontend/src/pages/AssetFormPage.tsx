@@ -32,6 +32,7 @@ import type { AssetDetail, ManagementArea } from "../types";
 
 type FormValue = {
   name: string;
+  partNumber: string;
   managementAreaId: string;
   description: string;
   isActive: boolean;
@@ -39,6 +40,7 @@ type FormValue = {
 
 const emptyForm: FormValue = {
   name: "",
+  partNumber: "",
   managementAreaId: "",
   description: "",
   isActive: true,
@@ -118,6 +120,7 @@ export function AssetFormPage() {
           setAsset(detail);
           setForm({
             name: detail.name,
+            partNumber: detail.partNumber ?? "",
             managementAreaId: detail.managementArea.id,
             description: detail.description ?? "",
             isActive: detail.isActive,
@@ -254,6 +257,9 @@ export function AssetFormPage() {
     } else if (form.name.trim().length > 40) {
       nextFields.name = "Asset name must be 40 characters or fewer";
     }
+    if (form.partNumber.trim().length > 100) {
+      nextFields.partNumber = "Part number must be 100 characters or fewer";
+    }
     if (!form.managementAreaId)
       nextFields.managementAreaId = "Select a management area";
     setFields(nextFields);
@@ -373,6 +379,7 @@ export function AssetFormPage() {
         const pictureUrl = await resolvePictureUrl();
         await api.updateAsset(asset.id, {
           name: form.name.trim(),
+          partNumber: form.partNumber.trim() || null,
           managementAreaId: form.managementAreaId,
           description: form.description.trim() || null,
           pictureUrl,
@@ -398,6 +405,7 @@ export function AssetFormPage() {
 
         const created = await api.createAsset({
           name: form.name.trim(),
+          partNumber: form.partNumber.trim() || null,
           managementAreaId: form.managementAreaId,
           description: form.description.trim() || null,
           pictureUrl,
@@ -544,17 +552,20 @@ export function AssetFormPage() {
                 />
               </Field>
               <div className="form-grid form-grid--2">
-                {editing && (
-                  <Field
-                    label="Asset quantity"
-                    hint="Register or retire serial units from the asset details page"
-                  >
-                    <Input
-                      value={`${asset?.totalQuantity ?? 0} units`}
-                      disabled
-                    />
-                  </Field>
-                )}
+                <Field
+                  label="Part number (P/N)"
+                  hint={`${form.partNumber.length}/100`}
+                  error={fields.partNumber}
+                >
+                  <Input
+                    value={form.partNumber}
+                    onChange={(event) =>
+                      setForm({ ...form, partNumber: event.target.value })
+                    }
+                    placeholder="For example, EPS-PRJ-100"
+                    maxLength={100}
+                  />
+                </Field>
                 <Field
                   label="Management area"
                   required
@@ -575,6 +586,17 @@ export function AssetFormPage() {
                     ))}
                   </Select>
                 </Field>
+                {editing && (
+                  <Field
+                    label="Asset quantity"
+                    hint="Register or retire serial units from the asset details page"
+                  >
+                    <Input
+                      value={`${asset?.totalQuantity ?? 0} units`}
+                      disabled
+                    />
+                  </Field>
+                )}
               </div>
               <Field label="Description" error={fields.description}>
                 <Textarea
@@ -624,6 +646,10 @@ export function AssetFormPage() {
             <p>{form.description || "The description will appear here."}</p>
             <dl>
               <div>
+                <dt>P/N</dt>
+                <dd>{form.partNumber || "—"}</dd>
+              </div>
+              <div>
                 <dt>Area</dt>
                 <dd>
                   {areas.find((area) => area.id === form.managementAreaId)
@@ -645,6 +671,7 @@ export function AssetFormPage() {
 type BatchRow = {
   key: number;
   name: string;
+  partNumber: string;
   description: string;
   // Every photo attached to a row is both a potential thumbnail AND a
   // recognition reference photo -- same model as the single-asset form, just
@@ -656,7 +683,14 @@ type BatchRow = {
 };
 
 function newBatchRow(key: number): BatchRow {
-  return { key, name: "", description: "", photos: [], thumbnailId: null };
+  return {
+    key,
+    name: "",
+    partNumber: "",
+    description: "",
+    photos: [],
+    thumbnailId: null,
+  };
 }
 
 function BatchAssetForm({
@@ -735,6 +769,16 @@ function BatchAssetForm({
       return;
     }
 
+    const invalidPartNumberIndex = rows.findIndex(
+      (row) => row.partNumber.trim().length > 100,
+    );
+    if (invalidPartNumberIndex !== -1) {
+      setError(
+        `Row ${invalidPartNumberIndex + 1}: Part number must be 100 characters or fewer.`,
+      );
+      return;
+    }
+
     const names = rows.map((row) => row.name.trim().toLowerCase());
     const duplicateIndex = names.findIndex((name, i) => names.indexOf(name) !== i);
     if (duplicateIndex !== -1) {
@@ -761,6 +805,7 @@ function BatchAssetForm({
       const response = await api.createAssets(
         rows.map((row, i) => ({
           name: row.name.trim(),
+          partNumber: row.partNumber.trim() || null,
           managementAreaId: areaId,
           description: row.description.trim() || null,
           pictureUrl: pictureUrls[i],
@@ -891,6 +936,16 @@ function BatchAssetForm({
                     placeholder="Asset name"
                     maxLength={40}
                     required
+                  />
+                </Field>
+                <Field label="P/N" className="batch-row__field--part-number">
+                  <Input
+                    value={row.partNumber}
+                    onChange={(event) =>
+                      update(row.key, { partNumber: event.target.value })
+                    }
+                    placeholder="Part number"
+                    maxLength={100}
                   />
                 </Field>
                 <Field label="Description" className="batch-row__field--description">
