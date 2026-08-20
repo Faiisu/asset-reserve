@@ -16,7 +16,6 @@ import { useAuth } from "../auth";
 import { AssetPhotosSection, type PendingPhoto } from "../components/AssetPhotosSection";
 import { CameraCaptureModal } from "../components/CameraCaptureModal";
 import {
-  AssetPicture,
   Breadcrumb,
   Button,
   EmptyState,
@@ -217,39 +216,6 @@ export function AssetFormPage() {
       });
     }
   }, [editing, visibleAreas]);
-
-  // Live preview of the currently-selected thumbnail, before anything is
-  // actually uploaded. Existing photos are just a plain URL; a selected
-  // pending (not-yet-uploaded) file needs a local blob URL, memoized on the
-  // selected File itself and released whenever the selection changes.
-  const selectedPendingFile = useMemo(() => {
-    const id = thumbnailKey ? pendingIdFromKey(thumbnailKey) : null;
-    if (!id) return null;
-    return pendingAdds.find((p) => p.id === id)?.file ?? null;
-  }, [thumbnailKey, pendingAdds]);
-  // Create AND revoke inside the same effect (not useMemo + a separate
-  // cleanup effect) so the URL survives React 18 StrictMode's dev-only
-  // double-invoke -- see the matching comment on PendingPhotoThumb in
-  // AssetPhotosSection.tsx for why the useMemo version silently breaks.
-  const [selectedPendingPreviewUrl, setSelectedPendingPreviewUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (!selectedPendingFile) {
-      setSelectedPendingPreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(selectedPendingFile);
-    setSelectedPendingPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [selectedPendingFile]);
-  const previewSrc = useMemo(() => {
-    if (selectedPendingPreviewUrl) return selectedPendingPreviewUrl;
-    const existingId = thumbnailKey ? existingIdFromKey(thumbnailKey) : null;
-    if (existingId) {
-      const photo = existingPhotos.find((p) => p.photo_id === existingId);
-      if (photo) return recognitionApi.imageSrc(photo.image_url);
-    }
-    return null;
-  }, [selectedPendingPreviewUrl, thumbnailKey, existingPhotos]);
 
   function handleAddFiles(files: File[]) {
     setPendingAdds((current) => [
@@ -570,11 +536,10 @@ export function AssetFormPage() {
           }
         />
       ) : (
-        <form className="record-form" onSubmit={submit}>
-          <div className="record-form__main">
-            <section className="form-section">
-              <div className="form-section__heading">
-                <span>01</span>
+        <form className="record-form__main" onSubmit={submit}>
+          <section className="form-section">
+            <div className="form-section__heading">
+              <span>01</span>
                 <div>
                   <h2>Asset details</h2>
                   <p>Enter asset information and assign a management area.</p>
@@ -651,27 +616,10 @@ export function AssetFormPage() {
               </Field>
             </section>
 
-            <AssetPhotosSection
-              existingPhotos={existingPhotos}
-              removedExistingIds={removedExistingIds}
-              pendingAdds={pendingAdds}
-              thumbnailKey={thumbnailKey}
-              loading={photosLoading}
-              error={photosError}
-              onAddFiles={handleAddFiles}
-              onRemoveExisting={(photoId) =>
-                setRemovedExistingIds((current) => new Set(current).add(photoId))
-              }
-              onRemovePending={(id) =>
-                setPendingAdds((current) => current.filter((p) => p.id !== id))
-              }
-              onSelectThumbnail={setThumbnailKey}
-            />
-
             {!editing && (
               <section className="form-section">
                 <div className="form-section__heading">
-                  <span>03</span>
+                  <span>02</span>
                   <div>
                     <h2>Serial units (optional)</h2>
                     <p>
@@ -703,41 +651,30 @@ export function AssetFormPage() {
               </section>
             )}
 
-            <div className="form-submit">
-              <Button type="submit" loading={submitting}>
-                <Save size={17} />
-                {editing ? "Save changes" : "Add asset"}
-              </Button>
-            </div>
-          </div>
-
-          <aside className="record-preview">
-            <p className="eyebrow">Live preview</p>
-            <AssetPicture
-              src={previewSrc}
-              name={form.name || "Asset"}
-              large
+            <AssetPhotosSection
+              stepNumber={editing ? "02" : "03"}
+              existingPhotos={existingPhotos}
+              removedExistingIds={removedExistingIds}
+              pendingAdds={pendingAdds}
+              thumbnailKey={thumbnailKey}
+              loading={photosLoading}
+              error={photosError}
+              onAddFiles={handleAddFiles}
+              onRemoveExisting={(photoId) =>
+                setRemovedExistingIds((current) => new Set(current).add(photoId))
+              }
+              onRemovePending={(id) =>
+                setPendingAdds((current) => current.filter((p) => p.id !== id))
+              }
+              onSelectThumbnail={setThumbnailKey}
             />
-            <h3>{form.name || "Asset name"}</h3>
-            <p>{form.description || "The description will appear here."}</p>
-            <dl>
-              <div>
-                <dt>P/N</dt>
-                <dd>{form.partNumber || "—"}</dd>
-              </div>
-              <div>
-                <dt>Area</dt>
-                <dd>
-                  {areas.find((area) => area.id === form.managementAreaId)
-                    ?.name ?? "—"}
-                </dd>
-              </div>
-              <div>
-                <dt>Quantity</dt>
-                <dd>{asset?.totalQuantity ?? 0} units</dd>
-              </div>
-            </dl>
-          </aside>
+
+          <div className="form-submit">
+            <Button type="submit" loading={submitting}>
+              <Save size={17} />
+              {editing ? "Save changes" : "Add asset"}
+            </Button>
+          </div>
         </form>
       )}
     </div>
