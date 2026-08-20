@@ -794,6 +794,25 @@ function BatchAssetForm({
     }
   }, [areas, areaId]);
 
+  const areaName = areas.find((area) => area.id === areaId)?.name ?? "—";
+  const totalPhotos = useMemo(
+    () => rows.reduce((sum, row) => sum + row.photos.length, 0),
+    [rows],
+  );
+  const totalSerialUnits = useMemo(
+    () =>
+      rows.reduce(
+        (sum, row) =>
+          sum +
+          row.serialNumbers
+            .split(/[\n,]/)
+            .map((value) => value.trim())
+            .filter(Boolean).length,
+        0,
+      ),
+    [rows],
+  );
+
   function update(key: number, values: Partial<BatchRow>) {
     setRows((current) =>
       current.map((row) => (row.key === key ? { ...row, ...values } : row)),
@@ -961,173 +980,221 @@ function BatchAssetForm({
           {error}
         </div>
       )}
-      <section className="form-section">
-        <div className="form-section__heading">
-          <span>01</span>
-          <div>
-            <h2>Workspace settings</h2>
-            <p>All batch assets will be assigned to this management area.</p>
-          </div>
-        </div>
-        <div className="form-grid form-grid--2">
-          <Field label="Management area" required>
-            <Select
-              value={areaId}
-              onChange={(event) => setAreaId(event.target.value)}
-              required
-            >
-              <option value="">Select an area</option>
-              {areas.map((area) => (
-                <option key={area.id} value={area.id}>
-                  {area.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Batch note">
-            <Input
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="For example, New lab gear intake"
-            />
-          </Field>
-        </div>
-      </section>
-      <section className="form-section">
-        <div className="form-section__heading form-section__heading--action">
-          <span>02</span>
-          <div>
-            <h2>Assets to add</h2>
-            <p>Enter the asset names, descriptions, photos, and quantities.</p>
-          </div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => setRows((current) => [...current, newBatchRow(Date.now())])}
-          >
-            <Plus size={15} />
-            Add another asset
-          </Button>
-        </div>
-        <div className="batch-rows">
-          {rows.map((row, index) => (
-            <div className="batch-row" key={row.key}>
-              <div className="batch-row__header">
-                <span className="batch-row__index">{index + 1}</span>
-                <Field
-                  label="Asset name"
-                  required
-                  className="batch-row__field--name"
-                >
-                  <Input
-                    value={row.name}
-                    onChange={(event) =>
-                      update(row.key, { name: event.target.value })
-                    }
-                    placeholder="Asset name"
-                    required
-                  />
-                </Field>
-                <Field label="P/N" className="batch-row__field--part-number">
-                  <Input
-                    value={row.partNumber}
-                    onChange={(event) =>
-                      update(row.key, { partNumber: event.target.value })
-                    }
-                    placeholder="Part number"
-                  />
-                </Field>
-                <Field label="Description" className="batch-row__field--description">
-                  <Input
-                    value={row.description}
-                    onChange={(event) =>
-                      update(row.key, { description: event.target.value })
-                    }
-                  />
-                </Field>
-                <button
-                  className="icon-button icon-button--danger"
-                  type="button"
-                  disabled={rows.length === 1}
-                  onClick={() =>
-                    setRows((current) =>
-                      current.filter((item) => item.key !== row.key),
-                    )
-                  }
-                  aria-label={`Remove row ${index + 1}`}
-                >
-                  <Trash2 size={17} />
-                </button>
+      <div className="record-form">
+        <div className="record-form__main">
+          <section className="form-section">
+            <div className="form-section__heading">
+              <span>01</span>
+              <div>
+                <h2>Workspace settings</h2>
+                <p>All batch assets will be assigned to this management area.</p>
               </div>
-
-              <Field
-                label="Serial numbers (optional)"
-                hint="One per line, or comma-separated"
-              >
-                <Textarea
-                  value={row.serialNumbers}
-                  onChange={(event) =>
-                    update(row.key, { serialNumbers: event.target.value })
-                  }
-                  placeholder={"One serial number per line, e.g.\nSN-001\nSN-002"}
-                  rows={2}
+            </div>
+            <div className="form-grid form-grid--2">
+              <Field label="Management area" required>
+                <Select
+                  value={areaId}
+                  onChange={(event) => setAreaId(event.target.value)}
+                  required
+                >
+                  <option value="">Select an area</option>
+                  {areas.map((area) => (
+                    <option key={area.id} value={area.id}>
+                      {area.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Batch note">
+                <Input
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="For example, New lab gear intake"
                 />
               </Field>
-
-              <Field label="Photos" hint="First photo is used as the thumbnail -- pick another with the star.">
-                <div className="batch-row__photos">
-                  {row.photos.map((photo) => (
-                    <BatchPhotoThumb
-                      key={photo.id}
-                      file={photo.file}
-                      isThumbnail={row.thumbnailId === photo.id}
-                      onRemove={() => removeRowPhoto(row.key, photo.id)}
-                      onSelectThumbnail={() => update(row.key, { thumbnailId: photo.id })}
-                    />
-                  ))}
-                  <button
-                    className="icon-button"
-                    type="button"
-                    title="Take photo with camera"
-                    aria-label={`Take photo for row ${index + 1}`}
-                    onClick={() => setCameraRowKey(row.key)}
-                  >
-                    <Camera size={16} />
-                  </button>
-                  <label
-                    className="icon-button"
-                    style={{ cursor: "pointer", display: "inline-grid", placeItems: "center" }}
-                    title="Upload image files"
-                    aria-label={`Upload images for row ${index + 1}`}
-                  >
-                    <Upload size={16} />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      style={{ display: "none" }}
-                      onChange={(event) => {
-                        // Snapshot before clearing .value -- input.files can
-                        // be a live FileList mutated in place by the reset.
-                        const files = event.target.files ? Array.from(event.target.files) : [];
-                        event.target.value = "";
-                        addRowPhotos(row.key, files);
-                      }}
-                    />
-                  </label>
-                </div>
-              </Field>
             </div>
-          ))}
+          </section>
+          <section className="form-section">
+            <div className="form-section__heading form-section__heading--action">
+              <span>02</span>
+              <div>
+                <h2>Manifest</h2>
+                <p>
+                  One row per asset -- add its name, part number, photos, and
+                  any serial units to register right away.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  setRows((current) => [...current, newBatchRow(Date.now())])
+                }
+              >
+                <Plus size={15} />
+                Add another asset
+              </Button>
+            </div>
+            <div className="batch-rows">
+              {rows.map((row, index) => (
+                <article className="batch-row" key={row.key}>
+                  <div className="batch-row__top">
+                    <span className="batch-row__index">{index + 1}</span>
+                    <div className="batch-row__identity">
+                      <Field label="Asset name" required>
+                        <Input
+                          value={row.name}
+                          onChange={(event) =>
+                            update(row.key, { name: event.target.value })
+                          }
+                          placeholder="Asset name"
+                          required
+                        />
+                      </Field>
+                      <Field label="P/N">
+                        <Input
+                          value={row.partNumber}
+                          onChange={(event) =>
+                            update(row.key, { partNumber: event.target.value })
+                          }
+                          placeholder="Part number"
+                        />
+                      </Field>
+                    </div>
+                    <button
+                      className="icon-button icon-button--danger"
+                      type="button"
+                      disabled={rows.length === 1}
+                      onClick={() =>
+                        setRows((current) =>
+                          current.filter((item) => item.key !== row.key),
+                        )
+                      }
+                      aria-label={`Remove row ${index + 1}`}
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
+
+                  <Field label="Description">
+                    <Input
+                      value={row.description}
+                      onChange={(event) =>
+                        update(row.key, { description: event.target.value })
+                      }
+                    />
+                  </Field>
+
+                  <div className="batch-row__extras">
+                    <Field label="Photos" hint="First photo is the thumbnail -- pick another with the star.">
+                      <div className="batch-row__photos">
+                        {row.photos.map((photo) => (
+                          <BatchPhotoThumb
+                            key={photo.id}
+                            file={photo.file}
+                            isThumbnail={row.thumbnailId === photo.id}
+                            onRemove={() => removeRowPhoto(row.key, photo.id)}
+                            onSelectThumbnail={() =>
+                              update(row.key, { thumbnailId: photo.id })
+                            }
+                          />
+                        ))}
+                        <button
+                          className="icon-button"
+                          type="button"
+                          title="Take photo with camera"
+                          aria-label={`Take photo for row ${index + 1}`}
+                          onClick={() => setCameraRowKey(row.key)}
+                        >
+                          <Camera size={16} />
+                        </button>
+                        <label
+                          className="icon-button"
+                          style={{ cursor: "pointer", display: "inline-grid", placeItems: "center" }}
+                          title="Upload image files"
+                          aria-label={`Upload images for row ${index + 1}`}
+                        >
+                          <Upload size={16} />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            style={{ display: "none" }}
+                            onChange={(event) => {
+                              // Snapshot before clearing .value -- input.files
+                              // can be a live FileList mutated in place by
+                              // the reset.
+                              const files = event.target.files
+                                ? Array.from(event.target.files)
+                                : [];
+                              event.target.value = "";
+                              addRowPhotos(row.key, files);
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </Field>
+
+                    <Field
+                      label="Serial numbers"
+                      hint="One per line, or comma-separated"
+                    >
+                      <Textarea
+                        value={row.serialNumbers}
+                        onChange={(event) =>
+                          update(row.key, { serialNumbers: event.target.value })
+                        }
+                        placeholder={"One serial number per line, e.g.\nSN-001\nSN-002"}
+                        rows={2}
+                      />
+                    </Field>
+                  </div>
+                </article>
+              ))}
+              <button
+                type="button"
+                className="batch-add-row"
+                onClick={() =>
+                  setRows((current) => [...current, newBatchRow(Date.now())])
+                }
+              >
+                <Plus size={15} />
+                Add another asset
+              </button>
+            </div>
+          </section>
         </div>
-      </section>
-      <div className="form-submit">
-        <Button type="submit" loading={submitting}>
-          <Plus size={17} />
-          Add {rows.length} assets
-        </Button>
+
+        <aside className="record-preview batch-summary">
+          <p className="eyebrow">Batch summary</p>
+          <dl>
+            <div>
+              <dt>Area</dt>
+              <dd>{areaName}</dd>
+            </div>
+            <div>
+              <dt>Assets</dt>
+              <dd>{rows.length}</dd>
+            </div>
+            <div>
+              <dt>Serial units</dt>
+              <dd>{totalSerialUnits}</dd>
+            </div>
+            <div>
+              <dt>Photos attached</dt>
+              <dd>{totalPhotos}</dd>
+            </div>
+          </dl>
+          <div className="batch-summary__submit">
+            <Button type="submit" loading={submitting}>
+              <Plus size={17} />
+              Add {rows.length} {rows.length === 1 ? "asset" : "assets"}
+            </Button>
+          </div>
+        </aside>
       </div>
+
       <CameraCaptureModal
         open={cameraRowKey !== null}
         onClose={() => setCameraRowKey(null)}

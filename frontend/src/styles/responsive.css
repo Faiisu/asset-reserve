@@ -182,6 +182,14 @@
     grid-column: 2;
     margin: 0;
   }
+  /* Batch summary has no picture -- undo the picture-column layout above. */
+  .batch-summary {
+    display: block;
+  }
+  .batch-summary dl {
+    grid-column: auto;
+    margin: 20px 0 0;
+  }
   .asset-hero {
     grid-template-columns: auto 1fr;
   }
@@ -392,13 +400,11 @@
     width: 100%;
     height: auto;
   }
-  .batch-row__header {
-    align-items: stretch;
+  .batch-row__identity {
+    grid-template-columns: 1fr;
   }
-  .batch-row__header .field,
-  .batch-row__field--name,
-  .batch-row__field--qty {
-    flex-basis: 100%;
+  .batch-row__extras {
+    grid-template-columns: 1fr;
   }
   .asset-hero {
     padding: 17px;
