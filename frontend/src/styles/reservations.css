@@ -1434,8 +1434,8 @@
 }
 
 .res-manifest-unit-row--inspect {
-  grid-column: span 2;
   justify-content: space-between;
+  gap: 6px;
 }
 
 .res-manifest-unit-row--clickable {
@@ -1457,10 +1457,10 @@
   border: none;
   background: var(--surface);
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  padding: 6px 10px;
+  padding: 5px 7px;
   cursor: pointer;
 }
 
