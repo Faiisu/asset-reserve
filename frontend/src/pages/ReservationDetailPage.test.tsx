@@ -48,7 +48,10 @@ const mockReservation: ReservationDetail = {
           name: "Marketing",
         },
       },
-      units: [],
+      units: [
+        { id: "riu-1", assetUnitId: "au-1", serialNumber: "SN-CAM-001", status: "ASSIGNED" },
+        { id: "riu-2", assetUnitId: "au-2", serialNumber: "SN-CAM-002", status: "ASSIGNED" },
+      ],
       approval: {
         id: "app-1",
         status: "APPROVED",
@@ -372,6 +375,11 @@ describe("ReservationDetailPage", () => {
     const checkbox = await screen.findByLabelText(
       "Select Stage Camera 4K for handover",
     );
+
+    // Assigned serial units are listed on the handover row.
+    expect(screen.getByText("SN-CAM-001")).toBeInTheDocument();
+    expect(screen.getByText("SN-CAM-002")).toBeInTheDocument();
+
     const confirmButton = screen.getByRole("button", {
       name: "Confirm Handover",
     });

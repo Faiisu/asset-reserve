@@ -1038,6 +1038,16 @@ export function ReservationDetailPage() {
                                   );
                                 })}
                               </div>
+                            ) : isDeliverySelectable ? (
+                              <div className="res-return-serial-list">
+                                {item.units
+                                  .filter((unit) => unit.status === "ASSIGNED")
+                                  .map((unit) => (
+                                    <div key={unit.id} className="res-return-serial-row">
+                                      <span className="mono">{unit.serialNumber}</span>
+                                    </div>
+                                  ))}
+                              </div>
                             ) : isReturnSelectable ? (
                               <div
                                 className="res-return-serial-list"

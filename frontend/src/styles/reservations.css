@@ -1300,6 +1300,8 @@
 
 .res-manifest-item.reservation-item-card--selectable.reservation-item-card--handover {
   background: color-mix(in srgb, var(--blue-soft) 24%, var(--surface));
+  grid-template-columns: 28px 52px minmax(140px, 1fr) minmax(180px, 2fr);
+  align-items: start;
 }
 
 .res-manifest-item.reservation-item-card--selectable.reservation-item-card--handover:hover {
@@ -1309,6 +1311,18 @@
 .res-manifest-item.reservation-item-card--selectable.reservation-item-card--handover[data-selected="true"] {
   background: color-mix(in srgb, var(--blue-soft) 56%, var(--surface));
   box-shadow: inset 3px 0 var(--blue);
+}
+
+.reservation-item-card--handover .res-pending-quantity {
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding-top: 2px;
+}
+
+.reservation-item-card--handover .res-return-serial-list {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px 14px;
 }
 
 .res-item-approve-actions {
