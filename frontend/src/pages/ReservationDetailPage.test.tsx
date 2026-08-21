@@ -189,7 +189,7 @@ describe("ReservationDetailPage", () => {
     });
   });
 
-  it("allows Area Manager to select items, assign serial units, and submit batch approval", async () => {
+  it("allows Area Manager to assign serial units and approve an item inline", async () => {
     vi.spyOn(api, "reservation").mockResolvedValue(mockPendingReservation);
     const assetUnitsSpy = vi.spyOn(api, "assetUnits").mockResolvedValue({
       data: [
@@ -243,10 +243,7 @@ describe("ReservationDetailPage", () => {
       </MemoryRouter>,
     );
 
-    // 1. Wait for reservation to load and Area Manager Review toolbar to appear
-    await waitFor(() => {
-      expect(screen.getByText(/Area Manager Review/i)).toBeInTheDocument();
-    });
+    // 1. Wait for reservation to load and the serial-unit picker to fetch
     await waitFor(() => {
       expect(assetUnitsSpy).toHaveBeenCalledWith("asset-pending-1", {
         status: "ACTIVE",
@@ -254,26 +251,18 @@ describe("ReservationDetailPage", () => {
       });
     });
 
-    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    const approveButton = await screen.findByRole("button", { name: "Approve" });
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
-
-    // 2. Select the item, then select all 3 required serial units
-    const checkbox = screen.getByLabelText("Select Wireless Microphone Kit");
-    expect(checkbox).toBeInTheDocument();
-    expect(checkbox).not.toBeChecked();
-    fireEvent.click(checkbox);
-    expect(checkbox).toBeChecked();
-
-    const approveButton = screen.getByRole("button", { name: /Approve Selected/i });
     expect(approveButton).toBeDisabled();
 
+    // 2. Select all 3 required serial units
     fireEvent.click(await screen.findByLabelText("Assign serial SN-MIC-001"));
     fireEvent.click(screen.getByLabelText("Assign serial SN-MIC-002"));
     fireEvent.click(screen.getByLabelText("Assign serial SN-MIC-003"));
     expect(approveButton).toBeEnabled();
 
-    // 3. Type decision remark and click Approve Selected
-    const remarkInput = screen.getByPlaceholderText(/Decision comment \/ remark/i);
+    // 3. Type decision remark and click Approve
+    const remarkInput = screen.getByLabelText(/Approval comment for Wireless Microphone Kit/i);
     fireEvent.change(remarkInput, { target: { value: "Approved for town hall" } });
     fireEvent.click(approveButton);
 
@@ -294,7 +283,7 @@ describe("ReservationDetailPage", () => {
     });
   });
 
-  it("selects the item automatically when a serial unit is picked, without a separate checkbox click", async () => {
+  it("enables Approve as soon as one serial unit is picked (partial unit-based approval)", async () => {
     vi.spyOn(api, "reservation").mockResolvedValue(mockPendingReservation);
     vi.spyOn(api, "assetUnits").mockResolvedValue({
       data: [
@@ -334,18 +323,13 @@ describe("ReservationDetailPage", () => {
     );
 
     const serialCheckbox = await screen.findByLabelText("Assign serial SN-MIC-001");
-    const checkbox = screen.getByLabelText("Select Wireless Microphone Kit");
-    expect(checkbox).not.toBeChecked();
-
-    const approveButton = screen.getByRole("button", { name: /Approve Selected/i });
+    const approveButton = screen.getByRole("button", { name: "Approve" });
     expect(approveButton).toBeDisabled();
 
     // mockPendingReservation's item requests quantity 3 -- picking just 1
-    // unit should still tick the row checkbox immediately and enable Approve
-    // (approval is unit-based: fewer than requested is allowed, cuts the
-    // item's quantity down to match).
+    // unit should still enable Approve (approval is unit-based: fewer than
+    // requested is allowed, cuts the item's quantity down to match).
     fireEvent.click(serialCheckbox);
-    expect(checkbox).toBeChecked();
     expect(serialCheckbox).toBeChecked();
     expect(approveButton).toBeEnabled();
 

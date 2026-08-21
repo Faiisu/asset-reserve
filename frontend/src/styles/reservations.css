@@ -1293,6 +1293,27 @@
   box-shadow: inset 3px 0 var(--blue);
 }
 
+.res-item-approve-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.res-item-approve-actions .control {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  font-size: 12px;
+}
+
+.res-item-approve-actions .button {
+  min-height: 36px;
+  padding-inline: 12px;
+  font-size: 12px;
+}
+
 .res-pending-check {
   display: grid;
   place-items: center;
