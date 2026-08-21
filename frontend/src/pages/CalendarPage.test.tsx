@@ -43,7 +43,6 @@ const asset: AssetSummary = {
   allocatedQuantity: 1,
   availableQuantity: 3,
   isActive: true,
-  status: "ACTIVE",
   managementArea: { id: "area-1", name: "Production" },
   owner: null,
   capabilities: {
@@ -74,11 +73,9 @@ const reservation: ReservationSummary = {
   pendingItemCount: 0,
   approvedItemCount: 2,
   rejectedItemCount: 0,
-  hasPendingChangeRequest: false,
   pendingDecisionCount: 0,
   capabilities: {
     canSubmit: false,
-    canRequestChange: true,
     canReview: true,
   },
   createdAt: "2026-08-01T00:00:00.000Z",
@@ -115,6 +112,7 @@ const pendingReservationDetail: ReservationDetail = {
         isActive: true,
         managementArea: asset.managementArea,
       },
+      units: [],
       approval: null,
       availability: {
         assetId: asset.id,
@@ -128,9 +126,8 @@ const pendingReservationDetail: ReservationDetail = {
       capabilities: { canApprove: true, canReject: true },
     },
   ],
-  changeRequests: [],
   returns: [],
-  capabilities: { canSubmit: false, canRequestChange: true },
+  capabilities: { canSubmit: false },
   createdAt: pendingReservation.createdAt,
   updatedAt: pendingReservation.updatedAt,
 };
@@ -413,7 +410,6 @@ describe("CalendarPage", () => {
       ...reservation,
       capabilities: {
         canSubmit: false,
-        canRequestChange: true,
         canReview: true,
         canCancel: true,
       },

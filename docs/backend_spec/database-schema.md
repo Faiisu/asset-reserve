@@ -333,13 +333,7 @@ Table reservation_item_units {
   reservation_item_id uuid [not null]
   asset_unit_id uuid [not null]
 
-  status varchar(20) [not null, default: 'ASSIGNED', note: '''
-    ASSIGNED
-    CHECKED_OUT
-    RETURNED_GOOD
-    RETURNED_BROKEN
-    RETURNED_LOST
-  ''']
+  status varchar(20) [not null, default: 'ASSIGNED', note: 'ค่าและ transition: software_spec/lifecycle-and-state-machines.md#reservation-item-unit-status']
 
   assigned_by uuid [not null]
   assigned_at timestamptz [not null, default: `now()`]
@@ -525,7 +519,7 @@ Table activity_logs {
 // =====================================================
 
 Table email_templates {
-  situation varchar(50) [pk, note: 'Fixed keys, not a generated id: reservation_submitted, reservation_decided, return_decided']
+  situation varchar(50) [pk, note: 'Fixed keys, not a generated id. รายการ: software_spec/business-rules-and-validation.md#6-recognition-email-templates-notification-settings']
 
   subject varchar(255) [not null]
   body_markdown text [not null]

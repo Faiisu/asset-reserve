@@ -548,7 +548,7 @@ flowchart LR
 
 ### 8.3 `POST /reservations/:reservationId/returns/:returnId/decision`
 
-ผู้จัดการพื้นที่ตรวจรับสภาพอุปกรณ์เป็นรายหน่วย (`DecideReturnItemUnitDto`): แต่ละ `reservationItemUnitId` ระบุ `condition` เป็น `GOOD`, `BROKEN` หรือ `LOST` เท่านั้น ไม่มี field แบบ quantity ในระบบ
+ผู้จัดการพื้นที่ตรวจรับสภาพอุปกรณ์เป็นรายหน่วย ระบุ `items[]` จัดกลุ่มตาม `reservationItemId` (`DecideReturnItemInput`) แต่ละ item มี `units[]` (`DecideReturnItemUnitInput`) ระบุ `reservationItemUnitId` คู่กับ `condition` เป็น `GOOD`, `BROKEN` หรือ `LOST` เท่านั้น ไม่มี field แบบ quantity ในระบบ — การจัดกลุ่มตาม item ทำให้ผูก `description` ต่อ item ได้ (บันทึกลง `ReturnItem.description` เมื่อ decision เป็น `APPROVE`) แยกจาก `description` ระดับสลิปทั้งใบใน `ReturnDecisionRequest`
 
 - **`GOOD`**: asset unit กลับสู่ `status = ACTIVE` พร้อมใช้จองใหม่
 - **`BROKEN`**: asset unit เปลี่ยนเป็น `status = BROKEN`

@@ -515,7 +515,7 @@ CreateReturnRequest:
       nullable: true
     immediateApprove:
       type: boolean
-ReturnDecisionItemInput:
+DecideReturnItemUnitInput:
   type: object
   additionalProperties: false
   required:
@@ -529,6 +529,20 @@ ReturnDecisionItemInput:
       type: string
       description: Per-unit inspection outcome. Required for every unit in the slip when decision is APPROVE.
       enum: [GOOD, BROKEN, LOST]
+DecideReturnItemInput:
+  type: object
+  additionalProperties: false
+  required:
+    - reservationItemId
+  properties:
+    reservationItemId:
+      type: string
+      format: uuid
+    units:
+      type: array
+      description: Per-serial condition decisions for this item's return-item units.
+      items:
+        $ref: "#/components/schemas/DecideReturnItemUnitInput"
     description:
       type: string
       maxLength: 2000
@@ -544,8 +558,9 @@ ReturnDecisionRequest:
       enum: [APPROVE, REJECT]
     items:
       type: array
+      description: Grouped by reservation item -- each entry's `units[]` carries the per-serial condition decisions, and `description` sets that item's ReturnItem.description.
       items:
-        $ref: "#/components/schemas/ReturnDecisionItemInput"
+        $ref: "#/components/schemas/DecideReturnItemInput"
     description:
       type: string
       maxLength: 2000

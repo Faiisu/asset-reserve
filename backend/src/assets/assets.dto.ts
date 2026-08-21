@@ -67,7 +67,7 @@ export class CreateAssetDto {
   @Transform(trim)
   @IsString()
   @MinLength(1)
-  @MaxLength(150)
+  @MaxLength(40)
   name!: string;
 
   @IsUUID()
@@ -116,7 +116,7 @@ export class UpdateAssetDto {
   @Transform(trim)
   @IsString()
   @MinLength(1)
-  @MaxLength(150)
+  @MaxLength(40)
   name?: string;
 
   @IsOptional()

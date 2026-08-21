@@ -129,7 +129,7 @@ export function AppShell() {
           </div>
         </div>
         <nav className="sidebar__nav" aria-label="Main navigation">
-          <p className="nav-label">Workspace</p>
+          <p className="nav-label">Management area</p>
           {nav
             .filter((item) => !item.to.startsWith("/admin"))
             .map(({ to, label, icon: Icon }) => (

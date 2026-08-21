@@ -18,7 +18,6 @@ import type {
   PermissionDefinition,
   PermissionKey,
   Role,
-  ReservationChangeData,
   ReservationDetail,
   ReservationSummary,
   ReturnDecisionInput,
@@ -322,27 +321,6 @@ export const api = {
         method: "POST",
         body: json({ itemIds, decision, ...(comment ? { comment } : {}) }),
       },
-    ),
-  requestReservationChange: (
-    reservationId: string,
-    changeData: ReservationChangeData,
-    reason?: string,
-  ) =>
-    request<ReservationDetail>(
-      `/reservations/${reservationId}/change-requests`,
-      {
-        method: "POST",
-        body: json({ changeData, ...(reason ? { reason } : {}) }),
-      },
-    ),
-  decideReservationChange: (
-    reservationId: string,
-    changeRequestId: string,
-    decision: "APPROVE" | "REJECT",
-  ) =>
-    request<ReservationDetail>(
-      `/reservations/${reservationId}/change-requests/${changeRequestId}/decision`,
-      { method: "POST", body: json({ decision }) },
     ),
   cancelReservation: (reservationId: string, reason?: string) =>
     request<ReservationDetail>(`/reservations/${reservationId}/cancel`, {

@@ -182,6 +182,14 @@
     grid-column: 2;
     margin: 0;
   }
+  /* Batch summary has no picture -- undo the picture-column layout above. */
+  .batch-summary {
+    display: block;
+  }
+  .batch-summary dl {
+    grid-column: auto;
+    margin: 20px 0 0;
+  }
   .asset-hero {
     grid-template-columns: auto 1fr;
   }
@@ -318,11 +326,11 @@
     border-radius: 13px;
     background: var(--surface);
   }
-  .asset-card--selectable {
+  .asset-card--clickable {
     cursor: pointer;
   }
-  .asset-card--selectable:hover {
-    background: color-mix(in srgb, var(--teal-soft) 24%, var(--surface));
+  .asset-card--clickable:hover {
+    background: var(--surface-raised);
   }
   .asset-card--selected {
     background: color-mix(in srgb, var(--teal-soft) 52%, var(--surface)) !important;
@@ -332,12 +340,16 @@
     align-items: center;
     gap: 14px;
   }
+  .asset-card__body .cell-check__hit {
+    padding: 12px;
+    margin: -12px 8px -12px -12px;
+  }
   .asset-card__body input[type="checkbox"] {
     width: 20px;
     height: 20px;
     margin: 0;
     accent-color: var(--teal);
-    cursor: pointer;
+    pointer-events: none;
   }
   .asset-card__info strong,
   .asset-card__info span {
@@ -355,31 +367,7 @@
   .asset-card__footer {
     margin-top: 14px;
     padding-top: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
     border-top: 1px solid var(--line);
-  }
-  .asset-card__numbers {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-  .asset-card__numbers > span small,
-  .asset-card__numbers > span strong {
-    display: block;
-  }
-  .asset-card__numbers small {
-    color: var(--ink-faint);
-    font-size: 10px;
-    font-weight: 600;
-  }
-  .asset-card__numbers strong {
-    margin-top: 2px;
-    font-family: var(--mono);
-    font-size: 16px;
-    font-weight: 700;
   }
   .form-grid--2,
   .form-grid--3 {
@@ -392,13 +380,11 @@
     width: 100%;
     height: auto;
   }
-  .batch-row__header {
-    align-items: stretch;
+  .batch-row__identity {
+    grid-template-columns: 1fr;
   }
-  .batch-row__header .field,
-  .batch-row__field--name,
-  .batch-row__field--qty {
-    flex-basis: 100%;
+  .batch-row__extras {
+    grid-template-columns: 1fr;
   }
   .asset-hero {
     padding: 17px;

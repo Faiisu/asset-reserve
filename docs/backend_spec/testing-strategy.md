@@ -8,7 +8,7 @@ Functional acceptance criteria (business-rule assertions) อยู่ที่ 
 
 - Permission/scope evaluation
 - Reservation aggregate status
-- Asset unit registration/retirement validation (serial-number uniqueness, part-number scoping, status transitions ACTIVE↔RESERVED↔CHECKED_OUT↔BROKEN/LOST↔IN_REPAIR↔INACTIVE)
+- Asset unit registration/retirement validation (serial-number uniqueness, part-number scoping, status transitions per [software_spec/lifecycle-and-state-machines.md §7](../software_spec/lifecycle-and-state-machines.md#condition-classification))
 - Return per-unit condition validation (GOOD/BROKEN/LOST via `ReturnItemUnit`)
 - Retry classification
 

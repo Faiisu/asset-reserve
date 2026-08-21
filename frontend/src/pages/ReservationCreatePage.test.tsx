@@ -33,7 +33,6 @@ const asset: AssetSummary = {
     inactive: 0,
   },
   isActive: true,
-  status: "ACTIVE",
   managementArea: { id: "area-1", name: "Production" },
   owner: null,
   capabilities: {

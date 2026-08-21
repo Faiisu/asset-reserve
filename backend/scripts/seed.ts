@@ -88,6 +88,7 @@ const ids = {
     platformCart: "00000000-0000-4000-8000-000000000410",
   },
   unitEventBatch: "00000000-0000-4000-8000-000000000501",
+  demoUnitStatusBatch: "00000000-0000-4000-8000-000000000502",
   reservations: {
     completed: "00000000-0000-4000-8000-000000000601",
     approved: "00000000-0000-4000-8000-000000000602",
@@ -103,14 +104,6 @@ const ids = {
     returnConfirmed: "00000000-0000-4000-8000-00000000060b",
     rejected: "00000000-0000-4000-8000-00000000060c",
     cancelled: "00000000-0000-4000-8000-00000000060d",
-  },
-  handovers: {
-    completed: "00000000-0000-4000-8000-000000000641",
-    deliveryConfirmed: "00000000-0000-4000-8000-000000000642",
-    active: "00000000-0000-4000-8000-000000000643",
-    returnPhase: "00000000-0000-4000-8000-000000000644",
-    returnPending: "00000000-0000-4000-8000-000000000645",
-    returnConfirmed: "00000000-0000-4000-8000-000000000646",
   },
   items: {
     completedLogic: "00000000-0000-4000-8000-000000000611",
@@ -159,9 +152,6 @@ const ids = {
     rejectedOscilloscope: "00000000-0000-4000-8000-000000000654",
     cancelledCamera: "00000000-0000-4000-8000-000000000655",
     cancelledMic: "00000000-0000-4000-8000-000000000656",
-  },
-  changeRequests: {
-    approvedExt: "00000000-0000-4000-8000-000000000671",
   },
   returns: {
     completed: "00000000-0000-4000-8000-000000000701",
@@ -480,6 +470,7 @@ async function seedMockData(): Promise<void> {
       id: ids.assets.logicAnalyzer,
       managementAreaId: aeArea.id,
       name: "Saleae Logic Pro 16",
+      partNumber: "SLA-LGPR16",
       description: "16-channel USB logic analyzer with probes.",
       pictureUrl: seedImages.logicAnalyzer.url,
       unitCount: 5,
@@ -489,6 +480,7 @@ async function seedMockData(): Promise<void> {
       id: ids.assets.oscilloscope,
       managementAreaId: aeArea.id,
       name: "Rigol 4-Channel Digital Oscilloscope",
+      partNumber: "RGL-DS1104Z",
       description: "100MHz digital storage oscilloscope.",
       pictureUrl: seedImages.oscilloscope.url,
       unitCount: 4,
@@ -498,6 +490,7 @@ async function seedMockData(): Promise<void> {
       id: ids.assets.camera,
       managementAreaId: marketingArea.id,
       name: "Sony Alpha 7 IV Kit",
+      partNumber: "SNY-A7IV-KIT",
       description: "Full-frame mirrorless camera with 24-70mm lens.",
       pictureUrl: seedImages.camera.url,
       unitCount: 3,
@@ -507,6 +500,7 @@ async function seedMockData(): Promise<void> {
       id: ids.assets.wirelessMic,
       managementAreaId: marketingArea.id,
       name: "Rode Wireless GO II Dual Kit",
+      partNumber: "RDE-WGO2-DUAL",
       description: "Dual channel compact wireless microphone system.",
       pictureUrl: seedImages.wirelessMic.url,
       unitCount: 6,
@@ -516,6 +510,7 @@ async function seedMockData(): Promise<void> {
       id: ids.assets.onboardingKit,
       managementAreaId: hrArea.id,
       name: "New Hire Onboarding Tech Kit",
+      partNumber: "HR-ONBK-100",
       description: "USB-C multi-port dock, wireless mouse, and keyboard.",
       pictureUrl: seedImages.onboardingKit.url,
       unitCount: 10,
@@ -525,6 +520,7 @@ async function seedMockData(): Promise<void> {
       id: ids.assets.ergonomicChair,
       managementAreaId: hrArea.id,
       name: "Herman Miller Aeron Chair (Trial Unit)",
+      partNumber: "HM-AERON-TRIAL",
       description: "Adjustable ergonomic task chair for assessment.",
       pictureUrl: seedImages.ergonomicChair.url,
       unitCount: 2,
@@ -534,6 +530,7 @@ async function seedMockData(): Promise<void> {
       id: ids.assets.palletJack,
       managementAreaId: warehouseArea.id,
       name: "Electric Pallet Jack 2.5T",
+      partNumber: "WH-EPJ-2500",
       description:
         "Heavy-duty electric powered pallet truck for warehouse logistics.",
       pictureUrl: seedImages.palletJack.url,
@@ -544,6 +541,7 @@ async function seedMockData(): Promise<void> {
       id: ids.assets.handTruck,
       managementAreaId: warehouseArea.id,
       name: "Heavy-Duty Hand Truck 300kg",
+      partNumber: "WH-HDHT-300",
       description: "Dual-handle industrial sack barrow with pneumatic wheels.",
       pictureUrl: seedImages.handTruck.url,
       unitCount: 6,
@@ -553,6 +551,7 @@ async function seedMockData(): Promise<void> {
       id: ids.assets.barcodeScanner,
       managementAreaId: warehouseArea.id,
       name: "Zebra Industrial Barcode Scanner",
+      partNumber: "ZBR-DS3678",
       description:
         "Rugged wireless barcode and QR code scanner gun with charging cradle.",
       pictureUrl: seedImages.barcodeScanner.url,
@@ -563,6 +562,7 @@ async function seedMockData(): Promise<void> {
       id: ids.assets.platformCart,
       managementAreaId: warehouseArea.id,
       name: "Foldable Platform Trolley Cart",
+      partNumber: "WH-FPTC-300",
       description: "300kg capacity steel platform trolley with folding handle.",
       pictureUrl: seedImages.platformCart.url,
       unitCount: 4,
@@ -573,7 +573,7 @@ async function seedMockData(): Promise<void> {
   for (const { unitCount, ...asset } of assetInputs) {
     await prisma.asset.upsert({
       where: { id: asset.id },
-      update: { createdById: asset.createdById },
+      update: { createdById: asset.createdById, partNumber: asset.partNumber },
       create: asset,
     });
   }
@@ -643,7 +643,11 @@ async function seedMockData(): Promise<void> {
     const chosen = pool.splice(0, input.quantity);
     const rows: { id: string; assetUnitId: string }[] = [];
     for (const unit of chosen) {
-      const status = input.checkedOutAt ? "CHECKED_OUT" : "ASSIGNED";
+      // ReservationItemUnit tracks ASSIGNED/CHECKED_OUT (§3a); AssetUnit's own
+      // status uses a different vocabulary (RESERVED/CHECKED_OUT, §7) for the
+      // same lifecycle point -- these must not be conflated.
+      const itemUnitStatus = input.checkedOutAt ? "CHECKED_OUT" : "ASSIGNED";
+      const assetUnitStatus = input.checkedOutAt ? "CHECKED_OUT" : "RESERVED";
       const row = await prisma.reservationItemUnit.upsert({
         where: {
           reservationItemId_assetUnitId: {
@@ -651,12 +655,12 @@ async function seedMockData(): Promise<void> {
             assetUnitId: unit.id,
           },
         },
-        update: { status, checkedOutAt: input.checkedOutAt },
+        update: { status: itemUnitStatus, checkedOutAt: input.checkedOutAt },
         create: {
           id: randomUUID(),
           reservationItemId: input.reservationItemId,
           assetUnitId: unit.id,
-          status,
+          status: itemUnitStatus,
           assignedBy: input.assignedBy,
           assignedAt: input.assignedAt,
           checkedOutAt: input.checkedOutAt,
@@ -664,7 +668,7 @@ async function seedMockData(): Promise<void> {
       });
       await prisma.assetUnit.update({
         where: { id: unit.id },
-        data: { status },
+        data: { status: assetUnitStatus },
       });
       rows.push({ id: row.id, assetUnitId: unit.id });
     }
@@ -876,75 +880,7 @@ async function seedMockData(): Promise<void> {
     });
   }
 
-  // 9. Seed Handovers (for delivered, active, and returned reservations)
-  const handoverInputs = [
-    {
-      id: ids.handovers.completed,
-      reservationId: ids.reservations.completed,
-      handledBy: userMap["ae@example.com"]!,
-      photoUrls: [seedImages.logicAnalyzer.url],
-      note: "Handed over equipment to requester at Lab B.",
-      handedOverAt: new Date("2026-07-20T01:30:00.000Z"),
-    },
-    {
-      id: ids.handovers.deliveryConfirmed,
-      reservationId: ids.reservations.deliveryConfirmed,
-      handledBy: userMap["ae@example.com"]!,
-      photoUrls: [seedImages.logicAnalyzer.url],
-      note: "Items handed over in good condition with cables and accessories.",
-      handedOverAt: new Date("2026-08-17T09:00:00.000Z"),
-    },
-    {
-      id: ids.handovers.active,
-      reservationId: ids.reservations.active,
-      handledBy: userMap["wh@example.com"]!,
-      photoUrls: [seedImages.platformCart.url],
-      note: "Dispatched to expo logistics team at main hall.",
-      handedOverAt: new Date("2026-08-16T00:30:00.000Z"),
-    },
-    {
-      id: ids.handovers.returnPhase,
-      reservationId: ids.reservations.returnPhase,
-      handledBy: userMap["wh@example.com"]!,
-      photoUrls: [seedImages.handTruck.url],
-      note: "Handed over to relocation crew.",
-      handedOverAt: new Date("2026-08-15T01:30:00.000Z"),
-    },
-    {
-      id: ids.handovers.returnPending,
-      reservationId: ids.reservations.returnPending,
-      handledBy: userMap["hr@example.com"]!,
-      photoUrls: [seedImages.ergonomicChair.url],
-      note: "Delivered trial chair to desk 4B.",
-      handedOverAt: new Date("2026-08-14T00:30:00.000Z"),
-    },
-    {
-      id: ids.handovers.returnConfirmed,
-      reservationId: ids.reservations.returnConfirmed,
-      handledBy: userMap["wh@example.com"]!,
-      photoUrls: [seedImages.palletJack.url],
-      note: "Assigned for storage reorganization.",
-      handedOverAt: new Date("2026-08-12T01:30:00.000Z"),
-    },
-  ] as const;
-
-  for (const handover of handoverInputs) {
-    await prisma.reservationHandover.upsert({
-      where: { id: handover.id },
-      update: {
-        handledBy: handover.handledBy,
-        photoUrls: [...handover.photoUrls],
-        note: handover.note,
-        handedOverAt: handover.handedOverAt,
-      },
-      create: {
-        ...handover,
-        photoUrls: [...handover.photoUrls],
-      },
-    });
-  }
-
-  // 10. Seed Reservation Items
+  // 9. Seed Reservation Items
   const itemInputs = [
     // COMPLETED
     {
@@ -957,7 +893,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-07-20T01:00:00.000Z"),
       checkedOutBy: userMap["ae@example.com"]!,
       checkedOutAt: new Date("2026-07-20T01:30:00.000Z"),
-      handoverId: ids.handovers.completed,
     },
     {
       id: ids.items.completedKit,
@@ -969,7 +904,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-07-20T01:00:00.000Z"),
       checkedOutBy: userMap["hr@example.com"]!,
       checkedOutAt: new Date("2026-07-20T01:30:00.000Z"),
-      handoverId: ids.handovers.completed,
     },
     // APPROVED
     {
@@ -982,7 +916,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     {
       id: ids.items.approvedMic,
@@ -994,7 +927,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     // PENDING_APPROVAL
     {
@@ -1007,7 +939,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     // DRAFT
     {
@@ -1020,7 +951,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     {
       id: ids.items.draftScanner,
@@ -1032,7 +962,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     // PENDING
     {
@@ -1045,7 +974,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     {
       id: ids.items.pendingTruck,
@@ -1057,7 +985,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     // PARTIALLY_APPROVED
     {
@@ -1070,7 +997,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     {
       id: ids.items.partialAnalyzer,
@@ -1082,7 +1008,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     // DELIVERY_CONFIRMED
     {
@@ -1095,7 +1020,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-17T08:00:00.000Z"),
       checkedOutBy: userMap["ae@example.com"]!,
       checkedOutAt: new Date("2026-08-17T08:30:00.000Z"),
-      handoverId: ids.handovers.deliveryConfirmed,
     },
     {
       id: ids.items.deliveryKit,
@@ -1107,7 +1031,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-17T08:00:00.000Z"),
       checkedOutBy: userMap["hr@example.com"]!,
       checkedOutAt: new Date("2026-08-17T08:30:00.000Z"),
-      handoverId: ids.handovers.deliveryConfirmed,
     },
     // ACTIVE
     {
@@ -1120,7 +1043,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-15T15:00:00.000Z"),
       checkedOutBy: userMap["wh@example.com"]!,
       checkedOutAt: new Date("2026-08-16T00:30:00.000Z"),
-      handoverId: ids.handovers.active,
     },
     {
       id: ids.items.activeScanner,
@@ -1132,7 +1054,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-15T15:00:00.000Z"),
       checkedOutBy: userMap["wh@example.com"]!,
       checkedOutAt: new Date("2026-08-16T00:30:00.000Z"),
-      handoverId: ids.handovers.active,
     },
     // RETURN
     {
@@ -1145,7 +1066,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-15T01:00:00.000Z"),
       checkedOutBy: userMap["wh@example.com"]!,
       checkedOutAt: new Date("2026-08-15T01:30:00.000Z"),
-      handoverId: ids.handovers.returnPhase,
     },
     {
       id: ids.items.returnPhaseTruck,
@@ -1157,7 +1077,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-15T01:00:00.000Z"),
       checkedOutBy: userMap["wh@example.com"]!,
       checkedOutAt: new Date("2026-08-15T01:30:00.000Z"),
-      handoverId: ids.handovers.returnPhase,
     },
     // RETURN_PENDING
     {
@@ -1170,7 +1089,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-14T00:15:00.000Z"),
       checkedOutBy: userMap["hr@example.com"]!,
       checkedOutAt: new Date("2026-08-14T00:30:00.000Z"),
-      handoverId: ids.handovers.returnPending,
     },
     // RETURN_CONFIRMED
     {
@@ -1183,7 +1101,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: new Date("2026-08-12T01:00:00.000Z"),
       checkedOutBy: userMap["wh@example.com"]!,
       checkedOutAt: new Date("2026-08-12T01:30:00.000Z"),
-      handoverId: ids.handovers.returnConfirmed,
     },
     // REJECTED
     {
@@ -1196,7 +1113,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     // CANCELLED
     {
@@ -1209,7 +1125,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
     {
       id: ids.items.cancelledMic,
@@ -1221,7 +1136,6 @@ async function seedMockData(): Promise<void> {
       preparedAt: null,
       checkedOutBy: null,
       checkedOutAt: null,
-      handoverId: null,
     },
   ] as const;
 
@@ -1235,7 +1149,6 @@ async function seedMockData(): Promise<void> {
         preparedAt: item.preparedAt,
         checkedOutBy: item.checkedOutBy,
         checkedOutAt: item.checkedOutAt,
-        handoverId: item.handoverId,
       },
       create: item,
     });
@@ -1481,25 +1394,6 @@ async function seedMockData(): Promise<void> {
     });
   }
 
-  // 12. Seed Reservation Change Request
-  await prisma.reservationChangeRequest.upsert({
-    where: { id: ids.changeRequests.approvedExt },
-    update: {},
-    create: {
-      id: ids.changeRequests.approvedExt,
-      reservationId: ids.reservations.approved,
-      requestedBy: userMap["user1@example.com"]!,
-      changeData: {
-        eventName: "Product Launch Video Shoot (Extended)",
-        endAt: "2026-09-10T14:00:00.000Z",
-      },
-      reason: "Client extended the shooting schedule by 3 hours.",
-      status: "PENDING",
-      reviewedBy: null,
-      reviewedAt: null,
-    },
-  });
-
   // 13. Seed Return Records
   let returnItemUnitOffset = 0;
   // 13.1 COMPLETED Return
@@ -1508,8 +1402,6 @@ async function seedMockData(): Promise<void> {
     update: {
       status: "COMPLETED",
       returnedAt: new Date("2026-07-20T11:00:00.000Z"),
-      photoUrls: [seedImages.logicAnalyzer.url],
-      note: "Returned all equipment after successful test session.",
     },
     create: {
       id: ids.returns.completed,
@@ -1517,8 +1409,6 @@ async function seedMockData(): Promise<void> {
       returnedBy: userMap["user1@example.com"]!,
       status: "COMPLETED",
       returnedAt: new Date("2026-07-20T11:00:00.000Z"),
-      photoUrls: [seedImages.logicAnalyzer.url],
-      note: "Returned all equipment after successful test session.",
     },
   });
 
@@ -1584,8 +1474,6 @@ async function seedMockData(): Promise<void> {
     update: {
       status: "PENDING",
       returnedAt: new Date("2026-08-17T05:30:00.000Z"),
-      photoUrls: [seedImages.platformCart.url],
-      note: "Finished moving boxes, returning carts to warehouse.",
     },
     create: {
       id: ids.returns.returnPhase,
@@ -1593,8 +1481,6 @@ async function seedMockData(): Promise<void> {
       returnedBy: userMap["user1@example.com"]!,
       status: "PENDING",
       returnedAt: new Date("2026-08-17T05:30:00.000Z"),
-      photoUrls: [seedImages.platformCart.url],
-      note: "Finished moving boxes, returning carts to warehouse.",
     },
   });
 
@@ -1661,8 +1547,6 @@ async function seedMockData(): Promise<void> {
     update: {
       status: "PENDING",
       returnedAt: new Date("2026-08-16T10:30:00.000Z"),
-      photoUrls: [seedImages.ergonomicChair.url],
-      note: "Trial complete. Chair is in good condition.",
     },
     create: {
       id: ids.returns.returnPending,
@@ -1670,8 +1554,6 @@ async function seedMockData(): Promise<void> {
       returnedBy: userMap["user2@example.com"]!,
       status: "PENDING",
       returnedAt: new Date("2026-08-16T10:30:00.000Z"),
-      photoUrls: [seedImages.ergonomicChair.url],
-      note: "Trial complete. Chair is in good condition.",
     },
   });
 
@@ -1720,8 +1602,6 @@ async function seedMockData(): Promise<void> {
     update: {
       status: "APPROVED",
       returnedAt: new Date("2026-08-14T10:30:00.000Z"),
-      photoUrls: [seedImages.palletJack.url],
-      note: "Returned pallet jack with charging cord plugged in.",
     },
     create: {
       id: ids.returns.returnConfirmed,
@@ -1729,8 +1609,6 @@ async function seedMockData(): Promise<void> {
       returnedBy: userMap["user1@example.com"]!,
       status: "APPROVED",
       returnedAt: new Date("2026-08-14T10:30:00.000Z"),
-      photoUrls: [seedImages.palletJack.url],
-      note: "Returned pallet jack with charging cord plugged in.",
     },
   });
 
@@ -1774,6 +1652,79 @@ async function seedMockData(): Promise<void> {
       decidedAt: new Date("2026-08-14T11:00:00.000Z"),
     },
   });
+
+  // 14. Diversify one P/N's leftover units across every AssetUnit status
+  // (RESERVED, BROKEN, LOST, IN_REPAIR, INACTIVE) so the registry's status
+  // breakdown/filter has full coverage to demo -- these statuses don't
+  // otherwise occur from the reservation/return scenarios above, which only
+  // exercise ACTIVE, CHECKED_OUT and returned-GOOD.
+  {
+    const demoAssetId = ids.assets.onboardingKit;
+    const demoPool = assetUnitPool.get(demoAssetId)!;
+    const demoAdjustments: Array<{
+      status: "RESERVED" | "BROKEN" | "LOST" | "IN_REPAIR" | "INACTIVE";
+      eventType: "RESERVED" | "ADJUSTMENT" | "RETIRED";
+      reason: string;
+    }> = [
+      {
+        status: "RESERVED",
+        eventType: "RESERVED",
+        reason: "Held for an upcoming reservation (prepared, not yet delivered).",
+      },
+      {
+        status: "BROKEN",
+        eventType: "ADJUSTMENT",
+        reason: "Dock connector damaged during inspection.",
+      },
+      {
+        status: "LOST",
+        eventType: "ADJUSTMENT",
+        reason: "Not found during quarterly inventory count.",
+      },
+      {
+        status: "IN_REPAIR",
+        eventType: "ADJUSTMENT",
+        reason: "Sent out for keyboard repair.",
+      },
+      {
+        status: "INACTIVE",
+        eventType: "RETIRED",
+        reason: "Retired after end-of-life.",
+      },
+    ];
+    const demoBatch = await prisma.assetUnitEventBatch.upsert({
+      where: { id: ids.demoUnitStatusBatch },
+      update: {},
+      create: {
+        id: ids.demoUnitStatusBatch,
+        description: "Demo data: full AssetUnit status coverage for one P/N",
+        performedBy: adminUser.id,
+      },
+    });
+    let demoEventOffset = 0;
+    for (const adjustment of demoAdjustments) {
+      const unit = demoPool.shift();
+      if (!unit) break;
+      await prisma.assetUnit.update({
+        where: { id: unit.id },
+        data: { status: adjustment.status },
+      });
+      await prisma.assetUnitEvent.upsert({
+        where: { id: fixedId(0xb00 + demoEventOffset) },
+        update: {},
+        create: {
+          id: fixedId(0xb00 + demoEventOffset),
+          batchId: demoBatch.id,
+          assetUnitId: unit.id,
+          eventType: adjustment.eventType,
+          fromStatus: "ACTIVE",
+          toStatus: adjustment.status,
+          reason: adjustment.reason,
+        },
+      });
+      demoEventOffset += 1;
+    }
+  }
 
   console.log("\n=========================================");
   console.log("MOCK SEED COMPLETE:");

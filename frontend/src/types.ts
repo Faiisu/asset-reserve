@@ -167,8 +167,6 @@ export type AssetCapabilities = {
   canManageUnits: boolean;
 };
 
-export type AssetStatus = "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE";
-
 export type AssetSummary = {
   id: string;
   name: string;
@@ -178,8 +176,6 @@ export type AssetSummary = {
   allocatedQuantity: number;
   availableQuantity: number;
   isActive: boolean;
-  /** No longer sent by the backend -- status now lives per serial unit (see AssetDetail.units). */
-  status?: AssetStatus;
   partNumber: string | null;
   unitCounts: {
     total: number;
@@ -292,15 +288,6 @@ export type ReservationItemInput = {
   quantity: number;
 };
 
-export type ReservationChangeData = {
-  eventName?: string;
-  description?: string | null;
-  startAt?: string;
-  endAt?: string;
-  items?: ReservationItemInput[];
-  participantIds?: string[];
-};
-
 export type ConfirmDeliveryInput = {
   itemIds?: string[];
 };
@@ -326,12 +313,18 @@ export type ReservationDetail = {
       isActive: boolean;
       managementArea: ManagementAreaRef;
     };
+    units: Array<{
+      id: string;
+      assetUnitId: string;
+      serialNumber: string;
+      status: string;
+    }>;
     returnSummary?: {
-      returnedQuantity: number;
-      brokenQuantity: number;
-      lostQuantity: number;
-      lostRecoverableQuantity?: number;
-      pendingReturnQuantity: number;
+      totalUnits: number;
+      returnedGoodCount: number;
+      returnedBrokenCount: number;
+      returnedLostCount: number;
+      pendingReturnCount: number;
       remainingReturnQuantity: number;
     };
     approval: {
@@ -362,21 +355,10 @@ export type ReservationDetail = {
       canReturn?: boolean;
     };
   }>;
-  changeRequests: Array<{
-    id: string;
-    changeData: ReservationChangeData;
-    reason: string | null;
-    status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
-    requestedBy: ReservationUser;
-    reviewedBy: ReservationUser | null;
-    reviewedAt: string | null;
-    createdAt: string;
-  }>;
   returns: ReturnDetail[];
   activityLogs?: ActivityLog[];
   capabilities: {
     canSubmit: boolean;
-    canRequestChange: boolean;
     canConfirmDelivery?: boolean;
     canCancel?: boolean;
     canReturn?: boolean;
@@ -395,22 +377,34 @@ export type ActivityLog = {
   createdAt: string;
 };
 
+export type ReturnItemUnitCondition = "GOOD" | "BROKEN" | "LOST";
+
+export type ReturnItemUnitDetail = {
+  id: string;
+  reservationItemUnitId: string;
+  assetUnitId: string;
+  serialNumber: string;
+  condition: ReturnItemUnitCondition | null;
+  pictureUrl: string | null;
+  note: string | null;
+};
+
 export type ReturnItemDetail = {
   id: string;
   reservationItemId: string;
   assetId: string;
   assetName: string;
   managementArea: ManagementAreaRef;
-  quantityReturned: number;
-  quantityBroken: number;
-  quantityLost: number;
   description: string | null;
+  pictureUrl: string | null;
+  units: ReturnItemUnitDetail[];
 };
 
 export type ReturnDetail = {
   id: string;
   reservationId: string;
   status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
+  note: string | null;
   returnedAt: string | null;
   returnedBy: ReservationUser;
   reservation?: {
@@ -436,22 +430,24 @@ export type ReturnDetail = {
 
 export type CreateReturnItemInput = {
   reservationItemId: string;
-  quantityReturned: number;
-  quantityBroken?: number;
-  quantityLost?: number;
+  reservationItemUnitIds: string[];
   description?: string | null;
 };
 
 export type CreateReturnInput = {
   items: CreateReturnItemInput[];
+  note?: string | null;
   immediateApprove?: boolean;
+};
+
+export type DecideReturnItemUnitInput = {
+  reservationItemUnitId: string;
+  condition: ReturnItemUnitCondition;
 };
 
 export type DecideReturnItemInput = {
   reservationItemId: string;
-  quantityReturned?: number;
-  quantityBroken?: number;
-  quantityLost?: number;
+  units?: DecideReturnItemUnitInput[];
   description?: string | null;
 };
 
@@ -485,11 +481,9 @@ export type ReservationSummary = {
   pendingItemCount: number;
   approvedItemCount: number;
   rejectedItemCount: number;
-  hasPendingChangeRequest: boolean;
   pendingDecisionCount: number;
   capabilities: {
     canSubmit: boolean;
-    canRequestChange: boolean;
     canReview: boolean;
     canConfirmDelivery?: boolean;
     canCancel?: boolean;

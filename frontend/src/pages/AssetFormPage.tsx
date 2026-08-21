@@ -16,7 +16,6 @@ import { useAuth } from "../auth";
 import { AssetPhotosSection, type PendingPhoto } from "../components/AssetPhotosSection";
 import { CameraCaptureModal } from "../components/CameraCaptureModal";
 import {
-  AssetPicture,
   Breadcrumb,
   Button,
   EmptyState,
@@ -32,6 +31,7 @@ import type { AssetDetail, ManagementArea } from "../types";
 
 type FormValue = {
   name: string;
+  partNumber: string;
   managementAreaId: string;
   description: string;
   isActive: boolean;
@@ -39,6 +39,7 @@ type FormValue = {
 
 const emptyForm: FormValue = {
   name: "",
+  partNumber: "",
   managementAreaId: "",
   description: "",
   isActive: true,
@@ -66,6 +67,14 @@ export function AssetFormPage() {
   const [fields, setFields] = useState<Record<string, string>>({});
   const [error, setError] = useState<unknown>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Serial units to register immediately after a brand-new asset is
+  // created -- create mode only. One POST /assets/{id}/units call right
+  // after POST /assets, same "register units" endpoint the asset-details
+  // page uses, just chained into this same submit instead of requiring a
+  // separate trip to the new asset's detail page.
+  const [unitSerialNumbers, setUnitSerialNumbers] = useState("");
+  const [unitReason, setUnitReason] = useState("");
 
   // Unified asset-photos state: every photo (batch-uploaded or captured) is
   // both a potential thumbnail and a recognition reference photo. Staged
@@ -118,6 +127,7 @@ export function AssetFormPage() {
           setAsset(detail);
           setForm({
             name: detail.name,
+            partNumber: detail.partNumber ?? "",
             managementAreaId: detail.managementArea.id,
             description: detail.description ?? "",
             isActive: detail.isActive,
@@ -207,39 +217,6 @@ export function AssetFormPage() {
     }
   }, [editing, visibleAreas]);
 
-  // Live preview of the currently-selected thumbnail, before anything is
-  // actually uploaded. Existing photos are just a plain URL; a selected
-  // pending (not-yet-uploaded) file needs a local blob URL, memoized on the
-  // selected File itself and released whenever the selection changes.
-  const selectedPendingFile = useMemo(() => {
-    const id = thumbnailKey ? pendingIdFromKey(thumbnailKey) : null;
-    if (!id) return null;
-    return pendingAdds.find((p) => p.id === id)?.file ?? null;
-  }, [thumbnailKey, pendingAdds]);
-  // Create AND revoke inside the same effect (not useMemo + a separate
-  // cleanup effect) so the URL survives React 18 StrictMode's dev-only
-  // double-invoke -- see the matching comment on PendingPhotoThumb in
-  // AssetPhotosSection.tsx for why the useMemo version silently breaks.
-  const [selectedPendingPreviewUrl, setSelectedPendingPreviewUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (!selectedPendingFile) {
-      setSelectedPendingPreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(selectedPendingFile);
-    setSelectedPendingPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [selectedPendingFile]);
-  const previewSrc = useMemo(() => {
-    if (selectedPendingPreviewUrl) return selectedPendingPreviewUrl;
-    const existingId = thumbnailKey ? existingIdFromKey(thumbnailKey) : null;
-    if (existingId) {
-      const photo = existingPhotos.find((p) => p.photo_id === existingId);
-      if (photo) return recognitionApi.imageSrc(photo.image_url);
-    }
-    return null;
-  }, [selectedPendingPreviewUrl, thumbnailKey, existingPhotos]);
-
   function handleAddFiles(files: File[]) {
     setPendingAdds((current) => [
       ...current,
@@ -251,11 +228,18 @@ export function AssetFormPage() {
     const nextFields: Record<string, string> = {};
     if (!form.name.trim()) {
       nextFields.name = "Asset name is required";
-    } else if (form.name.trim().length > 40) {
-      nextFields.name = "Asset name must be 40 characters or fewer";
     }
     if (!form.managementAreaId)
       nextFields.managementAreaId = "Select a management area";
+    if (!editing) {
+      const parsedUnitSerials = unitSerialNumbers
+        .split(/[\n,]/)
+        .map((value) => value.trim())
+        .filter(Boolean);
+      if (parsedUnitSerials.length > 200) {
+        nextFields.unitSerialNumbers = "Register at most 200 serial numbers at once";
+      }
+    }
     setFields(nextFields);
     return Object.keys(nextFields).length === 0;
   }
@@ -373,6 +357,7 @@ export function AssetFormPage() {
         const pictureUrl = await resolvePictureUrl();
         await api.updateAsset(asset.id, {
           name: form.name.trim(),
+          partNumber: form.partNumber.trim() || null,
           managementAreaId: form.managementAreaId,
           description: form.description.trim() || null,
           pictureUrl,
@@ -398,6 +383,7 @@ export function AssetFormPage() {
 
         const created = await api.createAsset({
           name: form.name.trim(),
+          partNumber: form.partNumber.trim() || null,
           managementAreaId: form.managementAreaId,
           description: form.description.trim() || null,
           pictureUrl,
@@ -431,8 +417,37 @@ export function AssetFormPage() {
           }
         }
 
+        // Register any serial units entered on this same form. The asset
+        // itself is already created at this point, so a failure here must
+        // not be silently swallowed like the best-effort photo sync above
+        // -- surface it in the redirect notice so the user knows to retry
+        // from the new asset's details page instead.
+        const parsedUnitSerials = unitSerialNumbers
+          .split(/[\n,]/)
+          .map((value) => value.trim())
+          .filter(Boolean);
+        let unitWarning: string | null = null;
+        if (parsedUnitSerials.length > 0) {
+          try {
+            await api.registerAssetUnits(
+              created.id,
+              parsedUnitSerials,
+              unitReason.trim() || undefined,
+            );
+          } catch (caught) {
+            unitWarning =
+              caught instanceof ApiClientError
+                ? caught.message
+                : "Could not register the serial units";
+          }
+        }
+
         navigate(`/assets/${created.id}`, {
-          state: { notice: "New asset created" },
+          state: {
+            notice: unitWarning
+              ? `New asset created. ${unitWarning} -- register the units again from this page.`
+              : "New asset created",
+          },
         });
       }
     } catch (caught) {
@@ -510,18 +525,21 @@ export function AssetFormPage() {
       ) : mode === "batch" && !editing ? (
         <BatchAssetForm
           areas={visibleAreas}
-          onCreated={(ids) =>
+          onCreated={(ids, unitWarning) =>
             navigate(ids[0] ? `/assets/${ids[0]}` : "/assets", {
-              state: { notice: `Added ${ids.length} assets successfully` },
+              state: {
+                notice: unitWarning
+                  ? `Added ${ids.length} assets successfully. ${unitWarning}`
+                  : `Added ${ids.length} assets successfully`,
+              },
             })
           }
         />
       ) : (
-        <form className="record-form" onSubmit={submit}>
-          <div className="record-form__main">
-            <section className="form-section">
-              <div className="form-section__heading">
-                <span>01</span>
+        <form className="record-form__main" onSubmit={submit}>
+          <section className="form-section">
+            <div className="form-section__heading">
+              <span>01</span>
                 <div>
                   <h2>Asset details</h2>
                   <p>Enter asset information and assign a management area.</p>
@@ -530,7 +548,6 @@ export function AssetFormPage() {
               <Field
                 label="Asset name"
                 required
-                hint={`${form.name.length}/40`}
                 error={fields.name}
               >
                 <Input
@@ -539,22 +556,22 @@ export function AssetFormPage() {
                     setForm({ ...form, name: event.target.value })
                   }
                   placeholder="For example, Sony FX3 Cinema Camera"
-                  maxLength={40}
                   required
                 />
               </Field>
               <div className="form-grid form-grid--2">
-                {editing && (
-                  <Field
-                    label="Asset quantity"
-                    hint="Register or retire serial units from the asset details page"
-                  >
-                    <Input
-                      value={`${asset?.totalQuantity ?? 0} units`}
-                      disabled
-                    />
-                  </Field>
-                )}
+                <Field
+                  label="Part number (P/N)"
+                  error={fields.partNumber}
+                >
+                  <Input
+                    value={form.partNumber}
+                    onChange={(event) =>
+                      setForm({ ...form, partNumber: event.target.value })
+                    }
+                    placeholder="For example, EPS-PRJ-100"
+                  />
+                </Field>
                 <Field
                   label="Management area"
                   required
@@ -575,6 +592,17 @@ export function AssetFormPage() {
                     ))}
                   </Select>
                 </Field>
+                {editing && (
+                  <Field
+                    label="Asset quantity"
+                    hint="Register or retire serial units from the asset details page"
+                  >
+                    <Input
+                      value={`${asset?.totalQuantity ?? 0} units`}
+                      disabled
+                    />
+                  </Field>
+                )}
               </div>
               <Field label="Description" error={fields.description}>
                 <Textarea
@@ -588,7 +616,43 @@ export function AssetFormPage() {
               </Field>
             </section>
 
+            {!editing && (
+              <section className="form-section">
+                <div className="form-section__heading">
+                  <span>02</span>
+                  <div>
+                    <h2>Serial units (optional)</h2>
+                    <p>
+                      Register the physical, serial-numbered units for this
+                      asset now, or skip and register them later from the
+                      asset details page.
+                    </p>
+                  </div>
+                </div>
+                <Field
+                  label="Serial numbers"
+                  hint="One per line, or comma-separated"
+                  error={fields.unitSerialNumbers}
+                >
+                  <Textarea
+                    value={unitSerialNumbers}
+                    onChange={(event) => setUnitSerialNumbers(event.target.value)}
+                    placeholder={"One serial number per line, e.g.\nSN-001\nSN-002"}
+                    rows={3}
+                  />
+                </Field>
+                <Field label="Reason">
+                  <Input
+                    value={unitReason}
+                    onChange={(event) => setUnitReason(event.target.value)}
+                    placeholder="For example, new stock received"
+                  />
+                </Field>
+              </section>
+            )}
+
             <AssetPhotosSection
+              stepNumber={editing ? "02" : "03"}
               existingPhotos={existingPhotos}
               removedExistingIds={removedExistingIds}
               pendingAdds={pendingAdds}
@@ -605,37 +669,12 @@ export function AssetFormPage() {
               onSelectThumbnail={setThumbnailKey}
             />
 
-            <div className="form-submit">
-              <Button type="submit" loading={submitting}>
-                <Save size={17} />
-                {editing ? "Save changes" : "Add asset"}
-              </Button>
-            </div>
+          <div className="form-submit">
+            <Button type="submit" loading={submitting}>
+              <Save size={17} />
+              {editing ? "Save changes" : "Add asset"}
+            </Button>
           </div>
-
-          <aside className="record-preview">
-            <p className="eyebrow">Live preview</p>
-            <AssetPicture
-              src={previewSrc}
-              name={form.name || "Asset"}
-              large
-            />
-            <h3>{form.name || "Asset name"}</h3>
-            <p>{form.description || "The description will appear here."}</p>
-            <dl>
-              <div>
-                <dt>Area</dt>
-                <dd>
-                  {areas.find((area) => area.id === form.managementAreaId)
-                    ?.name ?? "—"}
-                </dd>
-              </div>
-              <div>
-                <dt>Quantity</dt>
-                <dd>{asset?.totalQuantity ?? 0} units</dd>
-              </div>
-            </dl>
-          </aside>
         </form>
       )}
     </div>
@@ -645,6 +684,7 @@ export function AssetFormPage() {
 type BatchRow = {
   key: number;
   name: string;
+  partNumber: string;
   description: string;
   // Every photo attached to a row is both a potential thumbnail AND a
   // recognition reference photo -- same model as the single-asset form, just
@@ -653,10 +693,22 @@ type BatchRow = {
   // asset's pictureUrl.
   photos: PendingPhoto[];
   thumbnailId: string | null;
+  // Serial numbers to register for this row's asset right after it's
+  // created, one POST /assets/{id}/units call per row -- same pattern as
+  // the single-asset form's "Serial units" section.
+  serialNumbers: string;
 };
 
 function newBatchRow(key: number): BatchRow {
-  return { key, name: "", description: "", photos: [], thumbnailId: null };
+  return {
+    key,
+    name: "",
+    partNumber: "",
+    description: "",
+    photos: [],
+    thumbnailId: null,
+    serialNumbers: "",
+  };
 }
 
 function BatchAssetForm({
@@ -664,7 +716,7 @@ function BatchAssetForm({
   onCreated,
 }: {
   areas: ManagementArea[];
-  onCreated: (ids: string[]) => void;
+  onCreated: (ids: string[], unitWarning?: string) => void;
 }) {
   const [areaId, setAreaId] = useState(areas[0]?.id ?? "");
   const [description, setDescription] = useState("");
@@ -678,6 +730,25 @@ function BatchAssetForm({
       setAreaId(areas[0].id);
     }
   }, [areas, areaId]);
+
+  const areaName = areas.find((area) => area.id === areaId)?.name ?? "—";
+  const totalPhotos = useMemo(
+    () => rows.reduce((sum, row) => sum + row.photos.length, 0),
+    [rows],
+  );
+  const totalSerialUnits = useMemo(
+    () =>
+      rows.reduce(
+        (sum, row) =>
+          sum +
+          row.serialNumbers
+            .split(/[\n,]/)
+            .map((value) => value.trim())
+            .filter(Boolean).length,
+        0,
+      ),
+    [rows],
+  );
 
   function update(key: number, values: Partial<BatchRow>) {
     setRows((current) =>
@@ -725,16 +796,6 @@ function BatchAssetForm({
       return;
     }
 
-    const invalidLengthIndex = rows.findIndex(
-      (row) => row.name.trim().length > 40,
-    );
-    if (invalidLengthIndex !== -1) {
-      setError(
-        `Row ${invalidLengthIndex + 1}: Asset name must be 40 characters or fewer.`,
-      );
-      return;
-    }
-
     const names = rows.map((row) => row.name.trim().toLowerCase());
     const duplicateIndex = names.findIndex((name, i) => names.indexOf(name) !== i);
     if (duplicateIndex !== -1) {
@@ -761,6 +822,7 @@ function BatchAssetForm({
       const response = await api.createAssets(
         rows.map((row, i) => ({
           name: row.name.trim(),
+          partNumber: row.partNumber.trim() || null,
           managementAreaId: areaId,
           description: row.description.trim() || null,
           pictureUrl: pictureUrls[i],
@@ -804,7 +866,39 @@ function BatchAssetForm({
         }),
       );
 
-      onCreated(created.map((asset) => asset.id));
+      // Register each row's serial units against its newly-created asset.
+      // Unlike photos this isn't best-effort-and-forget: collect failures
+      // and surface them in the redirect notice, since the units just
+      // typed in are lost from this form once we navigate away.
+      const unitFailures: string[] = [];
+      await Promise.all(
+        rows.map(async (row, i) => {
+          const assetId = created[i]?.id;
+          const parsedSerials = row.serialNumbers
+            .split(/[\n,]/)
+            .map((value) => value.trim())
+            .filter(Boolean);
+          if (!assetId || parsedSerials.length === 0) return;
+          try {
+            await api.registerAssetUnits(assetId, parsedSerials);
+          } catch (caught) {
+            unitFailures.push(
+              `"${row.name.trim()}" (${
+                caught instanceof ApiClientError
+                  ? caught.message
+                  : "could not register units"
+              })`,
+            );
+          }
+        }),
+      );
+
+      onCreated(
+        created.map((asset) => asset.id),
+        unitFailures.length > 0
+          ? `Could not register units for: ${unitFailures.join(", ")}. Register them again from each asset's details page.`
+          : undefined,
+      );
     } catch (caught) {
       setError(
         caught instanceof ApiClientError
@@ -823,152 +917,221 @@ function BatchAssetForm({
           {error}
         </div>
       )}
-      <section className="form-section">
-        <div className="form-section__heading">
-          <span>01</span>
-          <div>
-            <h2>Workspace settings</h2>
-            <p>All batch assets will be assigned to this management area.</p>
-          </div>
-        </div>
-        <div className="form-grid form-grid--2">
-          <Field label="Management area" required>
-            <Select
-              value={areaId}
-              onChange={(event) => setAreaId(event.target.value)}
-              required
-            >
-              <option value="">Select an area</option>
-              {areas.map((area) => (
-                <option key={area.id} value={area.id}>
-                  {area.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Batch note">
-            <Input
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="For example, New lab gear intake"
-            />
-          </Field>
-        </div>
-      </section>
-      <section className="form-section">
-        <div className="form-section__heading form-section__heading--action">
-          <span>02</span>
-          <div>
-            <h2>Assets to add</h2>
-            <p>Enter the asset names, descriptions, photos, and quantities.</p>
-          </div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => setRows((current) => [...current, newBatchRow(Date.now())])}
-          >
-            <Plus size={15} />
-            Add another asset
-          </Button>
-        </div>
-        <div className="batch-rows">
-          {rows.map((row, index) => (
-            <div className="batch-row" key={row.key}>
-              <div className="batch-row__header">
-                <span className="batch-row__index">{index + 1}</span>
-                <Field
-                  label="Asset name"
-                  required
-                  hint={`${row.name.length}/40`}
-                  className="batch-row__field--name"
-                >
-                  <Input
-                    value={row.name}
-                    onChange={(event) =>
-                      update(row.key, { name: event.target.value })
-                    }
-                    placeholder="Asset name"
-                    maxLength={40}
-                    required
-                  />
-                </Field>
-                <Field label="Description" className="batch-row__field--description">
-                  <Input
-                    value={row.description}
-                    onChange={(event) =>
-                      update(row.key, { description: event.target.value })
-                    }
-                  />
-                </Field>
-                <button
-                  className="icon-button icon-button--danger"
-                  type="button"
-                  disabled={rows.length === 1}
-                  onClick={() =>
-                    setRows((current) =>
-                      current.filter((item) => item.key !== row.key),
-                    )
-                  }
-                  aria-label={`Remove row ${index + 1}`}
-                >
-                  <Trash2 size={17} />
-                </button>
+      <div className="record-form">
+        <div className="record-form__main">
+          <section className="form-section">
+            <div className="form-section__heading">
+              <span>01</span>
+              <div>
+                <h2>Workspace settings</h2>
+                <p>All batch assets will be assigned to this management area.</p>
               </div>
-
-              <Field label="Photos" hint="First photo is used as the thumbnail -- pick another with the star.">
-                <div className="batch-row__photos">
-                  {row.photos.map((photo) => (
-                    <BatchPhotoThumb
-                      key={photo.id}
-                      file={photo.file}
-                      isThumbnail={row.thumbnailId === photo.id}
-                      onRemove={() => removeRowPhoto(row.key, photo.id)}
-                      onSelectThumbnail={() => update(row.key, { thumbnailId: photo.id })}
-                    />
+            </div>
+            <div className="form-grid form-grid--2">
+              <Field label="Management area" required>
+                <Select
+                  value={areaId}
+                  onChange={(event) => setAreaId(event.target.value)}
+                  required
+                >
+                  <option value="">Select an area</option>
+                  {areas.map((area) => (
+                    <option key={area.id} value={area.id}>
+                      {area.name}
+                    </option>
                   ))}
-                  <button
-                    className="icon-button"
-                    type="button"
-                    title="Take photo with camera"
-                    aria-label={`Take photo for row ${index + 1}`}
-                    onClick={() => setCameraRowKey(row.key)}
-                  >
-                    <Camera size={16} />
-                  </button>
-                  <label
-                    className="icon-button"
-                    style={{ cursor: "pointer", display: "inline-grid", placeItems: "center" }}
-                    title="Upload image files"
-                    aria-label={`Upload images for row ${index + 1}`}
-                  >
-                    <Upload size={16} />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      style={{ display: "none" }}
-                      onChange={(event) => {
-                        // Snapshot before clearing .value -- input.files can
-                        // be a live FileList mutated in place by the reset.
-                        const files = event.target.files ? Array.from(event.target.files) : [];
-                        event.target.value = "";
-                        addRowPhotos(row.key, files);
-                      }}
-                    />
-                  </label>
-                </div>
+                </Select>
+              </Field>
+              <Field label="Batch note">
+                <Input
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="For example, New lab gear intake"
+                />
               </Field>
             </div>
-          ))}
+          </section>
+          <section className="form-section">
+            <div className="form-section__heading form-section__heading--action">
+              <span>02</span>
+              <div>
+                <h2>Manifest</h2>
+                <p>
+                  One row per asset -- add its name, part number, photos, and
+                  any serial units to register right away.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  setRows((current) => [...current, newBatchRow(Date.now())])
+                }
+              >
+                <Plus size={15} />
+                Add another asset
+              </Button>
+            </div>
+            <div className="batch-rows">
+              {rows.map((row, index) => (
+                <article className="batch-row" key={row.key}>
+                  <div className="batch-row__top">
+                    <span className="batch-row__index">{index + 1}</span>
+                    <div className="batch-row__identity">
+                      <Field label="Asset name" required>
+                        <Input
+                          value={row.name}
+                          onChange={(event) =>
+                            update(row.key, { name: event.target.value })
+                          }
+                          placeholder="Asset name"
+                          required
+                        />
+                      </Field>
+                      <Field label="P/N">
+                        <Input
+                          value={row.partNumber}
+                          onChange={(event) =>
+                            update(row.key, { partNumber: event.target.value })
+                          }
+                          placeholder="Part number"
+                        />
+                      </Field>
+                    </div>
+                    <button
+                      className="icon-button icon-button--danger"
+                      type="button"
+                      disabled={rows.length === 1}
+                      onClick={() =>
+                        setRows((current) =>
+                          current.filter((item) => item.key !== row.key),
+                        )
+                      }
+                      aria-label={`Remove row ${index + 1}`}
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
+
+                  <Field label="Description">
+                    <Input
+                      value={row.description}
+                      onChange={(event) =>
+                        update(row.key, { description: event.target.value })
+                      }
+                    />
+                  </Field>
+
+                  <div className="batch-row__extras">
+                    <Field label="Photos" hint="First photo is the thumbnail -- pick another with the star.">
+                      <div className="batch-row__photos">
+                        {row.photos.map((photo) => (
+                          <BatchPhotoThumb
+                            key={photo.id}
+                            file={photo.file}
+                            isThumbnail={row.thumbnailId === photo.id}
+                            onRemove={() => removeRowPhoto(row.key, photo.id)}
+                            onSelectThumbnail={() =>
+                              update(row.key, { thumbnailId: photo.id })
+                            }
+                          />
+                        ))}
+                        <button
+                          className="icon-button"
+                          type="button"
+                          title="Take photo with camera"
+                          aria-label={`Take photo for row ${index + 1}`}
+                          onClick={() => setCameraRowKey(row.key)}
+                        >
+                          <Camera size={16} />
+                        </button>
+                        <label
+                          className="icon-button"
+                          style={{ cursor: "pointer", display: "inline-grid", placeItems: "center" }}
+                          title="Upload image files"
+                          aria-label={`Upload images for row ${index + 1}`}
+                        >
+                          <Upload size={16} />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            style={{ display: "none" }}
+                            onChange={(event) => {
+                              // Snapshot before clearing .value -- input.files
+                              // can be a live FileList mutated in place by
+                              // the reset.
+                              const files = event.target.files
+                                ? Array.from(event.target.files)
+                                : [];
+                              event.target.value = "";
+                              addRowPhotos(row.key, files);
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </Field>
+
+                    <Field
+                      label="Serial numbers"
+                      hint="One per line, or comma-separated"
+                    >
+                      <Textarea
+                        value={row.serialNumbers}
+                        onChange={(event) =>
+                          update(row.key, { serialNumbers: event.target.value })
+                        }
+                        placeholder={"One serial number per line, e.g.\nSN-001\nSN-002"}
+                        rows={2}
+                      />
+                    </Field>
+                  </div>
+                </article>
+              ))}
+              <button
+                type="button"
+                className="batch-add-row"
+                onClick={() =>
+                  setRows((current) => [...current, newBatchRow(Date.now())])
+                }
+              >
+                <Plus size={15} />
+                Add another asset
+              </button>
+            </div>
+          </section>
         </div>
-      </section>
-      <div className="form-submit">
-        <Button type="submit" loading={submitting}>
-          <Plus size={17} />
-          Add {rows.length} assets
-        </Button>
+
+        <aside className="record-preview batch-summary">
+          <p className="eyebrow">Batch summary</p>
+          <dl>
+            <div>
+              <dt>Area</dt>
+              <dd>{areaName}</dd>
+            </div>
+            <div>
+              <dt>Assets</dt>
+              <dd>{rows.length}</dd>
+            </div>
+            <div>
+              <dt>Serial units</dt>
+              <dd>{totalSerialUnits}</dd>
+            </div>
+            <div>
+              <dt>Photos attached</dt>
+              <dd>{totalPhotos}</dd>
+            </div>
+          </dl>
+          <div className="batch-summary__submit">
+            <Button type="submit" loading={submitting}>
+              <Plus size={17} />
+              Add {rows.length} {rows.length === 1 ? "asset" : "assets"}
+            </Button>
+          </div>
+        </aside>
       </div>
+
       <CameraCaptureModal
         open={cameraRowKey !== null}
         onClose={() => setCameraRowKey(null)}

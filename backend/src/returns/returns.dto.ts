@@ -49,6 +49,13 @@ export class CreateReturnDto {
   items!: CreateReturnItemDto[];
 
   @IsOptional()
+  @ValidateIf((_object, value) => value !== null && value !== undefined)
+  @Transform(trim)
+  @IsString()
+  @MaxLength(2_000)
+  note?: string | null;
+
+  @IsOptional()
   @Transform(({ value }: { value: unknown }) => parseOptionalBoolean(value))
   @IsBoolean()
   immediateApprove?: boolean;

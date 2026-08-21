@@ -20,6 +20,7 @@ export type PendingPhoto = { id: string; file: File };
  * resolvePictureUrl/syncAssetPhotos).
  */
 export function AssetPhotosSection({
+  stepNumber = "02",
   existingPhotos,
   removedExistingIds,
   pendingAdds,
@@ -31,6 +32,7 @@ export function AssetPhotosSection({
   onRemovePending,
   onSelectThumbnail,
 }: {
+  stepNumber?: string;
   existingPhotos: RecognitionPhoto[];
   removedExistingIds: Set<string>;
   pendingAdds: PendingPhoto[];
@@ -49,7 +51,7 @@ export function AssetPhotosSection({
   return (
     <section className="form-section">
       <div className="form-section__heading">
-        <span>02</span>
+        <span>{stepNumber}</span>
         <div>
           <h2>Asset Photos</h2>
           <p>

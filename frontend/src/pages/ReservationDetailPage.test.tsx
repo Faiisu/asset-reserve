@@ -3,6 +3,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { api } from "../api";
@@ -47,6 +48,7 @@ const mockReservation: ReservationDetail = {
           name: "Marketing",
         },
       },
+      units: [],
       approval: {
         id: "app-1",
         status: "APPROVED",
@@ -75,19 +77,18 @@ const mockReservation: ReservationDetail = {
         canReturn: false,
       },
       returnSummary: {
-        returnedQuantity: 0,
-        brokenQuantity: 0,
-        lostQuantity: 0,
-        pendingReturnQuantity: 0,
+        totalUnits: 2,
+        returnedGoodCount: 0,
+        returnedBrokenCount: 0,
+        returnedLostCount: 0,
+        pendingReturnCount: 0,
         remainingReturnQuantity: 2,
       },
     },
   ],
-  changeRequests: [],
   returns: [],
   capabilities: {
     canSubmit: false,
-    canRequestChange: true,
     canConfirmDelivery: true,
     canReturn: false,
     canCancel: true,
@@ -115,6 +116,7 @@ const mockPendingReservation: ReservationDetail = {
           name: "Marketing",
         },
       },
+      units: [],
       approval: null,
       availability: {
         assetId: "asset-pending-1",
@@ -130,10 +132,11 @@ const mockPendingReservation: ReservationDetail = {
         canReject: true,
       },
       returnSummary: {
-        returnedQuantity: 0,
-        brokenQuantity: 0,
-        lostQuantity: 0,
-        pendingReturnQuantity: 0,
+        totalUnits: 3,
+        returnedGoodCount: 0,
+        returnedBrokenCount: 0,
+        returnedLostCount: 0,
+        pendingReturnCount: 0,
         remainingReturnQuantity: 3,
       },
     },
@@ -312,6 +315,20 @@ describe("ReservationDetailPage", () => {
         {
           ...mockReservation.items[0],
           status: "DELIVERED",
+          units: [
+            {
+              id: "unit-1",
+              assetUnitId: "au-1",
+              serialNumber: "SN-CAM-001",
+              status: "CHECKED_OUT",
+            },
+            {
+              id: "unit-2",
+              assetUnitId: "au-2",
+              serialNumber: "SN-CAM-002",
+              status: "CHECKED_OUT",
+            },
+          ],
           capabilities: {
             canApprove: false,
             canReject: false,
@@ -319,10 +336,11 @@ describe("ReservationDetailPage", () => {
             canReturn: true,
           },
           returnSummary: {
-            returnedQuantity: 0,
-            brokenQuantity: 0,
-            lostQuantity: 0,
-            pendingReturnQuantity: 0,
+            totalUnits: 2,
+            returnedGoodCount: 0,
+            returnedBrokenCount: 0,
+            returnedLostCount: 0,
+            pendingReturnCount: 0,
             remainingReturnQuantity: 2,
           },
         },
@@ -339,6 +357,7 @@ describe("ReservationDetailPage", () => {
       id: "ret-1",
       reservationId: deliveredReservation.id,
       status: "PENDING",
+      note: null,
       returnedAt: null,
       returnedBy: deliveredReservation.requester,
       items: [],
@@ -378,9 +397,11 @@ describe("ReservationDetailPage", () => {
     fireEvent.click(checkbox);
     expect(checkbox).toBeChecked();
 
-    const returnQtyInput = screen.getByLabelText("Return quantity for Stage Camera 4K");
-    expect(returnQtyInput).toBeInTheDocument();
-    fireEvent.change(returnQtyInput, { target: { value: "2" } });
+    // Both checked-out serials are pre-selected for return by default.
+    const serialOne = screen.getByLabelText("Return serial SN-CAM-001");
+    const serialTwo = screen.getByLabelText("Return serial SN-CAM-002");
+    expect(serialOne).toBeChecked();
+    expect(serialTwo).toBeChecked();
 
     const submitReturnBtn = screen.getByRole("button", { name: /Submit Return/i });
     fireEvent.click(submitReturnBtn);
@@ -392,9 +413,7 @@ describe("ReservationDetailPage", () => {
           items: [
             {
               reservationItemId: "item-1",
-              quantityReturned: 2,
-              quantityBroken: 0,
-              quantityLost: 0,
+              reservationItemUnitIds: ["unit-1", "unit-2"],
             },
           ],
         }
@@ -411,10 +430,11 @@ describe("ReservationDetailPage", () => {
           ...mockReservation.items[0],
           status: "DELIVERED",
           returnSummary: {
-            returnedQuantity: 0,
-            brokenQuantity: 0,
-            lostQuantity: 0,
-            pendingReturnQuantity: 2,
+            totalUnits: 2,
+            returnedGoodCount: 0,
+            returnedBrokenCount: 0,
+            returnedLostCount: 0,
+            pendingReturnCount: 2,
             remainingReturnQuantity: 0,
           },
         },
@@ -424,6 +444,7 @@ describe("ReservationDetailPage", () => {
           id: "00000000-0000-4000-8000-000000000201",
           reservationId: mockReservation.id,
           status: "PENDING",
+          note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
           returnedBy: mockReservation.requester,
           items: [],
@@ -446,6 +467,7 @@ describe("ReservationDetailPage", () => {
       id: "00000000-0000-4000-8000-000000000201",
       reservationId: mockReservation.id,
       status: "COMPLETED",
+      note: null,
       returnedAt: "2026-09-02T10:00:00.000Z",
       returnedBy: mockReservation.requester,
       items: [],
@@ -497,7 +519,7 @@ describe("ReservationDetailPage", () => {
     });
   });
 
-  it("renders interactive return inspection checklist and submits item condition breakdown", async () => {
+  it("renders interactive return inspection checklist and submits per-serial condition decisions", async () => {
     const pendingReturnReservation: ReservationDetail = {
       ...mockReservation,
       status: "RETURN_PENDING",
@@ -505,11 +527,26 @@ describe("ReservationDetailPage", () => {
         {
           ...mockReservation.items[0],
           status: "DELIVERED",
+          units: [
+            {
+              id: "unit-1",
+              assetUnitId: "au-1",
+              serialNumber: "SN-CAM-001",
+              status: "CHECKED_OUT",
+            },
+            {
+              id: "unit-2",
+              assetUnitId: "au-2",
+              serialNumber: "SN-CAM-002",
+              status: "CHECKED_OUT",
+            },
+          ],
           returnSummary: {
-            returnedQuantity: 0,
-            brokenQuantity: 0,
-            lostQuantity: 0,
-            pendingReturnQuantity: 2,
+            totalUnits: 2,
+            returnedGoodCount: 0,
+            returnedBrokenCount: 0,
+            returnedLostCount: 0,
+            pendingReturnCount: 2,
             remainingReturnQuantity: 0,
           },
         },
@@ -519,6 +556,7 @@ describe("ReservationDetailPage", () => {
           id: "00000000-0000-4000-8000-000000000201",
           reservationId: mockReservation.id,
           status: "PENDING",
+          note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
           returnedBy: mockReservation.requester,
           items: [
@@ -528,10 +566,28 @@ describe("ReservationDetailPage", () => {
               assetId: "asset-1",
               assetName: "Stage Camera 4K",
               managementArea: { id: "area-1", name: "Marketing" },
-              quantityReturned: 2,
-              quantityBroken: 0,
-              quantityLost: 0,
               description: null,
+              pictureUrl: null,
+              units: [
+                {
+                  id: "retunit-1",
+                  reservationItemUnitId: "unit-1",
+                  assetUnitId: "au-1",
+                  serialNumber: "SN-CAM-001",
+                  condition: null,
+                  pictureUrl: null,
+                  note: null,
+                },
+                {
+                  id: "retunit-2",
+                  reservationItemUnitId: "unit-2",
+                  assetUnitId: "au-2",
+                  serialNumber: "SN-CAM-002",
+                  condition: null,
+                  pictureUrl: null,
+                  note: null,
+                },
+              ],
             },
           ],
           approval: {
@@ -553,6 +609,7 @@ describe("ReservationDetailPage", () => {
       id: "00000000-0000-4000-8000-000000000201",
       reservationId: mockReservation.id,
       status: "COMPLETED",
+      note: null,
       returnedAt: "2026-09-02T10:00:00.000Z",
       returnedBy: mockReservation.requester,
       items: [],
@@ -591,16 +648,20 @@ describe("ReservationDetailPage", () => {
       expect(screen.getByText("Marketing")).toBeInTheDocument();
     });
 
-    const goodInput = screen.getByLabelText("Good quantity for Stage Camera 4K");
-    expect(goodInput).toBeInTheDocument();
-    fireEvent.change(goodInput, { target: { value: "1" } });
-
-    const brokenInput = screen.getByLabelText("Broken quantity for Stage Camera 4K");
-    expect(brokenInput).toBeInTheDocument();
-    fireEvent.change(brokenInput, { target: { value: "1" } });
-
-    const lostInput = screen.getByLabelText("Lost quantity for Stage Camera 4K");
-    expect(lostInput).toBeInTheDocument();
+    // Every serial defaults to Good; mark the first one Broken.
+    const firstSerialRow = screen.getByText("SN-CAM-001").closest(
+      ".res-inspect-serial-row",
+    ) as HTMLElement;
+    const secondSerialRow = screen.getByText("SN-CAM-002").closest(
+      ".res-inspect-serial-row",
+    ) as HTMLElement;
+    expect(
+      within(firstSerialRow).getByRole("radio", { name: "Good" }),
+    ).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(within(firstSerialRow).getByRole("radio", { name: "Broken" }));
+    expect(
+      within(secondSerialRow).getByRole("radio", { name: "Good" }),
+    ).toHaveAttribute("aria-checked", "true");
 
     const remarkInput = screen.getByPlaceholderText(/Inspection remarks \/ condition note/i);
     fireEvent.change(remarkInput, { target: { value: "1 intact, 1 minor cable damage" } });
@@ -617,10 +678,10 @@ describe("ReservationDetailPage", () => {
           items: [
             {
               reservationItemId: "item-1",
-              quantityReturned: 1,
-              quantityBroken: 1,
-              quantityLost: 0,
-              description: undefined,
+              units: [
+                { reservationItemUnitId: "unit-1", condition: "BROKEN" },
+                { reservationItemUnitId: "unit-2", condition: "GOOD" },
+              ],
             },
           ],
           description: "1 intact, 1 minor cable damage",
@@ -659,6 +720,7 @@ describe("ReservationDetailPage", () => {
           id: "00000000-0000-4000-8000-000000000201",
           reservationId: mockReservation.id,
           status: "APPROVED",
+          note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
           returnedBy: mockReservation.requester,
           items: [],
@@ -728,11 +790,26 @@ describe("ReservationDetailPage", () => {
         {
           ...mockReservation.items[0],
           status: "RETURNED",
+          units: [
+            {
+              id: "unit-1",
+              assetUnitId: "au-1",
+              serialNumber: "SN-CAM-001",
+              status: "RETURNED_GOOD",
+            },
+            {
+              id: "unit-2",
+              assetUnitId: "au-2",
+              serialNumber: "SN-CAM-002",
+              status: "RETURNED_BROKEN",
+            },
+          ],
           returnSummary: {
-            returnedQuantity: 2,
-            brokenQuantity: 1,
-            lostQuantity: 0,
-            pendingReturnQuantity: 0,
+            totalUnits: 2,
+            returnedGoodCount: 1,
+            returnedBrokenCount: 1,
+            returnedLostCount: 0,
+            pendingReturnCount: 0,
             remainingReturnQuantity: 0,
           },
         },
@@ -742,6 +819,7 @@ describe("ReservationDetailPage", () => {
           id: "00000000-0000-4000-8000-000000000201",
           reservationId: mockReservation.id,
           status: "COMPLETED",
+          note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
           returnedBy: {
             id: "00000000-0000-4000-8000-000000000001",
@@ -755,10 +833,28 @@ describe("ReservationDetailPage", () => {
               reservationItemId: "item-1",
               assetId: "asset-1",
               assetName: "Stage Camera 4K",
-              quantityReturned: 1,
-              quantityBroken: 1,
-              quantityLost: 0,
               description: "1 unit intact, 1 unit broken lens hood",
+              pictureUrl: null,
+              units: [
+                {
+                  id: "retunit-1",
+                  reservationItemUnitId: "unit-1",
+                  assetUnitId: "au-1",
+                  serialNumber: "SN-CAM-001",
+                  condition: "GOOD",
+                  pictureUrl: null,
+                  note: null,
+                },
+                {
+                  id: "retunit-2",
+                  reservationItemUnitId: "unit-2",
+                  assetUnitId: "au-2",
+                  serialNumber: "SN-CAM-002",
+                  condition: "BROKEN",
+                  pictureUrl: null,
+                  note: null,
+                },
+              ],
               managementArea: { id: "area-1", name: "Marketing" },
             },
           ],

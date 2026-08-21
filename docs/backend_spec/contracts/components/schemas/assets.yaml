@@ -72,6 +72,7 @@ AssetUnitCounts:
     active:
       type: integer
       minimum: 0
+      description: Units currently useable/available to reserve -- excludes reserved, checked-out, broken, lost, and in-repair units.
     reserved:
       type: integer
       minimum: 0

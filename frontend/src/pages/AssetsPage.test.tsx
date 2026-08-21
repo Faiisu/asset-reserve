@@ -5,10 +5,10 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { api } from "../api";
 import type { AssetSummary } from "../types";
-import { AssetsPage, getNormalizedAssetStatus } from "./AssetsPage";
+import { AssetsPage } from "./AssetsPage";
 
 vi.mock("../auth", () => ({
   useAuth: () => ({ hasPermission: () => true }),
@@ -43,7 +43,6 @@ const mockAsset: AssetSummary = {
   allocatedQuantity: 0,
   availableQuantity: 5,
   isActive: true,
-  status: "ACTIVE",
   managementArea: mockArea,
   owner: null,
   capabilities: {
@@ -56,7 +55,50 @@ const mockAsset: AssetSummary = {
 };
 
 describe("AssetsPage", () => {
-  it("renders asset list and allows row click to toggle checkbox selection", async () => {
+  it("renders asset list; checkbox toggles selection independently while row click navigates to detail", async () => {
+    vi.spyOn(api, "areas").mockResolvedValue({
+      data: [mockArea],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+    vi.spyOn(api, "assets").mockResolvedValue({
+      data: [mockAsset],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/assets"]}>
+        <Routes>
+          <Route path="/assets" element={<AssetsPage />} />
+          <Route path="/assets/:id" element={<div>Asset Detail Page</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const elements = await screen.findAllByText(/HD Projector/);
+    expect(elements.length).toBeGreaterThan(0);
+
+    const checkbox = screen.getAllByLabelText(
+      "Select HD Projector",
+    )[0] as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+
+    // Clicking the checkbox itself toggles selection without navigating
+    fireEvent.click(checkbox);
+    expect(checkbox.checked).toBe(true);
+    const row = checkbox.closest("tr")!;
+    expect(row).toHaveClass("asset-table-row--selected");
+    expect(screen.getByText("selected")).toBeInTheDocument();
+
+    expect(
+      screen.queryAllByRole("link", { name: /view/i }).length,
+    ).toBe(0);
+
+    // Clicking elsewhere in the row navigates to the asset detail page
+    fireEvent.click(row);
+    expect(await screen.findByText("Asset Detail Page")).toBeInTheDocument();
+  });
+
+  it("keeps a checkbox selection checked across a debounced search re-fetch if the asset is still in the results", async () => {
     vi.spyOn(api, "areas").mockResolvedValue({
       data: [mockArea],
       pageInfo: { nextCursor: null, hasNextPage: false },
@@ -72,30 +114,34 @@ describe("AssetsPage", () => {
       </MemoryRouter>,
     );
 
-    const elements = await screen.findAllByText(/HD Projector/);
-    expect(elements.length).toBeGreaterThan(0);
-
+    await screen.findAllByText(/HD Projector/);
     const checkbox = screen.getAllByLabelText(
       "Select HD Projector",
     )[0] as HTMLInputElement;
-    expect(checkbox.checked).toBe(false);
 
-    // Clicking row should select checkbox
-    const row = checkbox.closest("tr")!;
-    fireEvent.click(row);
-
+    fireEvent.click(checkbox);
     expect(checkbox.checked).toBe(true);
-    expect(row).toHaveClass("asset-table-row--selected");
-    expect(screen.getByText("selected")).toBeInTheDocument();
 
-    const viewLinks = screen.getAllByRole("link", { name: /view/i });
-    expect(viewLinks.length).toBeGreaterThan(0);
-    expect(viewLinks[0]).toHaveAttribute("href", "/assets/asset-1");
+    const searchInput = screen.getByLabelText("Search assets");
+    fireEvent.change(searchInput, { target: { value: "Projector" } });
 
-    // Clicking row again should deselect
-    fireEvent.click(row);
-    expect(checkbox.checked).toBe(false);
-    expect(row).not.toHaveClass("asset-table-row--selected");
+    // Wait past the search debounce so the re-fetch actually fires.
+    await waitFor(
+      () => {
+        expect(api.assets).toHaveBeenCalledWith(
+          expect.objectContaining({ search: "Projector" }),
+        );
+      },
+      { timeout: 1000 },
+    );
+
+    await waitFor(() => {
+      const refreshedCheckbox = screen.getAllByLabelText(
+        "Select HD Projector",
+      )[0] as HTMLInputElement;
+      expect(refreshedCheckbox.checked).toBe(true);
+      expect(refreshedCheckbox.disabled).toBe(false);
+    });
   });
 
   it("sorts asset list so editable assets appear before non-editable assets", async () => {
@@ -120,7 +166,6 @@ describe("AssetsPage", () => {
       allocatedQuantity: 0,
       availableQuantity: 2,
       isActive: true,
-      status: "ACTIVE",
       managementArea: mockArea,
       owner: null,
       capabilities: {
@@ -153,7 +198,6 @@ describe("AssetsPage", () => {
       allocatedQuantity: 0,
       availableQuantity: 10,
       isActive: true,
-      status: "ACTIVE",
       managementArea: mockArea,
       owner: null,
       capabilities: {
@@ -216,7 +260,6 @@ describe("AssetsPage", () => {
       allocatedQuantity: 0,
       availableQuantity: 2,
       isActive: true,
-      status: "ACTIVE",
       managementArea: mockArea,
       owner: {
         id: "user-other",
@@ -254,7 +297,6 @@ describe("AssetsPage", () => {
       allocatedQuantity: 0,
       availableQuantity: 10,
       isActive: true,
-      status: "ACTIVE",
       managementArea: mockArea,
       owner: null,
       capabilities: {
@@ -307,52 +349,27 @@ describe("AssetsPage", () => {
     );
   });
 
-  it("filters assets correctly based on normalized status", async () => {
-    const activeAsset: AssetSummary = {
+  it("filters assets by asset unit status (client-side, from unitCounts)", async () => {
+    const activeUnitsAsset: AssetSummary = {
       ...mockAsset,
-      id: "asset-active",
-      name: "Active Asset",
-      isActive: true,
-      status: "ACTIVE",
+      id: "asset-active-units",
+      name: "Active Units Asset",
+      unitCounts: { ...mockAsset.unitCounts, total: 3, active: 3 },
     };
-    const brokenAsset: AssetSummary = {
+    const inactiveUnitsAsset: AssetSummary = {
       ...mockAsset,
-      id: "asset-broken",
-      name: "Broken Asset",
-      isActive: false,
-      status: "BROKEN",
-    };
-    const lostAsset: AssetSummary = {
-      ...mockAsset,
-      id: "asset-lost",
-      name: "Lost Asset",
-      isActive: false,
-      status: "LOST",
-    };
-    const inactiveAsset: AssetSummary = {
-      ...mockAsset,
-      id: "asset-inactive",
-      name: "Inactive Asset",
-      isActive: false,
-      status: "ACTIVE",
+      id: "asset-inactive-units",
+      name: "Inactive Units Asset",
+      unitCounts: { ...mockAsset.unitCounts, total: 2, inactive: 2 },
     };
 
     vi.spyOn(api, "areas").mockResolvedValue({
       data: [mockArea],
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
-    vi.spyOn(api, "assets").mockImplementation(async (query?: any) => {
-      let data = [activeAsset, brokenAsset, lostAsset, inactiveAsset];
-      if (query?.status) {
-        data = data.filter((a) => a.status === query.status);
-      }
-      if (query?.isActive !== undefined) {
-        data = data.filter((a) => a.isActive === query.isActive);
-      }
-      return {
-        data,
-        pageInfo: { nextCursor: null, hasNextPage: false },
-      };
+    vi.spyOn(api, "assets").mockResolvedValue({
+      data: [activeUnitsAsset, inactiveUnitsAsset],
+      pageInfo: { nextCursor: null, hasNextPage: false },
     });
 
     render(
@@ -362,52 +379,28 @@ describe("AssetsPage", () => {
     );
 
     // Initial filter shows all assets
-    expect((await screen.findAllByText("Active Asset")).length).toBeGreaterThan(
-      0,
-    );
-    expect(screen.getAllByText("Broken Asset").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Lost Asset").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Inactive Asset").length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("Active Units Asset")).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Inactive Units Asset").length,
+    ).toBeGreaterThan(0);
 
-    // Open unified filter dropdown and toggle Broken
+    // Open unified filter dropdown and toggle the "Inactive" unit status
     const filterBtn = screen.getByRole("button", {
-      name: /Filter assets by workspace and status/i,
+      name: /Filter assets by management area and status/i,
     });
     fireEvent.click(filterBtn);
 
     const popover = screen.getByRole("dialog", { name: "Filter assets" });
-    fireEvent.click(within(popover).getByText("Broken"));
+    fireEvent.click(within(popover).getByText("Inactive"));
 
-    // Now only Broken should appear
+    // Now only the asset with inactive units should appear
     await waitFor(() => {
-      expect(screen.getAllByText("Broken Asset").length).toBeGreaterThan(0);
+      expect(
+        screen.getAllByText("Inactive Units Asset").length,
+      ).toBeGreaterThan(0);
     });
-    expect(screen.queryAllByText("Active Asset")).toHaveLength(0);
-    expect(screen.queryAllByText("Lost Asset")).toHaveLength(0);
-    expect(screen.queryAllByText("Inactive Asset")).toHaveLength(0);
-  });
-
-  it("normalizes asset statuses accurately", () => {
-    expect(getNormalizedAssetStatus({ status: "ACTIVE", isActive: true })).toBe(
-      "ACTIVE",
-    );
-    expect(
-      getNormalizedAssetStatus({ status: "BROKEN", isActive: false }),
-    ).toBe("BROKEN");
-    expect(getNormalizedAssetStatus({ status: "LOST", isActive: false })).toBe(
-      "LOST",
-    );
-    expect(
-      getNormalizedAssetStatus({ status: "ACTIVE", isActive: false }),
-    ).toBe("INACTIVE");
-    expect(
-      getNormalizedAssetStatus({ status: "INACTIVE", isActive: false }),
-    ).toBe("INACTIVE");
-    expect(getNormalizedAssetStatus({ status: null, isActive: true })).toBe(
-      "ACTIVE",
-    );
-    expect(getNormalizedAssetStatus({ status: null, isActive: false })).toBe(
-      "INACTIVE",
-    );
+    expect(screen.queryAllByText("Active Units Asset")).toHaveLength(0);
   });
 });

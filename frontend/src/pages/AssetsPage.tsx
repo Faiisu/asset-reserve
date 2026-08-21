@@ -3,7 +3,6 @@ import {
   ArrowDownToLine,
   Boxes,
   ChevronDown,
-  Eye,
   Filter,
   Plus,
   Search,
@@ -18,7 +17,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import {
@@ -47,25 +46,38 @@ interface Filters {
   statuses: string[];
 }
 
-const assetStatusOptions = [
-  { value: "ACTIVE", label: "Active", colorClass: "asset-status-swatch--active" },
-  { value: "BROKEN", label: "Broken", colorClass: "asset-status-swatch--broken" },
-  { value: "LOST", label: "Lost", colorClass: "asset-status-swatch--lost" },
-  { value: "INACTIVE", label: "Inactive", colorClass: "asset-status-swatch--inactive" },
+const assetUnitStatusOptions: Array<{
+  value: keyof AssetSummary["unitCounts"];
+  label: string;
+  colorClass: string;
+}> = [
+  { value: "active", label: "Active", colorClass: "asset-status-swatch--active" },
+  {
+    value: "reserved",
+    label: "Reserved",
+    colorClass: "asset-status-swatch--reserved",
+  },
+  {
+    value: "checkedOut",
+    label: "Checked out",
+    colorClass: "asset-status-swatch--checked-out",
+  },
+  { value: "broken", label: "Broken", colorClass: "asset-status-swatch--broken" },
+  {
+    value: "inRepair",
+    label: "In repair",
+    colorClass: "asset-status-swatch--in-repair",
+  },
+  { value: "lost", label: "Lost", colorClass: "asset-status-swatch--lost" },
+  {
+    value: "inactive",
+    label: "Inactive",
+    colorClass: "asset-status-swatch--inactive",
+  },
 ];
 
-export function getNormalizedAssetStatus(asset: {
-  status?: string | null;
-  isActive: boolean;
-}): "ACTIVE" | "BROKEN" | "LOST" | "INACTIVE" {
-  const s = (asset.status ?? "").toUpperCase();
-  if (s === "BROKEN") return "BROKEN";
-  if (s === "LOST") return "LOST";
-  if (!asset.isActive || s === "INACTIVE") return "INACTIVE";
-  return "ACTIVE";
-}
-
 export function AssetsPage() {
+  const navigate = useNavigate();
   const { session, hasPermission, hasAreaPermission } = useAuth();
   const [view, setView] = useState<AssetView>("ALL");
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
@@ -155,26 +167,9 @@ export function AssetsPage() {
       append ? setLoadingMore(true) : setLoading(true);
       setError(null);
       try {
-        // Asset-level BROKEN/LOST status no longer exists server-side (it
-        // now lives per serial unit) -- isActive is the only status facet
-        // the backend can still pre-filter on; BROKEN/LOST/ACTIVE selections
-        // are applied client-side below via getNormalizedAssetStatus.
-        const singleStatus =
-          filters.statuses.length === 1
-            ? filters.statuses[0].toUpperCase()
-            : undefined;
-
-        let apiIsActive: boolean | undefined = undefined;
-        if (singleStatus === "ACTIVE") {
-          apiIsActive = true;
-        } else if (singleStatus === "INACTIVE") {
-          apiIsActive = false;
-        }
-
         const response = await api.assets({
           search: filters.search || undefined,
           areaId: filters.areaIds.length === 1 ? filters.areaIds[0] : undefined,
-          isActive: apiIsActive,
           cursor,
           limit: 50,
         });
@@ -185,19 +180,25 @@ export function AssetsPage() {
           );
         }
         if (filters.statuses.length > 0) {
-          const selectedStatuses = new Set(
-            filters.statuses.map((s) => s.toUpperCase()),
+          const statusKeys = filters.statuses as Array<
+            keyof AssetSummary["unitCounts"]
+          >;
+          list = list.filter((asset) =>
+            statusKeys.some((status) => asset.unitCounts[status] > 0),
           );
-          list = list.filter((asset) => {
-            const assetStatus = getNormalizedAssetStatus(asset);
-            return selectedStatuses.has(assetStatus);
-          });
         }
-        setAssets((current) =>
-          append ? [...current, ...list] : list,
-        );
+        setAssets((current) => {
+          if (append) return [...current, ...list];
+          const sameList =
+            current.length === list.length &&
+            current.every((asset, index) => asset.id === list[index].id);
+          return sameList ? current : list;
+        });
         setNextCursor(response.pageInfo.nextCursor);
-        if (!append) setSelected([]);
+        if (!append) {
+          const visibleIds = new Set(list.map((asset) => asset.id));
+          setSelected((current) => current.filter((id) => visibleIds.has(id)));
+        }
       } catch (caught) {
         setError(caught);
       } finally {
@@ -245,6 +246,16 @@ export function AssetsPage() {
     event.preventDefault();
     setFilters((current) => ({ ...current, search: draftSearch.trim() }));
   }
+
+  useEffect(() => {
+    const trimmed = draftSearch.trim();
+    const timer = setTimeout(() => {
+      setFilters((current) =>
+        current.search === trimmed ? current : { ...current, search: trimmed },
+      );
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [draftSearch]);
 
   function toggleAll() {
     setSelected(allSelected ? [] : selectable.map((asset) => asset.id));
@@ -337,11 +348,11 @@ export function AssetsPage() {
               onClick={() => setFilterOpen((prev) => !prev)}
               aria-haspopup="dialog"
               aria-expanded={filterOpen}
-              aria-label="Filter assets by workspace and status"
+              aria-label="Filter assets by management area and status"
               title={
                 hasActiveFilters
                   ? `${totalFilterCount} filter${totalFilterCount > 1 ? "s" : ""} applied`
-                  : "Filter by workspace and status"
+                  : "Filter by management area and status"
               }
             >
               <Filter size={13} />
@@ -392,7 +403,7 @@ export function AssetsPage() {
                 <div className="calendar-filter-popover__columns">
                   <section className="calendar-filter-popover__section">
                     <div className="calendar-filter-popover__section-header">
-                      <span>Workspaces</span>
+                      <span>Management areas</span>
                       <div className="calendar-filter-popover__actions">
                         <button
                           type="button"
@@ -425,7 +436,7 @@ export function AssetsPage() {
                     <div className="calendar-filter-popover__list">
                       {areas.length === 0 ? (
                         <p className="calendar-filter-popover__empty">
-                          No workspaces found
+                          No management areas found
                         </p>
                       ) : (
                         areas.map((area) => {
@@ -466,7 +477,7 @@ export function AssetsPage() {
 
                   <section className="calendar-filter-popover__section">
                     <div className="calendar-filter-popover__section-header">
-                      <span>Statuses</span>
+                      <span>Unit statuses</span>
                       <div className="calendar-filter-popover__actions">
                         <button
                           type="button"
@@ -497,7 +508,7 @@ export function AssetsPage() {
                       </div>
                     </div>
                     <div className="calendar-filter-popover__list">
-                      {assetStatusOptions.map((option) => {
+                      {assetUnitStatusOptions.map((option) => {
                         const checked = filters.statuses.includes(option.value);
                         return (
                           <label
@@ -583,7 +594,7 @@ export function AssetsPage() {
         </section>
       )}
 
-      {loading ? (
+      {loading && assets.length === 0 ? (
         <AssetTableSkeleton />
       ) : error ? (
         <ErrorState error={error} onRetry={() => void load()} />
@@ -627,11 +638,9 @@ export function AssetsPage() {
                     />
                   </th>
                   <th>Asset</th>
-                  <th>Workspace</th>
-                  <th className="cell-number">Total</th>
+                  <th>Management area</th>
                   <th>Status</th>
                   <th>Updated</th>
-                  <th className="cell-action">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -644,38 +653,45 @@ export function AssetsPage() {
                     <tr
                       key={asset.id}
                       className={cx(
-                        isSelectable && "asset-table-row--selectable",
+                        "asset-table-row--clickable",
                         isSelected && "asset-table-row--selected",
                       )}
                       onClick={(event) => {
                         if (
-                          !isSelectable ||
                           (event.target as Element).closest("a, button, input")
                         ) {
                           return;
                         }
-                        toggleOne(asset.id);
+                        navigate(`/assets/${asset.id}`);
                       }}
                     >
                       <td className="cell-check">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          disabled={!isSelectable}
-                          onChange={() => toggleOne(asset.id)}
-                          aria-label={`Select ${asset.name}`}
-                        />
+                        <div
+                          className={cx(
+                            "cell-check__hit",
+                            !isSelectable && "cell-check__hit--disabled",
+                          )}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (!isSelectable) return;
+                            toggleOne(asset.id);
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            disabled={!isSelectable}
+                            readOnly
+                            aria-label={`Select ${asset.name}`}
+                          />
+                        </div>
                       </td>
                       <td>
                         <div className="asset-name-cell">
-                          <AssetPicture
-                            src={asset.pictureUrl}
-                            name={asset.name}
-                          />
                           <span>
                             <strong>{asset.name}</strong>
-                            <small>
-                              {asset.description || "No description"}
+                            <small className="mono">
+                              P/N: {asset.partNumber || "No part number"}
                             </small>
                           </span>
                         </div>
@@ -685,28 +701,11 @@ export function AssetsPage() {
                           {asset.managementArea.name}
                         </strong>
                       </td>
-                      <td className="cell-number">
-                        <strong className="quantity">
-                          {asset.totalQuantity}
-                        </strong>
-                        <small>units</small>
-                      </td>
                       <td>
-                        <AssetMasterStatusBadge
-                          status={asset.status}
-                          isActive={asset.isActive}
-                        />
+                        <AssetUnitStatusBreakdown unitCounts={asset.unitCounts} />
                       </td>
                       <td className="mono table-date">
                         {formatDate(asset.updatedAt)}
-                      </td>
-                      <td className="cell-action">
-                        <Link
-                          className="button button--secondary button--sm"
-                          to={`/assets/${asset.id}`}
-                        >
-                          <Eye size={17} /> View
-                        </Link>
                       </td>
                     </tr>
                   );
@@ -724,51 +723,49 @@ export function AssetsPage() {
                 <article
                   className={cx(
                     "asset-card",
-                    isSelectable && "asset-card--selectable",
+                    "asset-card--clickable",
                     isSelected && "asset-card--selected",
                   )}
                   key={asset.id}
                   onClick={(event) => {
                     if (
-                      !isSelectable ||
                       (event.target as Element).closest("a, button, input")
                     ) {
                       return;
                     }
-                    toggleOne(asset.id);
+                    navigate(`/assets/${asset.id}`);
                   }}
                 >
                   <div className="asset-card__body">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      disabled={!isSelectable}
-                      onChange={() => toggleOne(asset.id)}
-                      aria-label={`Select ${asset.name}`}
-                    />
-                    <AssetPicture src={asset.pictureUrl} name={asset.name} />
+                    <div
+                      className={cx(
+                        "cell-check__hit",
+                        !isSelectable && "cell-check__hit--disabled",
+                      )}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (!isSelectable) return;
+                        toggleOne(asset.id);
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        disabled={!isSelectable}
+                        readOnly
+                        aria-label={`Select ${asset.name}`}
+                      />
+                    </div>
                     <div className="asset-card__info">
                       <strong>{asset.name}</strong>
                       <span>{asset.managementArea.name}</span>
+                      <span className="mono">
+                        P/N: {asset.partNumber || "No part number"}
+                      </span>
                     </div>
                   </div>
                   <div className="asset-card__footer">
-                    <div className="asset-card__numbers">
-                      <span>
-                        <small>Total</small>
-                        <strong>{asset.totalQuantity}</strong>
-                      </span>
-                      <AssetMasterStatusBadge
-                        status={asset.status}
-                        isActive={asset.isActive}
-                      />
-                    </div>
-                    <Link
-                      className="button button--secondary button--sm"
-                      to={`/assets/${asset.id}`}
-                    >
-                      <Eye size={17} /> View
-                    </Link>
+                    <AssetUnitStatusBreakdown unitCounts={asset.unitCounts} />
                   </div>
                 </article>
               );
@@ -967,42 +964,57 @@ function AssetTableSkeleton() {
   );
 }
 
-function AssetMasterStatusBadge({
-  status,
-  isActive,
+const unitStatusPresentation: Array<{
+  key: keyof AssetSummary["unitCounts"];
+  label: string;
+  className: string;
+}> = [
+  { key: "active", label: "Active", className: "status-badge--active" },
+  { key: "reserved", label: "Reserved", className: "status-badge--reserved" },
+  {
+    key: "checkedOut",
+    label: "Checked out",
+    className: "status-badge--checked-out",
+  },
+  { key: "broken", label: "Broken", className: "status-badge--broken" },
+  {
+    key: "inRepair",
+    label: "In repair",
+    className: "status-badge--in-repair",
+  },
+  { key: "lost", label: "Lost", className: "status-badge--lost" },
+  { key: "inactive", label: "Inactive", className: "status-badge--inactive" },
+];
+
+function AssetUnitStatusBreakdown({
+  unitCounts,
 }: {
-  status?: string | null;
-  isActive: boolean;
+  unitCounts: AssetSummary["unitCounts"];
 }) {
-  const normStatus = getNormalizedAssetStatus({ status, isActive });
-  if (normStatus === "BROKEN") {
-    return (
-      <span className="status-badge status-badge--broken">
-        <span />
-        Broken
-      </span>
-    );
-  }
-  if (normStatus === "LOST") {
-    return (
-      <span className="status-badge status-badge--lost">
-        <span />
-        Lost
-      </span>
-    );
-  }
-  if (normStatus === "INACTIVE") {
+  const present = unitStatusPresentation.filter(
+    (status) => unitCounts[status.key] > 0,
+  );
+
+  if (present.length === 0) {
     return (
       <span className="status-badge status-badge--inactive">
         <span />
-        Inactive
+        No units
       </span>
     );
   }
+
   return (
-    <span className="status-badge status-badge--active">
-      <span />
-      Active
-    </span>
+    <div className="asset-unit-status-group">
+      {present.map((status) => (
+        <span
+          key={status.key}
+          className={cx("status-badge", status.className)}
+        >
+          <span />
+          {unitCounts[status.key]} {status.label}
+        </span>
+      ))}
+    </div>
   );
 }

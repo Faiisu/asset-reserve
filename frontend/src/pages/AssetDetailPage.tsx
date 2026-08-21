@@ -2,6 +2,7 @@ import {
   ArrowDownToLine,
   ArrowLeft,
   CalendarClock,
+  CalendarPlus,
   Edit3,
   PackageCheck,
   Power,
@@ -71,6 +72,10 @@ export function AssetDetailPage() {
       />
     );
 
+  const canRequest =
+    asset.isActive &&
+    hasAreaPermission("reservation:create", asset.managementArea.id);
+
   async function toggleStatus() {
     if (!asset) return;
     setMutating(true);
@@ -124,6 +129,15 @@ export function AssetDetailPage() {
           </div>
         </div>
         <div className="asset-hero__actions">
+          {canRequest && (
+            <Link
+              className="button button--primary button--md"
+              to={`/reservations/new?assetId=${asset.id}`}
+            >
+              <CalendarPlus size={16} />
+              Request this asset
+            </Link>
+          )}
           {asset.capabilities.canEdit && (
             <Link
               className="button button--secondary button--md"

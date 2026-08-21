@@ -1358,7 +1358,7 @@
 }
 
 .res-manifest-grid-header--inspection {
-  grid-template-columns: 28px 52px minmax(140px, 1fr) 64px 64px 64px;
+  grid-template-columns: 28px 52px minmax(140px, 1fr) minmax(220px, 2fr);
   gap: 12px;
 }
 
@@ -1367,71 +1367,88 @@
   align-items: center;
 }
 
-.res-grid-th--good {
-  justify-content: center;
+.res-grid-th--serials {
+  color: var(--ink-faint);
+}
+
+/* Inspection Row Grid: identity column + a serial/condition list column */
+.res-manifest-item.reservation-item-card--selectable.res-manifest-item--inspection {
+  grid-template-columns: 28px 52px minmax(140px, 1fr) minmax(220px, 2fr);
+  gap: 12px;
+  align-items: start;
+}
+
+/* Per-serial condition checklist shown during return inspection */
+.res-inspect-serial-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+}
+
+.res-inspect-serial-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.res-inspect-serial-row__serial {
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.res-condition-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.res-condition-toggle__option {
+  border: none;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.res-condition-toggle__option + .res-condition-toggle__option {
+  border-left: 1px solid var(--line-strong);
+}
+
+.res-condition-toggle__option--good.is-active {
+  background: var(--green-soft, color-mix(in srgb, var(--green) 18%, transparent));
   color: var(--green, #168a4a);
 }
 
-.res-grid-th--broken {
-  justify-content: center;
+.res-condition-toggle__option--broken.is-active {
+  background: var(--amber-soft, color-mix(in srgb, var(--amber) 18%, transparent));
   color: var(--amber, #d97706);
 }
 
-.res-grid-th--lost {
-  justify-content: center;
+.res-condition-toggle__option--lost.is-active {
+  background: var(--red-soft, color-mix(in srgb, var(--red) 18%, transparent));
   color: var(--red, #dc2626);
 }
 
-/* Inspection Row Grid aligned by Good, Broken, Lost */
-.res-manifest-item.reservation-item-card--selectable.res-manifest-item--inspection {
-  grid-template-columns: 28px 52px minmax(140px, 1fr) 64px 64px 64px;
-  gap: 12px;
-  align-items: center;
-}
-
-.res-inspect-col {
+/* Per-serial checklist shown when selecting units to return (drop-off) */
+.res-return-serial-list {
   display: flex;
   flex-direction: column;
+  gap: 4px;
+}
+
+.res-return-serial-row {
+  display: flex;
   align-items: center;
-  justify-content: center;
-}
-
-.res-inspect-col .control {
-  width: 52px;
-  height: 34px;
-  padding: 0 4px;
-  text-align: center;
-  font-family: var(--mono);
-  font-size: 13px;
-  font-weight: 700;
-  border-radius: 6px;
-}
-
-.res-inspect-col--good .control {
-  border-color: color-mix(in srgb, var(--green) 32%, var(--line-strong));
-}
-
-.res-inspect-col--good .control:focus {
-  border-color: var(--green);
-  box-shadow: 0 0 0 3px var(--green-soft);
-}
-
-.res-inspect-col--broken .control {
-  border-color: color-mix(in srgb, var(--amber) 32%, var(--line-strong));
-}
-
-.res-inspect-col--broken .control:focus {
-  border-color: var(--amber);
-  box-shadow: 0 0 0 3px var(--amber-soft);
-}
-
-.res-inspect-col--lost .control {
-  border-color: color-mix(in srgb, var(--red) 32%, var(--line-strong));
-}
-
-.res-inspect-col--lost .control:focus {
-  border-color: var(--red);
-  box-shadow: 0 0 0 3px var(--red-soft);
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-soft);
 }
 
 @media (max-width: 720px) {

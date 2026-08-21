@@ -33,7 +33,7 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Incorrect username or password",
+      "Username or password is incorrect.",
     );
   });
 });
