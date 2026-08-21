@@ -211,8 +211,10 @@ ActiveReservationItem:
       minimum: 1
     status:
       type: string
+      description: >-
+        Uses ReservationItemStatus values -- PREPARED is reached directly on approval (§7.5 of
+        algorithms-and-validation.md), there is no separate APPROVED resting state.
       enum:
-        - APPROVED
         - PREPARED
         - CHECKED_OUT
     reservation:

@@ -17,7 +17,7 @@ flowchart LR
 | Step | Phase | Primary actor | สรุป |
 | :---: | --- | --- | --- |
 | 1 | Drafted & Created | Requester | เลือกวันที่และอุปกรณ์ เพิ่มผู้ร่วมกิจกรรม แล้ว submit |
-| 2 | Area Approvals | Area Manager | ตรวจรายการที่ขอในแต่ละ management area ปรับจำนวนอนุมัติ แล้ว approve/reject |
+| 2 | Area Approvals | Area Manager | ตรวจรายการที่ขอในแต่ละ management area ปรับจำนวนอนุมัติ **เลือก serial-numbered unit ที่จะจ่ายให้** แล้ว approve/reject ในขั้นตอนเดียว (§3) |
 | 3 | Equipment Handover | Warehouse Staff / Requester | รับมอบอุปกรณ์จริงที่คลัง และยืนยัน handover |
 | 4 | Pending Return | Requester / Borrower | ใช้งานอุปกรณ์ เมื่อจบกิจกรรมนำมาคืนที่คลังพร้อม return slip |
 | 5 | Return Approval & Inspection | Area Manager (Inspector) | ตรวจสภาพอุปกรณ์ที่คืน (Good/Broken/Lost) แล้วอนุมัติ |
@@ -30,8 +30,8 @@ Status เก็บเป็น `String` ใน database (ไม่ใช่ Pri
 | --- | --- | --- |
 | `DRAFT` | กำลังร่าง ยังไม่ submit | `PENDING_APPROVAL`, `CANCELLED` |
 | `PENDING_APPROVAL` | รอ area manager อนุมัติ | `APPROVED`, `PARTIALLY_APPROVED`, `REJECTED`, `CANCELLED` |
-| `PARTIALLY_APPROVED` | บาง item อนุมัติ บาง item ถูกปฏิเสธ | `DELIVERY_CONFIRMED`, `CANCELLED` |
-| `APPROVED` | ทุก item อนุมัติแล้ว รอส่งมอบ | `DELIVERY_CONFIRMED`, `CANCELLED` |
+| `PARTIALLY_APPROVED` | บาง item อนุมัติ (พร้อมผูก serial unit แล้ว — ดู §3) บาง item ถูกปฏิเสธ | `DELIVERY_CONFIRMED`, `CANCELLED` |
+| `APPROVED` | ทุก item อนุมัติและผูก serial unit แล้ว รอส่งมอบ | `DELIVERY_CONFIRMED`, `CANCELLED` |
 | `DELIVERY_CONFIRMED` | ส่งมอบอุปกรณ์ให้ผู้ขอแล้ว | `RETURN_PENDING`, `COMPLETED` |
 | `RETURN_PENDING` | ส่ง return slip แล้ว รอตรวจรับ | `RETURN_CONFIRMED`, `COMPLETED` |
 | `RETURN_CONFIRMED` | ตรวจรับและบันทึกสภาพแล้ว | `COMPLETED`, `DELIVERY_CONFIRMED` (ถ้าคืนบางส่วน ยังมี item ค้าง) |
@@ -74,12 +74,13 @@ Asset สามารถถูกคืนได้ **ตลอดเวลา�
 
 ## 3. ReservationItem status {#reservation-item-status}
 
+> **Breaking change จากรุ่นก่อนหน้า**: เดิม `PENDING` อนุมัติเป็น `APPROVED` ก่อน แล้วค่อยผูก serial unit เป็นอีกขั้นตอนแยก (`PREPARED`, คนละ endpoint/actor ได้) ตอนนี้ **รวมเป็นการตัดสินใจเดียว** — Area Manager ที่อนุมัติต้องเลือก serial-numbered unit (`assetUnitIds[]`) มาพร้อมกันในคำขอเดียว item จึงข้ามจาก `PENDING` ไป `PREPARED` ตรงๆ ไม่มีสถานะ `APPROVED` เป็นจุดพักอีกต่อไป รายละเอียด transaction: [backend_spec/algorithms-and-validation.md §7.5](../backend_spec/algorithms-and-validation.md#75-post-reservationsreservationiditemsitemiddecision)
+
 ```mermaid
 stateDiagram-v2
     [*] --> PENDING: สร้างพร้อม Reservation
-    PENDING --> APPROVED: Area Manager อนุมัติ
+    PENDING --> PREPARED: Area Manager อนุมัติ พร้อมเลือก serial-numbered unit (§7.5)
     PENDING --> REJECTED: Area Manager ปฏิเสธ
-    APPROVED --> PREPARED: ผูก serial-numbered unit แล้ว
     PREPARED --> DELIVERED: ยืนยัน handover แล้ว
     DELIVERED --> RETURNED: ตรวจรับคืนและอนุมัติแล้ว
     RETURNED --> [*]
@@ -89,9 +90,8 @@ stateDiagram-v2
 | Status | ความหมาย |
 | --- | --- |
 | `PENDING` | รอ area manager ตัดสินใจ |
-| `APPROVED` | อนุมัติแล้ว |
 | `REJECTED` | ถูกปฏิเสธ |
-| `PREPARED` | ผูก `AssetUnit`/`ReservationItemUnit` (serial) แล้ว รอส่งมอบ |
+| `PREPARED` | อนุมัติแล้ว และผูก `AssetUnit`/`ReservationItemUnit` (serial) แล้วในคำขอเดียวกัน รอส่งมอบ |
 | `CHECKED_OUT` | เป็น status ของ `AssetUnit`/`ReservationItemUnit` (หน่วยจริงที่ถูกส่งมอบ) **ไม่ใช่** status ของ `ReservationItem` เอง — item ข้ามจาก `PREPARED` ไป `DELIVERED` ตรงๆ ตอน delivery-confirm |
 | `DELIVERED` | ส่งมอบให้ผู้ขอแล้ว |
 | `RETURNED` | คืนครบสำหรับ item นี้แล้ว |

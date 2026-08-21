@@ -13,9 +13,11 @@ ReservationStatus:
     - CANCELLED
 ReservationItemStatus:
   type: string
+  description: >-
+    APPROVE decisions assign serial units in the same request (§7.5) and go straight to
+    PREPARED -- there is no separate APPROVED resting state.
   enum:
     - PENDING
-    - APPROVED
     - REJECTED
     - PREPARED
     - DELIVERED
@@ -180,24 +182,53 @@ ReservationItemDecisionRequest:
       enum:
         - APPROVE
         - REJECT
-    comment:
-      type: string
-      maxLength: 2000
-ReservationItemsDecisionRequest:
-  type: object
-  additionalProperties: false
-  required:
-    - itemIds
-    - decision
-  properties:
-    itemIds:
+    assetUnitIds:
       type: array
+      description: >-
+        Required when decision is APPROVE (§7.5) -- exact serial-numbered units to assign to
+        this item, count must equal the item's quantity exactly, all ACTIVE and belonging to
+        the item's asset. Not used, and must be omitted, when decision is REJECT. Approving
+        without a separate "prepare" step assigns these units in the same request.
       minItems: 1
-      maxItems: 100
+      maxItems: 200
       uniqueItems: true
       items:
         type: string
         format: uuid
+    comment:
+      type: string
+      maxLength: 2000
+ReservationItemDecisionEntry:
+  type: object
+  additionalProperties: false
+  required:
+    - reservationItemId
+  properties:
+    reservationItemId:
+      type: string
+      format: uuid
+    assetUnitIds:
+      type: array
+      description: Same rule as ReservationItemDecisionRequest.assetUnitIds -- required per item when the batch decision is APPROVE.
+      minItems: 1
+      maxItems: 200
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
+ReservationItemsDecisionRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - items
+    - decision
+  properties:
+    items:
+      type: array
+      minItems: 1
+      maxItems: 100
+      items:
+        $ref: "#/components/schemas/ReservationItemDecisionEntry"
     decision:
       type: string
       enum:
@@ -353,7 +384,7 @@ ReservationDetailItem:
         $ref: "#/components/schemas/ReservationWarning"
     units:
       type: array
-      description: Serial-numbered units assigned to this item once it reaches PREPARED (§7.7).
+      description: Serial-numbered units assigned to this item once it reaches PREPARED (assigned during item approval, §7.5).
       items:
         type: object
         required: [id, assetUnitId, serialNumber, status]
@@ -393,8 +424,6 @@ ReservationDetailItem:
         canApprove:
           type: boolean
         canReject:
-          type: boolean
-        canPrepare:
           type: boolean
         canConfirmDelivery:
           type: boolean
@@ -479,11 +508,6 @@ ReservationDetail:
           description: >-
             True when actor is the Area Manager of the reservation's management area and
             at least one Return on this reservation is PENDING (§8.3 preconditions).
-        canPrepare:
-          type: boolean
-          description: >-
-            True when actor is warehouse staff/Area Manager and the reservation has at
-            least one item APPROVED and awaiting serial-unit assignment (§7.7 preconditions).
         canCancel:
           type: boolean
           description: >-
@@ -520,24 +544,6 @@ ReservationDetail:
     updatedAt:
       type: string
       format: date-time
-PrepareReservationItemRequest:
-  type: object
-  additionalProperties: false
-  required:
-    - assetUnitIds
-  properties:
-    assetUnitIds:
-      type: array
-      description: >-
-        Exact serial units to assign to this item -- must match the item's approved quantity.
-        Each unit must belong to the item's asset and currently be ACTIVE; assigning moves it
-        to RESERVED.
-      minItems: 1
-      maxItems: 200
-      uniqueItems: true
-      items:
-        type: string
-        format: uuid
 ConfirmDeliveryRequest:
   type: object
   additionalProperties: false

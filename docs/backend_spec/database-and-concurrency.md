@@ -36,9 +36,9 @@ export const prisma = new PrismaClient({ adapter });
 
 ใช้ `Serializable` transaction สำหรับ:
 
-- ตรวจ availability แล้ว submit/approve ReservationItem (quantity-based, ก่อนเลือก unit จริง)
+- ตรวจ availability แล้ว submit ReservationItem (quantity-based, ก่อนเลือก unit จริง)
 - Register/retire `AssetUnit` และเขียน `AssetUnitEvent`
-- Prepare item: lock และ assign `AssetUnit` ที่ ACTIVE ให้เป็น `ReservationItemUnit`, เปลี่ยน unit เป็น RESERVED — behavior เต็มของ endpoint นี้: [algorithms-and-validation.md §7.7](algorithms-and-validation.md#77-post-reservationsreservationiditemsitemidprepare)
+- Approve item: ตรวจ quantity, lock และ assign `AssetUnit` ที่ ACTIVE ให้เป็น `ReservationItemUnit` ในคำขอเดียวกัน (ไม่มีขั้น "prepare" แยกแล้ว), เปลี่ยน unit เป็น RESERVED — behavior เต็มของ endpoint นี้: [algorithms-and-validation.md §7.5](algorithms-and-validation.md#75-post-reservationsreservationiditemsitemiddecision)
 - Check out หลาย item: เปลี่ยน `ReservationItemUnit`/`AssetUnit` เป็น CHECKED_OUT
 - Return approval: เขียน `ReturnItemUnit` (condition ต่อ serial) และปรับ `AssetUnit.status` ตาม condition, บันทึก lifecycle completion
 - Aggregate Reservation status หลังตัดสิน item
