@@ -730,6 +730,14 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 25%, transparent);
 }
 
+/* Area-approval step waiting on a decision -- amber, matching the
+   pending-approval highlight used in the manifest and calendar legend. */
+.res-step-node--pending-approval {
+  background: var(--amber);
+  color: #ffffff;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--amber) 25%, transparent);
+}
+
 .res-step-node--upcoming {
   background: var(--surface);
   border: 2px solid var(--line-strong);

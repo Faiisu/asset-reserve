@@ -345,6 +345,7 @@ export function ReservationHorizontalTracker({
           const isCompleted = step.status === "completed";
           const isCurrent = step.status === "current";
           const isCancelled = step.status === "cancelled" || step.status === "rejected";
+          const isPendingApproval = isCurrent && step.stepKey === "approval";
 
           return (
             <button
@@ -358,6 +359,7 @@ export function ReservationHorizontalTracker({
               <div
                 className={`res-step-node ${
                   isCompleted ? "res-step-node--completed" :
+                  isPendingApproval ? "res-step-node--pending-approval" :
                   isCurrent ? "res-step-node--current" :
                   isCancelled ? "res-step-node--cancelled" :
                   "res-step-node--upcoming"
@@ -398,6 +400,7 @@ export function ReservationHorizontalTracker({
                 <div
                   className={`res-step-node ${
                     selectedStep.status === "completed" ? "res-step-node--completed" :
+                    selectedStep.status === "current" && selectedStep.stepKey === "approval" ? "res-step-node--pending-approval" :
                     selectedStep.status === "current" ? "res-step-node--current" :
                     selectedStep.status === "upcoming" ? "res-step-node--upcoming" :
                     "res-step-node--cancelled"
