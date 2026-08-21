@@ -25,7 +25,6 @@ import { useAuth } from "../auth";
 import {
   assetUnitStatuses,
   AssetUnitStatusBadge,
-  AssetUnitStatusBreakdown,
 } from "../components/AssetUnitStatus";
 import {
   AssetPicture,
@@ -251,24 +250,6 @@ export function AssetDetailPage() {
         </div>
       </section>
 
-      <section className="quantity-board">
-        <div className="quantity-board__primary">
-          <small>Unit inventory</small>
-          <strong>{asset.unitCounts.total}</strong>
-          <span>units on record (excl. retired)</span>
-        </div>
-        <div className="quantity-board__context quantity-board__context--breakdown">
-          <AssetUnitStatusBreakdown unitCounts={asset.unitCounts} />
-        </div>
-        {asset.capabilities.canManageUnits && (
-          <div className="quantity-board__actions">
-            <Button onClick={() => setAdjustOperation("ADD")}>
-              <ArrowDownToLine size={16} />
-              Register units
-            </Button>
-          </div>
-        )}
-      </section>
       <p className="asset-availability-note">
         <CalendarClock size={14} />
         Reservation quantities are schedule-based — choose dates in Calendar
@@ -286,7 +267,15 @@ export function AssetDetailPage() {
               </span>
             </h2>
           </div>
-          <span className="count-badge">{filteredUnits.length}</span>
+          <div className="detail-card__header-actions">
+            {asset.capabilities.canManageUnits && (
+              <Button size="sm" onClick={() => setAdjustOperation("ADD")}>
+                <ArrowDownToLine size={16} />
+                Register units
+              </Button>
+            )}
+            <span className="count-badge">{filteredUnits.length}</span>
+          </div>
         </header>
 
         {asset.units.length > 0 && (
