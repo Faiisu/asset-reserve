@@ -279,6 +279,10 @@ export const api = {
       method: "POST",
       body: json({ items, reason }),
     }),
+  assetUnits: (assetId: string, filters: { status?: string; limit?: number }) =>
+    request<ListResponse<AssetUnit>>(
+      `/assets/${assetId}/units${queryString(filters)}`,
+    ),
   createReservation: (input: CreateReservationInput) =>
     request<ReservationDetail>("/reservations", {
       method: "POST",
@@ -315,6 +319,18 @@ export const api = {
       {
         method: "POST",
         body: json({ decision, ...(comment ? { comment } : {}) }),
+      },
+    ),
+  prepareReservationItem: (
+    reservationId: string,
+    itemId: string,
+    assetUnitIds: string[],
+  ) =>
+    request<ReservationDetail>(
+      `/reservations/${reservationId}/items/${itemId}/prepare`,
+      {
+        method: "POST",
+        body: json({ assetUnitIds }),
       },
     ),
   decideReservationItems: (

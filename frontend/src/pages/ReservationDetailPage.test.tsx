@@ -262,6 +262,84 @@ describe("ReservationDetailPage", () => {
     });
   });
 
+  it("prepares an approved item by assigning serial units before handover", async () => {
+    const prepareReservation: ReservationDetail = {
+      ...mockReservation,
+      items: [
+        {
+          ...mockReservation.items[0],
+          quantity: 1,
+          capabilities: {
+            canApprove: false,
+            canReject: false,
+            canPrepare: true,
+            canConfirmDelivery: false,
+            canReturn: false,
+          },
+        },
+      ],
+      capabilities: { ...mockReservation.capabilities, canConfirmDelivery: false },
+    };
+    vi.spyOn(api, "reservation").mockResolvedValue(prepareReservation);
+    const assetUnitsSpy = vi.spyOn(api, "assetUnits").mockResolvedValue({
+      data: [
+        {
+          id: "unit-1",
+          serialNumber: "SN-CAM-001",
+          status: "ACTIVE",
+          note: null,
+          createdAt: "2026-08-15T00:00:00.000Z",
+          updatedAt: "2026-08-15T00:00:00.000Z",
+        },
+      ],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+    const prepareSpy = vi.spyOn(api, "prepareReservationItem").mockResolvedValue({
+      ...prepareReservation,
+      items: [
+        {
+          ...prepareReservation.items[0],
+          status: "PREPARED",
+          capabilities: { ...prepareReservation.items[0].capabilities, canPrepare: false, canConfirmDelivery: true },
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(assetUnitsSpy).toHaveBeenCalledWith("asset-1", {
+        status: "ACTIVE",
+        limit: 100,
+      });
+    });
+
+    const serialCheckbox = await screen.findByLabelText("Assign serial SN-CAM-001");
+    const prepareButton = screen.getByRole("button", { name: /Assign & Prepare/i });
+    expect(prepareButton).toBeDisabled();
+
+    fireEvent.click(serialCheckbox);
+    expect(prepareButton).toBeEnabled();
+    fireEvent.click(prepareButton);
+
+    await waitFor(() => {
+      expect(prepareSpy).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000101",
+        "item-1",
+        ["unit-1"],
+      );
+    });
+  });
+
   it("confirms handover only for explicitly selected authorized items", async () => {
     vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
     const confirmSpy = vi.spyOn(api, "confirmDelivery").mockResolvedValue({
