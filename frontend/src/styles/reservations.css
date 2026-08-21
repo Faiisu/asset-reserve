@@ -867,7 +867,6 @@
 }
 
 .res-manifest-item[data-status="delivered"],
-.res-manifest-item[data-status="delivery_confirmed"],
 .res-manifest-item[data-status="returned"] {
   padding-block: 18px;
   background: linear-gradient(
@@ -878,7 +877,6 @@
 }
 
 .res-manifest-item[data-status="delivered"]:hover,
-.res-manifest-item[data-status="delivery_confirmed"]:hover,
 .res-manifest-item[data-status="returned"]:hover {
   background: linear-gradient(
     90deg,
@@ -893,11 +891,6 @@
 
 .res-manifest-item:hover {
   background: var(--surface-raised);
-}
-
-.res-manifest-item[data-selected="true"] {
-  background: color-mix(in srgb, var(--teal-soft) 52%, var(--surface));
-  box-shadow: inset 3px 0 var(--teal);
 }
 
 .res-review-bar {
@@ -1249,12 +1242,6 @@
   flex-shrink: 0;
 }
 
-.res-item-qty {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink);
-}
-
 .res-item-qty-ticket {
   min-width: 86px;
   padding: 8px 12px;
@@ -1288,13 +1275,13 @@
   line-height: 1.3;
 }
 
-/* Pending area-review docket */
+/* Pending area-review docket -- grid-template-columns/align-items are set
+   by the more specific --approve rule below (the only user of this class);
+   left out here since declaring them would just be dead, unreachable CSS. */
 .res-manifest-item.reservation-item-card--selectable {
   min-height: 80px;
   padding: 12px 16px;
   display: grid;
-  grid-template-columns: 28px 52px minmax(150px, 1fr) 94px;
-  align-items: center;
   gap: 12px;
   cursor: pointer;
   background: var(--surface);
@@ -1305,11 +1292,6 @@
 
 .res-manifest-item.reservation-item-card--selectable:hover {
   background: color-mix(in srgb, var(--teal-soft) 24%, var(--surface));
-}
-
-.res-manifest-item.reservation-item-card--selectable[data-selected="true"] {
-  background: color-mix(in srgb, var(--teal-soft) 36%, var(--surface));
-  box-shadow: inset 3px 0 var(--teal);
 }
 
 .res-item-approve-actions {
@@ -1371,8 +1353,12 @@
   justify-self: end;
 }
 
-/* Asset sub-header above a flattened one-row-per-serial-unit list */
-.res-manifest-group-header {
+/* Asset sub-header above a flattened one-row-per-serial-unit list. Scoped
+   with [data-status] to outweigh the .res-manifest-item[data-status=...]
+   status-color rules above (which have higher specificity than the plain
+   class alone) -- the group header should always read as a neutral
+   section title, regardless of the underlying item's status. */
+.res-manifest-item.res-manifest-group-header[data-status] {
   padding-block: 12px;
   background: var(--surface-raised);
 }
@@ -1440,6 +1426,7 @@
 }
 
 .res-manifest-unit-row--inspect {
+  grid-column: 1 / -1;
   justify-content: space-between;
   gap: 6px;
 }
@@ -1521,14 +1508,32 @@
 
   .res-manifest-item.reservation-item-card--selectable {
     padding: 14px;
-    grid-template-columns: 22px 44px minmax(0, 1fr);
-    align-items: center;
     gap: 12px;
   }
 
-  .res-manifest-item.reservation-item-card--selectable > .res-item-media {
+  /* The approve row is the only user of .reservation-item-card--selectable;
+     its grid-template-columns/align-items are set here (not on the plain
+     selector above) since a bare declaration there would be unreachable --
+     the desktop --approve rule outweighs it in specificity regardless of
+     this media query. Stack the qty ticket under media+identity instead of
+     squeezing all three into one row on a narrow screen. */
+  .res-manifest-item.reservation-item-card--selectable.res-manifest-item--approve {
+    grid-template-columns: 44px 1fr;
+    align-items: center;
+  }
+
+  .res-manifest-item.reservation-item-card--selectable.res-manifest-item--approve
+    > .res-item-media {
     width: 44px;
     height: 44px;
+  }
+
+  .res-manifest-item--approve .res-item-qty-ticket {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    border-left: none;
+    border-top: 1px dashed var(--line-strong);
+    padding: 8px 0 0;
   }
 
   .res-pending-identity {
@@ -1536,7 +1541,6 @@
   }
 
   .res-manifest-unit-list {
-    grid-template-columns: repeat(2, 1fr);
     padding-left: 14px;
   }
 }
