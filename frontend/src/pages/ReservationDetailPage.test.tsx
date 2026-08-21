@@ -169,7 +169,8 @@ describe("ReservationDetailPage", () => {
     expect(screen.getByText("Stage Camera 4K")).toBeInTheDocument();
     expect(screen.getByText("All equipment approved for handover")).toBeInTheDocument();
     expect(screen.getByText("Handover confirmation (0 of 1 selected)")).toBeInTheDocument();
-    expect(screen.getByLabelText("Select Stage Camera 4K for handover")).not.toBeChecked();
+    expect(screen.getByLabelText("Select serial SN-CAM-001 for handover")).not.toBeChecked();
+    expect(screen.getByLabelText("Select serial SN-CAM-002 for handover")).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Confirm Handover" })).toBeDisabled();
     expect(screen.getAllByText("Reservation Status Track")[0]).toBeInTheDocument();
 
@@ -372,21 +373,25 @@ describe("ReservationDetailPage", () => {
       </MemoryRouter>,
     );
 
-    const checkbox = await screen.findByLabelText(
-      "Select Stage Camera 4K for handover",
+    const serialOne = await screen.findByLabelText(
+      "Select serial SN-CAM-001 for handover",
     );
-
-    // Assigned serial units are listed on the handover row.
-    expect(screen.getByText("SN-CAM-001")).toBeInTheDocument();
-    expect(screen.getByText("SN-CAM-002")).toBeInTheDocument();
+    const serialTwo = screen.getByLabelText(
+      "Select serial SN-CAM-002 for handover",
+    );
 
     const confirmButton = screen.getByRole("button", {
       name: "Confirm Handover",
     });
-    expect(checkbox).not.toBeChecked();
+    expect(serialOne).not.toBeChecked();
+    expect(serialTwo).not.toBeChecked();
     expect(confirmButton).toBeDisabled();
 
-    fireEvent.click(checkbox);
+    // Handover confirms the whole item (no partial-unit capability in the
+    // API), so checking any one of its serial units selects both.
+    fireEvent.click(serialOne);
+    expect(serialOne).toBeChecked();
+    expect(serialTwo).toBeChecked();
     expect(confirmButton).toBeEnabled();
     fireEvent.click(confirmButton);
 
@@ -483,13 +488,8 @@ describe("ReservationDetailPage", () => {
       ).toBeInTheDocument();
     });
 
-    const checkbox = screen.getByLabelText("Select Stage Camera 4K for return");
-    expect(checkbox).not.toBeChecked();
-
-    fireEvent.click(checkbox);
-    expect(checkbox).toBeChecked();
-
-    // Both checked-out serials are pre-selected for return by default.
+    // Both checked-out serials are pre-selected for return by default, no
+    // item-level grouping checkbox needed -- selection is per-unit only.
     const serialOne = screen.getByLabelText("Return serial SN-CAM-001");
     const serialTwo = screen.getByLabelText("Return serial SN-CAM-002");
     expect(serialOne).toBeChecked();

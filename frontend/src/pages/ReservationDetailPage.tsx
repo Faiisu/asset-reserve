@@ -63,7 +63,6 @@ export function ReservationDetailPage() {
 
   // Selection states for manifest actions
   const [selectedDeliveryItemIds, setSelectedDeliveryItemIds] = useState<string[]>([]);
-  const [selectedReturnItemIds, setSelectedReturnItemIds] = useState<string[]>([]);
   const [selectedInspectItemIds, setSelectedInspectItemIds] = useState<string[]>([]);
 
   // Approval: ACTIVE serial units available per asset, and the units
@@ -158,7 +157,6 @@ export function ReservationDetailPage() {
 
       // Reset selection state
       setSelectedDeliveryItemIds([]);
-      setSelectedReturnItemIds([]);
     } catch (err: any) {
       setError(err.message ?? "Failed to load reservation details.");
     } finally {
@@ -206,6 +204,37 @@ export function ReservationDetailPage() {
       );
     });
   }, [reservation]);
+
+  // Every CHECKED_OUT serial unit across returnable items -- return selection
+  // is unit-based, not grouped by item (no item-level checkbox).
+  const returnableUnitIds = useMemo(
+    () =>
+      returnableItems.flatMap((item) =>
+        item.units.filter((unit) => unit.status === "CHECKED_OUT").map((unit) => unit.id),
+      ),
+    [returnableItems],
+  );
+  const selectedReturnUnitCount = returnableUnitIds.filter(
+    (id) => selectedReturnUnitIds[id],
+  ).length;
+
+  const toggleSelectAllReturnUnits = () => {
+    if (selectedReturnUnitCount === returnableUnitIds.length) {
+      setSelectedReturnUnitIds((prev) => {
+        const next = { ...prev };
+        returnableUnitIds.forEach((id) => delete next[id]);
+        return next;
+      });
+    } else {
+      setSelectedReturnUnitIds((prev) => {
+        const next = { ...prev };
+        returnableUnitIds.forEach((id) => {
+          next[id] = true;
+        });
+        return next;
+      });
+    }
+  };
 
   // Pending return slip that requires inspection (Area Manager)
   const pendingInspectableReturn = useMemo(() => {
@@ -260,21 +289,6 @@ export function ReservationDetailPage() {
       setSelectedDeliveryItemIds([]);
     } else {
       setSelectedDeliveryItemIds(deliverableItems.map((item) => item.id));
-    }
-  };
-
-  // Toggle selection for equipment return
-  const toggleReturnItemSelection = (itemId: string) => {
-    setSelectedReturnItemIds((prev) =>
-      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
-    );
-  };
-
-  const toggleSelectAllReturnable = () => {
-    if (selectedReturnItemIds.length === returnableItems.length) {
-      setSelectedReturnItemIds([]);
-    } else {
-      setSelectedReturnItemIds(returnableItems.map((item) => item.id));
     }
   };
 
@@ -379,17 +393,9 @@ export function ReservationDetailPage() {
   // Handle Return Submit directly from Equipment Manifest
   const handleReturnSubmit = async () => {
     if (!reservation) return;
-    const targetIds =
-      selectedReturnItemIds.length > 0
-        ? selectedReturnItemIds
-        : returnableItems.map((i) => i.id);
 
-    if (targetIds.length === 0) {
-      setActionError("Please select at least one item to return.");
-      return;
-    }
-
-    const itemsToReturn: CreateReturnItemInput[] = targetIds
+    const itemsToReturn: CreateReturnItemInput[] = returnableItems
+      .map((i) => i.id)
       .map((itemId) => {
         const item = reservation.items.find((i) => i.id === itemId);
         const checkedOutUnitIds = (item?.units ?? [])
@@ -415,7 +421,6 @@ export function ReservationDetailPage() {
       await api.createReturn(reservation.id, {
         items: itemsToReturn,
       });
-      setSelectedReturnItemIds([]);
       setActionNotice("Return slip submitted. Equipment room inspection pending.");
       await loadReservation();
     } catch (err: any) {
@@ -577,7 +582,6 @@ export function ReservationDetailPage() {
               <Button
                 variant="primary"
                 onClick={() => {
-                  toggleSelectAllReturnable();
                   const manifestEl = document.getElementById("manifest-card");
                   manifestEl?.scrollIntoView({ behavior: "smooth" });
                 }}
@@ -693,18 +697,18 @@ export function ReservationDetailPage() {
                   />
                   <span>Select all for handover ({deliverableItems.length})</span>
                 </label>
-              ) : returnableItems.length > 0 ? (
+              ) : returnableUnitIds.length > 0 ? (
                 <label className="approval-select-all">
                   <input
                     type="checkbox"
                     checked={
-                      selectedReturnItemIds.length > 0 &&
-                      selectedReturnItemIds.length === returnableItems.length
+                      selectedReturnUnitCount > 0 &&
+                      selectedReturnUnitCount === returnableUnitIds.length
                     }
-                    onChange={toggleSelectAllReturnable}
-                    aria-label="Select all items for return"
+                    onChange={toggleSelectAllReturnUnits}
+                    aria-label="Select all serial units for return"
                   />
-                  <span>Select all for return ({returnableItems.length})</span>
+                  <span>Select all for return ({returnableUnitIds.length})</span>
                 </label>
               ) : pendingInspectableReturn && pendingInspectableReturn.items?.length ? (
                 <label className="approval-select-all">
@@ -750,17 +754,17 @@ export function ReservationDetailPage() {
                 <div className="res-review-bar__title">
                   <RotateCcw size={18} />
                   <span>
-                    Equipment Return ({selectedReturnItemIds.length} of {returnableItems.length} selected)
+                    Equipment Return ({selectedReturnUnitCount} of {returnableUnitIds.length} serial units selected)
                   </span>
                 </div>
                 <div className="res-review-bar__actions">
                   <Button
                     variant="primary"
-                    disabled={actionLoading || selectedReturnItemIds.length === 0}
+                    disabled={actionLoading || selectedReturnUnitCount === 0}
                     onClick={handleReturnSubmit}
                   >
                     <RotateCcw size={14} />
-                    <span>Submit Return ({selectedReturnItemIds.length})</span>
+                    <span>Submit Return ({selectedReturnUnitCount})</span>
                   </Button>
                 </div>
               </div>
@@ -845,8 +849,14 @@ export function ReservationDetailPage() {
                   (retItem || pendingInspectableReturn.items?.length === 0 || pendingInspectableReturn.status === "PENDING"),
                 );
 
+                const returnableUnits = item.units.filter(
+                  (unit) => unit.status === "CHECKED_OUT",
+                );
+
                 const isDeliverySelected = selectedDeliveryItemIds.includes(item.id);
-                const isReturnSelected = selectedReturnItemIds.includes(item.id);
+                const isReturnSelected = returnableUnits.some(
+                  (unit) => selectedReturnUnitIds[unit.id],
+                );
                 const isInspectSelected = selectedInspectItemIds.includes(item.id);
 
                 const isSelectable =
@@ -860,9 +870,6 @@ export function ReservationDetailPage() {
                     item.returnSummary.remainingReturnQuantity === 0 &&
                     ["RETURN_CONFIRMED", "COMPLETED"].includes(reservation.status));
 
-                const returnableUnits = item.units.filter(
-                  (unit) => unit.status === "CHECKED_OUT",
-                );
                 const inspectUnitCount = retItem?.units.length ?? 0;
 
                 return (
@@ -888,7 +895,6 @@ export function ReservationDetailPage() {
                         !(e.target instanceof HTMLButtonElement)
                       ) {
                         if (isDeliverySelectable) toggleDeliveryItemSelection(item.id);
-                        else if (isReturnSelectable) toggleReturnItemSelection(item.id);
                         else if (isInspectSelectable) toggleInspectItemSelection(item.id);
                       }
                     }}
@@ -896,28 +902,12 @@ export function ReservationDetailPage() {
                     {isSelectable ? (
                       <>
                         <div className="res-pending-check">
-                          {!isApprovable && (
+                          {!isApprovable && !isDeliverySelectable && !isReturnSelectable && (
                             <input
                               type="checkbox"
-                              checked={
-                                isDeliverySelectable
-                                  ? isDeliverySelected
-                                  : isReturnSelectable
-                                    ? isReturnSelected
-                                    : isInspectSelected
-                              }
-                              onChange={() => {
-                                if (isDeliverySelectable) toggleDeliveryItemSelection(item.id);
-                                else if (isReturnSelectable) toggleReturnItemSelection(item.id);
-                                else if (isInspectSelectable) toggleInspectItemSelection(item.id);
-                              }}
-                              aria-label={
-                                isDeliverySelectable
-                                  ? `Select ${item.asset.name} for handover`
-                                  : isReturnSelectable
-                                    ? `Select ${item.asset.name} for return`
-                                    : `Select ${item.asset.name} for inspection`
-                              }
+                              checked={isInspectSelected}
+                              onChange={() => toggleInspectItemSelection(item.id)}
+                              aria-label={`Select ${item.asset.name} for inspection`}
                               className="reservation-item-select"
                               onClick={(e) => e.stopPropagation()}
                             />
@@ -1039,13 +1029,22 @@ export function ReservationDetailPage() {
                                 })}
                               </div>
                             ) : isDeliverySelectable ? (
-                              <div className="res-return-serial-list">
+                              <div
+                                className="res-return-serial-list"
+                                onClick={(e) => e.stopPropagation()}
+                              >
                                 {item.units
                                   .filter((unit) => unit.status === "ASSIGNED")
                                   .map((unit) => (
-                                    <div key={unit.id} className="res-return-serial-row">
+                                    <label key={unit.id} className="res-return-serial-row">
+                                      <input
+                                        type="checkbox"
+                                        checked={isDeliverySelected}
+                                        onChange={() => toggleDeliveryItemSelection(item.id)}
+                                        aria-label={`Select serial ${unit.serialNumber} for handover`}
+                                      />
                                       <span className="mono">{unit.serialNumber}</span>
-                                    </div>
+                                    </label>
                                   ))}
                               </div>
                             ) : isReturnSelectable ? (
