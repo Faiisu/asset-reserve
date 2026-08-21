@@ -317,24 +317,30 @@
 .detail-card .empty-state {
   margin-top: 14px;
 }
+.detail-card__header-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
 .unit-count-stat {
-  margin-top: 14px;
-  padding: 14px 16px;
+  padding: 6px 14px;
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 8px;
   border-radius: var(--card-radius-md);
   background: var(--surface-raised);
 }
 .unit-count-stat strong {
   font-family: var(--mono);
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1;
 }
 .unit-count-stat span {
   color: var(--ink-faint);
-  font-size: 12px;
+  font-size: 11px;
+  white-space: nowrap;
 }
 .owner-row {
   margin: 20px 0 12px;

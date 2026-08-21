@@ -262,22 +262,23 @@ export function AssetDetailPage() {
             <p className="eyebrow">Physical inventory</p>
             <h2>Serial units</h2>
           </div>
-          {asset.capabilities.canManageUnits && (
-            <Button size="sm" onClick={() => setAdjustOperation("ADD")}>
-              <ArrowDownToLine size={16} />
-              Register units
-            </Button>
-          )}
+          <div className="detail-card__header-actions">
+            <div className="unit-count-stat">
+              <strong>{asset.units.length}</strong>
+              <span>
+                {hasActiveUnitFilters || trimmedUnitSearch
+                  ? `unit${asset.units.length === 1 ? "" : "s"} total · showing ${filteredUnits.length}`
+                  : `unit${asset.units.length === 1 ? "" : "s"} total`}
+              </span>
+            </div>
+            {asset.capabilities.canManageUnits && (
+              <Button size="sm" onClick={() => setAdjustOperation("ADD")}>
+                <ArrowDownToLine size={16} />
+                Register units
+              </Button>
+            )}
+          </div>
         </header>
-
-        <div className="unit-count-stat">
-          <strong>{asset.units.length}</strong>
-          <span>
-            {hasActiveUnitFilters || trimmedUnitSearch
-              ? `unit${asset.units.length === 1 ? "" : "s"} total · showing ${filteredUnits.length}`
-              : `unit${asset.units.length === 1 ? "" : "s"} total`}
-          </span>
-        </div>
 
         {asset.units.length > 0 && (
           <div className="toolbar toolbar--compact" aria-label="Serial unit filters">
