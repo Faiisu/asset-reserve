@@ -362,6 +362,7 @@ export type ReservationDetail = {
     canConfirmDelivery?: boolean;
     canCancel?: boolean;
     canReturn?: boolean;
+    canDecideReturn?: boolean;
   };
   createdAt: string;
   updatedAt: string;
@@ -381,16 +382,19 @@ export type ReturnItemUnitCondition = "GOOD" | "BROKEN" | "LOST";
 
 export type ReturnItemUnitDetail = {
   id: string;
+  returnItemId: string;
   reservationItemUnitId: string;
   assetUnitId: string;
   serialNumber: string;
   condition: ReturnItemUnitCondition | null;
   pictureUrl: string | null;
   note: string | null;
+  createdAt: string;
 };
 
 export type ReturnItemDetail = {
   id: string;
+  returnId: string;
   reservationItemId: string;
   assetId: string;
   assetName: string;
@@ -398,6 +402,7 @@ export type ReturnItemDetail = {
   description: string | null;
   pictureUrl: string | null;
   units: ReturnItemUnitDetail[];
+  createdAt: string;
 };
 
 export type ReturnDetail = {
@@ -406,7 +411,8 @@ export type ReturnDetail = {
   status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
   note: string | null;
   returnedAt: string | null;
-  returnedBy: ReservationUser;
+  returnedBy: string;
+  returner: ReservationUser;
   reservation?: {
     id: string;
     eventName: string;

@@ -524,6 +524,144 @@ describe("reservation availability", () => {
   });
 });
 
+const returnId = "00000000-0000-4000-8000-000000000701";
+const returnItemId = "00000000-0000-4000-8000-000000000801";
+const returnItemUnitId = "00000000-0000-4000-8000-000000000831";
+const reservationItemUnitId = "00000000-0000-4000-8000-000000000811";
+
+function sampleReturn(status = "PENDING") {
+  return {
+    id: returnId,
+    reservationId,
+    status,
+    note: null,
+    returnedAt: new Date("2026-09-01T12:00:00.000Z"),
+    returnedBy: actorId,
+    returner: user,
+    createdAt: new Date("2026-09-01T12:00:00.000Z"),
+    updatedAt: new Date("2026-09-01T12:00:00.000Z"),
+    items: [
+      {
+        id: returnItemId,
+        returnId,
+        reservationItemId: itemId,
+        description: null,
+        pictureUrl: null,
+        createdAt: new Date("2026-09-01T12:00:00.000Z"),
+        reservationItem: {
+          asset: {
+            id: assetId,
+            name: "Projector",
+            managementAreaId: areaId,
+            managementArea: { id: areaId, name: "Main office" },
+          },
+        },
+        units: [
+          {
+            id: returnItemUnitId,
+            returnItemId,
+            reservationItemUnitId,
+            condition: null,
+            pictureUrl: null,
+            note: null,
+            createdAt: new Date("2026-09-01T12:00:00.000Z"),
+            reservationItemUnit: {
+              assetUnitId,
+              assetUnit: { serialNumber: "SN-001" },
+            },
+          },
+        ],
+      },
+    ],
+    approval: null,
+  };
+}
+
+describe("reservation returns", () => {
+  it("sets capabilities.canDecideReturn when a PENDING return exists in an area the actor can decide", async () => {
+    const reservation = { ...detailRecord("DELIVERY_CONFIRMED"), returns: [sampleReturn("PENDING")] };
+    const prisma = {
+      reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
+      assetUnit: { groupBy: vi.fn().mockResolvedValue([]) },
+      reservationItem: { findMany: vi.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService;
+    const service = new ReservationsService(prisma, reservationEvents);
+
+    const result = await service.get(
+      {
+        ...actor,
+        effectivePermissions: {
+          global: [],
+          byManagementArea: [{ managementAreaId: areaId, permissions: ["return:approve"] }],
+        },
+      },
+      reservationId,
+    );
+
+    expect(result.capabilities.canDecideReturn).toBe(true);
+  });
+
+  it("leaves capabilities.canDecideReturn false when no return is PENDING", async () => {
+    const reservation = { ...detailRecord("COMPLETED"), returns: [sampleReturn("COMPLETED")] };
+    const prisma = {
+      reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
+      assetUnit: { groupBy: vi.fn().mockResolvedValue([]) },
+      reservationItem: { findMany: vi.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService;
+    const service = new ReservationsService(prisma, reservationEvents);
+
+    const result = await service.get(
+      {
+        ...actor,
+        effectivePermissions: {
+          global: [],
+          byManagementArea: [{ managementAreaId: areaId, permissions: ["return:approve"] }],
+        },
+      },
+      reservationId,
+    );
+
+    expect(result.capabilities.canDecideReturn).toBe(false);
+  });
+
+  it("leaves capabilities.canDecideReturn false when the actor lacks return:approve in the item's area", async () => {
+    const reservation = { ...detailRecord("DELIVERY_CONFIRMED"), returns: [sampleReturn("PENDING")] };
+    const prisma = {
+      reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
+      assetUnit: { groupBy: vi.fn().mockResolvedValue([]) },
+      reservationItem: { findMany: vi.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService;
+    const service = new ReservationsService(prisma, reservationEvents);
+
+    const result = await service.get(
+      { ...actor, effectivePermissions: { global: [], byManagementArea: [] } },
+      reservationId,
+    );
+
+    expect(result.capabilities.canDecideReturn).toBe(false);
+  });
+
+  it("maps returns with the documented field shape", async () => {
+    const reservation = { ...detailRecord("DELIVERY_CONFIRMED"), returns: [sampleReturn("PENDING")] };
+    const prisma = {
+      reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
+      assetUnit: { groupBy: vi.fn().mockResolvedValue([]) },
+      reservationItem: { findMany: vi.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService;
+    const service = new ReservationsService(prisma, reservationEvents);
+
+    const result = await service.get(actor, reservationId);
+    const ret = result.returns[0]!;
+
+    expect(typeof ret.returnedBy).toBe("string");
+    expect(ret.returner).toEqual(expect.objectContaining({ id: actorId }));
+    expect(ret.items[0]?.returnId).toBe(returnId);
+    expect(ret.items[0]?.createdAt).toBeTruthy();
+    expect(ret.items[0]?.units[0]?.returnItemId).toBe(returnItemId);
+    expect(ret.items[0]?.units[0]?.createdAt).toBeTruthy();
+  });
+});
+
 describe("reservation lifecycle events", () => {
   it("submit() resolves approvers with reservation:approve in the affected area and emits submitted", async () => {
     const reservation = detailRecord("DRAFT");

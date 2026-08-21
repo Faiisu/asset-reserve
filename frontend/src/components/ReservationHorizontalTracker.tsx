@@ -250,7 +250,7 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
             { label: "Latest Drop-off Date", value: formatDate(latestReturn.createdAt, true) },
             {
               label: "Returned By",
-              value: `${latestReturn.returnedBy?.name ?? latestReturn.returnedBy?.email ?? "Borrower"}`,
+              value: `${latestReturn.returner?.name ?? latestReturn.returner?.email ?? "Borrower"}`,
             },
           ]
         : []),

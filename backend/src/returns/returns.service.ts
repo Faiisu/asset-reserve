@@ -397,6 +397,13 @@ export class ReturnsService {
           },
         });
 
+        if (reservation.status === "DELIVERY_CONFIRMED") {
+          await tx.reservation.update({
+            where: { id: reservationId },
+            data: { status: "RETURN_PENDING", updatedAt: now },
+          });
+        }
+
         await this.logActivity(tx, {
           reservationId,
           actorId: actor.user.id,
@@ -634,6 +641,11 @@ export class ReturnsService {
             where: { id: reservationId },
             data: { status: "COMPLETED", updatedAt: decidedAt },
           });
+        } else {
+          await tx.reservation.update({
+            where: { id: reservationId },
+            data: { status: "DELIVERY_CONFIRMED", updatedAt: decidedAt },
+          });
         }
       } else {
         // REJECT: free the claimed units so they can be resubmitted in a
@@ -663,6 +675,22 @@ export class ReturnsService {
             decidedAt,
           },
         });
+
+        if (returnRecord.reservation.status === "RETURN_PENDING") {
+          const otherPendingReturns = await tx.return.count({
+            where: {
+              reservationId,
+              status: "PENDING",
+              id: { not: returnId },
+            },
+          });
+          if (otherPendingReturns === 0) {
+            await tx.reservation.update({
+              where: { id: reservationId },
+              data: { status: "DELIVERY_CONFIRMED", updatedAt: decidedAt },
+            });
+          }
+        }
       }
 
       await this.logActivity(tx, {
@@ -707,7 +735,8 @@ export class ReturnsService {
       status: record.status,
       note: record.note,
       returnedAt: record.returnedAt?.toISOString() ?? null,
-      returnedBy: this.userDto(record.returner),
+      returnedBy: record.returnedBy,
+      returner: this.userDto(record.returner),
       reservation: {
         id: record.reservation.id,
         eventName: record.reservation.eventName,
@@ -715,6 +744,7 @@ export class ReturnsService {
       },
       items: record.items.map((item) => ({
         id: item.id,
+        returnId: item.returnId,
         reservationItemId: item.reservationItemId,
         assetId: item.reservationItem.asset.id,
         assetName: item.reservationItem.asset.name,
@@ -726,13 +756,16 @@ export class ReturnsService {
         pictureUrl: item.pictureUrl,
         units: item.units.map((unit) => ({
           id: unit.id,
+          returnItemId: unit.returnItemId,
           reservationItemUnitId: unit.reservationItemUnitId,
           assetUnitId: unit.reservationItemUnit.assetUnitId,
           serialNumber: unit.reservationItemUnit.assetUnit.serialNumber,
           condition: unit.condition,
           pictureUrl: unit.pictureUrl,
           note: unit.note,
+          createdAt: unit.createdAt.toISOString(),
         })),
+        createdAt: item.createdAt.toISOString(),
       })),
       approval: record.approval
         ? {

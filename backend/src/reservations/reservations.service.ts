@@ -1311,6 +1311,69 @@ export class ReservationsService {
       reservation.id,
     );
     const canManage = this.canManage(actor, reservation);
+    const returns = reservation.returns.map((item) => {
+      const canApprove =
+        item.status === "PENDING" &&
+        item.items.every((retItem) =>
+          hasAreaPermission(
+            actor,
+            "return:approve",
+            retItem.reservationItem.asset.managementAreaId,
+          ),
+        );
+      return {
+        id: item.id,
+        reservationId: item.reservationId,
+        status: item.status,
+        note: item.note,
+        returnedAt: item.returnedAt?.toISOString() ?? null,
+        returnedBy: item.returnedBy,
+        returner: this.userDto(item.returner),
+        items: item.items.map((retItem) => ({
+          id: retItem.id,
+          returnId: retItem.returnId,
+          reservationItemId: retItem.reservationItemId,
+          assetId: retItem.reservationItem.asset.id,
+          assetName: retItem.reservationItem.asset.name,
+          managementArea: {
+            id: retItem.reservationItem.asset.managementArea.id,
+            name: retItem.reservationItem.asset.managementArea.name,
+          },
+          description: retItem.description,
+          pictureUrl: retItem.pictureUrl,
+          units: retItem.units.map((unit) => ({
+            id: unit.id,
+            returnItemId: unit.returnItemId,
+            reservationItemUnitId: unit.reservationItemUnitId,
+            assetUnitId: unit.reservationItemUnit.assetUnitId,
+            serialNumber: unit.reservationItemUnit.assetUnit.serialNumber,
+            condition: unit.condition,
+            pictureUrl: unit.pictureUrl,
+            note: unit.note,
+            createdAt: unit.createdAt.toISOString(),
+          })),
+          createdAt: retItem.createdAt.toISOString(),
+        })),
+        approval: item.approval
+          ? {
+              id: item.approval.id,
+              status: item.approval.status,
+              description: item.approval.description,
+              decidedAt: item.approval.decidedAt?.toISOString() ?? null,
+              approver: this.userDto(item.approval.approver),
+            }
+          : null,
+        capabilities: {
+          canApprove,
+          canReject: canApprove,
+        },
+        createdAt: item.createdAt.toISOString(),
+        updatedAt: item.updatedAt.toISOString(),
+      };
+    });
+    const canDecideReturn = returns.some(
+      (r) => r.status === "PENDING" && r.capabilities.canApprove,
+    );
     return {
       id: reservation.id,
       eventName: reservation.eventName,
@@ -1449,61 +1512,7 @@ export class ReservationsService {
           },
         };
       }),
-      returns: reservation.returns.map((item) => {
-        const canApprove =
-          item.status === "PENDING" &&
-          item.items.every((retItem) =>
-            hasAreaPermission(
-              actor,
-              "return:approve",
-              retItem.reservationItem.asset.managementAreaId,
-            ),
-          );
-        return {
-          id: item.id,
-          reservationId: item.reservationId,
-          status: item.status,
-          note: item.note,
-          returnedAt: item.returnedAt?.toISOString() ?? null,
-          returnedBy: this.userDto(item.returner),
-          items: item.items.map((retItem) => ({
-            id: retItem.id,
-            reservationItemId: retItem.reservationItemId,
-            assetId: retItem.reservationItem.asset.id,
-            assetName: retItem.reservationItem.asset.name,
-            managementArea: {
-              id: retItem.reservationItem.asset.managementArea.id,
-              name: retItem.reservationItem.asset.managementArea.name,
-            },
-            description: retItem.description,
-            pictureUrl: retItem.pictureUrl,
-            units: retItem.units.map((unit) => ({
-              id: unit.id,
-              reservationItemUnitId: unit.reservationItemUnitId,
-              assetUnitId: unit.reservationItemUnit.assetUnitId,
-              serialNumber: unit.reservationItemUnit.assetUnit.serialNumber,
-              condition: unit.condition,
-              pictureUrl: unit.pictureUrl,
-              note: unit.note,
-            })),
-          })),
-          approval: item.approval
-            ? {
-                id: item.approval.id,
-                status: item.approval.status,
-                description: item.approval.description,
-                decidedAt: item.approval.decidedAt?.toISOString() ?? null,
-                approver: this.userDto(item.approval.approver),
-              }
-            : null,
-          capabilities: {
-            canApprove,
-            canReject: canApprove,
-          },
-          createdAt: item.createdAt.toISOString(),
-          updatedAt: item.updatedAt.toISOString(),
-        };
-      }),
+      returns,
       capabilities: {
         canSubmit: canManage && reservation.status === "DRAFT",
         canPrepare:
@@ -1543,8 +1552,9 @@ export class ReservationsService {
               item.status !== "PENDING" &&
               item.status !== "APPROVED",
           ),
+        canDecideReturn,
       },
-      activityLogs: ((reservation as any).activityLogs ?? []).map(
+      activityLogs: (reservation.activityLogs ?? []).map(
         (log: any) => ({
           id: log.id,
           action: log.action,

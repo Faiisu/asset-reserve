@@ -485,7 +485,7 @@ Status transitions และความหมายทางธุรกิจ�
 | Flag | True เมื่อ |
 | --- | --- |
 | `canSubmit` | actor เป็น requester, reservation เป็น `DRAFT` (ตรงกับ precondition ของ §7.4) |
-| `canConfirmDelivery` | actor เป็นเจ้าหน้าที่คลัง/Area Manager, reservation เป็น `APPROVED` หรือ `PARTIALLY_APPROVED` ที่มี item approved อย่างน้อยหนึ่งรายการ (ตรงกับ precondition ของ §7.11) |
+| `canConfirmDelivery` | actor เป็นเจ้าหน้าที่คลัง/Area Manager, reservation เป็น `APPROVED` หรือ `PARTIALLY_APPROVED` ที่มี item อยู่สถานะ `PREPARED` (ผูก serial unit ผ่าน §7.7 แล้ว) อย่างน้อยหนึ่งรายการ (ตรงกับ precondition ของ §7.11) |
 | `canReturn` | actor เป็นผู้ยืม/participant, มี `ReservationItemUnit` อย่างน้อยหนึ่งหน่วยของ reservation นี้อยู่สถานะ `CHECKED_OUT` (ตรงกับ precondition ของ §8.2) |
 | `canDecideReturn` | actor เป็น Area Manager ของ management area ที่ reservation นี้อยู่, มี `Return` อย่างน้อยหนึ่งใบของ reservation นี้อยู่สถานะ `PENDING` (ตรงกับ precondition ของ §8.3) |
 
@@ -556,6 +556,14 @@ flowchart LR
 - แต่ละการเปลี่ยนบันทึกใน `AssetUnitEvent` (`eventType` = `RETURNED_GOOD` / `RETURNED_BROKEN` / `RETURNED_LOST`) ไม่ใช่การหักลบ `totalQuantity` เพราะระบบไม่มี field นี้
 
 ทุก unit ที่อยู่ในสลิปต้องถูกตัดสิน condition ครบก่อนเปลี่ยนสถานะ item เป็น `RETURNED`; ถ้า reject ทั้งสลิป ระบบลบ claim (`ReturnItemUnit`) เพื่อปลดปล่อย unit ให้ส่งสลิปใหม่ได้ โดยไม่แตะสถานะ item หรือ asset unit เดิม เมื่อทุก item ที่ active/approved ของ reservation กลายเป็น `RETURNED` ครบ สถานะการจองจะถูกปรับเป็น `COMPLETED` อัตโนมัติ
+
+ผลของ decision ต่อสถานะ `reservation` (`RETURN_CONFIRMED` ไม่ถูก persist เป็นสถานะพัก — ดู [lifecycle-and-state-machines.md §2](../software_spec/lifecycle-and-state-machines.md#reservation-status)):
+
+- **APPROVE ครบทุก item**: `reservation.status` → `COMPLETED`
+- **APPROVE บางส่วน (ยังมี item ค้าง)**: `reservation.status` กลับไป `DELIVERY_CONFIRMED` ทันที เพื่อรอส่งสลิปคืนเพิ่มเติม
+- **REJECT**: ถ้าไม่มี `Return` อื่นของ reservation นี้ที่ยังสถานะ `PENDING` แล้ว `reservation.status` จะกลับไป `DELIVERY_CONFIRMED`; ถ้ายังมีสลิปอื่นค้างตัดสินอยู่ จะคงสถานะ `RETURN_PENDING` ไว้
+
+การส่งสลิปคืน (§8.2) เปลี่ยน `reservation.status` จาก `DELIVERY_CONFIRMED` เป็น `RETURN_PENDING` ทันทีที่สร้างสลิปสำเร็จ
 
 ## 9. Upload API
 

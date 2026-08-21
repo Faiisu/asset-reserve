@@ -359,7 +359,8 @@ describe("ReservationDetailPage", () => {
       status: "PENDING",
       note: null,
       returnedAt: null,
-      returnedBy: deliveredReservation.requester,
+      returnedBy: deliveredReservation.requester.id,
+      returner: deliveredReservation.requester,
       items: [],
       approval: {
         id: "ret-app-1",
@@ -446,7 +447,8 @@ describe("ReservationDetailPage", () => {
           status: "PENDING",
           note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
-          returnedBy: mockReservation.requester,
+          returnedBy: mockReservation.requester.id,
+          returner: mockReservation.requester,
           items: [],
           approval: {
             id: "ret-app-1",
@@ -469,7 +471,8 @@ describe("ReservationDetailPage", () => {
       status: "COMPLETED",
       note: null,
       returnedAt: "2026-09-02T10:00:00.000Z",
-      returnedBy: mockReservation.requester,
+      returnedBy: mockReservation.requester.id,
+      returner: mockReservation.requester,
       items: [],
       approval: {
         id: "ret-app-1",
@@ -558,10 +561,12 @@ describe("ReservationDetailPage", () => {
           status: "PENDING",
           note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
-          returnedBy: mockReservation.requester,
+          returnedBy: mockReservation.requester.id,
+          returner: mockReservation.requester,
           items: [
             {
               id: "ret-item-1",
+              returnId: "00000000-0000-4000-8000-000000000201",
               reservationItemId: "item-1",
               assetId: "asset-1",
               assetName: "Stage Camera 4K",
@@ -571,23 +576,28 @@ describe("ReservationDetailPage", () => {
               units: [
                 {
                   id: "retunit-1",
+                  returnItemId: "ret-item-1",
                   reservationItemUnitId: "unit-1",
                   assetUnitId: "au-1",
                   serialNumber: "SN-CAM-001",
                   condition: null,
                   pictureUrl: null,
                   note: null,
+                  createdAt: "2026-09-02T10:00:00.000Z",
                 },
                 {
                   id: "retunit-2",
+                  returnItemId: "ret-item-1",
                   reservationItemUnitId: "unit-2",
                   assetUnitId: "au-2",
                   serialNumber: "SN-CAM-002",
                   condition: null,
                   pictureUrl: null,
                   note: null,
+                  createdAt: "2026-09-02T10:00:00.000Z",
                 },
               ],
+              createdAt: "2026-09-02T10:00:00.000Z",
             },
           ],
           approval: {
@@ -611,7 +621,8 @@ describe("ReservationDetailPage", () => {
       status: "COMPLETED",
       note: null,
       returnedAt: "2026-09-02T10:00:00.000Z",
-      returnedBy: mockReservation.requester,
+      returnedBy: mockReservation.requester.id,
+      returner: mockReservation.requester,
       items: [],
       approval: {
         id: "ret-app-1",
@@ -722,7 +733,8 @@ describe("ReservationDetailPage", () => {
           status: "APPROVED",
           note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
-          returnedBy: mockReservation.requester,
+          returnedBy: mockReservation.requester.id,
+          returner: mockReservation.requester,
           items: [],
           approval: {
             id: "ret-app-1",
@@ -821,7 +833,8 @@ describe("ReservationDetailPage", () => {
           status: "COMPLETED",
           note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
-          returnedBy: {
+          returnedBy: "00000000-0000-4000-8000-000000000001",
+          returner: {
             id: "00000000-0000-4000-8000-000000000001",
             email: "owner@example.com",
             name: "Event Owner",
@@ -830,6 +843,7 @@ describe("ReservationDetailPage", () => {
           items: [
             {
               id: "ret-item-1",
+              returnId: "00000000-0000-4000-8000-000000000201",
               reservationItemId: "item-1",
               assetId: "asset-1",
               assetName: "Stage Camera 4K",
@@ -838,24 +852,29 @@ describe("ReservationDetailPage", () => {
               units: [
                 {
                   id: "retunit-1",
+                  returnItemId: "ret-item-1",
                   reservationItemUnitId: "unit-1",
                   assetUnitId: "au-1",
                   serialNumber: "SN-CAM-001",
                   condition: "GOOD",
                   pictureUrl: null,
                   note: null,
+                  createdAt: "2026-09-02T10:00:00.000Z",
                 },
                 {
                   id: "retunit-2",
+                  returnItemId: "ret-item-1",
                   reservationItemUnitId: "unit-2",
                   assetUnitId: "au-2",
                   serialNumber: "SN-CAM-002",
                   condition: "BROKEN",
                   pictureUrl: null,
                   note: null,
+                  createdAt: "2026-09-02T10:00:00.000Z",
                 },
               ],
               managementArea: { id: "area-1", name: "Marketing" },
+              createdAt: "2026-09-02T10:00:00.000Z",
             },
           ],
           approval: {

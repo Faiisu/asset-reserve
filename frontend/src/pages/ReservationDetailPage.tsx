@@ -37,6 +37,13 @@ import type {
   ReturnItemUnitCondition,
 } from "../types";
 
+const RETURN_PHASE_STATUSES = [
+  "DELIVERY_CONFIRMED",
+  "ACTIVE",
+  "RETURN_PENDING",
+  "RETURN_CONFIRMED",
+];
+
 export function ReservationDetailPage() {
   const { reservationId } = useParams<{ reservationId: string }>();
   const navigate = useNavigate();
@@ -169,7 +176,7 @@ export function ReservationDetailPage() {
         itemCanReturn &&
         remaining > 0 &&
         (["DELIVERED", "APPROVED", "DELIVERY_CONFIRMED"].includes(item.status) ||
-          ["DELIVERY_CONFIRMED", "ACTIVE"].includes(reservation.status))
+          RETURN_PHASE_STATUSES.includes(reservation.status))
       );
     });
   }, [reservation]);
@@ -840,7 +847,7 @@ export function ReservationDetailPage() {
                   (item.capabilities?.canReturn ?? reservation.capabilities?.canReturn) &&
                     remainingReturn > 0 &&
                     (["DELIVERED", "APPROVED", "DELIVERY_CONFIRMED"].includes(item.status) ||
-                      ["DELIVERY_CONFIRMED", "ACTIVE"].includes(reservation.status)),
+                      RETURN_PHASE_STATUSES.includes(reservation.status)),
                 );
 
                 const retItem = pendingInspectableReturn?.items?.find(
@@ -861,7 +868,7 @@ export function ReservationDetailPage() {
                 const isApproved = item.status === "APPROVED";
                 const isDelivered =
                   item.status === "DELIVERED" ||
-                  ["DELIVERY_CONFIRMED", "ACTIVE"].includes(reservation.status);
+                  RETURN_PHASE_STATUSES.includes(reservation.status);
                 const isFullyReturned =
                   item.status === "RETURNED" ||
                   (item.returnSummary !== undefined &&

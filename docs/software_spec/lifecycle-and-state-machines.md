@@ -156,7 +156,7 @@ sequenceDiagram
     Note over Manager,System: Step 5: Return Approval & Inspection
     Manager->>Manager: ตรวจสภาพอุปกรณ์จริงที่คลัง
     Manager->>System: ส่งผลตรวจสอบต่อหน่วย (condition ต่อ serial) พร้อม decision
-    Note over System: อัปเดต AssetUnit status ต่อ serial (§7)<br/>Reservation -> RETURN_CONFIRMED (-> COMPLETED เมื่อคืนครบ)
+    Note over System: อัปเดต AssetUnit status ต่อ serial (§7)<br/>Reservation -> COMPLETED (คืนครบ) หรือ -> DELIVERY_CONFIRMED (คืนบางส่วน)<br/>ไม่ persist RETURN_CONFIRMED เป็นสถานะพัก
 ```
 
 Condition ถูกบันทึก**ต่อ serial-numbered unit** (`ReturnItemUnit.condition`) ไม่ใช่ตัวเลข quantity รวม

@@ -332,7 +332,7 @@ export function ReservationPrintDocument({
                       </div>
                       <div className="res-print-return-meta">
                         <span>
-                          <strong>Returned By:</strong> {ret.returnedBy?.name ?? ret.returnedBy?.email ?? "Borrower"}
+                          <strong>Returned By:</strong> {ret.returner?.name ?? ret.returner?.email ?? "Borrower"}
                         </span>
                         <span>
                           <strong>Date:</strong> {formatDate(retDate, true)}

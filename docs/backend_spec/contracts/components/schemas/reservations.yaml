@@ -351,6 +351,39 @@ ReservationDetailItem:
       type: array
       items:
         $ref: "#/components/schemas/ReservationWarning"
+    units:
+      type: array
+      description: Serial-numbered units assigned to this item once it reaches PREPARED (§7.7).
+      items:
+        type: object
+        required: [id, assetUnitId, serialNumber, status]
+        properties:
+          id:
+            type: string
+            format: uuid
+          assetUnitId:
+            type: string
+            format: uuid
+          serialNumber:
+            type: string
+          status:
+            type: string
+    returnSummary:
+      type: object
+      description: Per-item return progress, present once at least one unit has been checked out.
+      properties:
+        totalUnits:
+          type: integer
+        returnedGoodCount:
+          type: integer
+        returnedBrokenCount:
+          type: integer
+        returnedLostCount:
+          type: integer
+        pendingReturnCount:
+          type: integer
+        remainingReturnQuantity:
+          type: integer
     capabilities:
       type: object
       required:
@@ -360,6 +393,12 @@ ReservationDetailItem:
         canApprove:
           type: boolean
         canReject:
+          type: boolean
+        canPrepare:
+          type: boolean
+        canConfirmDelivery:
+          type: boolean
+        canReturn:
           type: boolean
 CancelReservationRequest:
   type: object
@@ -429,7 +468,7 @@ ReservationDetail:
           type: boolean
           description: >-
             True when actor is warehouse staff/Area Manager and the reservation is APPROVED
-            or PARTIALLY_APPROVED with at least one approved item (§7.11 preconditions).
+            or PARTIALLY_APPROVED with at least one item in PREPARED status (§7.11 preconditions).
         canReturn:
           type: boolean
           description: >-
@@ -440,6 +479,41 @@ ReservationDetail:
           description: >-
             True when actor is the Area Manager of the reservation's management area and
             at least one Return on this reservation is PENDING (§8.3 preconditions).
+        canPrepare:
+          type: boolean
+          description: >-
+            True when actor is warehouse staff/Area Manager and the reservation has at
+            least one item APPROVED and awaiting serial-unit assignment (§7.7 preconditions).
+        canCancel:
+          type: boolean
+          description: >-
+            True when actor manages the reservation and its status has not yet reached
+            a delivery-confirmed or later stage (§7.10 preconditions).
+    activityLogs:
+      type: array
+      description: Audit trail of actions taken on this reservation, newest first.
+      items:
+        type: object
+        required: [id, action, entityType, actor, createdAt]
+        properties:
+          id:
+            type: string
+            format: uuid
+          action:
+            type: string
+          entityType:
+            type: string
+          entityId:
+            type: [string, "null"]
+            format: uuid
+          details:
+            type: [object, "null"]
+            additionalProperties: true
+          actor:
+            $ref: "#/components/schemas/ReservationUser"
+          createdAt:
+            type: string
+            format: date-time
     createdAt:
       type: string
       format: date-time
@@ -622,6 +696,13 @@ ReturnItemDetail:
     reservationItemId:
       type: string
       format: uuid
+    assetId:
+      type: string
+      format: uuid
+    assetName:
+      type: string
+    managementArea:
+      $ref: "#/components/schemas/ManagementAreaRef"
     description:
       type: string
       nullable: true
@@ -637,6 +718,9 @@ ReturnItemDetail:
       format: date-time
     reservationItem:
       $ref: "#/components/schemas/ReservationDetailItem"
+      description: >-
+        Not currently populated by the implementation. Clients should use
+        assetId/assetName/managementArea above instead.
 ReturnApprovalDetail:
   type: object
   required:
@@ -699,12 +783,23 @@ ReturnDetail:
       nullable: true
     returner:
       $ref: "#/components/schemas/ReservationUser"
+    note:
+      type: string
+      nullable: true
     items:
       type: array
       items:
         $ref: "#/components/schemas/ReturnItemDetail"
     approval:
       $ref: "#/components/schemas/ReturnApprovalDetail"
+    capabilities:
+      type: object
+      required: [canApprove, canReject]
+      properties:
+        canApprove:
+          type: boolean
+        canReject:
+          type: boolean
     reservation:
       type: object
       additionalProperties: true
