@@ -1345,6 +1345,25 @@
   grid-template-columns: 28px 52px 1fr auto;
   gap: 12px;
   align-items: start;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--amber-soft) 55%, var(--surface)) 0 5px,
+    var(--surface) 5px 100%
+  );
+}
+
+.res-manifest-item.reservation-item-card--selectable.res-manifest-item--approve:hover {
+  background: linear-gradient(
+    90deg,
+    var(--amber) 0 5px,
+    color-mix(in srgb, var(--amber-soft) 25%, var(--surface)) 5px 100%
+  );
+}
+
+/* Tint the S/N picker grid that belongs to this P/N so each approval
+   section reads as one block instead of blending into the next item. */
+.res-manifest-item--approve + .res-manifest-unit-list {
+  background: color-mix(in srgb, var(--amber-soft) 14%, var(--surface));
 }
 
 .res-manifest-item--approve .res-item-qty-ticket {
