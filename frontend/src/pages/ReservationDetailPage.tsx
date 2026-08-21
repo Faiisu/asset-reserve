@@ -897,99 +897,108 @@ export function ReservationDetailPage() {
                 // unit-picker row (no S/N assigned to the item yet, so there
                 // is nothing to list one-row-per-unit).
                 if (isApprovable) {
+                  const selectedForItem = decisionUnitSelections[item.id] ?? [];
                   return (
-                    <div
-                      key={item.id}
-                      className="res-manifest-item reservation-item-card--selectable res-manifest-item--approve"
-                      data-status={itemStatusClass}
-                    >
-                      <div className="res-pending-check" />
+                    <Fragment key={item.id}>
+                      <div
+                        className="res-manifest-item reservation-item-card--selectable res-manifest-item--approve"
+                        data-status={itemStatusClass}
+                      >
+                        <div className="res-pending-check" />
 
-                      <div className="res-item-media">
-                        {item.asset.pictureUrl ? (
-                          <img src={item.asset.pictureUrl} alt="" />
-                        ) : (
-                          <span>{item.asset.name.slice(0, 2).toUpperCase()}</span>
-                        )}
-                      </div>
+                        <div className="res-item-media">
+                          {item.asset.pictureUrl ? (
+                            <img src={item.asset.pictureUrl} alt="" />
+                          ) : (
+                            <span>{item.asset.name.slice(0, 2).toUpperCase()}</span>
+                          )}
+                        </div>
 
-                      <div className="res-pending-identity">
-                        <div className="res-item-copy">
-                          <div className="res-item-name-row">
-                            <div className="res-item-name">{item.asset.name}</div>
-                            <span className="res-item-area">
-                              {item.asset.managementArea.name}
-                            </span>
+                        <div className="res-pending-identity">
+                          <div className="res-item-copy">
+                            <div className="res-item-name-row">
+                              <div className="res-item-name">{item.asset.name}</div>
+                              <span className="res-item-area">
+                                {item.asset.managementArea.name}
+                              </span>
+                            </div>
+                            <div className="res-item-sub">
+                              {`Select serial unit (${selectedForItem.length} of ${item.quantity})`}
+                            </div>
                           </div>
-                          <div className="res-item-sub">
-                            {`Select serial unit (${decisionUnitSelections[item.id]?.length ?? 0} of ${item.quantity})`}
-                          </div>
+                        </div>
+
+                        <div
+                          className="res-item-approve-actions"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="text"
+                            placeholder="Comment (optional)"
+                            value={approvalComments[item.id] ?? ""}
+                            onChange={(e) =>
+                              setApprovalComments((prev) => ({
+                                ...prev,
+                                [item.id]: e.target.value,
+                              }))
+                            }
+                            className="control"
+                            aria-label={`Approval comment for ${item.asset.name}`}
+                          />
+                          <Button
+                            variant="primary"
+                            disabled={actionLoading || selectedForItem.length < 1}
+                            onClick={() => handleDecideItem(item.id, "APPROVE")}
+                          >
+                            <Check size={14} />
+                            <span>Approve</span>
+                          </Button>
+                          <Button
+                            variant="danger"
+                            disabled={actionLoading}
+                            onClick={() => handleDecideItem(item.id, "REJECT")}
+                          >
+                            <X size={14} />
+                            <span>Reject</span>
+                          </Button>
                         </div>
                       </div>
 
-                      <div className="res-pending-quantity">
-                        <div
-                          className="res-return-serial-list"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {(decisionUnitOptions[item.asset.id] ?? []).map((unit) => {
-                            const selectedForItem = decisionUnitSelections[item.id] ?? [];
-                            const isChecked = selectedForItem.includes(unit.id);
-                            const atCap = selectedForItem.length >= item.quantity;
-                            return (
-                              <label key={unit.id} className="res-return-serial-row">
+                      <div className="res-manifest-unit-list">
+                        {(decisionUnitOptions[item.asset.id] ?? []).map((unit) => {
+                          const isChecked = selectedForItem.includes(unit.id);
+                          const atCap = selectedForItem.length >= item.quantity;
+                          const isDisabled = !isChecked && atCap;
+                          const toggleUnit = () => {
+                            if (isDisabled) return;
+                            toggleDecisionUnit(item.id, unit.id);
+                          };
+                          return (
+                            <div
+                              key={unit.id}
+                              className={`res-manifest-unit-row ${
+                                isDisabled ? "" : "res-manifest-unit-row--clickable"
+                              }`}
+                              onClick={toggleUnit}
+                            >
+                              <span className="res-manifest-unit-row__check">
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
-                                  disabled={!isChecked && atCap}
-                                  onChange={() => toggleDecisionUnit(item.id, unit.id)}
+                                  disabled={isDisabled}
+                                  onChange={toggleUnit}
+                                  onClick={(e) => e.stopPropagation()}
                                   aria-label={`Assign serial ${unit.serialNumber}`}
                                 />
-                                <span className="mono">{unit.serialNumber}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
+                              </span>
+                              <span className="mono res-manifest-unit-row__serial">
+                                {unit.serialNumber}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
-
-                      <div
-                        className="res-item-approve-actions"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="text"
-                          placeholder="Comment (optional)"
-                          value={approvalComments[item.id] ?? ""}
-                          onChange={(e) =>
-                            setApprovalComments((prev) => ({
-                              ...prev,
-                              [item.id]: e.target.value,
-                            }))
-                          }
-                          className="control"
-                          aria-label={`Approval comment for ${item.asset.name}`}
-                        />
-                        <Button
-                          variant="primary"
-                          disabled={
-                            actionLoading ||
-                            (decisionUnitSelections[item.id]?.length ?? 0) < 1
-                          }
-                          onClick={() => handleDecideItem(item.id, "APPROVE")}
-                        >
-                          <Check size={14} />
-                          <span>Approve</span>
-                        </Button>
-                        <Button
-                          variant="danger"
-                          disabled={actionLoading}
-                          onClick={() => handleDecideItem(item.id, "REJECT")}
-                        >
-                          <X size={14} />
-                          <span>Reject</span>
-                        </Button>
-                      </div>
-                    </div>
+                    </Fragment>
                   );
                 }
 
