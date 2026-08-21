@@ -60,26 +60,24 @@ export function ReservationDetailPage() {
 
   // Selection states for manifest actions
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
-  const [selectedPrepareItemIds, setSelectedPrepareItemIds] = useState<string[]>([]);
   const [selectedDeliveryItemIds, setSelectedDeliveryItemIds] = useState<string[]>([]);
   const [selectedReturnItemIds, setSelectedReturnItemIds] = useState<string[]>([]);
   const [selectedInspectItemIds, setSelectedInspectItemIds] = useState<string[]>([]);
 
-  // Prepare (serial-unit assignment): ACTIVE units available per asset, and
-  // the units currently checked per reservation item, keyed by item.id.
-  const [prepareUnitOptions, setPrepareUnitOptions] = useState<
+  // Approval: ACTIVE serial units available per asset, and the units
+  // currently checked per reservation item, keyed by item.id -- approving an
+  // item assigns these units in the same request (§7.5), there is no
+  // separate "prepare" step.
+  const [decisionUnitOptions, setDecisionUnitOptions] = useState<
     Record<string, AssetUnit[]>
   >({});
-  const [prepareUnitSelections, setPrepareUnitSelections] = useState<
+  const [decisionUnitSelections, setDecisionUnitSelections] = useState<
     Record<string, string[]>
   >({});
 
   // Remarks / notes for each state
   const [approvalComment, setApprovalComment] = useState("");
   const [inspectionComment, setInspectionComment] = useState("");
-
-  // Approval quantity adjustments
-  const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
 
   // Drop-off: which CHECKED_OUT serial units the borrower is returning, keyed
   // by reservationItemUnitId.
@@ -104,19 +102,16 @@ export function ReservationDetailPage() {
       setReservation(data);
 
       // Default every checked-out (not-yet-claimed) serial unit to selected
-      // for return, and initialize approvable-item quantities.
+      // for return.
       const initialReturnUnits: Record<string, boolean> = {};
-      const initialItemQty: Record<string, number> = {};
       data.items.forEach((item) => {
         item.units
           .filter((unit) => unit.status === "CHECKED_OUT")
           .forEach((unit) => {
             initialReturnUnits[unit.id] = true;
           });
-        initialItemQty[item.id] = item.quantity;
       });
       setSelectedReturnUnitIds(initialReturnUnits);
-      setItemQuantities(initialItemQty);
 
       // Initialize inspection state for the pending return slip: default
       // every undecided unit to GOOD, matching the backend's own default.
@@ -138,11 +133,11 @@ export function ReservationDetailPage() {
       setUnitConditions(initialConditions);
 
       // Fetch ACTIVE serial units for every asset with an item awaiting
-      // prepare, and default every prepareable item into the batch.
-      const prepareItems = data.items.filter(
-        (item) => item.status === "APPROVED" && item.capabilities?.canPrepare,
+      // approval -- approving assigns units in the same request (§7.5).
+      const pendingItems = data.items.filter(
+        (item) => item.status === "PENDING" && item.capabilities?.canApprove,
       );
-      const distinctAssetIds = [...new Set(prepareItems.map((i) => i.asset.id))];
+      const distinctAssetIds = [...new Set(pendingItems.map((i) => i.asset.id))];
       if (distinctAssetIds.length > 0) {
         const results = await Promise.all(
           distinctAssetIds.map((assetId) =>
@@ -151,12 +146,11 @@ export function ReservationDetailPage() {
               .then((res) => [assetId, res.data] as const),
           ),
         );
-        setPrepareUnitOptions(Object.fromEntries(results));
+        setDecisionUnitOptions(Object.fromEntries(results));
       } else {
-        setPrepareUnitOptions({});
+        setDecisionUnitOptions({});
       }
-      setPrepareUnitSelections({});
-      setSelectedPrepareItemIds(prepareItems.map((i) => i.id));
+      setDecisionUnitSelections({});
 
       // Reset selection state
       setSelectedItemIds([]);
@@ -183,14 +177,6 @@ export function ReservationDetailPage() {
           hasAreaPermission("reservation:approve", i.asset.managementArea.id))
     );
   }, [reservation, hasAreaPermission]);
-
-  // Prepareable items helper (Serial Assignment)
-  const prepareableItems = useMemo(() => {
-    if (!reservation) return [];
-    return reservation.items.filter(
-      (item) => item.status === "APPROVED" && item.capabilities?.canPrepare,
-    );
-  }, [reservation]);
 
   // Deliverable items helper (Handover)
   const deliverableItems = useMemo(() => {
@@ -265,23 +251,8 @@ export function ReservationDetailPage() {
     }
   };
 
-  // Toggle selection for serial assignment (prepare)
-  const togglePrepareItemSelection = (itemId: string) => {
-    setSelectedPrepareItemIds((prev) =>
-      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
-    );
-  };
-
-  const toggleSelectAllPrepareable = () => {
-    if (selectedPrepareItemIds.length === prepareableItems.length) {
-      setSelectedPrepareItemIds([]);
-    } else {
-      setSelectedPrepareItemIds(prepareableItems.map((item) => item.id));
-    }
-  };
-
-  const togglePrepareUnit = (itemId: string, assetUnitId: string) => {
-    setPrepareUnitSelections((prev) => {
+  const toggleDecisionUnit = (itemId: string, assetUnitId: string) => {
+    setDecisionUnitSelections((prev) => {
       const current = prev[itemId] ?? [];
       if (current.includes(assetUnitId)) {
         return { ...prev, [itemId]: current.filter((id) => id !== assetUnitId) };
@@ -350,14 +321,33 @@ export function ReservationDetailPage() {
       return;
     }
 
+    if (decision === "APPROVE") {
+      for (const itemId of ids) {
+        const item = reservation.items.find((i) => i.id === itemId);
+        const units = decisionUnitSelections[itemId] ?? [];
+        if (!item || units.length !== item.quantity) {
+          setActionError(
+            `Select exactly ${item?.quantity ?? "the required number of"} serial unit(s) for ${item?.asset.name ?? "this item"}.`,
+          );
+          return;
+        }
+      }
+    }
+
     setActionLoading(true);
     setActionError(null);
     setActionNotice(null);
 
     try {
+      const items = ids.map((reservationItemId) => ({
+        reservationItemId,
+        ...(decision === "APPROVE"
+          ? { assetUnitIds: decisionUnitSelections[reservationItemId] ?? [] }
+          : {}),
+      }));
       const updated = await api.decideReservationItems(
         reservation.id,
-        ids,
+        items,
         decision,
         approvalComment.trim() || undefined
       );
@@ -369,52 +359,6 @@ export function ReservationDetailPage() {
       );
     } catch (err: any) {
       setActionError(err.message ?? `Failed to ${decision.toLowerCase()} items.`);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Handle Prepare (assign serial units)
-  const handlePrepareItems = async () => {
-    if (!reservation) return;
-    const targetIds =
-      selectedPrepareItemIds.length > 0
-        ? selectedPrepareItemIds
-        : prepareableItems.map((i) => i.id);
-
-    if (targetIds.length === 0) {
-      setActionError("Please select at least one item to prepare.");
-      return;
-    }
-
-    for (const itemId of targetIds) {
-      const item = reservation.items.find((i) => i.id === itemId);
-      const units = prepareUnitSelections[itemId] ?? [];
-      if (!item || units.length !== item.quantity) {
-        setActionError(
-          `Select exactly ${item?.quantity ?? "the required number of"} serial unit(s) for ${item?.asset.name ?? "this item"}.`,
-        );
-        return;
-      }
-    }
-
-    setActionLoading(true);
-    setActionError(null);
-    setActionNotice(null);
-
-    try {
-      for (const itemId of targetIds) {
-        await api.prepareReservationItem(
-          reservation.id,
-          itemId,
-          prepareUnitSelections[itemId] ?? [],
-        );
-      }
-      setSelectedPrepareItemIds([]);
-      setActionNotice(`Serial units assigned for ${targetIds.length} item(s).`);
-      await loadReservation();
-    } catch (err: any) {
-      setActionError(err.message ?? "Failed to assign serial units.");
     } finally {
       setActionLoading(false);
     }
@@ -736,9 +680,7 @@ export function ReservationDetailPage() {
                 <p className="res-card-header__supporting">
                   {approvableItems.length > 0
                     ? `${approvedItemCount} of ${reservation.items.length} equipment lines approved`
-                    : prepareableItems.length > 0
-                      ? `${prepareableItems.length} line(s) ready for serial assignment`
-                      : deliverableItems.length > 0
+                    : deliverableItems.length > 0
                       ? approvedItemCount === reservation.items.length
                         ? "All equipment cleared for handover"
                         : `${deliverableItems.length} line(s) cleared for equipment handover`
@@ -765,19 +707,6 @@ export function ReservationDetailPage() {
                     aria-label="Select all pending assets"
                   />
                   <span>Select all pending ({approvableItems.length})</span>
-                </label>
-              ) : prepareableItems.length > 0 ? (
-                <label className="approval-select-all">
-                  <input
-                    type="checkbox"
-                    checked={
-                      selectedPrepareItemIds.length > 0 &&
-                      selectedPrepareItemIds.length === prepareableItems.length
-                    }
-                    onChange={toggleSelectAllPrepareable}
-                    aria-label="Select all items for serial assignment"
-                  />
-                  <span>Select all for assignment ({prepareableItems.length})</span>
                 </label>
               ) : deliverableItems.length > 0 ? (
                 <label className="approval-select-all">
@@ -843,7 +772,17 @@ export function ReservationDetailPage() {
 
                   <Button
                     variant="primary"
-                    disabled={actionLoading || selectedItemIds.length === 0}
+                    disabled={
+                      actionLoading ||
+                      selectedItemIds.length === 0 ||
+                      !selectedItemIds.every((itemId) => {
+                        const item = reservation.items.find((i) => i.id === itemId);
+                        return (
+                          item &&
+                          (decisionUnitSelections[itemId]?.length ?? 0) === item.quantity
+                        );
+                      })
+                    }
                     onClick={() => handleDecideItems("APPROVE")}
                   >
                     <Check size={14} />
@@ -857,38 +796,6 @@ export function ReservationDetailPage() {
                   >
                     <X size={14} />
                     <span>Reject</span>
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* 🔧 1b. SERIAL ASSIGNMENT (PREPARE) TOOLBAR */}
-            {prepareableItems.length > 0 && (
-              <div className="res-review-bar res-prepare-bar">
-                <div className="res-review-bar__title">
-                  <Package size={18} />
-                  <span>
-                    Serial Assignment ({selectedPrepareItemIds.length} of {prepareableItems.length} selected)
-                  </span>
-                </div>
-                <div className="res-review-bar__actions">
-                  <Button
-                    variant="primary"
-                    disabled={
-                      actionLoading ||
-                      selectedPrepareItemIds.length === 0 ||
-                      !selectedPrepareItemIds.every((itemId) => {
-                        const item = reservation.items.find((i) => i.id === itemId);
-                        return (
-                          item &&
-                          (prepareUnitSelections[itemId]?.length ?? 0) === item.quantity
-                        );
-                      })
-                    }
-                    onClick={handlePrepareItems}
-                  >
-                    <Check size={14} />
-                    <span>Assign & Prepare ({selectedPrepareItemIds.length})</span>
                   </Button>
                 </div>
               </div>
@@ -996,9 +903,6 @@ export function ReservationDetailPage() {
                   item.status === "PENDING" &&
                   (item.capabilities?.canApprove ||
                     hasAreaPermission("reservation:approve", item.asset.managementArea.id));
-                const isPrepareSelectable = Boolean(
-                  item.status === "APPROVED" && item.capabilities?.canPrepare,
-                );
                 const isDeliverySelectable = Boolean(
                   item.capabilities?.canConfirmDelivery &&
                     ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status),
@@ -1022,13 +926,12 @@ export function ReservationDetailPage() {
                 );
 
                 const isSelected = selectedItemIds.includes(item.id);
-                const isPrepareSelected = selectedPrepareItemIds.includes(item.id);
                 const isDeliverySelected = selectedDeliveryItemIds.includes(item.id);
                 const isReturnSelected = selectedReturnItemIds.includes(item.id);
                 const isInspectSelected = selectedInspectItemIds.includes(item.id);
 
                 const isSelectable =
-                  isApprovable || isPrepareSelectable || isDeliverySelectable || isReturnSelectable || isInspectSelectable;
+                  isApprovable || isDeliverySelectable || isReturnSelectable || isInspectSelectable;
                 const isApproved = item.status === "APPROVED";
                 const isDelivered =
                   item.status === "DELIVERED" ||
@@ -1051,15 +954,13 @@ export function ReservationDetailPage() {
                     className={`res-manifest-item ${
                       isSelectable ? "reservation-item-card--selectable" : ""
                     } ${
-                      isPrepareSelectable ? "res-manifest-item--prepare" : ""
-                    } ${
                       isDeliverySelectable ? "reservation-item-card--handover" : ""
                     } ${
                       isReturnSelectable ? "res-manifest-item--return" : ""
                     } ${
                       isInspectSelectable ? "res-manifest-item--inspection" : ""
                     }`}
-                    data-selected={(isSelected || isPrepareSelected || isDeliverySelected || isReturnSelected || isInspectSelected) || undefined}
+                    data-selected={(isSelected || isDeliverySelected || isReturnSelected || isInspectSelected) || undefined}
                     data-status={itemStatusClass}
                     onClick={(e) => {
                       if (
@@ -1068,7 +969,6 @@ export function ReservationDetailPage() {
                         !(e.target instanceof HTMLButtonElement)
                       ) {
                         if (isApprovable) toggleItemSelection(item.id);
-                        else if (isPrepareSelectable) togglePrepareItemSelection(item.id);
                         else if (isDeliverySelectable) toggleDeliveryItemSelection(item.id);
                         else if (isReturnSelectable) toggleReturnItemSelection(item.id);
                         else if (isInspectSelectable) toggleInspectItemSelection(item.id);
@@ -1083,9 +983,7 @@ export function ReservationDetailPage() {
                             checked={
                               isApprovable
                                 ? isSelected
-                                : isPrepareSelectable
-                                  ? isPrepareSelected
-                                  : isDeliverySelectable
+                                : isDeliverySelectable
                                   ? isDeliverySelected
                                   : isReturnSelectable
                                     ? isReturnSelected
@@ -1093,7 +991,6 @@ export function ReservationDetailPage() {
                             }
                             onChange={() => {
                               if (isApprovable) toggleItemSelection(item.id);
-                              else if (isPrepareSelectable) togglePrepareItemSelection(item.id);
                               else if (isDeliverySelectable) toggleDeliveryItemSelection(item.id);
                               else if (isReturnSelectable) toggleReturnItemSelection(item.id);
                               else if (isInspectSelectable) toggleInspectItemSelection(item.id);
@@ -1101,9 +998,7 @@ export function ReservationDetailPage() {
                             aria-label={
                               isApprovable
                                 ? `Select ${item.asset.name}`
-                                : isPrepareSelectable
-                                  ? `Select ${item.asset.name} for serial assignment`
-                                  : isDeliverySelectable
+                                : isDeliverySelectable
                                   ? `Select ${item.asset.name} for handover`
                                   : isReturnSelectable
                                     ? `Select ${item.asset.name} for return`
@@ -1140,8 +1035,8 @@ export function ReservationDetailPage() {
                                 ? `Returned by borrower (${inspectUnitCount} ${inspectUnitCount === 1 ? "unit" : "units"})`
                                 : isReturnSelectable
                                   ? `Awaiting return (${remainingReturn} units remaining)`
-                                  : isPrepareSelectable
-                                    ? `Awaiting serial assignment (${prepareUnitSelections[item.id]?.length ?? 0} of ${item.quantity} selected)`
+                                  : isApprovable
+                                    ? `Select serial unit (${decisionUnitSelections[item.id]?.length ?? 0} of ${item.quantity})`
                                   : isDeliverySelectable
                                     ? `Cleared for handover`
                                     : `Awaiting area clearance`}
@@ -1203,28 +1098,31 @@ export function ReservationDetailPage() {
                         ) : (
                           <div className="res-pending-quantity">
                             {isApprovable ? (
-                              <>
-                                <input
-                                  id={`approve-qty-${item.id}`}
-                                  aria-label={`Approve quantity for ${item.asset.name}`}
-                                  type="number"
-                                  min={1}
-                                  max={item.quantity}
-                                  value={itemQuantities[item.id] ?? item.quantity}
-                                  onChange={(e) => {
-                                    const val = Math.min(
-                                      item.quantity,
-                                      Math.max(1, parseInt(e.target.value) || 1),
-                                    );
-                                    setItemQuantities((prev) => ({ ...prev, [item.id]: val }));
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="control"
-                                />
-                                <span aria-label={`${item.quantity} total reserved`}>
-                                  / {item.quantity}
-                                </span>
-                              </>
+                              <div
+                                className="res-return-serial-list"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {(decisionUnitOptions[item.asset.id] ?? []).map((unit) => {
+                                  const selectedForItem = decisionUnitSelections[item.id] ?? [];
+                                  const isChecked = selectedForItem.includes(unit.id);
+                                  const atCap = selectedForItem.length >= item.quantity;
+                                  return (
+                                    <label
+                                      key={unit.id}
+                                      className="res-return-serial-row"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        disabled={!isChecked && atCap}
+                                        onChange={() => toggleDecisionUnit(item.id, unit.id)}
+                                        aria-label={`Assign serial ${unit.serialNumber}`}
+                                      />
+                                      <span className="mono">{unit.serialNumber}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
                             ) : isReturnSelectable ? (
                               <div
                                 className="res-return-serial-list"
@@ -1249,32 +1147,6 @@ export function ReservationDetailPage() {
                                     <span className="mono">{unit.serialNumber}</span>
                                   </label>
                                 ))}
-                              </div>
-                            ) : isPrepareSelectable ? (
-                              <div
-                                className="res-return-serial-list"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {(prepareUnitOptions[item.asset.id] ?? []).map((unit) => {
-                                  const selectedForItem = prepareUnitSelections[item.id] ?? [];
-                                  const isChecked = selectedForItem.includes(unit.id);
-                                  const atCap = selectedForItem.length >= item.quantity;
-                                  return (
-                                    <label
-                                      key={unit.id}
-                                      className="res-return-serial-row"
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={isChecked}
-                                        disabled={!isChecked && atCap}
-                                        onChange={() => togglePrepareUnit(item.id, unit.id)}
-                                        aria-label={`Assign serial ${unit.serialNumber}`}
-                                      />
-                                      <span className="mono">{unit.serialNumber}</span>
-                                    </label>
-                                  );
-                                })}
                               </div>
                             ) : (
                               <>

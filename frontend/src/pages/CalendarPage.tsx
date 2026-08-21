@@ -1,7 +1,6 @@
 import {
   CalendarDays,
   Check,
-  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -147,9 +146,9 @@ export function CalendarPage() {
   const [cancelTarget, setCancelTarget] = useState<ReservationSummary | null>(
     null,
   );
-  const [eventAction, setEventAction] = useState<
-    "APPROVE" | "REJECT" | "CANCEL" | null
-  >(null);
+  const [eventAction, setEventAction] = useState<"REJECT" | "CANCEL" | null>(
+    null,
+  );
   const [eventActionError, setEventActionError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
@@ -673,7 +672,10 @@ export function CalendarPage() {
     setEventMenu({ reservation, top, left });
   }
 
-  async function decideEvent(decision: "APPROVE" | "REJECT") {
+  // Reject only -- approving now requires picking serial-numbered units per
+  // item (§7.5), which this lightweight quick-action menu has no room for.
+  // Use the Reservation Detail page's Approve flow instead.
+  async function decideEvent(decision: "REJECT") {
     if (!eventMenu) return;
     setEventAction(decision);
     setEventActionError("");
@@ -681,11 +683,7 @@ export function CalendarPage() {
       const detail = await api.reservation(eventMenu.reservation.id);
       const itemIds = detail.items
         .filter(
-          (item) =>
-            item.status === "PENDING" &&
-            (decision === "APPROVE"
-              ? item.capabilities.canApprove
-              : item.capabilities.canReject),
+          (item) => item.status === "PENDING" && item.capabilities.canReject,
         )
         .map((item) => item.id);
       if (itemIds.length === 0) {
@@ -696,7 +694,7 @@ export function CalendarPage() {
       }
       await api.decideReservationItems(
         eventMenu.reservation.id,
-        itemIds,
+        itemIds.map((reservationItemId) => ({ reservationItemId })),
         decision,
       );
       setEventMenu(null);
@@ -1207,11 +1205,6 @@ export function CalendarPage() {
         <EventActionMenu
           menuRef={eventMenuRef}
           menu={eventMenu}
-          canApprove={
-            eventMenu.reservation.capabilities.canReview &&
-            eventMenu.reservation.pendingItemCount > 0 &&
-            hasPermission("reservation:approve")
-          }
           canReject={
             eventMenu.reservation.capabilities.canReview &&
             eventMenu.reservation.pendingItemCount > 0 &&
@@ -1533,7 +1526,6 @@ function CalendarAssetOption({
 function EventActionMenu({
   menuRef,
   menu,
-  canApprove,
   canReject,
   canCancel,
   action,
@@ -1544,12 +1536,11 @@ function EventActionMenu({
 }: {
   menuRef: RefObject<HTMLElement | null>;
   menu: Exclude<EventMenu, null>;
-  canApprove: boolean;
   canReject: boolean;
   canCancel: boolean;
-  action: "APPROVE" | "REJECT" | "CANCEL" | null;
+  action: "REJECT" | "CANCEL" | null;
   error: string;
-  onDecision: (decision: "APPROVE" | "REJECT") => void;
+  onDecision: (decision: "REJECT") => void;
   onCancelRequest: () => void;
   onClose: () => void;
 }) {
@@ -1608,7 +1599,7 @@ function EventActionMenu({
         >
           <Eye size={14} /> View
         </Link>
-        {(canApprove || canReject || canCancel) && <span aria-hidden />}
+        {(canReject || canCancel) && <span aria-hidden />}
         {canCancel && (
           <Button
             variant="danger"
@@ -1629,16 +1620,6 @@ function EventActionMenu({
             onClick={() => onDecision("REJECT")}
           >
             <X size={14} /> Reject
-          </Button>
-        )}
-        {canApprove && (
-          <Button
-            size="sm"
-            loading={action === "APPROVE"}
-            disabled={Boolean(action)}
-            onClick={() => onDecision("APPROVE")}
-          >
-            <CheckCircle2 size={14} /> Approve
           </Button>
         )}
       </footer>

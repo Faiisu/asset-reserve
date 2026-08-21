@@ -313,29 +313,22 @@ export const api = {
     itemId: string,
     decision: "APPROVE" | "REJECT",
     comment?: string,
+    assetUnitIds?: string[],
   ) =>
     request<ReservationDetail>(
       `/reservations/${reservationId}/items/${itemId}/decision`,
       {
         method: "POST",
-        body: json({ decision, ...(comment ? { comment } : {}) }),
-      },
-    ),
-  prepareReservationItem: (
-    reservationId: string,
-    itemId: string,
-    assetUnitIds: string[],
-  ) =>
-    request<ReservationDetail>(
-      `/reservations/${reservationId}/items/${itemId}/prepare`,
-      {
-        method: "POST",
-        body: json({ assetUnitIds }),
+        body: json({
+          decision,
+          ...(assetUnitIds ? { assetUnitIds } : {}),
+          ...(comment ? { comment } : {}),
+        }),
       },
     ),
   decideReservationItems: (
     reservationId: string,
-    itemIds: string[],
+    items: Array<{ reservationItemId: string; assetUnitIds?: string[] }>,
     decision: "APPROVE" | "REJECT",
     comment?: string,
   ) =>
@@ -343,7 +336,7 @@ export const api = {
       `/reservations/${reservationId}/items/decision`,
       {
         method: "POST",
-        body: json({ itemIds, decision, ...(comment ? { comment } : {}) }),
+        body: json({ items, decision, ...(comment ? { comment } : {}) }),
       },
     ),
   cancelReservation: (reservationId: string, reason?: string) =>

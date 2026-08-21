@@ -189,15 +189,44 @@ describe("ReservationDetailPage", () => {
     });
   });
 
-  it("allows Area Manager to select items, adjust approved quantity, and submit batch approval", async () => {
+  it("allows Area Manager to select items, assign serial units, and submit batch approval", async () => {
     vi.spyOn(api, "reservation").mockResolvedValue(mockPendingReservation);
+    const assetUnitsSpy = vi.spyOn(api, "assetUnits").mockResolvedValue({
+      data: [
+        {
+          id: "unit-1",
+          serialNumber: "SN-MIC-001",
+          status: "ACTIVE",
+          note: null,
+          createdAt: "2026-08-15T00:00:00.000Z",
+          updatedAt: "2026-08-15T00:00:00.000Z",
+        },
+        {
+          id: "unit-2",
+          serialNumber: "SN-MIC-002",
+          status: "ACTIVE",
+          note: null,
+          createdAt: "2026-08-15T00:00:00.000Z",
+          updatedAt: "2026-08-15T00:00:00.000Z",
+        },
+        {
+          id: "unit-3",
+          serialNumber: "SN-MIC-003",
+          status: "ACTIVE",
+          note: null,
+          createdAt: "2026-08-15T00:00:00.000Z",
+          updatedAt: "2026-08-15T00:00:00.000Z",
+        },
+      ],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
     const decideSpy = vi.spyOn(api, "decideReservationItems").mockResolvedValue({
       ...mockPendingReservation,
       status: "APPROVED",
       items: [
         {
           ...mockPendingReservation.items[0],
-          status: "APPROVED",
+          status: "PREPARED",
           capabilities: { canApprove: false, canReject: false },
         },
       ],
@@ -218,125 +247,50 @@ describe("ReservationDetailPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/Area Manager Review/i)).toBeInTheDocument();
     });
+    await waitFor(() => {
+      expect(assetUnitsSpy).toHaveBeenCalledWith("asset-pending-1", {
+        status: "ACTIVE",
+        limit: 100,
+      });
+    });
 
     expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
-    expect(screen.getByLabelText("3 total reserved")).toBeInTheDocument();
 
-    // 2. Verify checkbox and quantity input box
+    // 2. Select the item, then select all 3 required serial units
     const checkbox = screen.getByLabelText("Select Wireless Microphone Kit");
     expect(checkbox).toBeInTheDocument();
     expect(checkbox).not.toBeChecked();
-
     fireEvent.click(checkbox);
     expect(checkbox).toBeChecked();
 
-    const qtyInput = screen.getByLabelText("Approve quantity for Wireless Microphone Kit");
-    expect(qtyInput).toBeInTheDocument();
+    const approveButton = screen.getByRole("button", { name: /Approve Selected/i });
+    expect(approveButton).toBeDisabled();
 
-    // Change approved quantity
-    fireEvent.change(qtyInput, { target: { value: "2" } });
-    expect(qtyInput).toHaveValue(2);
+    fireEvent.click(await screen.findByLabelText("Assign serial SN-MIC-001"));
+    fireEvent.click(screen.getByLabelText("Assign serial SN-MIC-002"));
+    fireEvent.click(screen.getByLabelText("Assign serial SN-MIC-003"));
+    expect(approveButton).toBeEnabled();
 
     // 3. Type decision remark and click Approve Selected
     const remarkInput = screen.getByPlaceholderText(/Decision comment \/ remark/i);
-    fireEvent.change(remarkInput, { target: { value: "Approved 2 units for town hall" } });
-
-    const approveButton = screen.getByRole("button", { name: /Approve Selected/i });
+    fireEvent.change(remarkInput, { target: { value: "Approved for town hall" } });
     fireEvent.click(approveButton);
 
-    // 4. Verify API was called with selected items and remark
+    // 4. Verify API was called with the selected item's serial units and remark
     await waitFor(() => {
       expect(decideSpy).toHaveBeenCalledWith(
         "00000000-0000-4000-8000-000000000101",
-        ["item-pending-1"],
+        [{ reservationItemId: "item-pending-1", assetUnitIds: ["unit-1", "unit-2", "unit-3"] }],
         "APPROVE",
-        "Approved 2 units for town hall"
+        "Approved for town hall"
       );
     });
 
     await waitFor(() => {
       expect(
         screen.getByText("Wireless Microphone Kit").closest(".res-manifest-item"),
-      ).toHaveAttribute("data-status", "approved");
-    });
-  });
-
-  it("prepares an approved item by assigning serial units before handover", async () => {
-    const prepareReservation: ReservationDetail = {
-      ...mockReservation,
-      items: [
-        {
-          ...mockReservation.items[0],
-          quantity: 1,
-          capabilities: {
-            canApprove: false,
-            canReject: false,
-            canPrepare: true,
-            canConfirmDelivery: false,
-            canReturn: false,
-          },
-        },
-      ],
-      capabilities: { ...mockReservation.capabilities, canConfirmDelivery: false },
-    };
-    vi.spyOn(api, "reservation").mockResolvedValue(prepareReservation);
-    const assetUnitsSpy = vi.spyOn(api, "assetUnits").mockResolvedValue({
-      data: [
-        {
-          id: "unit-1",
-          serialNumber: "SN-CAM-001",
-          status: "ACTIVE",
-          note: null,
-          createdAt: "2026-08-15T00:00:00.000Z",
-          updatedAt: "2026-08-15T00:00:00.000Z",
-        },
-      ],
-      pageInfo: { nextCursor: null, hasNextPage: false },
-    });
-    const prepareSpy = vi.spyOn(api, "prepareReservationItem").mockResolvedValue({
-      ...prepareReservation,
-      items: [
-        {
-          ...prepareReservation.items[0],
-          status: "PREPARED",
-          capabilities: { ...prepareReservation.items[0].capabilities, canPrepare: false, canConfirmDelivery: true },
-        },
-      ],
-    });
-
-    render(
-      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
-        <Routes>
-          <Route
-            path="/reservations/:reservationId"
-            element={<ReservationDetailPage />}
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(assetUnitsSpy).toHaveBeenCalledWith("asset-1", {
-        status: "ACTIVE",
-        limit: 100,
-      });
-    });
-
-    const serialCheckbox = await screen.findByLabelText("Assign serial SN-CAM-001");
-    const prepareButton = screen.getByRole("button", { name: /Assign & Prepare/i });
-    expect(prepareButton).toBeDisabled();
-
-    fireEvent.click(serialCheckbox);
-    expect(prepareButton).toBeEnabled();
-    fireEvent.click(prepareButton);
-
-    await waitFor(() => {
-      expect(prepareSpy).toHaveBeenCalledWith(
-        "00000000-0000-4000-8000-000000000101",
-        "item-1",
-        ["unit-1"],
-      );
+      ).toHaveAttribute("data-status", "prepared");
     });
   });
 

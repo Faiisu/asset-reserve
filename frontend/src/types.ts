@@ -351,7 +351,6 @@ export type ReservationDetail = {
     capabilities: {
       canApprove: boolean;
       canReject: boolean;
-      canPrepare?: boolean;
       canConfirmDelivery?: boolean;
       canReturn?: boolean;
     };
@@ -360,7 +359,6 @@ export type ReservationDetail = {
   activityLogs?: ActivityLog[];
   capabilities: {
     canSubmit: boolean;
-    canPrepare?: boolean;
     canConfirmDelivery?: boolean;
     canCancel?: boolean;
     canReturn?: boolean;

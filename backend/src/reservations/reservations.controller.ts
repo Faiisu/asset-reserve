@@ -13,7 +13,6 @@ import {
   CancelReservationDto,
   ConfirmDeliveryDto,
   CreateReservationDto,
-  PrepareReservationItemDto,
   ReservationItemDecisionDto,
   ReservationItemsDecisionDto,
   SubmitReservationDto,
@@ -75,16 +74,6 @@ export class ReservationsController {
     @Body() input: ReservationItemsDecisionDto,
   ) {
     return this.reservations.decideItems(actor, reservationId, input);
-  }
-
-  @Post(":reservationId/items/:itemId/prepare")
-  prepareItem(
-    @CurrentActor() actor: AuthenticatedActor,
-    @Param("reservationId", new ParseUUIDPipe()) reservationId: string,
-    @Param("itemId", new ParseUUIDPipe()) itemId: string,
-    @Body() input: PrepareReservationItemDto,
-  ) {
-    return this.reservations.prepareItem(actor, reservationId, itemId, input);
   }
 
   @Post(":reservationId/delivery-confirm")

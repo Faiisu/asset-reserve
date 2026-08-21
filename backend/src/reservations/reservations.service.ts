@@ -17,7 +17,6 @@ import type {
   CancelReservationDto,
   ConfirmDeliveryDto,
   CreateReservationDto,
-  PrepareReservationItemDto,
   ReservationItemDecisionDto,
   ReservationItemsDecisionDto,
   ReservationItemInputDto,
@@ -34,7 +33,6 @@ const allocatedReservationStatuses = [
   "COMPLETED",
 ];
 const allocatedItemStatuses = [
-  "APPROVED",
   "PREPARED",
   "CHECKED_OUT",
   "DELIVERED",
@@ -507,8 +505,9 @@ export class ReservationsService {
     input: ReservationItemDecisionDto,
   ) {
     return this.decideItems(actor, reservationId, {
-      itemIds: [itemId],
-      ...input,
+      items: [{ reservationItemId: itemId, assetUnitIds: input.assetUnitIds }],
+      decision: input.decision,
+      comment: input.comment,
     });
   }
 
@@ -517,7 +516,10 @@ export class ReservationsService {
     reservationId: string,
     input: ReservationItemsDecisionDto,
   ) {
-    const itemIds = [...input.itemIds].sort();
+    const entries = new Map(
+      input.items.map((entry) => [entry.reservationItemId, entry] as const),
+    );
+    const itemIds = [...entries.keys()].sort();
     const current = await this.prisma.reservationItem.findMany({
       where: { id: { in: itemIds }, reservationId },
       include: { asset: true, reservation: true },
@@ -540,113 +542,252 @@ export class ReservationsService {
       );
     }
 
-    const newStatus = await this.runSerializable(async (tx) => {
-      await this.assertActiveActor(tx, actor.user.id);
-      const items = await tx.reservationItem.findMany({
-        where: { id: { in: itemIds }, reservationId },
-        include: { asset: true, reservation: true },
-        orderBy: { id: "asc" },
-      });
-      if (items.length !== itemIds.length) {
-        throw new ApiException(
-          404,
-          "RESERVATION_ITEM_NOT_FOUND",
-          "One or more reservation items were not found.",
-        );
+    if (input.decision === "APPROVE") {
+      for (const item of current) {
+        const entry = entries.get(item.id)!;
+        const unitIds = entry.assetUnitIds ?? [];
+        if (new Set(unitIds).size !== unitIds.length) {
+          throw new ApiException(
+            422,
+            "VALIDATION_ERROR",
+            `Duplicate asset units were selected for "${item.asset.name}".`,
+            { [`items.${item.id}.assetUnitIds`]: "Remove duplicate units." },
+          );
+        }
+        if (unitIds.length !== item.quantity) {
+          throw new ApiException(
+            422,
+            "VALIDATION_ERROR",
+            `Select exactly ${item.quantity} unit(s) to approve "${item.asset.name}".`,
+            {
+              [`items.${item.id}.assetUnitIds`]: `Select exactly ${item.quantity} unit(s).`,
+            },
+          );
+        }
       }
-      if (
-        items.some(
-          (item) =>
-            item.status !== "PENDING" ||
-            !["PENDING_APPROVAL", "PARTIALLY_APPROVED"].includes(
-              item.reservation.status,
-            ),
-        )
-      ) {
-        throw this.invalidStatus(
-          "Only pending items in a pending reservation can be decided.",
-        );
-      }
+    }
 
-      if (input.decision === "APPROVE") {
-        const reservation = items[0]!.reservation;
-        await this.lockAssets(
-          tx,
-          items.map((item) => item.assetId),
-        );
-        await this.assertAvailability(
-          tx,
-          items,
-          items.map((item) => item.asset),
-          reservation.startAt,
-          reservation.endAt,
-          reservationId,
-        );
-      }
+    const allUnitIds = [
+      ...new Set(
+        input.decision === "APPROVE"
+          ? input.items.flatMap((entry) => entry.assetUnitIds ?? [])
+          : [],
+      ),
+    ];
 
-      const decidedAt = new Date();
-      const status = input.decision === "APPROVE" ? "APPROVED" : "REJECTED";
-      const updated = await tx.reservationItem.updateMany({
-        where: {
-          id: { in: itemIds },
-          reservationId,
-          status: "PENDING",
-        },
-        data: { status, updatedAt: decidedAt },
-      });
-      if (updated.count !== itemIds.length) {
-        throw this.invalidStatus(
-          "One or more selected items were already decided. Reload and try again.",
-        );
-      }
-      await tx.reservationItemApproval.createMany({
-        data: itemIds.map((reservationItemId) => ({
-          id: randomUUID(),
-          reservationItemId,
-          approverId: actor.user.id,
-          status,
-          comment: input.comment ?? null,
-          decidedAt,
-        })),
-        skipDuplicates: true,
-      });
-      await tx.reservationItemApproval.updateMany({
-        where: { reservationItemId: { in: itemIds } },
-        data: {
-          approverId: actor.user.id,
-          status,
-          comment: input.comment ?? null,
-          decidedAt,
-        },
-      });
-      const statuses = await tx.reservationItem.findMany({
-        where: { reservationId },
-        select: { status: true },
-      });
-      const newStatus = this.reservationStatusFromItems(
-        statuses.map((row) => row.status),
-      );
-      await tx.reservation.update({
-        where: { id: reservationId },
-        data: { status: newStatus, updatedAt: decidedAt },
-      });
-      for (const item of items) {
-        await this.logActivity(tx, {
-          reservationId,
-          actorId: actor.user.id,
-          action: status === "APPROVED" ? "ITEM_APPROVED" : "ITEM_REJECTED",
-          entityType: "RESERVATION_ITEM",
-          entityId: item.id,
-          details: {
-            assetId: item.assetId,
-            assetName: item.asset.name,
-            quantity: item.quantity,
+    const decidedAt = new Date();
+    let newStatus!: string;
+    try {
+      newStatus = await this.runSerializable(async (tx) => {
+        await this.assertActiveActor(tx, actor.user.id);
+        const items = await tx.reservationItem.findMany({
+          where: { id: { in: itemIds }, reservationId },
+          include: { asset: true, reservation: true },
+          orderBy: { id: "asc" },
+        });
+        if (items.length !== itemIds.length) {
+          throw new ApiException(
+            404,
+            "RESERVATION_ITEM_NOT_FOUND",
+            "One or more reservation items were not found.",
+          );
+        }
+        if (
+          items.some(
+            (item) =>
+              item.status !== "PENDING" ||
+              !["PENDING_APPROVAL", "PARTIALLY_APPROVED"].includes(
+                item.reservation.status,
+              ),
+          )
+        ) {
+          throw this.invalidStatus(
+            "Only pending items in a pending reservation can be decided.",
+          );
+        }
+
+        const approvalStatus =
+          input.decision === "APPROVE" ? "APPROVED" : "REJECTED";
+
+        if (input.decision === "APPROVE") {
+          const reservation = items[0]!.reservation;
+          await this.lockAssets(
+            tx,
+            items.map((item) => item.assetId),
+          );
+          await this.assertAvailability(
+            tx,
+            items,
+            items.map((item) => item.asset),
+            reservation.startAt,
+            reservation.endAt,
+            reservationId,
+          );
+
+          await this.lockAssetUnits(tx, allUnitIds);
+          const units = await tx.assetUnit.findMany({
+            where: { id: { in: allUnitIds } },
+          });
+          if (units.length !== allUnitIds.length) {
+            throw new ApiException(
+              404,
+              "ASSET_UNIT_NOT_FOUND",
+              "One or more asset units were not found.",
+            );
+          }
+          const unitById = new Map(units.map((unit) => [unit.id, unit]));
+          for (const item of items) {
+            const entry = entries.get(item.id)!;
+            for (const unitId of entry.assetUnitIds ?? []) {
+              const unit = unitById.get(unitId)!;
+              if (unit.assetId !== item.assetId || unit.status !== "ACTIVE") {
+                throw new ApiException(
+                  409,
+                  "ASSET_UNIT_UNAVAILABLE",
+                  "One or more selected units are not available for this asset.",
+                );
+              }
+            }
+          }
+
+          const updatedUnits = await tx.assetUnit.updateMany({
+            where: { id: { in: allUnitIds }, status: "ACTIVE" },
+            data: { status: "RESERVED", updatedAt: decidedAt },
+          });
+          if (updatedUnits.count !== allUnitIds.length) {
+            throw new ApiException(
+              409,
+              "ASSET_UNIT_UNAVAILABLE",
+              "One or more selected units are no longer available.",
+            );
+          }
+
+          for (const item of items) {
+            const entry = entries.get(item.id)!;
+            await tx.reservationItemUnit.createMany({
+              data: (entry.assetUnitIds ?? []).map((assetUnitId) => ({
+                id: randomUUID(),
+                reservationItemId: item.id,
+                assetUnitId,
+                status: "ASSIGNED",
+                assignedBy: actor.user.id,
+                assignedAt: decidedAt,
+              })),
+            });
+          }
+
+          if (allUnitIds.length > 0) {
+            const batchId = randomUUID();
+            await tx.assetUnitEventBatch.create({
+              data: {
+                id: batchId,
+                description: "Approved and assigned for reservation",
+                performedBy: actor.user.id,
+              },
+            });
+            await tx.assetUnitEvent.createMany({
+              data: items.flatMap((item) =>
+                (entries.get(item.id)!.assetUnitIds ?? []).map(
+                  (assetUnitId) => ({
+                    id: randomUUID(),
+                    batchId,
+                    assetUnitId,
+                    eventType: "RESERVED",
+                    fromStatus: "ACTIVE",
+                    toStatus: "RESERVED",
+                    reservationItemId: item.id,
+                  }),
+                ),
+              ),
+            });
+          }
+        }
+
+        const status = input.decision === "APPROVE" ? "PREPARED" : "REJECTED";
+        const updated = await tx.reservationItem.updateMany({
+          where: {
+            id: { in: itemIds },
+            reservationId,
+            status: "PENDING",
+          },
+          data:
+            input.decision === "APPROVE"
+              ? {
+                  status,
+                  preparedBy: actor.user.id,
+                  preparedAt: decidedAt,
+                  updatedAt: decidedAt,
+                }
+              : { status, updatedAt: decidedAt },
+        });
+        if (updated.count !== itemIds.length) {
+          throw this.invalidStatus(
+            "One or more selected items were already decided. Reload and try again.",
+          );
+        }
+        await tx.reservationItemApproval.createMany({
+          data: itemIds.map((reservationItemId) => ({
+            id: randomUUID(),
+            reservationItemId,
+            approverId: actor.user.id,
+            status: approvalStatus,
             comment: input.comment ?? null,
+            decidedAt,
+          })),
+          skipDuplicates: true,
+        });
+        await tx.reservationItemApproval.updateMany({
+          where: { reservationItemId: { in: itemIds } },
+          data: {
+            approverId: actor.user.id,
+            status: approvalStatus,
+            comment: input.comment ?? null,
+            decidedAt,
           },
         });
+        const statuses = await tx.reservationItem.findMany({
+          where: { reservationId },
+          select: { status: true },
+        });
+        const nextStatus = this.reservationStatusFromItems(
+          statuses.map((row) => row.status),
+        );
+        await tx.reservation.update({
+          where: { id: reservationId },
+          data: { status: nextStatus, updatedAt: decidedAt },
+        });
+        for (const item of items) {
+          const entry = entries.get(item.id);
+          await this.logActivity(tx, {
+            reservationId,
+            actorId: actor.user.id,
+            action:
+              approvalStatus === "APPROVED" ? "ITEM_APPROVED" : "ITEM_REJECTED",
+            entityType: "RESERVATION_ITEM",
+            entityId: item.id,
+            details: {
+              assetId: item.assetId,
+              assetName: item.asset.name,
+              quantity: item.quantity,
+              comment: input.comment ?? null,
+              ...(entry?.assetUnitIds
+                ? { assetUnitIds: entry.assetUnitIds }
+                : {}),
+            },
+          });
+        }
+        return nextStatus;
+      });
+    } catch (error) {
+      if (this.prismaCode(error) === "P2002") {
+        throw new ApiException(
+          409,
+          "ASSET_UNIT_UNAVAILABLE",
+          "One or more selected units are already assigned to another reservation.",
+        );
       }
-      return newStatus;
-    });
+      throw error;
+    }
     const detail = await this.get(actor, reservationId);
     // Items are often decided in batches (area managers only ever see/decide
     // their own area's items -- see findApproverRecipients), so newStatus can
@@ -673,158 +814,6 @@ export class ReservationsService {
       });
     }
     return detail;
-  }
-
-  async prepareItem(
-    actor: AuthenticatedActor,
-    reservationId: string,
-    itemId: string,
-    input: PrepareReservationItemDto,
-  ) {
-    const reservation = await this.findDetail(reservationId);
-    if (!["APPROVED", "PARTIALLY_APPROVED"].includes(reservation.status)) {
-      throw this.invalidStatus(
-        "Items can only be prepared for an approved reservation.",
-      );
-    }
-    const item = reservation.items.find((row) => row.id === itemId);
-    if (!item) {
-      throw new ApiException(
-        404,
-        "RESERVATION_ITEM_NOT_FOUND",
-        "The reservation item was not found.",
-      );
-    }
-    if (!this.canConfirmDeliveryItem(actor, reservation, item)) {
-      this.permissionDenied();
-    }
-    if (item.status !== "APPROVED") {
-      throw this.invalidStatus("Only approved items can be prepared.");
-    }
-    const unitIds = [...new Set(input.assetUnitIds)];
-    if (unitIds.length !== input.assetUnitIds.length) {
-      throw new ApiException(
-        422,
-        "VALIDATION_ERROR",
-        "Duplicate asset units were selected.",
-        { assetUnitIds: "Remove duplicate units." },
-      );
-    }
-    if (unitIds.length !== item.quantity) {
-      throw new ApiException(
-        422,
-        "VALIDATION_ERROR",
-        `Select exactly ${item.quantity} unit(s) to prepare this item.`,
-        { assetUnitIds: `Select exactly ${item.quantity} unit(s).` },
-      );
-    }
-
-    const preparedAt = new Date();
-    try {
-      await this.runSerializable(async (tx) => {
-        await this.assertActiveActor(tx, actor.user.id);
-        const current = await tx.reservationItem.findUniqueOrThrow({
-          where: { id: itemId },
-        });
-        if (current.status !== "APPROVED") {
-          throw this.invalidStatus("Only approved items can be prepared.");
-        }
-        await this.lockAssetUnits(tx, unitIds);
-        const units = await tx.assetUnit.findMany({
-          where: { id: { in: unitIds } },
-        });
-        if (units.length !== unitIds.length) {
-          throw new ApiException(
-            404,
-            "ASSET_UNIT_NOT_FOUND",
-            "One or more asset units were not found.",
-          );
-        }
-        if (
-          units.some(
-            (unit) => unit.assetId !== item.assetId || unit.status !== "ACTIVE",
-          )
-        ) {
-          throw new ApiException(
-            409,
-            "ASSET_UNIT_UNAVAILABLE",
-            "One or more selected units are not available for this asset.",
-          );
-        }
-
-        const updated = await tx.assetUnit.updateMany({
-          where: { id: { in: unitIds }, status: "ACTIVE" },
-          data: { status: "RESERVED", updatedAt: preparedAt },
-        });
-        if (updated.count !== unitIds.length) {
-          throw new ApiException(
-            409,
-            "ASSET_UNIT_UNAVAILABLE",
-            "One or more selected units are no longer available.",
-          );
-        }
-
-        await tx.reservationItemUnit.createMany({
-          data: unitIds.map((assetUnitId) => ({
-            id: randomUUID(),
-            reservationItemId: itemId,
-            assetUnitId,
-            status: "ASSIGNED",
-            assignedBy: actor.user.id,
-            assignedAt: preparedAt,
-          })),
-        });
-
-        const batchId = randomUUID();
-        await tx.assetUnitEventBatch.create({
-          data: {
-            id: batchId,
-            description: "Prepared for reservation",
-            performedBy: actor.user.id,
-          },
-        });
-        await tx.assetUnitEvent.createMany({
-          data: unitIds.map((assetUnitId) => ({
-            id: randomUUID(),
-            batchId,
-            assetUnitId,
-            eventType: "RESERVED",
-            fromStatus: "ACTIVE",
-            toStatus: "RESERVED",
-            reservationItemId: itemId,
-          })),
-        });
-
-        await tx.reservationItem.update({
-          where: { id: itemId },
-          data: {
-            status: "PREPARED",
-            preparedBy: actor.user.id,
-            preparedAt,
-            updatedAt: preparedAt,
-          },
-        });
-
-        await this.logActivity(tx, {
-          reservationId,
-          actorId: actor.user.id,
-          action: "ITEM_PREPARED",
-          entityType: "RESERVATION_ITEM",
-          entityId: itemId,
-          details: { assetId: item.assetId, assetUnitIds: unitIds },
-        });
-      });
-    } catch (error) {
-      if (this.prismaCode(error) === "P2002") {
-        throw new ApiException(
-          409,
-          "ASSET_UNIT_UNAVAILABLE",
-          "One or more selected units are already assigned to another reservation.",
-        );
-      }
-      throw error;
-    }
-    return this.get(actor, reservationId);
   }
 
   async confirmDelivery(
@@ -860,16 +849,6 @@ export class ReservationsService {
           400,
           "INVALID_ITEM_SELECTION",
           "One or more selected items do not belong to this reservation.",
-        );
-      }
-      const unpreparedItems = targetItems.filter(
-        (item) => item.status === "APPROVED",
-      );
-      if (unpreparedItems.length > 0) {
-        throw new ApiException(
-          409,
-          "ITEMS_NOT_PREPARED",
-          "Prepare items (assign serial-numbered units) before confirming delivery.",
         );
       }
       const invalidStateItems = targetItems.filter(
@@ -1030,10 +1009,50 @@ export class ReservationsService {
           updatedAt: cancelledAt,
         },
       });
+
+      // PREPARED items already hold locked-in serial units (assigned at
+      // approval time, §7.5) -- release them back to ACTIVE before rejecting
+      // the item, otherwise they'd stay orphaned as RESERVED forever.
+      const preparedUnits = await tx.reservationItemUnit.findMany({
+        where: {
+          reservationItem: { reservationId, status: "PREPARED" },
+        },
+      });
+      if (preparedUnits.length > 0) {
+        const unitIds = preparedUnits.map((unit) => unit.assetUnitId);
+        await tx.assetUnit.updateMany({
+          where: { id: { in: unitIds } },
+          data: { status: "ACTIVE", updatedAt: cancelledAt },
+        });
+        const batchId = randomUUID();
+        await tx.assetUnitEventBatch.create({
+          data: {
+            id: batchId,
+            description: "Released by reservation cancellation",
+            performedBy: actor.user.id,
+          },
+        });
+        await tx.assetUnitEvent.createMany({
+          data: preparedUnits.map((unit) => ({
+            id: randomUUID(),
+            batchId,
+            assetUnitId: unit.assetUnitId,
+            eventType: "ADJUSTMENT",
+            fromStatus: "RESERVED",
+            toStatus: "ACTIVE",
+            reservationItemId: unit.reservationItemId,
+            reason: "Reservation cancelled",
+          })),
+        });
+        await tx.reservationItemUnit.deleteMany({
+          where: { id: { in: preparedUnits.map((unit) => unit.id) } },
+        });
+      }
+
       await tx.reservationItem.updateMany({
         where: {
           reservationId,
-          status: { in: ["PENDING", "APPROVED"] },
+          status: { in: ["PENDING", "PREPARED"] },
         },
         data: {
           status: "REJECTED",
@@ -1486,12 +1505,6 @@ export class ReservationsService {
                 "reservation:reject",
                 item.asset.managementAreaId,
               ),
-            canPrepare:
-              ["APPROVED", "PARTIALLY_APPROVED"].includes(
-                reservation.status,
-              ) &&
-              item.status === "APPROVED" &&
-              this.canConfirmDeliveryItem(actor, reservation, item),
             canConfirmDelivery:
               ["APPROVED", "PARTIALLY_APPROVED", "DELIVERY_CONFIRMED"].includes(
                 reservation.status,
@@ -1515,13 +1528,6 @@ export class ReservationsService {
       returns,
       capabilities: {
         canSubmit: canManage && reservation.status === "DRAFT",
-        canPrepare:
-          ["APPROVED", "PARTIALLY_APPROVED"].includes(reservation.status) &&
-          reservation.items.some(
-            (item) =>
-              item.status === "APPROVED" &&
-              this.canConfirmDeliveryItem(actor, reservation, item),
-          ),
         canConfirmDelivery:
           ["APPROVED", "PARTIALLY_APPROVED", "DELIVERY_CONFIRMED"].includes(
             reservation.status,
@@ -1784,9 +1790,19 @@ export class ReservationsService {
   }
 
   private reservationStatusFromItems(statuses: string[]) {
-    if (statuses.every((status) => status === "APPROVED")) return "APPROVED";
+    // Items skip a standalone APPROVED resting state (§7.5 -- approval
+    // assigns serial units in the same request), so "approved" is anything
+    // that made it past decision: PREPARED, DELIVERED, or RETURNED.
+    const approvedLike = ["PREPARED", "DELIVERED", "RETURNED"];
+    if (statuses.every((status) => approvedLike.includes(status))) {
+      return "APPROVED";
+    }
     if (statuses.every((status) => status === "REJECTED")) return "REJECTED";
-    if (statuses.every((status) => ["APPROVED", "REJECTED"].includes(status))) {
+    if (
+      statuses.every(
+        (status) => approvedLike.includes(status) || status === "REJECTED",
+      )
+    ) {
       return "PARTIALLY_APPROVED";
     }
     return "PENDING_APPROVAL";
