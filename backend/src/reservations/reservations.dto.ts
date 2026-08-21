@@ -165,11 +165,25 @@ export class CancelReservationDto {
   reason?: string;
 }
 
+export class ConfirmDeliveryItemDto {
+  @IsUUID()
+  reservationItemId!: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  reservationItemUnitIds?: string[];
+}
+
 export class ConfirmDeliveryDto {
   @IsOptional()
   @IsArray()
+  @ArrayMinSize(1)
   @ArrayMaxSize(100)
-  @ArrayUnique()
-  @IsUUID(undefined, { each: true })
-  itemIds?: string[];
+  @ValidateNested({ each: true })
+  @Type(() => ConfirmDeliveryItemDto)
+  items?: ConfirmDeliveryItemDto[];
 }

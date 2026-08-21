@@ -74,6 +74,7 @@ Permission key ที่ควบคุมแต่ละ action ดู [softwar
 
 - Approve + prepare (serial-unit assignment) merged into one request, matching [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status) และ [backend_spec/algorithms-and-validation.md §7.5](../backend_spec/algorithms-and-validation.md#75-post-reservationsreservationiditemsitemiddecision): `POST .../items/:itemId/decision` (และ batch `.../items/decision`) รับ `assetUnitIds` ตอน `APPROVE`, item ข้าม `APPROVED` ไป `PREPARED` ตรง, endpoint `/prepare` แยกถูกตัดออกแล้วทั้ง backend และ frontend — ไม่ใช่ gap อีกต่อไป (เดิมเคยมีทั้งสองขั้นตอนแยก ตามด้วยการรวมเป็นขั้นตอนเดียวในรอบนี้)
 - `CHECKED_OUT`/`RETURNED` มี frontend command แล้ว (`confirmDelivery`, `createReturn`, `decideReturn` ใน `ReservationDetailPage`) — ไม่ใช่ gap อีกต่อไป
+- Handover เป็น unit-based แล้ว ตรงกับ [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status) และ [backend_spec/algorithms-and-validation.md §7.11](../backend_spec/algorithms-and-validation.md#711-post-reservationsreservationiddelivery-confirm): `POST .../delivery-confirm` รับ `items[].reservationItemUnitIds` เลือกส่งมอบบางหน่วยของ item เดียวกันได้ (partial handover) item ค้าง `PREPARED` จนกว่าจะส่งมอบครบทุก unit — ไม่ใช่ gap อีกต่อไป (breaking change จาก `itemIds[]` เดิมที่ส่งมอบทั้ง item เสมอ)
 - ไม่มี standalone inventory-adjustment route; การปรับยอดทำจาก asset list/detail
 - Return payload shape (`reservationItemUnitIds` ตอน drop-off, per-unit `{reservationItemUnitId, condition}` จัดกลุ่มตาม `reservationItemId` ตอน decision) — frontend (`ReservationDetailPage`) แก้ให้ตรง backend DTO แล้ว ไม่ใช่ gap อีกต่อไป
 - Asset units: backend มี `POST /assets/units/batch-retire` และ `PATCH /assets/units/:assetUnitId/status` แต่ frontend ไม่มี UI เรียกเส้นทางเหล่านี้ ต้องปลดระวางหรือแก้ status ผ่าน API/DB ตรงๆ
@@ -92,7 +93,7 @@ Permission key ที่ควบคุมแต่ละ action ดู [softwar
 | Create/submit/cancel Reservation          | Domain command API                        | ✅ Implemented |
 | Approve/reject item                       | Domain command API                        | ✅ Implemented |
 | Register/retire asset unit                | Domain command API                        | ✅ Implemented (register); retire ไม่มี UI — ดู gap ด้านบน |
-| Prepare (serial-unit assignment) / check out | Domain command API                     | ✅ Implemented — รวมเข้ากับ approve เป็นคำขอเดียวแล้ว (`items/:itemId/decision` รับ `assetUnitIds`), check out แยกเป็น `delivery-confirm` ตามเดิม |
+| Prepare (serial-unit assignment) / check out | Domain command API                     | ✅ Implemented — รวมเข้ากับ approve เป็นคำขอเดียวแล้ว (`items/:itemId/decision` รับ `assetUnitIds`), check out แยกเป็น `delivery-confirm` ตามเดิม และเป็น unit-based (`items[].reservationItemUnitIds`, partial handover ได้) |
 | Create/decide Return                      | Domain command API                        | ⚠️ Implemented แต่ payload shape ผิด — ดู gap ด้านบน |
 
 Recommended BFF read endpoint (ยังไม่ implement — เป้าหมายสถาปัตยกรรม ไม่ blocked การใช้งานปัจจุบันเพราะ frontend เรียก domain endpoint ตรงได้เต็มรูปแบบอยู่แล้ว):

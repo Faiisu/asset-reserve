@@ -1195,3 +1195,154 @@ describe("reservation lifecycle events", () => {
     expect(decidedSpy).not.toHaveBeenCalled();
   });
 });
+
+describe("confirmDelivery", () => {
+  const unitOneId = "00000000-0000-4000-8000-000000000811";
+  const unitTwoId = "00000000-0000-4000-8000-000000000812";
+  const assetUnitOneId = "00000000-0000-4000-8000-000000000911";
+  const assetUnitTwoId = "00000000-0000-4000-8000-000000000912";
+
+  function preparedReservation(unitAssignments: Array<{ id: string; assetUnitId: string; status: string }>) {
+    return {
+      id: reservationId,
+      requesterId: actorId,
+      status: "APPROVED",
+      participants: [],
+      items: [
+        {
+          id: itemId,
+          reservationId,
+          assetId,
+          quantity: unitAssignments.length,
+          status: "PREPARED",
+          asset: { id: assetId, managementAreaId: areaId, name: "Camera" },
+          unitAssignments,
+        },
+      ],
+    };
+  }
+
+  function mockTx(item: ReturnType<typeof preparedReservation>["items"][number], finalItemStatus: string) {
+    const reservationItemUpdate = vi.fn().mockResolvedValue({});
+    const reservationItemUnitUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const assetUnitUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const assetUnitEventBatchCreate = vi.fn().mockResolvedValue({});
+    const assetUnitEventCreateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const reservationUpdate = vi.fn().mockResolvedValue({});
+    const tx = {
+      reservationItem: {
+        update: reservationItemUpdate,
+        findMany: vi.fn().mockResolvedValue([{ id: item.id, status: finalItemStatus }]),
+      },
+      reservationItemUnit: { updateMany: reservationItemUnitUpdateMany },
+      assetUnit: { updateMany: assetUnitUpdateMany },
+      assetUnitEventBatch: { create: assetUnitEventBatchCreate },
+      assetUnitEvent: { createMany: assetUnitEventCreateMany },
+      reservation: { update: reservationUpdate },
+    };
+    return {
+      tx,
+      reservationItemUpdate,
+      reservationItemUnitUpdateMany,
+      assetUnitUpdateMany,
+      assetUnitEventCreateMany,
+      reservationUpdate,
+    };
+  }
+
+  it("hands over every remaining ASSIGNED unit when no units are specified (full handover default)", async () => {
+    const reservation = preparedReservation([
+      { id: unitOneId, assetUnitId: assetUnitOneId, status: "ASSIGNED" },
+      { id: unitTwoId, assetUnitId: assetUnitTwoId, status: "ASSIGNED" },
+    ]);
+    const { tx, reservationItemUpdate, reservationItemUnitUpdateMany, assetUnitUpdateMany } = mockTx(
+      reservation.items[0],
+      "DELIVERED",
+    );
+    const prisma = {
+      reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
+      $transaction: vi.fn(
+        async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
+      ),
+    } as unknown as PrismaService;
+    const service = new ReservationsService(prisma, new ReservationLifecycleEvents());
+    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
+
+    await service.confirmDelivery(actor, reservationId);
+
+    expect(reservationItemUnitUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: { in: [unitOneId, unitTwoId] } }),
+        data: expect.objectContaining({ status: "CHECKED_OUT" }),
+      }),
+    );
+    expect(assetUnitUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: { in: [assetUnitOneId, assetUnitTwoId] } }),
+      }),
+    );
+    expect(reservationItemUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "DELIVERED", checkedOutBy: actorId }),
+      }),
+    );
+  });
+
+  it("hands over only the selected serial units, leaving the item PREPARED (partial handover)", async () => {
+    const reservation = preparedReservation([
+      { id: unitOneId, assetUnitId: assetUnitOneId, status: "ASSIGNED" },
+      { id: unitTwoId, assetUnitId: assetUnitTwoId, status: "ASSIGNED" },
+    ]);
+    const { tx, reservationItemUpdate, reservationItemUnitUpdateMany, assetUnitUpdateMany, reservationUpdate } =
+      mockTx(reservation.items[0], "PREPARED");
+    const prisma = {
+      reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
+      $transaction: vi.fn(
+        async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
+      ),
+    } as unknown as PrismaService;
+    const service = new ReservationsService(prisma, new ReservationLifecycleEvents());
+    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
+
+    await service.confirmDelivery(actor, reservationId, {
+      items: [{ reservationItemId: itemId, reservationItemUnitIds: [unitOneId] }],
+    });
+
+    expect(reservationItemUnitUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: { in: [unitOneId] } }) }),
+    );
+    expect(assetUnitUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: { in: [assetUnitOneId] } }) }),
+    );
+    // Item still has one ASSIGNED unit left over -- stays PREPARED, no
+    // checkedOutBy/checkedOutAt (those only get set once the item is fully
+    // delivered), and the reservation itself doesn't advance either.
+    expect(reservationItemUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ status: "DELIVERED" }),
+      }),
+    );
+    expect(reservationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.not.objectContaining({ status: "DELIVERY_CONFIRMED" }) }),
+    );
+  });
+
+  it("rejects handover of a unit that isn't ASSIGNED to the requested item", async () => {
+    const reservation = preparedReservation([
+      { id: unitOneId, assetUnitId: assetUnitOneId, status: "ASSIGNED" },
+    ]);
+    const transaction = vi.fn();
+    const prisma = {
+      reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
+      $transaction: transaction,
+    } as unknown as PrismaService;
+    const service = new ReservationsService(prisma, new ReservationLifecycleEvents());
+
+    await expect(
+      service.confirmDelivery(actor, reservationId, {
+        items: [{ reservationItemId: itemId, reservationItemUnitIds: [unitTwoId] }],
+      }),
+    ).rejects.toMatchObject({ code: "RESERVATION_ITEM_UNIT_UNAVAILABLE" });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+});

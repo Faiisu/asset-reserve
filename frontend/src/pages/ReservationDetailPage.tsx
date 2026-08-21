@@ -62,7 +62,13 @@ export function ReservationDetailPage() {
   const [showPrintModal, setShowPrintModal] = useState(false);
 
   // Selection states for manifest actions
-  const [selectedDeliveryItemIds, setSelectedDeliveryItemIds] = useState<string[]>([]);
+
+  // Handover: which ASSIGNED serial units to hand over now, keyed by
+  // reservationItemUnitId -- handover is unit-based (partial handover
+  // allowed), matching how the return step already selects units.
+  const [selectedDeliveryUnitIds, setSelectedDeliveryUnitIds] = useState<
+    Record<string, boolean>
+  >({});
   const [selectedInspectItemIds, setSelectedInspectItemIds] = useState<string[]>([]);
 
   // Approval: ACTIVE serial units available per asset, and the units
@@ -115,6 +121,18 @@ export function ReservationDetailPage() {
       });
       setSelectedReturnUnitIds(initialReturnUnits);
 
+      // Default every assigned (not-yet-handed-over) serial unit to selected
+      // for handover.
+      const initialDeliveryUnits: Record<string, boolean> = {};
+      data.items.forEach((item) => {
+        item.units
+          .filter((unit) => unit.status === "ASSIGNED")
+          .forEach((unit) => {
+            initialDeliveryUnits[unit.id] = true;
+          });
+      });
+      setSelectedDeliveryUnitIds(initialDeliveryUnits);
+
       // Initialize inspection state for the pending return slip: default
       // every undecided unit to GOOD, matching the backend's own default.
       const pendingReturn = data.returns.find(
@@ -154,9 +172,6 @@ export function ReservationDetailPage() {
       }
       setDecisionUnitSelections({});
       setApprovalComments({});
-
-      // Reset selection state
-      setSelectedDeliveryItemIds([]);
     } catch (err: any) {
       setError(err.message ?? "Failed to load reservation details.");
     } finally {
@@ -186,6 +201,37 @@ export function ReservationDetailPage() {
       (item) => item.capabilities?.canConfirmDelivery && item.status === "PREPARED",
     );
   }, [reservation]);
+
+  // Every ASSIGNED serial unit across deliverable items -- handover
+  // selection is unit-based (partial handover allowed), not grouped by item.
+  const deliverableUnitIds = useMemo(
+    () =>
+      deliverableItems.flatMap((item) =>
+        item.units.filter((unit) => unit.status === "ASSIGNED").map((unit) => unit.id),
+      ),
+    [deliverableItems],
+  );
+  const selectedDeliveryUnitCount = deliverableUnitIds.filter(
+    (id) => selectedDeliveryUnitIds[id],
+  ).length;
+
+  const toggleSelectAllDeliveryUnits = () => {
+    if (selectedDeliveryUnitCount === deliverableUnitIds.length) {
+      setSelectedDeliveryUnitIds((prev) => {
+        const next = { ...prev };
+        deliverableUnitIds.forEach((id) => delete next[id]);
+        return next;
+      });
+    } else {
+      setSelectedDeliveryUnitIds((prev) => {
+        const next = { ...prev };
+        deliverableUnitIds.forEach((id) => {
+          next[id] = true;
+        });
+        return next;
+      });
+    }
+  };
 
   // Returnable items helper (Pending Return)
   const returnableItems = useMemo(() => {
@@ -277,21 +323,6 @@ export function ReservationDetailPage() {
     });
   };
 
-  // Toggle selection for delivery handover
-  const toggleDeliveryItemSelection = (itemId: string) => {
-    setSelectedDeliveryItemIds((prev) =>
-      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
-    );
-  };
-
-  const toggleSelectAllDeliverable = () => {
-    if (selectedDeliveryItemIds.length === deliverableItems.length) {
-      setSelectedDeliveryItemIds([]);
-    } else {
-      setSelectedDeliveryItemIds(deliverableItems.map((item) => item.id));
-    }
-  };
-
   // Toggle selection for inspection review
   const toggleInspectItemSelection = (itemId: string) => {
     setSelectedInspectItemIds((prev) =>
@@ -363,26 +394,37 @@ export function ReservationDetailPage() {
     }
   };
 
-  // Handle Delivery Confirm
+  // Handle Delivery Confirm -- unit-based, partial handover allowed: only
+  // the units the user actually checked are sent, grouped back into one
+  // entry per reservation item.
   const handleConfirmDelivery = async () => {
     if (!reservation) return;
-    if (selectedDeliveryItemIds.length === 0) {
-      setActionError("Please select at least one item to confirm handover.");
+
+    const items = deliverableItems
+      .map((item) => ({
+        reservationItemId: item.id,
+        reservationItemUnitIds: item.units
+          .filter((unit) => unit.status === "ASSIGNED" && selectedDeliveryUnitIds[unit.id])
+          .map((unit) => unit.id),
+      }))
+      .filter((entry) => entry.reservationItemUnitIds.length > 0);
+
+    if (items.length === 0) {
+      setActionError("Select at least one serial unit to confirm handover.");
       return;
     }
+
     setActionLoading(true);
     setActionError(null);
     setActionNotice(null);
     try {
-      const updated = await api.confirmDelivery(
-        reservation.id,
-        selectedDeliveryItemIds,
-      );
+      const updated = await api.confirmDelivery(reservation.id, { items });
       setReservation(updated);
-      setSelectedDeliveryItemIds([]);
-      setActionNotice(
-        `Handover confirmed for ${selectedDeliveryItemIds.length} item(s).`,
+      const unitCount = items.reduce(
+        (sum, entry) => sum + entry.reservationItemUnitIds.length,
+        0,
       );
+      setActionNotice(`Handover confirmed for ${unitCount} serial unit(s).`);
     } catch (err: any) {
       setActionError(err.message ?? "Failed to confirm delivery.");
     } finally {
@@ -684,18 +726,18 @@ export function ReservationDetailPage() {
               </div>
 
               {/* Action Select All Toggles -- Approve/Reject are per-row now, no batch selection */}
-              {deliverableItems.length > 0 ? (
+              {deliverableUnitIds.length > 0 ? (
                 <label className="approval-select-all">
                   <input
                     type="checkbox"
                     checked={
-                      selectedDeliveryItemIds.length > 0 &&
-                      selectedDeliveryItemIds.length === deliverableItems.length
+                      selectedDeliveryUnitCount > 0 &&
+                      selectedDeliveryUnitCount === deliverableUnitIds.length
                     }
-                    onChange={toggleSelectAllDeliverable}
-                    aria-label="Select all items for handover"
+                    onChange={toggleSelectAllDeliveryUnits}
+                    aria-label="Select all serial units for handover"
                   />
-                  <span>Select all for handover ({deliverableItems.length})</span>
+                  <span>Select all for handover ({deliverableUnitIds.length})</span>
                 </label>
               ) : returnableUnitIds.length > 0 ? (
                 <label className="approval-select-all">
@@ -732,13 +774,13 @@ export function ReservationDetailPage() {
                 <div className="res-review-bar__title">
                   <Truck size={18} />
                   <span>
-                    Handover confirmation ({selectedDeliveryItemIds.length} of {deliverableItems.length} selected)
+                    Handover confirmation ({selectedDeliveryUnitCount} of {deliverableUnitIds.length} serial units selected)
                   </span>
                 </div>
                 <div className="res-review-bar__actions">
                   <Button
                     variant="primary"
-                    disabled={actionLoading || selectedDeliveryItemIds.length === 0}
+                    disabled={actionLoading || selectedDeliveryUnitCount === 0}
                     onClick={handleConfirmDelivery}
                   >
                     <Check size={14} />
@@ -839,7 +881,6 @@ export function ReservationDetailPage() {
                   (retItem || pendingInspectableReturn.items?.length === 0 || pendingInspectableReturn.status === "PENDING"),
                 );
 
-                const isDeliverySelected = selectedDeliveryItemIds.includes(item.id);
                 const isInspectSelected = selectedInspectItemIds.includes(item.id);
                 const isRejected = item.status === "REJECTED";
                 const isDelivered = item.status === "DELIVERED";
@@ -1098,8 +1139,13 @@ export function ReservationDetailPage() {
                                   {isDeliverySelectable && (
                                     <input
                                       type="checkbox"
-                                      checked={isDeliverySelected}
-                                      onChange={() => toggleDeliveryItemSelection(item.id)}
+                                      checked={Boolean(selectedDeliveryUnitIds[unit.id])}
+                                      onChange={() =>
+                                        setSelectedDeliveryUnitIds((prev) => ({
+                                          ...prev,
+                                          [unit.id]: !prev[unit.id],
+                                        }))
+                                      }
                                       aria-label={`Select serial ${unit.serialNumber} for handover`}
                                     />
                                   )}

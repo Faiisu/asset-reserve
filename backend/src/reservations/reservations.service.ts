@@ -852,23 +852,40 @@ export class ReservationsService {
     const deliverableItems = reservation.items.filter((item) =>
       deliverableItemStatuses.includes(item.status),
     );
-    let targetItems = deliverableItems.filter((item) =>
-      this.canConfirmDeliveryItem(actor, reservation, item),
-    );
 
-    if (input?.itemIds && input.itemIds.length > 0) {
-      targetItems = reservation.items.filter((item) =>
-        input.itemIds!.includes(item.id),
-      );
-      if (targetItems.length !== input.itemIds.length) {
-        throw new ApiException(
-          400,
-          "INVALID_ITEM_SELECTION",
-          "One or more selected items do not belong to this reservation.",
-        );
-      }
-      const invalidStateItems = targetItems.filter(
-        (item) => !deliverableItemStatuses.includes(item.status),
+    // entries: which item to confirm, and which of its ASSIGNED units --
+    // unitIds === null means "every remaining ASSIGNED unit" (full handover).
+    type Entry = {
+      item: (typeof reservation.items)[number];
+      unitIds: string[] | null;
+    };
+    let entries: Entry[];
+
+    if (input?.items && input.items.length > 0) {
+      const byId = new Map(reservation.items.map((item) => [item.id, item]));
+      const seen = new Set<string>();
+      entries = input.items.map((entry) => {
+        if (seen.has(entry.reservationItemId)) {
+          throw new ApiException(
+            400,
+            "INVALID_ITEM_SELECTION",
+            "Duplicate reservationItemId in the same request.",
+          );
+        }
+        seen.add(entry.reservationItemId);
+        const item = byId.get(entry.reservationItemId);
+        if (!item) {
+          throw new ApiException(
+            400,
+            "INVALID_ITEM_SELECTION",
+            "One or more selected items do not belong to this reservation.",
+          );
+        }
+        return { item, unitIds: entry.reservationItemUnitIds ?? null };
+      });
+
+      const invalidStateItems = entries.filter(
+        ({ item }) => !deliverableItemStatuses.includes(item.status),
       );
       if (invalidStateItems.length > 0) {
         throw new ApiException(
@@ -878,15 +895,35 @@ export class ReservationsService {
         );
       }
       if (
-        targetItems.some(
-          (item) => !this.canConfirmDeliveryItem(actor, reservation, item),
+        entries.some(
+          ({ item }) => !this.canConfirmDeliveryItem(actor, reservation, item),
         )
       ) {
         this.permissionDenied();
       }
+
+      for (const { item, unitIds } of entries) {
+        if (!unitIds) continue;
+        const assignedIds = new Set(
+          item.unitAssignments
+            .filter((unit) => unit.status === "ASSIGNED")
+            .map((unit) => unit.id),
+        );
+        if (unitIds.some((id) => !assignedIds.has(id))) {
+          throw new ApiException(
+            409,
+            "RESERVATION_ITEM_UNIT_UNAVAILABLE",
+            "One or more selected serial units are not assigned and awaiting handover on this item.",
+          );
+        }
+      }
+    } else {
+      entries = deliverableItems
+        .filter((item) => this.canConfirmDeliveryItem(actor, reservation, item))
+        .map((item) => ({ item, unitIds: null }));
     }
 
-    if (targetItems.length === 0) {
+    if (entries.length === 0) {
       if (deliverableItems.length > 0) this.permissionDenied();
       throw new ApiException(
         400,
@@ -896,60 +933,83 @@ export class ReservationsService {
     }
 
     const deliveredAt = new Date();
-    const itemIdsToDeliver = targetItems.map((item) => item.id);
 
     await this.prisma.$transaction(async (tx) => {
-      // 1. Update selected items to DELIVERED, and check out their assigned
-      // asset units (ASSIGNED -> CHECKED_OUT).
+      // 1. Check out exactly the targeted units per item (ASSIGNED ->
+      // CHECKED_OUT) -- partial handover leaves the rest ASSIGNED and the
+      // item itself PREPARED until every unit has been handed over.
       const eventBatchId = randomUUID();
-      let checkedOutUnitCount = 0;
-      for (const item of targetItems) {
-        await tx.reservationItem.update({
-          where: { id: item.id },
-          data: {
-            status: "DELIVERED",
-            checkedOutAt: deliveredAt,
-            checkedOutBy: actor.user.id,
-            updatedAt: deliveredAt,
-          },
+      let batchCreated = false;
+      let fullyDeliveredCount = 0;
+      const deliveredUnitsByItem: { reservationItemId: string; reservationItemUnitIds: string[] }[] = [];
+
+      for (const { item, unitIds } of entries) {
+        const assignedUnits = item.unitAssignments.filter(
+          (unit) => unit.status === "ASSIGNED",
+        );
+        const targetUnits = unitIds
+          ? assignedUnits.filter((unit) => unitIds.includes(unit.id))
+          : assignedUnits;
+        deliveredUnitsByItem.push({
+          reservationItemId: item.id,
+          reservationItemUnitIds: targetUnits.map((unit) => unit.id),
         });
 
-        const assignedUnitIds = item.unitAssignments
-          .filter((unit) => unit.status === "ASSIGNED")
-          .map((unit) => unit.assetUnitId);
-        if (!assignedUnitIds.length) continue;
-        await tx.reservationItemUnit.updateMany({
-          where: { reservationItemId: item.id, status: "ASSIGNED" },
-          data: { status: "CHECKED_OUT", checkedOutAt: deliveredAt },
-        });
-        await tx.assetUnit.updateMany({
-          where: { id: { in: assignedUnitIds }, status: "RESERVED" },
-          data: { status: "CHECKED_OUT", updatedAt: deliveredAt },
-        });
-        if (checkedOutUnitCount === 0) {
-          await tx.assetUnitEventBatch.create({
-            data: {
-              id: eventBatchId,
-              description: "Checked out for delivery",
-              performedBy: actor.user.id,
-            },
+        if (targetUnits.length > 0) {
+          const targetUnitIds = targetUnits.map((unit) => unit.id);
+          const targetAssetUnitIds = targetUnits.map((unit) => unit.assetUnitId);
+          await tx.reservationItemUnit.updateMany({
+            where: { id: { in: targetUnitIds }, status: "ASSIGNED" },
+            data: { status: "CHECKED_OUT", checkedOutAt: deliveredAt },
+          });
+          await tx.assetUnit.updateMany({
+            where: { id: { in: targetAssetUnitIds }, status: "RESERVED" },
+            data: { status: "CHECKED_OUT", updatedAt: deliveredAt },
+          });
+          if (!batchCreated) {
+            await tx.assetUnitEventBatch.create({
+              data: {
+                id: eventBatchId,
+                description: "Checked out for delivery",
+                performedBy: actor.user.id,
+              },
+            });
+            batchCreated = true;
+          }
+          await tx.assetUnitEvent.createMany({
+            data: targetAssetUnitIds.map((assetUnitId) => ({
+              id: randomUUID(),
+              batchId: eventBatchId,
+              assetUnitId,
+              eventType: "CHECKED_OUT",
+              fromStatus: "RESERVED",
+              toStatus: "CHECKED_OUT",
+              reservationItemId: item.id,
+            })),
           });
         }
-        await tx.assetUnitEvent.createMany({
-          data: assignedUnitIds.map((assetUnitId) => ({
-            id: randomUUID(),
-            batchId: eventBatchId,
-            assetUnitId,
-            eventType: "CHECKED_OUT",
-            fromStatus: "RESERVED",
-            toStatus: "CHECKED_OUT",
-            reservationItemId: item.id,
-          })),
-        });
-        checkedOutUnitCount += assignedUnitIds.length;
+
+        const remainingAssigned = assignedUnits.length - targetUnits.length;
+        if (remainingAssigned === 0) {
+          await tx.reservationItem.update({
+            where: { id: item.id },
+            data: {
+              status: "DELIVERED",
+              checkedOutAt: deliveredAt,
+              checkedOutBy: actor.user.id,
+              updatedAt: deliveredAt,
+            },
+          });
+          fullyDeliveredCount += 1;
+        } else {
+          await tx.reservationItem.update({
+            where: { id: item.id },
+            data: { updatedAt: deliveredAt },
+          });
+        }
       }
 
-      // 3. Check if all approved/active items on the manifest are now DELIVERED or RETURNED
+      // 2. Check if all approved/active items on the manifest are now DELIVERED or RETURNED
       const allItems = await tx.reservationItem.findMany({
         where: { reservationId },
         select: { id: true, status: true },
@@ -990,7 +1050,9 @@ export class ReservationsService {
         entityId: reservationId,
         details: {
           confirmedBy: actor.user.id,
-          itemCount: targetItems.length,
+          itemCount: entries.length,
+          fullyDeliveredCount,
+          units: deliveredUnitsByItem,
         },
       });
     });

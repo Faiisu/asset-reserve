@@ -344,19 +344,14 @@ export const api = {
       method: "POST",
       body: json({ ...(reason ? { reason } : {}) }),
     }),
-  confirmDelivery: (
-    reservationId: string,
-    input?: ConfirmDeliveryInput | string[],
-  ) => {
-    const payload = Array.isArray(input) ? { itemIds: input } : input;
-    return request<ReservationDetail>(
+  confirmDelivery: (reservationId: string, input?: ConfirmDeliveryInput) =>
+    request<ReservationDetail>(
       `/reservations/${reservationId}/delivery-confirm`,
       {
         method: "POST",
-        ...(payload ? { body: json(payload) } : {}),
+        ...(input ? { body: json(input) } : {}),
       },
-    );
-  },
+    ),
   createReturn: (reservationId: string, input: CreateReturnInput) =>
     request<ReturnDetail>(`/reservations/${reservationId}/returns`, {
       method: "POST",

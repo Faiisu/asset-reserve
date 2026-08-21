@@ -289,7 +289,10 @@ export type ReservationItemInput = {
 };
 
 export type ConfirmDeliveryInput = {
-  itemIds?: string[];
+  items: Array<{
+    reservationItemId: string;
+    reservationItemUnitIds?: string[];
+  }>;
 };
 
 export type ReservationDetail = {

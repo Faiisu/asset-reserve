@@ -27,6 +27,7 @@
 - อนุมัติราย item แล้ว aggregate status ของ reservation ต้องถูกคำนวณใหม่ตาม [lifecycle-and-state-machines.md#reservation-status](lifecycle-and-state-machines.md#reservation-status)
 - **Approve เป็น unit-based, reject เป็น item-based**: อนุมัติเลือกได้ 1 ถึง `quantity` ที่ขอ (partial approval ได้จริง) แล้ว `quantity` ของ item จะถูกตัดลงให้เท่ากับจำนวนที่ approve ทันที ไม่มีส่วนที่เหลือค้าง `PENDING` รออนุมัติรอบถัดไป — ส่วนปฏิเสธ (reject) เป็น all-or-nothing ทั้ง item เสมอ ไม่มี concept ปฏิเสธเฉพาะบาง unit ภายใน item เดียวกัน
 - การแก้ไข reservation **หลัง submit แล้ว** ไม่รองรับ — `ReservationChangeRequest` ถูกยกเลิก (ดู [scope-and-roadmap.md](scope-and-roadmap.md#feature-ที่ถูกยกเลิก-decommissioned)) ต้องยกเลิก reservation เดิมแล้วสร้างใหม่แทนถ้าต้องการเปลี่ยนกำหนดการ/รายการ
+- **Handover เป็น unit-based**: ยืนยัน handover เลือกเฉพาะบาง `ReservationItemUnit` ของ item ได้ ไม่ต้องส่งมอบทั้ง item พร้อมกัน — item ยังอยู่ `PREPARED` ต่อไปจนกว่า unit ที่ผูกไว้ทั้งหมดจะถูกยืนยัน handover ครบ (ยืนยันได้หลายรอบ) `checkedOutBy`/`checkedOutAt` ระดับ item บันทึกเมื่อ item เพิ่งข้ามไป `DELIVERED` (ครบทุก unit แล้ว) เท่านั้น ส่วน `ReservationItemUnit.checkedOutAt` บันทึกต่อหน่วยทุกครั้งที่ยืนยัน
 - Prepare/checkout ต้องบันทึก actor และเวลาที่ดำเนินการ
 
 ## 3. Return

@@ -516,11 +516,14 @@ Requester หรือ actor ที่ manage reservation ได้ยกเล�
 
 ### 7.11 `POST /reservations/:reservationId/delivery-confirm`
 
-เจ้าหน้าที่คลังหรือ Area Manager ยืนยันการส่งมอบอุปกรณ์:
+เจ้าหน้าที่คลังหรือ Area Manager ยืนยันการส่งมอบอุปกรณ์ **แบบ unit-based**: รับ `items[]` แต่ละรายการระบุ `reservationItemId` และ `reservationItemUnitIds[]` (optional) ของตัวเอง — ไม่ต้องส่งมอบทั้ง item พร้อมกัน (breaking change จากรุ่นก่อนหน้าที่รับแค่ `itemIds[]` และส่งมอบทั้ง item เสมอ — ดู [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status))
 
-1. ตรวจสอบสถานะการจองต้องเป็น `APPROVED` (หรือ `PARTIALLY_APPROVED` ที่มีรายการ approved)
-2. อัปเดตสถานะของ `reservation_items` ที่อนุมัติเป็น `DELIVERED` พร้อมบันทึก `checkedOutBy = actor.id` และ `checkedOutAt = now`
-3. เปลี่ยนสถานะภาพรวมของ `reservations` เป็น `DELIVERY_CONFIRMED`
+1. ตรวจสอบสถานะการจองต้องเป็น `APPROVED` หรือ `PARTIALLY_APPROVED`/`DELIVERY_CONFIRMED` (รองรับยืนยัน handover เพิ่มเติมหลังบางรายการส่งมอบไปแล้ว)
+2. แต่ละ item ที่ระบุต้องอยู่สถานะ `PREPARED` และ actor ต้องผ่าน `canConfirmDelivery` ของ item นั้น — มิฉะนั้นตอบ `409`/`403`
+3. ถ้าไม่ส่ง `reservationItemUnitIds` มาสำหรับ item ใด ให้ถือว่าส่งมอบ**ทุก unit ที่ยังเป็น `ASSIGNED`** ของ item นั้น (พฤติกรรมเดิม เท่ากับ full handover) ถ้าส่งมา ต้องเป็น `ReservationItemUnit.id` ของ item นั้นเองและอยู่สถานะ `ASSIGNED` เท่านั้น มิฉะนั้นตอบ `409`
+4. อัปเดตเฉพาะ unit ที่เลือก: `ReservationItemUnit.status` และ `AssetUnit.status` จาก `ASSIGNED`/`RESERVED` เป็น `CHECKED_OUT` พร้อม `AssetUnitEvent` (`eventType: CHECKED_OUT`) และ `ReservationItemUnit.checkedOutAt = now` ต่อหน่วย
+5. หลังอัปเดต ถ้า item นั้น**ไม่เหลือ unit สถานะ `ASSIGNED` อีกแล้ว** ให้เปลี่ยน `reservation_items.status` เป็น `DELIVERED` พร้อมบันทึก `checkedOutBy = actor.id`, `checkedOutAt = now` **ที่ระดับ item** (หมายถึงเวลา/actor ที่ทำให้ item ส่งมอบครบ) — ถ้ายังมี unit ค้าง `ASSIGNED` อยู่ item ยังคง `PREPARED` ต่อไป (ยืนยัน handover ส่วนที่เหลือได้อีกในคำขอถัดไป)
+6. เปลี่ยนสถานะภาพรวมของ `reservations` เป็น `DELIVERY_CONFIRMED` เมื่อทุก item ที่ approved/active เป็น `DELIVERED` หรือ `RETURNED` ครบ (เหมือนเดิม — ไม่นับ item ที่ยัง `PREPARED` บางส่วน)
 
 ### 7.12 Past date/time validation (creation and reschedule)
 

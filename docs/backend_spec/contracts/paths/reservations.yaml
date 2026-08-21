@@ -210,7 +210,7 @@
     - $ref: "#/components/parameters/ReservationId"
   post:
     tags: [Reservations]
-    summary: Confirm equipment delivery
+    summary: Confirm equipment delivery (unit-based, partial handover allowed)
     operationId: confirmDelivery
     requestBody:
       required: false

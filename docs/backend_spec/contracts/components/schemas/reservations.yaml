@@ -547,15 +547,39 @@ ReservationDetail:
     updatedAt:
       type: string
       format: date-time
+ConfirmDeliveryItem:
+  type: object
+  additionalProperties: false
+  required:
+    - reservationItemId
+  properties:
+    reservationItemId:
+      type: string
+      format: uuid
+    reservationItemUnitIds:
+      type: array
+      description: >-
+        ASSIGNED ReservationItemUnit ids of this item to hand over now (unit-based,
+        partial handover allowed -- omit to hand over every remaining ASSIGNED unit
+        of this item, i.e. full handover). The item stays PREPARED until every
+        assigned unit has been handed over across one or more calls.
+      minItems: 1
+      maxItems: 200
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
 ConfirmDeliveryRequest:
   type: object
   additionalProperties: false
   properties:
-    itemIds:
+    items:
       type: array
+      description: Omit entirely to hand over every deliverable item visible to the actor, in full.
+      minItems: 1
+      maxItems: 100
       items:
-        type: string
-        format: uuid
+        $ref: "#/components/schemas/ConfirmDeliveryItem"
 ReturnItemInput:
   type: object
   additionalProperties: false

@@ -347,6 +347,8 @@ components:
       $ref: ./components/schemas/reservations.yaml#/ReservationDetailItem
     ReservationDetail:
       $ref: ./components/schemas/reservations.yaml#/ReservationDetail
+    ConfirmDeliveryItem:
+      $ref: ./components/schemas/reservations.yaml#/ConfirmDeliveryItem
     ConfirmDeliveryRequest:
       $ref: ./components/schemas/reservations.yaml#/ConfirmDeliveryRequest
     ReturnItemInput:

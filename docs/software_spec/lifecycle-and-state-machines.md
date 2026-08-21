@@ -76,12 +76,15 @@ Asset สามารถถูกคืนได้ **ตลอดเวลา�
 
 > **Breaking change จากรุ่นก่อนหน้า**: เดิม `PENDING` อนุมัติเป็น `APPROVED` ก่อน แล้วค่อยผูก serial unit เป็นอีกขั้นตอนแยก (`PREPARED`, คนละ endpoint/actor ได้) ตอนนี้ **รวมเป็นการตัดสินใจเดียว** — Area Manager ที่อนุมัติต้องเลือก serial-numbered unit (`assetUnitIds[]`) มาพร้อมกันในคำขอเดียว item จึงข้ามจาก `PENDING` ไป `PREPARED` ตรงๆ ไม่มีสถานะ `APPROVED` เป็นจุดพักอีกต่อไป **Approve เป็น unit-based**: เลือก S/N น้อยกว่าจำนวนที่ขอได้ (`quantity` จะถูกตัดลงให้ตรงกับจำนวนที่ approve จริงทันที ไม่มีส่วนที่เหลือค้าง `PENDING` รออนุมัติรอบถัดไป) — ส่วน **reject ยังเป็น all-or-nothing ทั้ง item เหมือนเดิม** ไม่มี unit-level reject รายละเอียด transaction: [backend_spec/algorithms-and-validation.md §7.5](../backend_spec/algorithms-and-validation.md#75-post-reservationsreservationiditemsitemiddecision)
 
+> **Handover เป็น unit-based เช่นกัน**: ยืนยัน handover เลือกเฉพาะบาง `ReservationItemUnit` (`reservationItemUnitIds[]`) ของ item ได้ ไม่ต้องส่งมอบทั้ง item พร้อมกัน — item ยังอยู่ status `PREPARED` ต่อไปตราบใดที่ยังมี unit ที่ผูกไว้ (`ASSIGNED`) เหลืออยู่ และข้ามไป `DELIVERED` ก็ต่อเมื่อ unit ที่ผูกไว้ทั้งหมดถูกยืนยัน handover ครบ (ยืนยันได้หลายรอบ) รายละเอียด transaction: [backend_spec/algorithms-and-validation.md §7.11](../backend_spec/algorithms-and-validation.md#711-post-reservationsreservationiddelivery-confirm)
+
 ```mermaid
 stateDiagram-v2
     [*] --> PENDING: สร้างพร้อม Reservation
     PENDING --> PREPARED: Area Manager อนุมัติ เลือก S/N 1 ถึง quantity ที่ขอ (§7.5)
     PENDING --> REJECTED: Area Manager ปฏิเสธทั้ง item
-    PREPARED --> DELIVERED: ยืนยัน handover แล้ว
+    PREPARED --> PREPARED: ยืนยัน handover บางส่วน (unit-based, ยังมี unit ค้าง) (§7.11)
+    PREPARED --> DELIVERED: ยืนยัน handover ครบทุก unit ที่ผูกไว้แล้ว (§7.11)
     DELIVERED --> RETURNED: ตรวจรับคืนและอนุมัติแล้ว
     RETURNED --> [*]
     REJECTED --> [*]
@@ -91,9 +94,9 @@ stateDiagram-v2
 | --- | --- |
 | `PENDING` | รอ area manager ตัดสินใจ |
 | `REJECTED` | ถูกปฏิเสธทั้ง item (reject ไม่ใช่ unit-based) |
-| `PREPARED` | อนุมัติแล้ว และผูก `AssetUnit`/`ReservationItemUnit` (serial) แล้วในคำขอเดียวกัน รอส่งมอบ — `quantity` คือจำนวนที่ approve จริง (อาจน้อยกว่าที่ขอตอน submit ถ้า approve บางส่วน) |
-| `CHECKED_OUT` | เป็น status ของ `AssetUnit`/`ReservationItemUnit` (หน่วยจริงที่ถูกส่งมอบ) **ไม่ใช่** status ของ `ReservationItem` เอง — item ข้ามจาก `PREPARED` ไป `DELIVERED` ตรงๆ ตอน delivery-confirm |
-| `DELIVERED` | ส่งมอบให้ผู้ขอแล้ว |
+| `PREPARED` | อนุมัติแล้ว และผูก `AssetUnit`/`ReservationItemUnit` (serial) แล้วในคำขอเดียวกัน รอส่งมอบ — `quantity` คือจำนวนที่ approve จริง (อาจน้อยกว่าที่ขอตอน submit ถ้า approve บางส่วน) item จะค้างอยู่ status นี้ตราบใดที่ยังมี unit สถานะ `ASSIGNED` เหลืออยู่ แม้จะยืนยัน handover ไปแล้วบางส่วน |
+| `CHECKED_OUT` | เป็น status ของ `AssetUnit`/`ReservationItemUnit` (หน่วยจริงที่ถูกส่งมอบ) **ไม่ใช่** status ของ `ReservationItem` เอง — item ข้ามจาก `PREPARED` ไป `DELIVERED` ก็ต่อเมื่อ unit ที่ผูกไว้ทั้งหมดของ item นั้นเป็น `CHECKED_OUT` ครบแล้ว (handover เป็น unit-based, ยืนยันบางส่วนได้หลายรอบ) |
+| `DELIVERED` | ส่งมอบให้ผู้ขอแล้ว (ครบทุก unit ของ item) |
 | `RETURNED` | คืนครบสำหรับ item นี้แล้ว |
 
 ## 3a. ReservationItemUnit status {#reservation-item-unit-status}

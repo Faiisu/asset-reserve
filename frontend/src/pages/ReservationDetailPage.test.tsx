@@ -168,10 +168,13 @@ describe("ReservationDetailPage", () => {
 
     expect(screen.getByText("Stage Camera 4K")).toBeInTheDocument();
     expect(screen.getByText("All equipment approved for handover")).toBeInTheDocument();
-    expect(screen.getByText("Handover confirmation (0 of 1 selected)")).toBeInTheDocument();
-    expect(screen.getByLabelText("Select serial SN-CAM-001 for handover")).not.toBeChecked();
-    expect(screen.getByLabelText("Select serial SN-CAM-002 for handover")).not.toBeChecked();
-    expect(screen.getByRole("button", { name: "Confirm Handover" })).toBeDisabled();
+    // Every assigned serial unit is pre-selected for handover by default.
+    expect(
+      screen.getByText("Handover confirmation (2 of 2 serial units selected)"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Select serial SN-CAM-001 for handover")).toBeChecked();
+    expect(screen.getByLabelText("Select serial SN-CAM-002 for handover")).toBeChecked();
+    expect(screen.getByRole("button", { name: "Confirm Handover" })).toBeEnabled();
     expect(screen.getAllByText("Reservation Status Track")[0]).toBeInTheDocument();
 
     // 2. Click on the "Approved" step in the horizontal tracker (.res-step-btn)
@@ -349,17 +352,19 @@ describe("ReservationDetailPage", () => {
     });
   });
 
-  it("confirms handover only for explicitly selected authorized items", async () => {
+  it("confirms handover for only the serial units explicitly selected (partial handover)", async () => {
     vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
     const confirmSpy = vi.spyOn(api, "confirmDelivery").mockResolvedValue({
       ...mockReservation,
-      status: "DELIVERY_CONFIRMED",
-      items: mockReservation.items.map((item) => ({
-        ...item,
-        status: "DELIVERED",
-        capabilities: { ...item.capabilities, canConfirmDelivery: false },
-      })),
-      capabilities: { ...mockReservation.capabilities, canConfirmDelivery: false },
+      items: [
+        {
+          ...mockReservation.items[0],
+          units: [
+            { ...mockReservation.items[0].units[0], status: "CHECKED_OUT" },
+            mockReservation.items[0].units[1],
+          ],
+        },
+      ],
     });
 
     render(
@@ -383,22 +388,22 @@ describe("ReservationDetailPage", () => {
     const confirmButton = screen.getByRole("button", {
       name: "Confirm Handover",
     });
-    expect(serialOne).not.toBeChecked();
-    expect(serialTwo).not.toBeChecked();
-    expect(confirmButton).toBeDisabled();
-
-    // Handover confirms the whole item (no partial-unit capability in the
-    // API), so checking any one of its serial units selects both.
-    fireEvent.click(serialOne);
+    // Every assigned serial unit is pre-selected by default.
     expect(serialOne).toBeChecked();
     expect(serialTwo).toBeChecked();
+    expect(confirmButton).toBeEnabled();
+
+    // Partial handover: deselect one serial unit, hand over only the other.
+    fireEvent.click(serialTwo);
+    expect(serialOne).toBeChecked();
+    expect(serialTwo).not.toBeChecked();
     expect(confirmButton).toBeEnabled();
     fireEvent.click(confirmButton);
 
     await waitFor(() => {
       expect(confirmSpy).toHaveBeenCalledWith(
         "00000000-0000-4000-8000-000000000101",
-        ["item-1"],
+        { items: [{ reservationItemId: "item-1", reservationItemUnitIds: ["riu-1"] }] },
       );
     });
   });
