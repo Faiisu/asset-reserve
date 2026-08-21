@@ -4,7 +4,7 @@
 
 > **นี่คือ dated build/QA snapshot ไม่ใช่ spec** — ห้ามอ้างอิงเอกสารนี้เป็นแหล่งของ requirement หรือ business rule ใดๆ สำหรับ requirement ให้ดู [`../software_spec/`](../software_spec/README.md), สำหรับ API contract ดู [`../backend_spec/contracts/`](../backend_spec/contracts/README.md), สำหรับ UI design ดู [`../frontend_spec/`](../frontend_spec/README.md)
 
-เอกสารนี้เป็น snapshot ของ frontend ที่ตรวจจาก `frontend/src/app.tsx`, `frontend/src/pages`, `frontend/src/components`, `frontend/src/api.ts` และ tests ณ วันที่ 21 สิงหาคม 2026 (หลังงาน OAuth/Outlook account linking, notifications, self-service account, docs/response-shape alignment ของ reservation-return flow และเพิ่ม UI สำหรับ prepare/serial-unit assignment) ใช้แยกสิ่งที่ใช้งานได้จริงออกจากเอกสาร product specification ที่อาจรวม roadmap ในอนาคต
+เอกสารนี้เป็น snapshot ของ frontend ที่ตรวจจาก `frontend/src/app.tsx`, `frontend/src/pages`, `frontend/src/components`, `frontend/src/api.ts` และ tests ณ วันที่ 21 สิงหาคม 2026 (หลังงาน OAuth/Outlook account linking, notifications, self-service account, docs/response-shape alignment ของ reservation-return flow, และการรวมขั้นตอน approve + prepare/serial-unit assignment เป็นคำขอเดียว) ใช้แยกสิ่งที่ใช้งานได้จริงออกจากเอกสาร product specification ที่อาจรวม roadmap ในอนาคต
 
 ## User flow ที่ implement แล้ว
 
@@ -50,7 +50,7 @@ flowchart TB
 | `/assets/:assetId/edit` | `AssetFormPage` | edit name, area, description และ picture; quantity แก้ผ่าน inventory action | permission-gated |
 | `/reservations` | `ReservationsPage` | My reservations/Approval queue tabs, search, grouped status/management-area/date filters, cursor load-more | permission-gated |
 | `/reservations/new` | `ReservationCreatePage` | event schedule, optional asset manifest, quantity, URL-prefilled dates/assets, recent reservations, reference lookup, create draft หรือ submit | permission-gated |
-| `/reservations/:reservationId` | `ReservationDetailPage` | schedule/requester/participants/items, availability warnings, submit draft, item single/batch approve/reject, **prepare (assign serial-numbered units before handover)**, cancel, request edit, approve/reject edit request, delivery confirm, submit/decide return (per-item return slip, Good/Broken/Lost decision) | capabilities จาก reservation detail |
+| `/reservations/:reservationId` | `ReservationDetailPage` | schedule/requester/participants/items, availability warnings, submit draft, item single/batch **approve (with inline serial-unit assignment)**/reject, cancel, request edit, approve/reject edit request, delivery confirm, submit/decide return (per-item return slip, Good/Broken/Lost decision) | capabilities จาก reservation detail |
 | `/approvals` | `ApprovalRequestsPage` | รวม pending item approvals ที่ actor ตัดสินใจได้ ข้ามหลาย reservation ในหน้าเดียว | permission-gated |
 | `/admin/areas` | `ManagementAreasPage` | search/list, create, edit, delete confirmation | Global ADMIN |
 | `/admin/access` | `AccessPage` | permission catalog grouped by resource, role selection, create role, edit description/permissions, dirty-state save | Global ADMIN |
@@ -72,8 +72,7 @@ Permission key ที่ควบคุมแต่ละ action ดู [softwar
 
 ## Known gaps และ open bugs
 
-- `PREPARED` step มี API client และ UI command แล้ว (`api.prepareReservationItem`, ปุ่ม "Assign & Prepare" ใน `ReservationDetailPage`) — ไม่ใช่ gap อีกต่อไป
-- **Pending redesign**: [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status) และ [backend_spec/algorithms-and-validation.md §7.5](../backend_spec/algorithms-and-validation.md#75-post-reservationsreservationiditemsitemiddecision) ระบุ target flow ใหม่ที่รวมขั้นตอน approve กับ prepare (เลือก serial unit) เป็นคำขอเดียว (`POST .../items/:itemId/decision` รับ `assetUnitIds[]` ตอน `APPROVE`, item ข้าม `APPROVED` ไป `PREPARED` ตรง, endpoint `/prepare` แยกจะถูกตัดออก) — **โค้ดปัจจุบัน (backend และ frontend) ยังไม่ได้แก้ตาม spec ใหม่นี้** ยังคงเป็นสองขั้นตอนแยก (`decideReservationItem(s)` ตามด้วย `prepareReservationItem`) ตามที่ระบุไว้ในแถวด้านบนและตาราง endpoint status ด้านล่าง
+- Approve + prepare (serial-unit assignment) merged into one request, matching [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status) และ [backend_spec/algorithms-and-validation.md §7.5](../backend_spec/algorithms-and-validation.md#75-post-reservationsreservationiditemsitemiddecision): `POST .../items/:itemId/decision` (และ batch `.../items/decision`) รับ `assetUnitIds` ตอน `APPROVE`, item ข้าม `APPROVED` ไป `PREPARED` ตรง, endpoint `/prepare` แยกถูกตัดออกแล้วทั้ง backend และ frontend — ไม่ใช่ gap อีกต่อไป (เดิมเคยมีทั้งสองขั้นตอนแยก ตามด้วยการรวมเป็นขั้นตอนเดียวในรอบนี้)
 - `CHECKED_OUT`/`RETURNED` มี frontend command แล้ว (`confirmDelivery`, `createReturn`, `decideReturn` ใน `ReservationDetailPage`) — ไม่ใช่ gap อีกต่อไป
 - ไม่มี standalone inventory-adjustment route; การปรับยอดทำจาก asset list/detail
 - Return payload shape (`reservationItemUnitIds` ตอน drop-off, per-unit `{reservationItemUnitId, condition}` จัดกลุ่มตาม `reservationItemId` ตอน decision) — frontend (`ReservationDetailPage`) แก้ให้ตรง backend DTO แล้ว ไม่ใช่ gap อีกต่อไป
@@ -93,7 +92,7 @@ Permission key ที่ควบคุมแต่ละ action ดู [softwar
 | Create/submit/cancel Reservation          | Domain command API                        | ✅ Implemented |
 | Approve/reject item                       | Domain command API                        | ✅ Implemented |
 | Register/retire asset unit                | Domain command API                        | ✅ Implemented (register); retire ไม่มี UI — ดู gap ด้านบน |
-| Prepare/check out                         | Domain command API                        | ✅ Implemented เป็นสองขั้นตอนแยก (approve แล้ว prepare) ตามโมเดลเดิม — ⚠️ spec ใหม่ต้องการรวมเป็นขั้นตอนเดียว ดู gap ด้านบน |
+| Prepare (serial-unit assignment) / check out | Domain command API                     | ✅ Implemented — รวมเข้ากับ approve เป็นคำขอเดียวแล้ว (`items/:itemId/decision` รับ `assetUnitIds`), check out แยกเป็น `delivery-confirm` ตามเดิม |
 | Create/decide Return                      | Domain command API                        | ⚠️ Implemented แต่ payload shape ผิด — ดู gap ด้านบน |
 
 Recommended BFF read endpoint (ยังไม่ implement — เป้าหมายสถาปัตยกรรม ไม่ blocked การใช้งานปัจจุบันเพราะ frontend เรียก domain endpoint ตรงได้เต็มรูปแบบอยู่แล้ว):
