@@ -320,7 +320,7 @@
   color: var(--teal);
 }
 .status-badge--active .status-badge__dot,
-.status-badge--active > span {
+.status-badge--active > span:first-child {
   background: var(--teal);
 }
 .status-badge--broken {
@@ -328,7 +328,7 @@
   color: var(--amber);
 }
 .status-badge--broken .status-badge__dot,
-.status-badge--broken > span {
+.status-badge--broken > span:first-child {
   background: var(--amber);
 }
 .status-badge--lost {
@@ -336,7 +336,7 @@
   color: var(--red);
 }
 .status-badge--lost .status-badge__dot,
-.status-badge--lost > span {
+.status-badge--lost > span:first-child {
   background: var(--red);
 }
 .status-badge--inactive {
@@ -344,7 +344,7 @@
   color: var(--ink-faint);
 }
 .status-badge--inactive .status-badge__dot,
-.status-badge--inactive > span {
+.status-badge--inactive > span:first-child {
   background: var(--ink-faint);
 }
 .status-badge--reserved {
@@ -352,7 +352,7 @@
   color: var(--purple);
 }
 .status-badge--reserved .status-badge__dot,
-.status-badge--reserved > span {
+.status-badge--reserved > span:first-child {
   background: var(--purple);
 }
 .status-badge--checked-out {
@@ -360,7 +360,7 @@
   color: var(--blue);
 }
 .status-badge--checked-out .status-badge__dot,
-.status-badge--checked-out > span {
+.status-badge--checked-out > span:first-child {
   background: var(--blue);
 }
 .status-badge--in-repair {
@@ -368,7 +368,7 @@
   color: var(--amber-dark);
 }
 .status-badge--in-repair .status-badge__dot,
-.status-badge--in-repair > span {
+.status-badge--in-repair > span:first-child {
   background: var(--amber-dark);
 }
 .asset-unit-status-group {
@@ -379,14 +379,23 @@
   gap: 4px 6px;
 }
 .asset-unit-status-group .status-badge {
-  padding: 3px 7px;
+  width: 104px;
+  height: 20px;
+  padding: 0 6px;
   gap: 5px;
+  justify-content: center;
   font-size: 10px;
 }
 .asset-unit-status-group .status-badge__dot,
 .asset-unit-status-group .status-badge > span:first-child {
+  flex: 0 0 auto;
   width: 5px;
   height: 5px;
+}
+.asset-unit-status-group .status-badge__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .asset-status-swatch--active {
   background: var(--teal);

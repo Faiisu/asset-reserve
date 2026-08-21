@@ -997,10 +997,12 @@ function AssetUnitStatusBreakdown({
 
   if (present.length === 0) {
     return (
-      <span className="status-badge status-badge--inactive">
-        <span />
-        No units
-      </span>
+      <div className="asset-unit-status-group">
+        <span className="status-badge status-badge--inactive">
+          <span />
+          <span className="status-badge__text">No units</span>
+        </span>
+      </div>
     );
   }
 
@@ -1012,7 +1014,9 @@ function AssetUnitStatusBreakdown({
           className={cx("status-badge", status.className)}
         >
           <span />
-          {unitCounts[status.key]} {status.label}
+          <span className="status-badge__text">
+            {unitCounts[status.key]} {status.label}
+          </span>
         </span>
       ))}
     </div>
