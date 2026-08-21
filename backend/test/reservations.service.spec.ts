@@ -1256,7 +1256,7 @@ describe("confirmDelivery", () => {
       { id: unitTwoId, assetUnitId: assetUnitTwoId, status: "ASSIGNED" },
     ]);
     const { tx, reservationItemUpdate, reservationItemUnitUpdateMany, assetUnitUpdateMany } = mockTx(
-      reservation.items[0],
+      reservation.items[0]!,
       "DELIVERED",
     );
     const prisma = {
@@ -1294,7 +1294,7 @@ describe("confirmDelivery", () => {
       { id: unitTwoId, assetUnitId: assetUnitTwoId, status: "ASSIGNED" },
     ]);
     const { tx, reservationItemUpdate, reservationItemUnitUpdateMany, assetUnitUpdateMany, reservationUpdate } =
-      mockTx(reservation.items[0], "PREPARED");
+      mockTx(reservation.items[0]!, "PREPARED");
     const prisma = {
       reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
       $transaction: vi.fn(

@@ -905,15 +905,18 @@ async function seedMockData(): Promise<void> {
       checkedOutBy: userMap["hr@example.com"]!,
       checkedOutAt: new Date("2026-07-20T01:30:00.000Z"),
     },
-    // APPROVED
+    // APPROVED -- approve now assigns serial units in the same request (§7.5
+    // of algorithms-and-validation.md), so the item skips straight to
+    // PREPARED with preparedBy/preparedAt set; there is no APPROVED resting
+    // state for a ReservationItem anymore.
     {
       id: ids.items.approvedCamera,
       reservationId: ids.reservations.approved,
       assetId: ids.assets.camera,
       quantity: 1,
-      status: "APPROVED",
-      preparedBy: null,
-      preparedAt: null,
+      status: "PREPARED",
+      preparedBy: userMap["mk@example.com"]!,
+      preparedAt: new Date("2026-07-18T05:00:00.000Z"),
       checkedOutBy: null,
       checkedOutAt: null,
     },
@@ -922,9 +925,9 @@ async function seedMockData(): Promise<void> {
       reservationId: ids.reservations.approved,
       assetId: ids.assets.wirelessMic,
       quantity: 2,
-      status: "APPROVED",
-      preparedBy: null,
-      preparedAt: null,
+      status: "PREPARED",
+      preparedBy: userMap["mk@example.com"]!,
+      preparedAt: new Date("2026-07-18T05:00:00.000Z"),
       checkedOutBy: null,
       checkedOutAt: null,
     },
@@ -992,9 +995,9 @@ async function seedMockData(): Promise<void> {
       reservationId: ids.reservations.partiallyApproved,
       assetId: ids.assets.camera,
       quantity: 1,
-      status: "APPROVED",
-      preparedBy: null,
-      preparedAt: null,
+      status: "PREPARED",
+      preparedBy: userMap["mk@example.com"]!,
+      preparedAt: new Date("2026-08-16T04:00:00.000Z"),
       checkedOutBy: null,
       checkedOutAt: null,
     },
@@ -1154,15 +1157,22 @@ async function seedMockData(): Promise<void> {
     });
   }
 
-  // 10.1 Assign specific serialized units to delivered/returned items --
-  // mirrors the real prepare + handover flow that would have produced these
-  // states one reservation item at a time.
+  // 10.1 Assign specific serialized units to every item that has passed
+  // approval (PREPARED/DELIVERED/RETURNED) -- mirrors the real approve
+  // (assigns units) + handover flow that would have produced these states
+  // one reservation item at a time. PENDING/REJECTED items never get units.
+  //
+  // Idempotent against re-running this script itself (fixed IDs, upsert
+  // throughout), but assumes a clean DB (after db:push/migrate or db:reset)
+  // -- an asset unit already claimed by unrelated data (e.g. reservations
+  // created through the app) will collide with the one-active-assignment
+  // constraint on reservation_item_units; reset first if that happens.
   const reservationItemUnitsById = new Map<
     string,
     { id: string; assetUnitId: string }[]
   >();
   for (const item of itemInputs) {
-    if (!item.checkedOutAt) continue;
+    if (item.status === "PENDING" || item.status === "REJECTED") continue;
     const rows = await assignReservationItemUnits({
       reservationItemId: item.id,
       assetId: item.assetId,
