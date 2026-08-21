@@ -904,8 +904,6 @@ export function ReservationDetailPage() {
                         className="res-manifest-item reservation-item-card--selectable res-manifest-item--approve"
                         data-status={itemStatusClass}
                       >
-                        <div className="res-pending-check" />
-
                         <div className="res-item-media">
                           {item.asset.pictureUrl ? (
                             <img src={item.asset.pictureUrl} alt="" />

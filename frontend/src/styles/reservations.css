@@ -1319,19 +1319,6 @@
   font-size: 12px;
 }
 
-.res-pending-check {
-  display: grid;
-  place-items: center;
-}
-
-.res-pending-check .reservation-item-select {
-  width: 17px;
-  height: 17px;
-  margin: 0;
-  accent-color: var(--teal);
-  cursor: pointer;
-}
-
 .res-pending-identity {
   min-width: 0;
   display: flex;
@@ -1342,7 +1329,7 @@
    serial-unit assignment lives in its own res-manifest-unit-list below;
    the qty ticket sits at the far right like the approved-item header row. */
 .res-manifest-item.reservation-item-card--selectable.res-manifest-item--approve {
-  grid-template-columns: 28px 52px 1fr auto;
+  grid-template-columns: 52px 1fr auto;
   gap: 12px;
   align-items: start;
   background: linear-gradient(
