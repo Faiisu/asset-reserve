@@ -1133,19 +1133,28 @@ export function ReservationDetailPage() {
                           }
 
                           if (unit.status === "ASSIGNED") {
+                            const toggleDeliveryUnit = () => {
+                              if (!isDeliverySelectable) return;
+                              setSelectedDeliveryUnitIds((prev) => ({
+                                ...prev,
+                                [unit.id]: !prev[unit.id],
+                              }));
+                            };
                             return (
-                              <div key={unit.id} className="res-manifest-unit-row">
+                              <div
+                                key={unit.id}
+                                className={`res-manifest-unit-row ${
+                                  isDeliverySelectable ? "res-manifest-unit-row--clickable" : ""
+                                }`}
+                                onClick={toggleDeliveryUnit}
+                              >
                                 <span className="res-manifest-unit-row__check">
                                   {isDeliverySelectable && (
                                     <input
                                       type="checkbox"
                                       checked={Boolean(selectedDeliveryUnitIds[unit.id])}
-                                      onChange={() =>
-                                        setSelectedDeliveryUnitIds((prev) => ({
-                                          ...prev,
-                                          [unit.id]: !prev[unit.id],
-                                        }))
-                                      }
+                                      onChange={toggleDeliveryUnit}
+                                      onClick={(e) => e.stopPropagation()}
                                       aria-label={`Select serial ${unit.serialNumber} for handover`}
                                     />
                                   )}
@@ -1163,19 +1172,28 @@ export function ReservationDetailPage() {
                           }
 
                           if (unit.status === "CHECKED_OUT") {
+                            const toggleReturnUnit = () => {
+                              if (!isReturnSelectable) return;
+                              setSelectedReturnUnitIds((prev) => ({
+                                ...prev,
+                                [unit.id]: !prev[unit.id],
+                              }));
+                            };
                             return (
-                              <div key={unit.id} className="res-manifest-unit-row">
+                              <div
+                                key={unit.id}
+                                className={`res-manifest-unit-row ${
+                                  isReturnSelectable ? "res-manifest-unit-row--clickable" : ""
+                                }`}
+                                onClick={toggleReturnUnit}
+                              >
                                 <span className="res-manifest-unit-row__check">
                                   {isReturnSelectable && (
                                     <input
                                       type="checkbox"
                                       checked={Boolean(selectedReturnUnitIds[unit.id])}
-                                      onChange={() =>
-                                        setSelectedReturnUnitIds((prev) => ({
-                                          ...prev,
-                                          [unit.id]: !prev[unit.id],
-                                        }))
-                                      }
+                                      onChange={toggleReturnUnit}
+                                      onClick={(e) => e.stopPropagation()}
                                       aria-label={`Return serial ${unit.serialNumber}`}
                                     />
                                   )}

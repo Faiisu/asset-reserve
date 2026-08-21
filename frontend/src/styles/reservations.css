@@ -1453,6 +1453,14 @@
   justify-content: space-between;
 }
 
+.res-manifest-unit-row--clickable {
+  cursor: pointer;
+}
+
+.res-manifest-unit-row--clickable:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.03));
+}
+
 .res-condition-toggle {
   display: inline-flex;
   border: 1px solid var(--line-strong);
