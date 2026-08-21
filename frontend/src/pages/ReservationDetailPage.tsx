@@ -282,18 +282,21 @@ export function ReservationDetailPage() {
     }
   };
 
-  // Pending return slip that requires inspection (Area Manager)
+  // Pending return slip that requires inspection (Area Manager). Trust the
+  // backend-computed capability -- it already requires return:approve on
+  // every item's management area (not just the first), so re-deriving it
+  // client-side against only one item risks showing this UI to a manager
+  // who doesn't actually have permission over the whole return.
   const pendingInspectableReturn = useMemo(() => {
     if (!reservation || !reservation.returns) return null;
     return (
       reservation.returns.find(
         (ret) =>
           (ret.status === "PENDING" || ret.approval?.status === "PENDING") &&
-          (ret.capabilities?.canApprove ||
-            hasAreaPermission("return:approve", ret.items?.[0]?.managementArea?.id || ""))
+          ret.capabilities?.canApprove
       ) ?? null
     );
-  }, [reservation, hasAreaPermission]);
+  }, [reservation]);
 
   // Print PDF is available only when return is approved or partially approved
   const canPrintPdf = useMemo(() => {
