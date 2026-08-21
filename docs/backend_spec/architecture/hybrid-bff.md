@@ -139,7 +139,7 @@ Backend ใช้ modular monolith โดยแบ่ง module ตาม busine
 | AssetsModule                | Asset CRUD, serial-numbered asset unit registration/retirement และ availability          |
 | ReservationsModule          | Reservation, items, participants, approval, availability และ lifecycle                   |
 | ReturnsModule               | Return slip, per-unit condition inspection (Good/Broken/Lost) และ completion              |
-| RecognitionModule           | Recognition/kudos entry ระหว่าง user — ดู [modules/recognition.md](../modules/recognition.md) |
+| RecognitionModule           | Proxy ไปยัง recognition-service ภายใน (image embedding/object detection) สำหรับจดจำ/ค้นหาทรัพย์สินจากภาพ — ดู [modules/recognition.md](../modules/recognition.md) |
 | EmailModule                 | Email dispatch จาก lifecycle event (listener) — ดู [integrations/google-microsoft-auth-and-notifications.md](../integrations/google-microsoft-auth-and-notifications.md) |
 | EmailTemplatesModule        | Admin-configurable email template CRUD — ดู [modules/email-templates.md](../modules/email-templates.md) |
 | NotificationSettingsModule  | Global (singleton) notification setting, global-admin เท่านั้น — ดู [modules/notification-settings.md](../modules/notification-settings.md) |
