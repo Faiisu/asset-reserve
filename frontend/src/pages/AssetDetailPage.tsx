@@ -4,16 +4,26 @@ import {
   ArrowLeft,
   CalendarClock,
   CalendarPlus,
+  ChevronDown,
   Edit3,
+  Filter,
   PackageCheck,
   Power,
+  Search,
   UserRound,
 } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
 import {
+  assetUnitStatuses,
   AssetUnitStatusBadge,
   AssetUnitStatusBreakdown,
 } from "../components/AssetUnitStatus";
@@ -53,6 +63,28 @@ export function AssetDetailPage() {
   const [mutating, setMutating] = useState(false);
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
   const [retireOpen, setRetireOpen] = useState(false);
+  const [unitSearch, setUnitSearch] = useState("");
+  const [unitStatusFilter, setUnitStatusFilter] = useState<string[]>([]);
+  const [unitFilterOpen, setUnitFilterOpen] = useState(false);
+  const unitFilterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!unitFilterOpen) return;
+    const onPointerDown = (event: globalThis.PointerEvent) => {
+      if (!unitFilterRef.current?.contains(event.target as Node)) {
+        setUnitFilterOpen(false);
+      }
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setUnitFilterOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [unitFilterOpen]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,7 +117,16 @@ export function AssetDetailPage() {
     hasAreaPermission("reservation:create", asset.managementArea.id);
 
   const unitRetireBlocked = new Set(["RESERVED", "CHECKED_OUT", "INACTIVE"]);
-  const selectableUnits = asset.units.filter(
+  const trimmedUnitSearch = unitSearch.trim().toLowerCase();
+  const filteredUnits = asset.units.filter((unit) => {
+    const matchesSearch =
+      !trimmedUnitSearch ||
+      unit.serialNumber.toLowerCase().includes(trimmedUnitSearch);
+    const matchesStatus =
+      unitStatusFilter.length === 0 || unitStatusFilter.includes(unit.status);
+    return matchesSearch && matchesStatus;
+  });
+  const selectableUnits = filteredUnits.filter(
     (unit) => !unitRetireBlocked.has(unit.status),
   );
   const allUnitsSelected =
@@ -94,6 +135,7 @@ export function AssetDetailPage() {
   const selectedUnits = asset.units.filter((unit) =>
     selectedUnitIds.includes(unit.id),
   );
+  const hasActiveUnitFilters = unitStatusFilter.length > 0;
 
   function toggleUnit(id: string) {
     setSelectedUnitIds((current) =>
@@ -104,8 +146,22 @@ export function AssetDetailPage() {
   }
 
   function toggleAllUnits() {
-    setSelectedUnitIds(
-      allUnitsSelected ? [] : selectableUnits.map((unit) => unit.id),
+    setSelectedUnitIds((current) => {
+      if (allUnitsSelected) {
+        const selectableIds = new Set(selectableUnits.map((unit) => unit.id));
+        return current.filter((id) => !selectableIds.has(id));
+      }
+      const merged = new Set(current);
+      for (const unit of selectableUnits) merged.add(unit.id);
+      return [...merged];
+    });
+  }
+
+  function toggleUnitStatusFilter(status: string) {
+    setUnitStatusFilter((current) =>
+      current.includes(status)
+        ? current.filter((value) => value !== status)
+        : [...current, status],
     );
   }
 
@@ -223,10 +279,115 @@ export function AssetDetailPage() {
         <header>
           <div>
             <p className="eyebrow">Physical inventory</p>
-            <h2>Serial units</h2>
+            <h2>
+              Serial units
+              <span className="detail-card__count">
+                {asset.units.length} total
+              </span>
+            </h2>
           </div>
-          <span className="count-badge">{asset.units.length}</span>
+          <span className="count-badge">{filteredUnits.length}</span>
         </header>
+
+        {asset.units.length > 0 && (
+          <div className="toolbar toolbar--compact" aria-label="Serial unit filters">
+            <div className="search-box">
+              <Search size={16} />
+              <input
+                value={unitSearch}
+                onChange={(event) => setUnitSearch(event.target.value)}
+                placeholder="Search by serial number"
+                aria-label="Search serial units"
+              />
+            </div>
+            <div className="calendar-filter-picker" ref={unitFilterRef}>
+              <button
+                type="button"
+                className={cx(
+                  "calendar-filter-btn",
+                  (hasActiveUnitFilters || unitFilterOpen) &&
+                    "calendar-filter-btn--active",
+                )}
+                onClick={() => setUnitFilterOpen((prev) => !prev)}
+                aria-haspopup="dialog"
+                aria-expanded={unitFilterOpen}
+                aria-label="Filter serial units by status"
+              >
+                <Filter size={13} />
+                <span>Status</span>
+                {hasActiveUnitFilters && (
+                  <span className="calendar-filter-btn__badge">
+                    {unitStatusFilter.length}
+                  </span>
+                )}
+                <ChevronDown
+                  size={14}
+                  className={cx(
+                    "calendar-filter-btn__chevron",
+                    unitFilterOpen && "calendar-filter-btn__chevron--open",
+                  )}
+                  aria-hidden
+                />
+              </button>
+              {unitFilterOpen && (
+                <div
+                  className="calendar-filter-popover calendar-filter-popover--single"
+                  role="dialog"
+                  aria-label="Filter serial units"
+                >
+                  <div className="calendar-filter-popover__top">
+                    <div className="calendar-filter-popover__title">
+                      <Filter size={13} />
+                      <strong>Status</strong>
+                    </div>
+                    {hasActiveUnitFilters && (
+                      <button
+                        type="button"
+                        className="calendar-filter-popover__reset"
+                        onClick={() => setUnitStatusFilter([])}
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                  <div className="calendar-filter-popover__columns">
+                    <section className="calendar-filter-popover__section">
+                      <div className="calendar-filter-popover__list">
+                        {assetUnitStatuses.map((status) => {
+                          const checked = unitStatusFilter.includes(
+                            status.status,
+                          );
+                          return (
+                            <label
+                              key={status.status}
+                              className={cx(
+                                "workspace-filter-checkbox-item",
+                                checked &&
+                                  "workspace-filter-checkbox-item--checked",
+                              )}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() =>
+                                  toggleUnitStatusFilter(status.status)
+                                }
+                                aria-label={status.label}
+                              />
+                              <span className="workspace-filter-checkbox-item__name">
+                                {status.label}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {selectedUnitIds.length > 0 && (
           <div className="selection-bar" aria-live="polite">
@@ -251,6 +412,11 @@ export function AssetDetailPage() {
             title="No serial units registered"
             description="Register serial numbers above to start tracking physical units for this asset."
           />
+        ) : filteredUnits.length === 0 ? (
+          <EmptyState
+            title="No units match the current filters"
+            description="Try a different serial number or clear the status filter."
+          />
         ) : (
           <div className="data-table-wrap asset-units-table-wrap">
             <table className="data-table">
@@ -274,7 +440,7 @@ export function AssetDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {asset.units.map((unit) => {
+                {filteredUnits.map((unit) => {
                   const isSelectable = !unitRetireBlocked.has(unit.status);
                   const isSelected = selectedUnitIds.includes(unit.id);
                   return (

@@ -274,6 +274,15 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
 }
+.calendar-filter-popover--single {
+  width: 230px;
+}
+.calendar-filter-popover--single .calendar-filter-popover__columns {
+  grid-template-columns: 1fr;
+}
+.calendar-filter-popover--single .calendar-filter-popover__section:first-child {
+  border-right: 0;
+}
 .calendar-filter-popover__section {
   display: flex;
   flex-direction: column;

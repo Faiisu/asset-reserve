@@ -98,6 +98,15 @@
   background: var(--surface);
   box-sizing: border-box;
 }
+.toolbar--compact {
+  min-height: 46px;
+  padding: 8px 10px;
+  background: var(--surface-raised);
+}
+.toolbar--compact .search-box {
+  height: 34px;
+  min-width: 220px;
+}
 .search-box {
   flex: 1;
   min-width: 320px;

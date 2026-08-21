@@ -374,6 +374,19 @@
   margin: 0;
   font-size: 17px;
 }
+.detail-card__count {
+  margin-left: 9px;
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+}
+.detail-card .toolbar--compact,
+.detail-card .selection-bar,
+.detail-card .data-table-wrap,
+.detail-card .empty-state {
+  margin-top: 14px;
+}
 .owner-row {
   margin: 20px 0 12px;
   padding: 12px;
