@@ -379,6 +379,13 @@
 
 
 /* Selection Checkbox Utilities */
+.res-card-header__select-all-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
 .approval-select-all {
   display: inline-flex;
   align-items: center;

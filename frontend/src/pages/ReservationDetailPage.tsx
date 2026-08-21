@@ -69,7 +69,14 @@ export function ReservationDetailPage() {
   const [selectedDeliveryUnitIds, setSelectedDeliveryUnitIds] = useState<
     Record<string, boolean>
   >({});
-  const [selectedInspectItemIds, setSelectedInspectItemIds] = useState<string[]>([]);
+  // Inspection: which serial units (of the pending return) the reviewer is
+  // explicitly reporting a condition for, keyed by reservationItemUnitId.
+  // Checked = submit this unit's condition; unchecked = omit it, which the
+  // backend already defaults to GOOD -- so 0 checked is a valid "everything
+  // is fine" state, not an incomplete one.
+  const [selectedInspectUnitIds, setSelectedInspectUnitIds] = useState<
+    Record<string, boolean>
+  >({});
 
   // Approval: ACTIVE serial units available per asset, and the units
   // currently checked per reservation item, keyed by item.id -- approving an
@@ -139,17 +146,17 @@ export function ReservationDetailPage() {
         (ret) => ret.status === "PENDING" || ret.approval?.status === "PENDING",
       );
       const initialConditions: Record<string, ReturnItemUnitCondition> = {};
+      const initialInspectUnits: Record<string, boolean> = {};
       if (pendingReturn && pendingReturn.items && pendingReturn.items.length > 0) {
         pendingReturn.items.forEach((item) => {
           item.units.forEach((unit) => {
             initialConditions[unit.reservationItemUnitId] =
               unit.condition ?? "GOOD";
+            initialInspectUnits[unit.reservationItemUnitId] = true;
           });
         });
-        setSelectedInspectItemIds(pendingReturn.items.map((i) => i.reservationItemId));
-      } else {
-        setSelectedInspectItemIds([]);
       }
+      setSelectedInspectUnitIds(initialInspectUnits);
       setUnitConditions(initialConditions);
 
       // Fetch ACTIVE serial units for every asset with an item awaiting
@@ -298,6 +305,20 @@ export function ReservationDetailPage() {
     );
   }, [reservation]);
 
+  // Every serial unit that belongs to the pending return -- inspection
+  // selection is unit-based (checked = submit its condition, matching how
+  // handover/return already select units), not grouped by reservation item.
+  const inspectableUnitIds = useMemo(
+    () =>
+      (pendingInspectableReturn?.items || []).flatMap((item) =>
+        item.units.map((unit) => unit.reservationItemUnitId),
+      ),
+    [pendingInspectableReturn],
+  );
+  const selectedInspectUnitCount = inspectableUnitIds.filter(
+    (id) => selectedInspectUnitIds[id],
+  ).length;
+
   // Print PDF is available only when return is approved or partially approved
   const canPrintPdf = useMemo(() => {
     if (!reservation) return false;
@@ -326,19 +347,26 @@ export function ReservationDetailPage() {
     });
   };
 
-  // Toggle selection for inspection review
-  const toggleInspectItemSelection = (itemId: string) => {
-    setSelectedInspectItemIds((prev) =>
-      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
-    );
+  // Toggle selection for inspection review -- per serial unit
+  const toggleInspectUnitSelection = (unitId: string) => {
+    setSelectedInspectUnitIds((prev) => ({ ...prev, [unitId]: !prev[unitId] }));
   };
 
-  const toggleSelectAllInspectable = () => {
-    const inspectableIds = (pendingInspectableReturn?.items || []).map((i) => i.reservationItemId);
-    if (selectedInspectItemIds.length === inspectableIds.length) {
-      setSelectedInspectItemIds([]);
+  const toggleSelectAllInspectUnits = () => {
+    if (selectedInspectUnitCount === inspectableUnitIds.length) {
+      setSelectedInspectUnitIds((prev) => {
+        const next = { ...prev };
+        inspectableUnitIds.forEach((id) => delete next[id]);
+        return next;
+      });
     } else {
-      setSelectedInspectItemIds(inspectableIds);
+      setSelectedInspectUnitIds((prev) => {
+        const next = { ...prev };
+        inspectableUnitIds.forEach((id) => {
+          next[id] = true;
+        });
+        return next;
+      });
     }
   };
 
@@ -482,24 +510,23 @@ export function ReservationDetailPage() {
     setActionError(null);
     setActionNotice(null);
 
-    // An empty items list means this return has no per-item breakdown to
-    // pick from -- approve/reject the whole slip. Otherwise only submit
-    // the items the reviewer actually left checked.
+    // Only submit conditions for units the reviewer explicitly left checked
+    // -- unchecked units are simply omitted, which the backend already
+    // defaults to GOOD, so 0 checked is a valid "everything is fine" submit.
+    // (Note: this only affects APPROVE -- REJECT rejects the whole return
+    // slip regardless of what's submitted here.)
     const inspectableItems = pendingInspectableReturn.items || [];
-    const targetReturnItems =
-      inspectableItems.length === 0
-        ? []
-        : inspectableItems.filter((retItem) =>
-            selectedInspectItemIds.includes(retItem.reservationItemId),
-          );
-
-    const decidedItems: DecideReturnItemInput[] = targetReturnItems.map((retItem) => ({
-      reservationItemId: retItem.reservationItemId,
-      units: retItem.units.map((unit) => ({
-        reservationItemUnitId: unit.reservationItemUnitId,
-        condition: unitConditions[unit.reservationItemUnitId] ?? "GOOD",
-      })),
-    }));
+    const decidedItems: DecideReturnItemInput[] = inspectableItems
+      .map((retItem) => ({
+        reservationItemId: retItem.reservationItemId,
+        units: retItem.units
+          .filter((unit) => selectedInspectUnitIds[unit.reservationItemUnitId])
+          .map((unit) => ({
+            reservationItemUnitId: unit.reservationItemUnitId,
+            condition: unitConditions[unit.reservationItemUnitId] ?? "GOOD",
+          })),
+      }))
+      .filter((item) => item.units.length > 0);
 
     try {
       await api.decideReturn(reservation.id, pendingInspectableReturn.id, {
@@ -735,47 +762,55 @@ export function ReservationDetailPage() {
                 </p>
               </div>
 
-              {/* Action Select All Toggles -- Approve/Reject are per-row now, no batch selection */}
-              {deliverableUnitIds.length > 0 ? (
-                <label className="approval-select-all">
-                  <input
-                    type="checkbox"
-                    checked={
-                      selectedDeliveryUnitCount > 0 &&
-                      selectedDeliveryUnitCount === deliverableUnitIds.length
-                    }
-                    onChange={toggleSelectAllDeliveryUnits}
-                    aria-label="Select all serial units for handover"
-                  />
-                  <span>Select all for handover ({deliverableUnitIds.length})</span>
-                </label>
-              ) : returnableUnitIds.length > 0 ? (
-                <label className="approval-select-all">
-                  <input
-                    type="checkbox"
-                    checked={
-                      selectedReturnUnitCount > 0 &&
-                      selectedReturnUnitCount === returnableUnitIds.length
-                    }
-                    onChange={toggleSelectAllReturnUnits}
-                    aria-label="Select all serial units for return"
-                  />
-                  <span>Select all for return ({returnableUnitIds.length})</span>
-                </label>
-              ) : pendingInspectableReturn && pendingInspectableReturn.items?.length ? (
-                <label className="approval-select-all">
-                  <input
-                    type="checkbox"
-                    checked={
-                      selectedInspectItemIds.length > 0 &&
-                      selectedInspectItemIds.length === pendingInspectableReturn.items.length
-                    }
-                    onChange={toggleSelectAllInspectable}
-                    aria-label="Select all items for inspection"
-                  />
-                  <span>Select all for inspection ({pendingInspectableReturn.items.length})</span>
-                </label>
-              ) : null}
+              {/* Action Select All Toggles -- Approve/Reject are per-row now,
+                  no batch selection. These render independently (not an
+                  if/else chain) since a reservation can have items in
+                  different phases at once -- e.g. one item awaiting handover
+                  while another has a pending return awaiting inspection. */}
+              <div className="res-card-header__select-all-group">
+                {deliverableUnitIds.length > 0 && (
+                  <label className="approval-select-all">
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedDeliveryUnitCount > 0 &&
+                        selectedDeliveryUnitCount === deliverableUnitIds.length
+                      }
+                      onChange={toggleSelectAllDeliveryUnits}
+                      aria-label="Select all serial units for handover"
+                    />
+                    <span>Select all for handover ({deliverableUnitIds.length})</span>
+                  </label>
+                )}
+                {returnableUnitIds.length > 0 && (
+                  <label className="approval-select-all">
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedReturnUnitCount > 0 &&
+                        selectedReturnUnitCount === returnableUnitIds.length
+                      }
+                      onChange={toggleSelectAllReturnUnits}
+                      aria-label="Select all serial units for return"
+                    />
+                    <span>Select all for return ({returnableUnitIds.length})</span>
+                  </label>
+                )}
+                {inspectableUnitIds.length > 0 && (
+                  <label className="approval-select-all">
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedInspectUnitCount > 0 &&
+                        selectedInspectUnitCount === inspectableUnitIds.length
+                      }
+                      onChange={toggleSelectAllInspectUnits}
+                      aria-label="Select all serial units for inspection"
+                    />
+                    <span>Select all for inspection ({inspectableUnitIds.length})</span>
+                  </label>
+                )}
+              </div>
             </div>
 
             {/* 🚚 2. HANDOVER CONFIRMATION TOOLBAR */}
@@ -828,7 +863,7 @@ export function ReservationDetailPage() {
                 <div className="res-review-bar__title">
                   <ClipboardCheck size={18} />
                   <span>
-                    Return Inspection Review ({selectedInspectItemIds.length} of {pendingInspectableReturn.items?.length || reservation.items.length} selected)
+                    Return Inspection Review ({selectedInspectUnitCount} of {inspectableUnitIds.length} serial units flagged)
                   </span>
                 </div>
                 <div className="res-review-bar__actions">
@@ -842,11 +877,7 @@ export function ReservationDetailPage() {
                   />
                   <Button
                     variant="primary"
-                    disabled={
-                      actionLoading ||
-                      ((pendingInspectableReturn.items?.length ?? 0) > 0 &&
-                        selectedInspectItemIds.length === 0)
-                    }
+                    disabled={actionLoading}
                     onClick={() => handleDecideReturn("APPROVE")}
                   >
                     <Check size={14} />
@@ -854,11 +885,7 @@ export function ReservationDetailPage() {
                   </Button>
                   <Button
                     variant="danger"
-                    disabled={
-                      actionLoading ||
-                      ((pendingInspectableReturn.items?.length ?? 0) > 0 &&
-                        selectedInspectItemIds.length === 0)
-                    }
+                    disabled={actionLoading}
                     onClick={() => handleDecideReturn("REJECT")}
                   >
                     <X size={14} />
@@ -894,12 +921,9 @@ export function ReservationDetailPage() {
                 const retItem = pendingInspectableReturn?.items?.find(
                   (ri) => ri.reservationItemId === item.id,
                 );
-                const isInspectSelectable = Boolean(
-                  pendingInspectableReturn &&
-                  (retItem || pendingInspectableReturn.items?.length === 0 || pendingInspectableReturn.status === "PENDING"),
-                );
-
-                const isInspectSelected = selectedInspectItemIds.includes(item.id);
+                // Only real -- this item must actually be part of the
+                // pending return, not just "some return exists somewhere".
+                const isInspectSelectable = Boolean(retItem);
                 const isRejected = item.status === "REJECTED";
                 const isDelivered = item.status === "DELIVERED";
                 const isFullyReturned =
@@ -1113,26 +1137,25 @@ export function ReservationDetailPage() {
 
                           if (inspectUnit) {
                             const condition = unitConditions[unit.id] ?? "GOOD";
+                            const isUnitSelected = Boolean(
+                              selectedInspectUnitIds[unit.id],
+                            );
+                            const toggleUnit = () =>
+                              toggleInspectUnitSelection(unit.id);
                             return (
                               <div
                                 key={unit.id}
-                                className={`res-manifest-unit-row res-manifest-unit-row--inspect ${
-                                  isInspectSelectable ? "res-manifest-unit-row--clickable" : ""
-                                }`}
-                                onClick={() =>
-                                  isInspectSelectable && toggleInspectItemSelection(item.id)
-                                }
+                                className="res-manifest-unit-row res-manifest-unit-row--inspect res-manifest-unit-row--clickable"
+                                onClick={toggleUnit}
                               >
                                 <span className="res-manifest-unit-row__check">
-                                  {isInspectSelectable && (
-                                    <input
-                                      type="checkbox"
-                                      checked={isInspectSelected}
-                                      onChange={() => toggleInspectItemSelection(item.id)}
-                                      onClick={(e) => e.stopPropagation()}
-                                      aria-label={`Select serial ${unit.serialNumber} for inspection`}
-                                    />
-                                  )}
+                                  <input
+                                    type="checkbox"
+                                    checked={isUnitSelected}
+                                    onChange={toggleUnit}
+                                    onClick={(e) => e.stopPropagation()}
+                                    aria-label={`Select serial ${unit.serialNumber} for inspection`}
+                                  />
                                 </span>
                                 <span className="mono res-manifest-unit-row__serial">
                                   {unit.serialNumber}

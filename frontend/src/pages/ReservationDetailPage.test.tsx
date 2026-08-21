@@ -770,12 +770,12 @@ describe("ReservationDetailPage", () => {
       within(secondSerialRow).getByRole("radio", { name: "Good" }),
     ).toHaveAttribute("aria-checked", "true");
 
-    // Unchecking the only item must disable submission instead of silently
-    // approving everything (the old "0 selected == select all" fallback).
-    const itemCheckbox = screen.getByLabelText("Select serial SN-CAM-001 for inspection");
-    fireEvent.click(itemCheckbox);
-    expect(screen.getByRole("button", { name: "Approve Return" })).toBeDisabled();
-    fireEvent.click(itemCheckbox);
+    // Unchecking a unit omits it from the submit payload entirely (the
+    // backend defaults omitted units to GOOD on its own) -- it must NOT
+    // disable Approve, since "nothing checked" is a valid "everything is
+    // fine" submission.
+    const secondUnitCheckbox = screen.getByLabelText("Select serial SN-CAM-002 for inspection");
+    fireEvent.click(secondUnitCheckbox);
     expect(screen.getByRole("button", { name: "Approve Return" })).not.toBeDisabled();
 
     const remarkInput = screen.getByPlaceholderText(/Inspection remarks \/ condition note/i);
@@ -795,11 +795,144 @@ describe("ReservationDetailPage", () => {
               reservationItemId: "item-1",
               units: [
                 { reservationItemUnitId: "unit-1", condition: "BROKEN" },
-                { reservationItemUnitId: "unit-2", condition: "GOOD" },
               ],
             },
           ],
           description: "1 intact, 1 minor cable damage",
+        }
+      );
+    });
+  });
+
+  it("allows approving a return with every serial unit unchecked (submits no explicit conditions)", async () => {
+    const pendingReturnReservation: ReservationDetail = {
+      ...mockReservation,
+      status: "RETURN_PENDING",
+      items: [
+        {
+          ...mockReservation.items[0],
+          status: "DELIVERED",
+          units: [
+            {
+              id: "unit-1",
+              assetUnitId: "au-1",
+              serialNumber: "SN-CAM-001",
+              status: "CHECKED_OUT",
+            },
+          ],
+          returnSummary: {
+            totalUnits: 1,
+            returnedGoodCount: 0,
+            returnedBrokenCount: 0,
+            returnedLostCount: 0,
+            pendingReturnCount: 1,
+            remainingReturnQuantity: 0,
+          },
+        },
+      ],
+      returns: [
+        {
+          id: "00000000-0000-4000-8000-000000000201",
+          reservationId: mockReservation.id,
+          status: "PENDING",
+          note: null,
+          returnedAt: "2026-09-02T10:00:00.000Z",
+          returnedBy: mockReservation.requester.id,
+          returner: mockReservation.requester,
+          items: [
+            {
+              id: "ret-item-1",
+              returnId: "00000000-0000-4000-8000-000000000201",
+              reservationItemId: "item-1",
+              assetId: "asset-1",
+              assetName: "Stage Camera 4K",
+              managementArea: { id: "area-1", name: "Marketing" },
+              description: null,
+              pictureUrl: null,
+              units: [
+                {
+                  id: "retunit-1",
+                  returnItemId: "ret-item-1",
+                  reservationItemUnitId: "unit-1",
+                  assetUnitId: "au-1",
+                  serialNumber: "SN-CAM-001",
+                  condition: null,
+                  pictureUrl: null,
+                  note: null,
+                  createdAt: "2026-09-02T10:00:00.000Z",
+                },
+              ],
+              createdAt: "2026-09-02T10:00:00.000Z",
+            },
+          ],
+          approval: {
+            id: "ret-app-1",
+            status: "PENDING",
+            description: null,
+            decidedAt: null,
+            approver: mockReservation.requester,
+          },
+          capabilities: { canApprove: true, canReject: true },
+          createdAt: "2026-09-02T10:00:00.000Z",
+          updatedAt: "2026-09-02T10:00:00.000Z",
+        },
+      ],
+    };
+
+    vi.spyOn(api, "reservation").mockResolvedValue(pendingReturnReservation);
+    const decideReturnSpy = vi.spyOn(api, "decideReturn").mockResolvedValue({
+      id: "00000000-0000-4000-8000-000000000201",
+      reservationId: mockReservation.id,
+      status: "COMPLETED",
+      note: null,
+      returnedAt: "2026-09-02T10:00:00.000Z",
+      returnedBy: mockReservation.requester.id,
+      returner: mockReservation.requester,
+      items: [],
+      approval: {
+        id: "ret-app-1",
+        status: "APPROVED",
+        description: null,
+        decidedAt: "2026-09-02T11:00:00.000Z",
+        approver: mockReservation.requester,
+      },
+      capabilities: { canApprove: false, canReject: false },
+      createdAt: "2026-09-02T10:00:00.000Z",
+      updatedAt: "2026-09-02T11:00:00.000Z",
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText("Select serial SN-CAM-001 for inspection"),
+      ).toBeChecked();
+    });
+
+    // Uncheck the only unit -- 0 checked is a valid "everything is fine"
+    // submission, not a disabled/error state.
+    fireEvent.click(screen.getByLabelText("Select serial SN-CAM-001 for inspection"));
+    const approveReturnBtn = screen.getByRole("button", { name: "Approve Return" });
+    expect(approveReturnBtn).not.toBeDisabled();
+    fireEvent.click(approveReturnBtn);
+
+    await waitFor(() => {
+      expect(decideReturnSpy).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000101",
+        "00000000-0000-4000-8000-000000000201",
+        {
+          decision: "APPROVE",
+          items: undefined,
+          description: undefined,
         }
       );
     });
