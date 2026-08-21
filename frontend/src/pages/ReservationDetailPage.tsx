@@ -1094,8 +1094,24 @@ export function ReservationDetailPage() {
                             return (
                               <div
                                 key={unit.id}
-                                className="res-manifest-unit-row res-manifest-unit-row--inspect"
+                                className={`res-manifest-unit-row res-manifest-unit-row--inspect ${
+                                  isInspectSelectable ? "res-manifest-unit-row--clickable" : ""
+                                }`}
+                                onClick={() =>
+                                  isInspectSelectable && toggleInspectItemSelection(item.id)
+                                }
                               >
+                                <span className="res-manifest-unit-row__check">
+                                  {isInspectSelectable && (
+                                    <input
+                                      type="checkbox"
+                                      checked={isInspectSelected}
+                                      onChange={() => toggleInspectItemSelection(item.id)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      aria-label={`Select serial ${unit.serialNumber} for inspection`}
+                                    />
+                                  )}
+                                </span>
                                 <span className="mono res-manifest-unit-row__serial">
                                   {unit.serialNumber}
                                 </span>
@@ -1103,6 +1119,7 @@ export function ReservationDetailPage() {
                                   className="res-condition-toggle"
                                   role="radiogroup"
                                   aria-label={`Condition for serial ${unit.serialNumber}`}
+                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   {(["GOOD", "BROKEN", "LOST"] as const).map((option) => (
                                     <button
