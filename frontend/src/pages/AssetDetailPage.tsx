@@ -1,4 +1,5 @@
 import {
+  ArchiveX,
   ArrowDownToLine,
   ArrowLeft,
   CalendarClock,
@@ -13,6 +14,10 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
 import {
+  AssetUnitStatusBadge,
+  AssetUnitStatusBreakdown,
+} from "../components/AssetUnitStatus";
+import {
   AssetPicture,
   Avatar,
   Breadcrumb,
@@ -26,9 +31,10 @@ import {
   Notice,
   StatusBadge,
   Textarea,
+  cx,
   formatDate,
 } from "../components/ui";
-import type { AssetDetail } from "../types";
+import type { AssetDetail, AssetUnit } from "../types";
 
 export function AssetDetailPage() {
   const { hasAreaPermission } = useAuth();
@@ -45,6 +51,8 @@ export function AssetDetailPage() {
   >(null);
   const [statusOpen, setStatusOpen] = useState(false);
   const [mutating, setMutating] = useState(false);
+  const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
+  const [retireOpen, setRetireOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,6 +83,31 @@ export function AssetDetailPage() {
   const canRequest =
     asset.isActive &&
     hasAreaPermission("reservation:create", asset.managementArea.id);
+
+  const unitRetireBlocked = new Set(["RESERVED", "CHECKED_OUT", "INACTIVE"]);
+  const selectableUnits = asset.units.filter(
+    (unit) => !unitRetireBlocked.has(unit.status),
+  );
+  const allUnitsSelected =
+    selectableUnits.length > 0 &&
+    selectableUnits.every((unit) => selectedUnitIds.includes(unit.id));
+  const selectedUnits = asset.units.filter((unit) =>
+    selectedUnitIds.includes(unit.id),
+  );
+
+  function toggleUnit(id: string) {
+    setSelectedUnitIds((current) =>
+      current.includes(id)
+        ? current.filter((value) => value !== id)
+        : [...current, id],
+    );
+  }
+
+  function toggleAllUnits() {
+    setSelectedUnitIds(
+      allUnitsSelected ? [] : selectableUnits.map((unit) => unit.id),
+    );
+  }
 
   async function toggleStatus() {
     if (!asset) return;
@@ -125,6 +158,7 @@ export function AssetDetailPage() {
             {asset.description || "No description for this asset."}
           </p>
           <div className="asset-hero__meta">
+            <span className="mono">P/N: {asset.partNumber || "No part number"}</span>
             <span>Updated {formatDate(asset.updatedAt, true)}</span>
           </div>
         </div>
@@ -163,16 +197,12 @@ export function AssetDetailPage() {
 
       <section className="quantity-board">
         <div className="quantity-board__primary">
-          <small>Total inventory</small>
-          <strong>{asset.totalQuantity}</strong>
-          <span>recorded units</span>
+          <small>Unit inventory</small>
+          <strong>{asset.unitCounts.total}</strong>
+          <span>units on record (excl. retired)</span>
         </div>
-        <div className="quantity-board__context">
-          <CalendarClock size={19} />
-          <span>
-            <strong>Reservation quantities are schedule-based</strong>
-            <small>Choose dates in Calendar to see reservable units.</small>
-          </span>
+        <div className="quantity-board__context quantity-board__context--breakdown">
+          <AssetUnitStatusBreakdown unitCounts={asset.unitCounts} />
         </div>
         {asset.capabilities.canManageUnits && (
           <div className="quantity-board__actions">
@@ -180,6 +210,117 @@ export function AssetDetailPage() {
               <ArrowDownToLine size={16} />
               Register units
             </Button>
+          </div>
+        )}
+      </section>
+      <p className="asset-availability-note">
+        <CalendarClock size={14} />
+        Reservation quantities are schedule-based — choose dates in Calendar
+        to see reservable units.
+      </p>
+
+      <section className="detail-card">
+        <header>
+          <div>
+            <p className="eyebrow">Physical inventory</p>
+            <h2>Serial units</h2>
+          </div>
+          <span className="count-badge">{asset.units.length}</span>
+        </header>
+
+        {selectedUnitIds.length > 0 && (
+          <div className="selection-bar" aria-live="polite">
+            <span>
+              <strong>{selectedUnitIds.length}</strong> selected
+            </span>
+            <div>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setRetireOpen(true)}
+              >
+                <ArchiveX size={16} />
+                Retire
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {asset.units.length === 0 ? (
+          <EmptyState
+            title="No serial units registered"
+            description="Register serial numbers above to start tracking physical units for this asset."
+          />
+        ) : (
+          <div className="data-table-wrap asset-units-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  {asset.capabilities.canManageUnits && (
+                    <th className="cell-check">
+                      <input
+                        type="checkbox"
+                        checked={allUnitsSelected}
+                        disabled={selectableUnits.length === 0}
+                        onChange={toggleAllUnits}
+                        aria-label="Select all"
+                      />
+                    </th>
+                  )}
+                  <th>Serial number</th>
+                  <th>Status</th>
+                  <th>Note</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {asset.units.map((unit) => {
+                  const isSelectable = !unitRetireBlocked.has(unit.status);
+                  const isSelected = selectedUnitIds.includes(unit.id);
+                  return (
+                    <tr
+                      key={unit.id}
+                      className={cx(isSelected && "asset-table-row--selected")}
+                    >
+                      {asset.capabilities.canManageUnits && (
+                        <td className="cell-check">
+                          <div
+                            className={cx(
+                              "cell-check__hit",
+                              !isSelectable && "cell-check__hit--disabled",
+                            )}
+                            onClick={() => {
+                              if (!isSelectable) return;
+                              toggleUnit(unit.id);
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={!isSelectable}
+                              readOnly
+                              aria-label={`Select unit ${unit.serialNumber}`}
+                            />
+                          </div>
+                        </td>
+                      )}
+                      <td className="mono">{unit.serialNumber}</td>
+                      <td>
+                        <AssetUnitStatusBadge status={unit.status} />
+                      </td>
+                      <td>
+                        <span className="table-secondary">
+                          {unit.note || "—"}
+                        </span>
+                      </td>
+                      <td className="mono table-date">
+                        {formatDate(unit.updatedAt, true)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </section>
@@ -327,6 +468,17 @@ export function AssetDetailPage() {
           await load();
         }}
       />
+      <RetireUnitsDialog
+        units={selectedUnits}
+        open={retireOpen}
+        onClose={() => setRetireOpen(false)}
+        onDone={async (message) => {
+          setRetireOpen(false);
+          setSelectedUnitIds([]);
+          setNotice(message);
+          await load();
+        }}
+      />
       <Dialog
         open={statusOpen}
         title={asset.isActive ? "Disable asset?" : "Enable asset?"}
@@ -401,7 +553,7 @@ function AdjustOneDialog({
     <Dialog
       open={Boolean(operation)}
       title={`Register units for ${asset.name}`}
-      description={`Current quantity: ${asset.totalQuantity} units`}
+      description={`Currently on record: ${asset.unitCounts.total} units`}
       onClose={onClose}
     >
       <form className="form-stack" onSubmit={submit}>
@@ -437,6 +589,89 @@ function AdjustOneDialog({
           >
             Register {parsedSerials.length || ""} unit
             {parsedSerials.length === 1 ? "" : "s"}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+function RetireUnitsDialog({
+  units,
+  open,
+  onClose,
+  onDone,
+}: {
+  units: AssetUnit[];
+  open: boolean;
+  onClose: () => void;
+  onDone: (message: string) => void | Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (units.length === 0) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await api.retireAssetUnits(
+        units.map((unit) => ({
+          assetUnitId: unit.id,
+          expectedUpdatedAt: unit.updatedAt,
+        })),
+        reason || undefined,
+      );
+      await onDone(
+        `Retired ${units.length} unit${units.length === 1 ? "" : "s"}`,
+      );
+      setReason("");
+    } catch (caught) {
+      setError(
+        caught instanceof ApiClientError
+          ? caught.message
+          : "Unable to retire units",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      title={`Retire ${units.length} unit${units.length === 1 ? "" : "s"}?`}
+      description="Retired units move to INACTIVE and are excluded from useable inventory. This cannot be undone from this screen."
+      onClose={onClose}
+    >
+      <form className="form-stack" onSubmit={submit}>
+        {error && (
+          <div className="form-alert" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="confirm-list">
+          {units.map((unit) => (
+            <span key={unit.id} className="mono">
+              {unit.serialNumber}
+            </span>
+          ))}
+        </div>
+        <Field label="Reason">
+          <Input
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Reason for retiring these units"
+          />
+        </Field>
+        <div className="dialog__actions">
+          <Button type="button" variant="quiet" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="danger" loading={submitting}>
+            Confirm retire
           </Button>
         </div>
       </form>

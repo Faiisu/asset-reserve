@@ -187,6 +187,15 @@
   border-radius: 12px;
   background: var(--surface);
 }
+.asset-units-table-wrap {
+  max-height: 420px;
+  overflow-y: auto;
+}
+.asset-units-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
 .data-table {
   width: 100%;
   border-collapse: collapse;

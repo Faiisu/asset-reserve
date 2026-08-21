@@ -271,6 +271,14 @@ export const api = {
       method: "POST",
       body: json({ serialNumbers, reason }),
     }),
+  retireAssetUnits: (
+    items: Array<{ assetUnitId: string; expectedUpdatedAt: string }>,
+    reason?: string,
+  ) =>
+    request<{ data: AssetUnit[] }>("/assets/units/batch-retire", {
+      method: "POST",
+      body: json({ items, reason }),
+    }),
   createReservation: (input: CreateReservationInput) =>
     request<ReservationDetail>("/reservations", {
       method: "POST",
