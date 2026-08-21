@@ -922,10 +922,16 @@ export function ReservationDetailPage() {
                                 {item.asset.managementArea.name}
                               </span>
                             </div>
-                            <div className="res-item-sub">
-                              {`Select serial unit (${selectedForItem.length} of ${item.quantity})`}
-                            </div>
+                            <div className="res-item-sub">Select serial unit to approve</div>
                           </div>
+                        </div>
+
+                        <div className="res-item-qty-ticket">
+                          <span>Selected</span>
+                          <strong>
+                            {selectedForItem.length}/{item.quantity}
+                          </strong>
+                          <small>units</small>
                         </div>
 
                         <div

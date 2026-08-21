@@ -1339,11 +1339,16 @@
 }
 
 /* Approval Row Grid: identity column takes the remaining width now that
-   serial-unit assignment lives in its own res-manifest-unit-list below. */
+   serial-unit assignment lives in its own res-manifest-unit-list below;
+   the qty ticket sits at the far right like the approved-item header row. */
 .res-manifest-item.reservation-item-card--selectable.res-manifest-item--approve {
-  grid-template-columns: 28px 52px 1fr;
+  grid-template-columns: 28px 52px 1fr auto;
   gap: 12px;
   align-items: start;
+}
+
+.res-manifest-item--approve .res-item-qty-ticket {
+  justify-self: end;
 }
 
 /* Asset sub-header above a flattened one-row-per-serial-unit list */
