@@ -1017,15 +1017,6 @@ export function ReservationDetailPage() {
                         data-status={itemStatusClass}
                       >
                         <div className="res-item-info">
-                          {isInspectSelectable && (
-                            <input
-                              type="checkbox"
-                              checked={isInspectSelected}
-                              onChange={() => toggleInspectItemSelection(item.id)}
-                              aria-label={`Select ${item.asset.name} for inspection`}
-                              className="reservation-item-select"
-                            />
-                          )}
                           <div className="res-item-media">
                             {item.asset.pictureUrl ? (
                               <img src={item.asset.pictureUrl} alt="" />

@@ -749,7 +749,7 @@ describe("ReservationDetailPage", () => {
         screen.getByText(/Return Inspection Review/i, { selector: "span" }),
       ).toBeInTheDocument();
       expect(
-        screen.getByLabelText("Select Stage Camera 4K for inspection"),
+        screen.getByLabelText("Select serial SN-CAM-001 for inspection"),
       ).toBeChecked();
       expect(screen.getByText("Stage Camera 4K")).toBeInTheDocument();
       expect(screen.getByText("Marketing")).toBeInTheDocument();

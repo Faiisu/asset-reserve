@@ -388,8 +388,7 @@
   font-weight: 650;
   cursor: pointer;
 }
-.approval-select-all input,
-.reservation-item-select {
+.approval-select-all input {
   width: 17px;
   height: 17px;
   margin: 0;
