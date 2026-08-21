@@ -1371,11 +1371,11 @@
   background: var(--surface-raised);
 }
 
-/* Serial units for the asset above, packed 2-4 per row (responsive grid)
-   instead of one full-width row per unit, to cut down on page height. */
+/* Serial units for the asset above, packed 2 per row instead of one
+   full-width row per unit, to cut down on page height. */
 .res-manifest-unit-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   padding: 10px 18px 14px 82px;
   border-bottom: 1px solid var(--line);
@@ -1530,7 +1530,7 @@
   }
 
   .res-manifest-unit-list {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     padding-left: 14px;
   }
 }
