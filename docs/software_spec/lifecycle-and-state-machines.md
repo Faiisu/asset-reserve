@@ -74,13 +74,13 @@ Asset สามารถถูกคืนได้ **ตลอดเวลา�
 
 ## 3. ReservationItem status {#reservation-item-status}
 
-> **Breaking change จากรุ่นก่อนหน้า**: เดิม `PENDING` อนุมัติเป็น `APPROVED` ก่อน แล้วค่อยผูก serial unit เป็นอีกขั้นตอนแยก (`PREPARED`, คนละ endpoint/actor ได้) ตอนนี้ **รวมเป็นการตัดสินใจเดียว** — Area Manager ที่อนุมัติต้องเลือก serial-numbered unit (`assetUnitIds[]`) มาพร้อมกันในคำขอเดียว item จึงข้ามจาก `PENDING` ไป `PREPARED` ตรงๆ ไม่มีสถานะ `APPROVED` เป็นจุดพักอีกต่อไป รายละเอียด transaction: [backend_spec/algorithms-and-validation.md §7.5](../backend_spec/algorithms-and-validation.md#75-post-reservationsreservationiditemsitemiddecision)
+> **Breaking change จากรุ่นก่อนหน้า**: เดิม `PENDING` อนุมัติเป็น `APPROVED` ก่อน แล้วค่อยผูก serial unit เป็นอีกขั้นตอนแยก (`PREPARED`, คนละ endpoint/actor ได้) ตอนนี้ **รวมเป็นการตัดสินใจเดียว** — Area Manager ที่อนุมัติต้องเลือก serial-numbered unit (`assetUnitIds[]`) มาพร้อมกันในคำขอเดียว item จึงข้ามจาก `PENDING` ไป `PREPARED` ตรงๆ ไม่มีสถานะ `APPROVED` เป็นจุดพักอีกต่อไป **Approve เป็น unit-based**: เลือก S/N น้อยกว่าจำนวนที่ขอได้ (`quantity` จะถูกตัดลงให้ตรงกับจำนวนที่ approve จริงทันที ไม่มีส่วนที่เหลือค้าง `PENDING` รออนุมัติรอบถัดไป) — ส่วน **reject ยังเป็น all-or-nothing ทั้ง item เหมือนเดิม** ไม่มี unit-level reject รายละเอียด transaction: [backend_spec/algorithms-and-validation.md §7.5](../backend_spec/algorithms-and-validation.md#75-post-reservationsreservationiditemsitemiddecision)
 
 ```mermaid
 stateDiagram-v2
     [*] --> PENDING: สร้างพร้อม Reservation
-    PENDING --> PREPARED: Area Manager อนุมัติ พร้อมเลือก serial-numbered unit (§7.5)
-    PENDING --> REJECTED: Area Manager ปฏิเสธ
+    PENDING --> PREPARED: Area Manager อนุมัติ เลือก S/N 1 ถึง quantity ที่ขอ (§7.5)
+    PENDING --> REJECTED: Area Manager ปฏิเสธทั้ง item
     PREPARED --> DELIVERED: ยืนยัน handover แล้ว
     DELIVERED --> RETURNED: ตรวจรับคืนและอนุมัติแล้ว
     RETURNED --> [*]
@@ -90,8 +90,8 @@ stateDiagram-v2
 | Status | ความหมาย |
 | --- | --- |
 | `PENDING` | รอ area manager ตัดสินใจ |
-| `REJECTED` | ถูกปฏิเสธ |
-| `PREPARED` | อนุมัติแล้ว และผูก `AssetUnit`/`ReservationItemUnit` (serial) แล้วในคำขอเดียวกัน รอส่งมอบ |
+| `REJECTED` | ถูกปฏิเสธทั้ง item (reject ไม่ใช่ unit-based) |
+| `PREPARED` | อนุมัติแล้ว และผูก `AssetUnit`/`ReservationItemUnit` (serial) แล้วในคำขอเดียวกัน รอส่งมอบ — `quantity` คือจำนวนที่ approve จริง (อาจน้อยกว่าที่ขอตอน submit ถ้า approve บางส่วน) |
 | `CHECKED_OUT` | เป็น status ของ `AssetUnit`/`ReservationItemUnit` (หน่วยจริงที่ถูกส่งมอบ) **ไม่ใช่** status ของ `ReservationItem` เอง — item ข้ามจาก `PREPARED` ไป `DELIVERED` ตรงๆ ตอน delivery-confirm |
 | `DELIVERED` | ส่งมอบให้ผู้ขอแล้ว |
 | `RETURNED` | คืนครบสำหรับ item นี้แล้ว |

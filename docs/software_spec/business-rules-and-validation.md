@@ -25,6 +25,7 @@
 - **Conflict detection**: เมื่อ submit, update หรือ approve reservation ระบบต้องตรวจ overlap ของช่วงเวลาต่อ asset — จำนวนที่ขอต้องไม่เกิน headroom ที่เหลือ โดย headroom คำนวณจาก total unit ที่ active ลบด้วยจำนวนที่ถูกจองแล้วในช่วงเวลาที่ทับซ้อนกัน (นับเฉพาะ item/reservation ที่อยู่ใน status ที่ยัง "กันสิทธิ์" อยู่ เช่น approved ขึ้นไป จนถึงก่อน completed) เกินสิทธิ์ให้ปฏิเสธ — รายละเอียด query/algorithm อยู่ใน [backend_spec/algorithms-and-validation.md](../backend_spec/algorithms-and-validation.md)
 - Submit ต้องตรวจ available quantity ซ้ำที่ backend เสมอ (แม้ frontend แสดงเลขมาก่อนแล้ว)
 - อนุมัติราย item แล้ว aggregate status ของ reservation ต้องถูกคำนวณใหม่ตาม [lifecycle-and-state-machines.md#reservation-status](lifecycle-and-state-machines.md#reservation-status)
+- **Approve เป็น unit-based, reject เป็น item-based**: อนุมัติเลือกได้ 1 ถึง `quantity` ที่ขอ (partial approval ได้จริง) แล้ว `quantity` ของ item จะถูกตัดลงให้เท่ากับจำนวนที่ approve ทันที ไม่มีส่วนที่เหลือค้าง `PENDING` รออนุมัติรอบถัดไป — ส่วนปฏิเสธ (reject) เป็น all-or-nothing ทั้ง item เสมอ ไม่มี concept ปฏิเสธเฉพาะบาง unit ภายใน item เดียวกัน
 - การแก้ไข reservation **หลัง submit แล้ว** ไม่รองรับ — `ReservationChangeRequest` ถูกยกเลิก (ดู [scope-and-roadmap.md](scope-and-roadmap.md#feature-ที่ถูกยกเลิก-decommissioned)) ต้องยกเลิก reservation เดิมแล้วสร้างใหม่แทนถ้าต้องการเปลี่ยนกำหนดการ/รายการ
 - Prepare/checkout ต้องบันทึก actor และเวลาที่ดำเนินการ
 

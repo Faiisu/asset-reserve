@@ -433,7 +433,7 @@ describe("reservation availability", () => {
     ];
     const unitId = "00000000-0000-4000-8000-000000000811";
     const secondUnitId = "00000000-0000-4000-8000-000000000812";
-    const itemUpdateMany = vi.fn().mockResolvedValue({ count: 2 });
+    const itemUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
     const approvalCreateMany = vi.fn().mockResolvedValue({ count: 2 });
     const approvalUpdateMany = vi.fn().mockResolvedValue({ count: 2 });
     const reservationUpdate = vi.fn().mockResolvedValue({});
@@ -526,9 +526,20 @@ describe("reservation availability", () => {
     );
     expect(itemUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ id: { in: [itemId, secondItemId] } }),
+        where: expect.objectContaining({ id: itemId }),
         data: expect.objectContaining({
           status: "PREPARED",
+          quantity: 1,
+          preparedBy: actorId,
+        }),
+      }),
+    );
+    expect(itemUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: secondItemId }),
+        data: expect.objectContaining({
+          status: "PREPARED",
+          quantity: 1,
           preparedBy: actorId,
         }),
       }),
@@ -551,7 +562,7 @@ describe("reservation availability", () => {
     );
   });
 
-  it("rejects approval when assetUnitIds count does not match the item quantity", async () => {
+  it("rejects approval when more units are selected than the item's requested quantity", async () => {
     const reservation = {
       id: reservationId,
       status: "PENDING_APPROVAL",
@@ -562,7 +573,7 @@ describe("reservation availability", () => {
       id: itemId,
       reservationId,
       assetId,
-      quantity: 2,
+      quantity: 1,
       status: "PENDING",
       reservation,
       asset: { id: assetId, managementAreaId: areaId, totalQuantity: 5 },
@@ -575,9 +586,87 @@ describe("reservation availability", () => {
     await expect(
       service.decideItem(actor, reservationId, itemId, {
         decision: "APPROVE",
-        assetUnitIds: ["00000000-0000-4000-8000-000000000811"],
+        assetUnitIds: [
+          "00000000-0000-4000-8000-000000000811",
+          "00000000-0000-4000-8000-000000000812",
+        ],
       }),
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  });
+
+  it("approves only some of the requested units, cutting the item's quantity down to match (unit-based partial approval)", async () => {
+    const reservation = {
+      id: reservationId,
+      status: "PENDING_APPROVAL",
+      startAt: new Date("2026-09-01T09:00:00.000Z"),
+      endAt: new Date("2026-09-01T11:00:00.000Z"),
+    };
+    const item = {
+      id: itemId,
+      reservationId,
+      assetId,
+      quantity: 3,
+      status: "PENDING",
+      reservation,
+      asset: { id: assetId, managementAreaId: areaId, totalQuantity: 5 },
+    };
+    const unitId = "00000000-0000-4000-8000-000000000811";
+    const itemUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const tx = {
+      user: { findFirst: vi.fn().mockResolvedValue({ id: actorId }) },
+      reservationItem: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([item])
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([{ status: "PREPARED" }]),
+        updateMany: itemUpdateMany,
+      },
+      assetUnit: {
+        groupBy: vi
+          .fn()
+          .mockResolvedValue(unitCountRows([{ assetId, count: 5 }])),
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ id: unitId, assetId, status: "ACTIVE" }]),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      reservationItemUnit: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      assetUnitEventBatch: { create: vi.fn().mockResolvedValue({}) },
+      assetUnitEvent: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      reservationItemApproval: {
+        createMany: vi.fn().mockResolvedValue({ count: 1 }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      reservation: { update: vi.fn().mockResolvedValue({}) },
+      $queryRaw: vi.fn().mockResolvedValue([]),
+    };
+    const prisma = {
+      reservationItem: { findMany: vi.fn().mockResolvedValue([item]) },
+      $transaction: vi.fn(
+        async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
+      ),
+    } as unknown as PrismaService;
+    const service = new ReservationsService(prisma, reservationEvents);
+    vi.spyOn(service, "get").mockResolvedValue({
+      id: reservationId,
+      eventName: "Town Hall",
+      startAt: reservation.startAt.toISOString(),
+      endAt: reservation.endAt.toISOString(),
+      requester: { id: actorId, email: "manager@example.com", name: "Manager" },
+    } as never);
+
+    await service.decideItem(actor, reservationId, itemId, {
+      decision: "APPROVE",
+      assetUnitIds: [unitId],
+    });
+
+    expect(itemUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: itemId }),
+        data: expect.objectContaining({ status: "PREPARED", quantity: 1 }),
+      }),
+    );
   });
 
   it("rejects approval when a selected unit is not ACTIVE or belongs to a different asset", async () => {

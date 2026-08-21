@@ -495,13 +495,15 @@ Status transitions และความหมายทางธุรกิจ�
 
 ### 7.5 `POST /reservations/:reservationId/items/:itemId/decision`
 
-Approve/reject เป็นราย item ตาม area permission เมื่อ `decision = APPROVE` ต้องส่ง `assetUnitIds[]` มาพร้อมกันในคำขอเดียว — นี่คือจุดที่ quantity-based allocation (ตั้งแต่ submit) กลายเป็น serial-numbered assignment จริง ไม่มีขั้นตอน "prepare" แยกต่างหากอีกต่อไป (breaking change จากรุ่นก่อนหน้าที่แยก approve กับ prepare เป็นคนละ endpoint — ดู [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status)):
+Approve/reject เป็นราย item ตาม area permission เมื่อ `decision = APPROVE` ต้องส่ง `assetUnitIds[]` มาพร้อมกันในคำขอเดียว — นี่คือจุดที่ quantity-based allocation (ตั้งแต่ submit) กลายเป็น serial-numbered assignment จริง ไม่มีขั้นตอน "prepare" แยกต่างหากอีกต่อไป (breaking change จากรุ่นก่อนหน้าที่แยก approve กับ prepare เป็นคนละ endpoint — ดู [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status))
 
-1. ตรวจ quantity พอหลังหัก approved overlap อื่น (เหมือนเดิม) — ถ้าไม่พอตอบ `409`
-2. `assetUnitIds[]` ต้องมีจำนวนเท่ากับ quantity ที่อนุมัติพอดี (ไม่มากไม่น้อยกว่า) ทุก unit ต้องเป็นของ `asset_id` เดียวกับ item และ unique กันเอง มิฉะนั้นตอบ `422`
+**Approve เป็น unit-based**: เลือก S/N ได้น้อยกว่าจำนวนที่ขอ (partial approval) แต่ reject ยังเป็น all-or-nothing ทั้ง item เหมือนเดิม ไม่มี concept "reject บาง unit ภายใน item เดียวกัน":
+
+1. ตรวจ quantity พอหลังหัก approved overlap อื่น (เหมือนเดิม, ตรวจกับ quantity ที่ขอเดิม) — ถ้าไม่พอตอบ `409`
+2. `assetUnitIds[]` ต้องมีจำนวนตั้งแต่ 1 ถึง quantity ที่ขอ (**อนุญาตน้อยกว่าได้ — ไม่บังคับเท่ากันอีกต่อไป**) ทุก unit ต้องเป็นของ `asset_id` เดียวกับ item และ unique กันเอง มิฉะนั้นตอบ `422`
 3. รัน**ใน `SERIALIZABLE` transaction** — lock แถว `asset_units` ที่เลือกตาม UUID ที่ sort แล้ว (ลด deadlock เมื่อสอง request แย่ง asset เดียวกัน), ตรวจซ้ำว่าทุก unit ยังมีสถานะ `ACTIVE` ณ เวลา lock ถ้ามี unit ใดไม่ `ACTIVE` แล้ว ตอบ `409` ทั้งชุดและไม่ commit บางส่วน — retry ตาม policy เดียวกับ allocation อื่น (สูงสุด 3 ครั้งสำหรับ Prisma `P2034`, ดู [database-and-concurrency.md](database-and-concurrency.md))
-4. เมื่อผ่าน: สร้าง `ReservationItemUnit` หนึ่งแถวต่อ unit (ผูก `reservation_item_id` + `asset_unit_id`), เปลี่ยน `AssetUnit.status` จาก `ACTIVE` เป็น `RESERVED` ทีละแถวพร้อม `AssetUnitEvent`, และอัปเดต `reservation_items.status` เป็น `PREPARED` โดยตรง (ข้าม `APPROVED`) พร้อม `prepared_by = actor.id`, `prepared_at = now` — ทั้งหมด commit พร้อมกันใน transaction เดียวกับ decision
-5. `decision = REJECT` ไม่ต้องส่ง `assetUnitIds` — item ไปเป็น `REJECTED` เหมือนเดิม
+4. เมื่อผ่าน: สร้าง `ReservationItemUnit` หนึ่งแถวต่อ unit (ผูก `reservation_item_id` + `asset_unit_id`), เปลี่ยน `AssetUnit.status` จาก `ACTIVE` เป็น `RESERVED` ทีละแถวพร้อม `AssetUnitEvent`, และอัปเดต `reservation_items.status` เป็น `PREPARED` โดยตรง (ข้าม `APPROVED`) พร้อม **`reservation_items.quantity` ถูกตัดลงให้เท่ากับจำนวน unit ที่ approve จริง** (เช่น ขอ 3 แต่เลือก approve 2 หน่วย → `quantity` กลายเป็น 2 ทันที ไม่มีส่วนที่เหลือค้าง `PENDING` รออนุมัติรอบถัดไป) และ `prepared_by = actor.id`, `prepared_at = now` — ทั้งหมด commit พร้อมกันใน transaction เดียวกับ decision
+5. `decision = REJECT` ไม่ต้องส่ง `assetUnitIds` — item ทั้งใบไปเป็น `REJECTED` เหมือนเดิม (reject เป็นระดับ item เท่านั้น ไม่ใช่ unit-based)
 6. คำนวณ reservation status ใหม่จากผลรวม item status (`APPROVED`/`PARTIALLY_APPROVED`/`REJECTED`) เหมือนเดิม — ชื่อ reservation-level status ยังคงเดิม แม้ item-level จะข้ามไป `PREPARED` ตรงแล้วก็ตาม
 
 ### 7.6 `POST /reservations/:reservationId/items/decision`

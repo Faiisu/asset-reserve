@@ -259,6 +259,11 @@ export function ReservationDetailPage() {
       }
       const item = reservation?.items.find((i) => i.id === itemId);
       if (item && current.length >= item.quantity) return prev;
+      // Picking a serial unit is enough to mean "approve this item" -- no
+      // need to also tick the row checkbox first.
+      setSelectedItemIds((prevIds) =>
+        prevIds.includes(itemId) ? prevIds : [...prevIds, itemId],
+      );
       return { ...prev, [itemId]: [...current, assetUnitId] };
     });
   };
@@ -325,9 +330,12 @@ export function ReservationDetailPage() {
       for (const itemId of ids) {
         const item = reservation.items.find((i) => i.id === itemId);
         const units = decisionUnitSelections[itemId] ?? [];
-        if (!item || units.length !== item.quantity) {
+        // Approval is unit-based: at least one serial is required, but
+        // approving fewer than the requested quantity is allowed -- the
+        // item's quantity is cut down to match what was actually approved.
+        if (!item || units.length < 1) {
           setActionError(
-            `Select exactly ${item?.quantity ?? "the required number of"} serial unit(s) for ${item?.asset.name ?? "this item"}.`,
+            `Select at least one serial unit for ${item?.asset.name ?? "this item"}.`,
           );
           return;
         }
@@ -775,13 +783,9 @@ export function ReservationDetailPage() {
                     disabled={
                       actionLoading ||
                       selectedItemIds.length === 0 ||
-                      !selectedItemIds.every((itemId) => {
-                        const item = reservation.items.find((i) => i.id === itemId);
-                        return (
-                          item &&
-                          (decisionUnitSelections[itemId]?.length ?? 0) === item.quantity
-                        );
-                      })
+                      !selectedItemIds.every(
+                        (itemId) => (decisionUnitSelections[itemId]?.length ?? 0) > 0,
+                      )
                     }
                     onClick={() => handleDecideItems("APPROVE")}
                   >

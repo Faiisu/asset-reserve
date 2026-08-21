@@ -554,13 +554,13 @@ export class ReservationsService {
             { [`items.${item.id}.assetUnitIds`]: "Remove duplicate units." },
           );
         }
-        if (unitIds.length !== item.quantity) {
+        if (unitIds.length < 1 || unitIds.length > item.quantity) {
           throw new ApiException(
             422,
             "VALIDATION_ERROR",
-            `Select exactly ${item.quantity} unit(s) to approve "${item.asset.name}".`,
+            `Select 1 to ${item.quantity} unit(s) to approve "${item.asset.name}".`,
             {
-              [`items.${item.id}.assetUnitIds`]: `Select exactly ${item.quantity} unit(s).`,
+              [`items.${item.id}.assetUnitIds`]: `Select 1 to ${item.quantity} unit(s).`,
             },
           );
         }
@@ -703,27 +703,40 @@ export class ReservationsService {
           }
         }
 
-        const status = input.decision === "APPROVE" ? "PREPARED" : "REJECTED";
-        const updated = await tx.reservationItem.updateMany({
-          where: {
-            id: { in: itemIds },
-            reservationId,
-            status: "PENDING",
-          },
-          data:
-            input.decision === "APPROVE"
-              ? {
-                  status,
-                  preparedBy: actor.user.id,
-                  preparedAt: decidedAt,
-                  updatedAt: decidedAt,
-                }
-              : { status, updatedAt: decidedAt },
-        });
-        if (updated.count !== itemIds.length) {
-          throw this.invalidStatus(
-            "One or more selected items were already decided. Reload and try again.",
-          );
+        if (input.decision === "APPROVE") {
+          // Approval is unit-based: the item's quantity is cut down to
+          // however many serial units were actually approved (may be fewer
+          // than requested) -- each item can differ, so this can't be a
+          // single shared updateMany like the REJECT branch below.
+          for (const item of items) {
+            const entry = entries.get(item.id)!;
+            const approvedQuantity = (entry.assetUnitIds ?? []).length;
+            const updated = await tx.reservationItem.updateMany({
+              where: { id: item.id, reservationId, status: "PENDING" },
+              data: {
+                status: "PREPARED",
+                quantity: approvedQuantity,
+                preparedBy: actor.user.id,
+                preparedAt: decidedAt,
+                updatedAt: decidedAt,
+              },
+            });
+            if (updated.count !== 1) {
+              throw this.invalidStatus(
+                "One or more selected items were already decided. Reload and try again.",
+              );
+            }
+          }
+        } else {
+          const updated = await tx.reservationItem.updateMany({
+            where: { id: { in: itemIds }, reservationId, status: "PENDING" },
+            data: { status: "REJECTED", updatedAt: decidedAt },
+          });
+          if (updated.count !== itemIds.length) {
+            throw this.invalidStatus(
+              "One or more selected items were already decided. Reload and try again.",
+            );
+          }
         }
         await tx.reservationItemApproval.createMany({
           data: itemIds.map((reservationItemId) => ({
@@ -768,10 +781,13 @@ export class ReservationsService {
             details: {
               assetId: item.assetId,
               assetName: item.asset.name,
-              quantity: item.quantity,
+              requestedQuantity: item.quantity,
               comment: input.comment ?? null,
               ...(entry?.assetUnitIds
-                ? { assetUnitIds: entry.assetUnitIds }
+                ? {
+                    assetUnitIds: entry.assetUnitIds,
+                    approvedQuantity: entry.assetUnitIds.length,
+                  }
                 : {}),
             },
           });

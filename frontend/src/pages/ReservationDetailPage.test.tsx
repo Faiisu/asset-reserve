@@ -294,6 +294,73 @@ describe("ReservationDetailPage", () => {
     });
   });
 
+  it("selects the item automatically when a serial unit is picked, without a separate checkbox click", async () => {
+    vi.spyOn(api, "reservation").mockResolvedValue(mockPendingReservation);
+    vi.spyOn(api, "assetUnits").mockResolvedValue({
+      data: [
+        {
+          id: "unit-1",
+          serialNumber: "SN-MIC-001",
+          status: "ACTIVE",
+          note: null,
+          createdAt: "2026-08-15T00:00:00.000Z",
+          updatedAt: "2026-08-15T00:00:00.000Z",
+        },
+      ],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+    const decideSpy = vi.spyOn(api, "decideReservationItems").mockResolvedValue({
+      ...mockPendingReservation,
+      status: "APPROVED",
+      items: [
+        {
+          ...mockPendingReservation.items[0],
+          quantity: 1,
+          status: "PREPARED",
+          capabilities: { canApprove: false, canReject: false },
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const serialCheckbox = await screen.findByLabelText("Assign serial SN-MIC-001");
+    const checkbox = screen.getByLabelText("Select Wireless Microphone Kit");
+    expect(checkbox).not.toBeChecked();
+
+    const approveButton = screen.getByRole("button", { name: /Approve Selected/i });
+    expect(approveButton).toBeDisabled();
+
+    // mockPendingReservation's item requests quantity 3 -- picking just 1
+    // unit should still tick the row checkbox immediately and enable Approve
+    // (approval is unit-based: fewer than requested is allowed, cuts the
+    // item's quantity down to match).
+    fireEvent.click(serialCheckbox);
+    expect(checkbox).toBeChecked();
+    expect(serialCheckbox).toBeChecked();
+    expect(approveButton).toBeEnabled();
+
+    fireEvent.click(approveButton);
+
+    await waitFor(() => {
+      expect(decideSpy).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000101",
+        [{ reservationItemId: "item-pending-1", assetUnitIds: ["unit-1"] }],
+        "APPROVE",
+        undefined,
+      );
+    });
+  });
+
   it("confirms handover only for explicitly selected authorized items", async () => {
     vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
     const confirmSpy = vi.spyOn(api, "confirmDelivery").mockResolvedValue({

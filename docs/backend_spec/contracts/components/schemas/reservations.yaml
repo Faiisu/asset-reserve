@@ -185,10 +185,13 @@ ReservationItemDecisionRequest:
     assetUnitIds:
       type: array
       description: >-
-        Required when decision is APPROVE (§7.5) -- exact serial-numbered units to assign to
-        this item, count must equal the item's quantity exactly, all ACTIVE and belonging to
-        the item's asset. Not used, and must be omitted, when decision is REJECT. Approving
-        without a separate "prepare" step assigns these units in the same request.
+        Required when decision is APPROVE (§7.5) -- serial-numbered units to assign to this
+        item, all ACTIVE and belonging to the item's asset. Approval is unit-based: 1 to the
+        item's quantity may be selected (fewer than requested is a valid partial approval --
+        the item's quantity is cut down to match how many were actually approved). Not used,
+        and must be omitted, when decision is REJECT -- reject is always whole-item, there is
+        no unit-level reject. Approving without a separate "prepare" step assigns these units
+        in the same request.
       minItems: 1
       maxItems: 200
       uniqueItems: true
@@ -209,7 +212,7 @@ ReservationItemDecisionEntry:
       format: uuid
     assetUnitIds:
       type: array
-      description: Same rule as ReservationItemDecisionRequest.assetUnitIds -- required per item when the batch decision is APPROVE.
+      description: Same rule as ReservationItemDecisionRequest.assetUnitIds -- unit-based, 1 to the item's quantity, required per item when the batch decision is APPROVE.
       minItems: 1
       maxItems: 200
       uniqueItems: true
