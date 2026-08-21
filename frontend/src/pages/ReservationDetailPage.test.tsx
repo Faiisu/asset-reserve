@@ -752,10 +752,10 @@ describe("ReservationDetailPage", () => {
 
     // Every serial defaults to Good; mark the first one Broken.
     const firstSerialRow = screen.getByText("SN-CAM-001").closest(
-      ".res-inspect-serial-row",
+      ".res-manifest-unit-row",
     ) as HTMLElement;
     const secondSerialRow = screen.getByText("SN-CAM-002").closest(
-      ".res-inspect-serial-row",
+      ".res-manifest-unit-row",
     ) as HTMLElement;
     expect(
       within(firstSerialRow).getByRole("radio", { name: "Good" }),
@@ -1014,5 +1014,63 @@ describe("ReservationDetailPage", () => {
     expect(screen.getByText("1. Requester / Borrower")).toBeInTheDocument();
     expect(screen.getByText("2. Area Custodian / Approver")).toBeInTheDocument();
     expect(screen.getByText("3. Return Receiving Inspector")).toBeInTheDocument();
+  });
+
+  it("lists one manifest row per serial unit, grouped under a single asset sub-header", async () => {
+    const completedReturnReservation: ReservationDetail = {
+      ...mockReservation,
+      status: "COMPLETED",
+      items: [
+        {
+          ...mockReservation.items[0],
+          status: "RETURNED",
+          units: [
+            {
+              id: "unit-1",
+              assetUnitId: "au-1",
+              serialNumber: "SN-CAM-001",
+              status: "RETURNED_GOOD",
+            },
+            {
+              id: "unit-2",
+              assetUnitId: "au-2",
+              serialNumber: "SN-CAM-002",
+              status: "RETURNED_BROKEN",
+            },
+          ],
+          returnSummary: {
+            totalUnits: 2,
+            returnedGoodCount: 1,
+            returnedBrokenCount: 1,
+            returnedLostCount: 0,
+            pendingReturnCount: 0,
+            remainingReturnQuantity: 0,
+          },
+        },
+      ],
+      returns: [],
+    };
+
+    vi.spyOn(api, "reservation").mockResolvedValue(completedReturnReservation);
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // The asset name appears once, in the group sub-header -- not repeated
+    // per serial unit row.
+    expect(await screen.findAllByText("Stage Camera 4K")).toHaveLength(1);
+
+    const goodRow = screen.getByText("SN-CAM-001").closest(".res-manifest-unit-row") as HTMLElement;
+    const brokenRow = screen.getByText("SN-CAM-002").closest(".res-manifest-unit-row") as HTMLElement;
+    expect(within(goodRow).getByText("Good")).toBeInTheDocument();
+    expect(within(brokenRow).getByText("Broken")).toBeInTheDocument();
   });
 });

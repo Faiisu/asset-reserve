@@ -1298,33 +1298,6 @@
   box-shadow: inset 3px 0 var(--teal);
 }
 
-.res-manifest-item.reservation-item-card--selectable.reservation-item-card--handover {
-  background: color-mix(in srgb, var(--blue-soft) 24%, var(--surface));
-  grid-template-columns: 28px 52px minmax(140px, 1fr) minmax(180px, 2fr);
-  align-items: start;
-}
-
-.res-manifest-item.reservation-item-card--selectable.reservation-item-card--handover:hover {
-  background: color-mix(in srgb, var(--blue-soft) 40%, var(--surface));
-}
-
-.res-manifest-item.reservation-item-card--selectable.reservation-item-card--handover[data-selected="true"] {
-  background: color-mix(in srgb, var(--blue-soft) 56%, var(--surface));
-  box-shadow: inset 3px 0 var(--blue);
-}
-
-.reservation-item-card--handover .res-pending-quantity {
-  justify-content: flex-start;
-  align-items: flex-start;
-  padding-top: 2px;
-}
-
-.reservation-item-card--handover .res-return-serial-list {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-}
-
 .res-item-approve-actions {
   grid-column: 1 / -1;
   display: flex;
@@ -1396,41 +1369,6 @@
   font-size: 15px;
 }
 
-/* Manifest Grid Header for Return Inspection */
-.res-manifest-grid-header {
-  display: grid;
-  align-items: center;
-  padding: 8px 16px;
-  background: var(--surface-raised);
-  border-bottom: 1px solid var(--line);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.res-manifest-grid-header--inspection {
-  grid-template-columns: 28px 52px minmax(140px, 1fr) minmax(220px, 2fr);
-  gap: 12px;
-}
-
-.res-grid-th {
-  display: flex;
-  align-items: center;
-}
-
-.res-grid-th--serials {
-  color: var(--ink-faint);
-}
-
-/* Inspection Row Grid: identity column + a serial/condition list column */
-.res-manifest-item.reservation-item-card--selectable.res-manifest-item--inspection {
-  grid-template-columns: 28px 52px minmax(140px, 1fr) minmax(220px, 2fr);
-  gap: 12px;
-  align-items: start;
-}
-
 /* Approval Row Grid: identity column + a wider serial-unit assignment column */
 .res-manifest-item.reservation-item-card--selectable.res-manifest-item--approve {
   grid-template-columns: 28px 52px minmax(140px, 1fr) minmax(180px, 2fr);
@@ -1444,25 +1382,75 @@
   padding-top: 2px;
 }
 
-/* Per-serial condition checklist shown during return inspection */
-.res-inspect-serial-list {
+/* Asset sub-header above a flattened one-row-per-serial-unit list */
+.res-manifest-group-header {
+  padding-block: 12px;
+  background: var(--surface-raised);
+}
+
+/* One row per serial unit, indented under its asset sub-header */
+.res-manifest-unit-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
 }
 
-.res-inspect-serial-row {
+.res-manifest-unit-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
-}
-
-.res-inspect-serial-row__serial {
+  padding: 7px 18px 7px 82px;
+  border-top: 1px solid var(--line);
   font-size: 12px;
   color: var(--ink-soft);
+}
+
+.res-manifest-unit-row:first-child {
+  border-top: none;
+}
+
+.res-manifest-unit-row__check {
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.res-manifest-unit-row__check input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--teal);
+  cursor: pointer;
+}
+
+.res-manifest-unit-row__serial {
+  flex: 1;
+  color: var(--ink);
+}
+
+.res-manifest-unit-row__status {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-faint);
   white-space: nowrap;
+}
+
+.res-manifest-unit-row__status--good {
+  color: var(--green, #168a4a);
+}
+
+.res-manifest-unit-row__status--broken {
+  color: var(--amber, #d97706);
+}
+
+.res-manifest-unit-row__status--lost {
+  color: var(--red, #dc2626);
+}
+
+.res-manifest-unit-row--inspect {
+  justify-content: space-between;
 }
 
 .res-condition-toggle {
