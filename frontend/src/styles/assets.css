@@ -311,24 +311,30 @@
   margin: 0;
   font-size: 17px;
 }
-.detail-card__count {
-  margin-left: 9px;
-  color: var(--ink-faint);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 600;
-}
 .detail-card .toolbar--compact,
 .detail-card .selection-bar,
 .detail-card .data-table-wrap,
 .detail-card .empty-state {
   margin-top: 14px;
 }
-.detail-card__header-actions {
-  flex: 0 0 auto;
+.unit-count-stat {
+  margin-top: 14px;
+  padding: 14px 16px;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 10px;
+  border-radius: var(--card-radius-md);
+  background: var(--surface-raised);
+}
+.unit-count-stat strong {
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+}
+.unit-count-stat span {
+  color: var(--ink-faint);
+  font-size: 12px;
 }
 .owner-row {
   margin: 20px 0 12px;
