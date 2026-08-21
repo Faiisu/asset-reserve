@@ -27,7 +27,7 @@ export function ReservationPrintDocument({
     0,
   );
   const totalApprovedUnits = reservation.items
-    .filter((it) => it.status === "APPROVED" || it.approval?.status === "APPROVED")
+    .filter((it) => it.approval?.status === "APPROVED")
     .reduce((acc, it) => acc + (it.quantity || 0), 0);
 
   const hasReturns = Boolean(
@@ -121,7 +121,7 @@ export function ReservationPrintDocument({
           <div className="res-print-header__title-block">
             <h1 className="res-print-title">EQUIPMENT DISPATCH & RETURN MANIFEST</h1>
             <span className="res-print-subtitle">
-              Official Custody, Dispatch Clearance & Return Inspection Record
+              Official Custody, Handover Approval & Return Inspection Record
             </span>
           </div>
 
@@ -235,15 +235,13 @@ export function ReservationPrintDocument({
                 <th style={{ width: "110px" }}>Workspace Area</th>
                 <th style={{ width: "65px", textAlign: "center" }}>Req. Qty</th>
                 <th style={{ width: "70px", textAlign: "center" }}>Appr. Qty</th>
-                <th>Area Clearance & Approver</th>
+                <th>Area Approval & Approver</th>
                 <th style={{ width: "95px", textAlign: "center" }}>Item Status</th>
               </tr>
             </thead>
             <tbody>
               {reservation.items.map((item, idx) => {
-                const isApproved =
-                  item.status === "APPROVED" ||
-                  item.approval?.status === "APPROVED";
+                const isApproved = item.approval?.status === "APPROVED";
                 return (
                   <tr key={item.id}>
                     <td style={{ textAlign: "center", fontWeight: 600 }}>{idx + 1}</td>
@@ -398,7 +396,7 @@ export function ReservationPrintDocument({
                     {/* Return Inspection Decision Box */}
                     <div className="res-print-inspection-box">
                       <div className="res-print-inspection-title">
-                        <strong>Receiving Officer Clearance & Restock Verification:</strong>
+                        <strong>Receiving Officer Approval & Restock Verification:</strong>
                       </div>
                       <div className="res-print-inspection-grid">
                         <div>
@@ -519,7 +517,7 @@ export function ReservationPrintDocument({
             <div className="res-print-sign-box">
               <div className="res-print-sign-header">
                 <strong>2. Area Custodian / Approver</strong>
-                <small>Authorization Clearance</small>
+                <small>Approval Authorization</small>
               </div>
               <p className="res-print-sign-statement">
                 Equipment reservation and resource allocation authorized in accordance with workspace management policies.

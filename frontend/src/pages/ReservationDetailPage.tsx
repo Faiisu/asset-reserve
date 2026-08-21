@@ -28,7 +28,11 @@ import {
   Notice,
   formatDate,
 } from "../components/ui";
-import { reservationDuration, reservationStatusLabel } from "../reservations";
+import {
+  reservationDuration,
+  reservationItemStatusLabel,
+  reservationStatusLabel,
+} from "../reservations";
 import type {
   ReservationDetail,
   CreateReturnItemInput,
@@ -181,9 +185,7 @@ export function ReservationDetailPage() {
   const deliverableItems = useMemo(() => {
     if (!reservation) return [];
     return reservation.items.filter(
-      (item) =>
-        item.capabilities?.canConfirmDelivery &&
-        ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status),
+      (item) => item.capabilities?.canConfirmDelivery && item.status === "PREPARED",
     );
   }, [reservation]);
 
@@ -200,8 +202,7 @@ export function ReservationDetailPage() {
       return (
         itemCanReturn &&
         remaining > 0 &&
-        (["DELIVERED", "APPROVED", "DELIVERY_CONFIRMED"].includes(item.status) ||
-          RETURN_PHASE_STATUSES.includes(reservation.status))
+        (item.status === "DELIVERED" || RETURN_PHASE_STATUSES.includes(reservation.status))
       );
     });
   }, [reservation]);
@@ -501,7 +502,7 @@ export function ReservationDetailPage() {
   const canCancel = reservation.capabilities?.canCancel;
   const statusClass = reservation.status.toLowerCase();
   const approvedItemCount = reservation.items.filter(
-    (item) => item.status === "APPROVED",
+    (item) => item.approval?.status === "APPROVED",
   ).length;
   const startDate = new Date(reservation.startAt);
   const startMonth = new Intl.DateTimeFormat("en", { month: "short" })
@@ -666,8 +667,8 @@ export function ReservationDetailPage() {
                     ? `${approvedItemCount} of ${reservation.items.length} equipment lines approved`
                     : deliverableItems.length > 0
                       ? approvedItemCount === reservation.items.length
-                        ? "All equipment cleared for handover"
-                        : `${deliverableItems.length} line(s) cleared for equipment handover`
+                        ? "All equipment approved for handover"
+                        : `${deliverableItems.length} line(s) approved for equipment handover`
                       : returnableItems.length > 0
                         ? `${returnableItems.length} equipment line(s) pending return`
                         : pendingInspectableReturn
@@ -824,8 +825,7 @@ export function ReservationDetailPage() {
                   (item.capabilities?.canApprove ||
                     hasAreaPermission("reservation:approve", item.asset.managementArea.id));
                 const isDeliverySelectable = Boolean(
-                  item.capabilities?.canConfirmDelivery &&
-                    ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status),
+                  item.capabilities?.canConfirmDelivery && item.status === "PREPARED",
                 );
                 const remainingReturn =
                   item.returnSummary?.remainingReturnQuantity ??
@@ -833,7 +833,7 @@ export function ReservationDetailPage() {
                 const isReturnSelectable = Boolean(
                   (item.capabilities?.canReturn ?? reservation.capabilities?.canReturn) &&
                     remainingReturn > 0 &&
-                    (["DELIVERED", "APPROVED", "DELIVERY_CONFIRMED"].includes(item.status) ||
+                    (item.status === "DELIVERED" ||
                       RETURN_PHASE_STATUSES.includes(reservation.status)),
                 );
 
@@ -851,10 +851,8 @@ export function ReservationDetailPage() {
 
                 const isSelectable =
                   isApprovable || isDeliverySelectable || isReturnSelectable || isInspectSelectable;
-                const isApproved = item.status === "APPROVED";
-                const isDelivered =
-                  item.status === "DELIVERED" ||
-                  RETURN_PHASE_STATUSES.includes(reservation.status);
+                const isRejected = item.status === "REJECTED";
+                const isDelivered = item.status === "DELIVERED";
                 const isFullyReturned =
                   item.status === "RETURNED" ||
                   (item.returnSummary !== undefined &&
@@ -872,6 +870,8 @@ export function ReservationDetailPage() {
                     key={item.id}
                     className={`res-manifest-item ${
                       isSelectable ? "reservation-item-card--selectable" : ""
+                    } ${
+                      isApprovable ? "res-manifest-item--approve" : ""
                     } ${
                       isDeliverySelectable ? "reservation-item-card--handover" : ""
                     } ${
@@ -930,7 +930,7 @@ export function ReservationDetailPage() {
                           ) : (
                             <span>{item.asset.name.slice(0, 2).toUpperCase()}</span>
                           )}
-                          {isApproved && (
+                          {!isApprovable && (
                             <span className="res-item-media__clearance" aria-hidden="true">
                               <Check size={10} strokeWidth={3} />
                             </span>
@@ -953,8 +953,8 @@ export function ReservationDetailPage() {
                                   : isApprovable
                                     ? `Select serial unit (${decisionUnitSelections[item.id]?.length ?? 0} of ${item.quantity})`
                                   : isDeliverySelectable
-                                    ? `Cleared for handover`
-                                    : `Awaiting area clearance`}
+                                    ? `Approved — awaiting handover`
+                                    : `Awaiting Area Manager decision`}
                             </div>
                           </div>
                         </div>
@@ -1121,11 +1121,15 @@ export function ReservationDetailPage() {
                             ) : (
                               <span>{item.asset.name.slice(0, 2).toUpperCase()}</span>
                             )}
-                            {isApproved && (
+                            {isRejected ? (
+                              <span className="res-item-media__rejected" aria-hidden="true">
+                                <X size={10} strokeWidth={3} />
+                              </span>
+                            ) : item.status !== "PENDING" ? (
                               <span className="res-item-media__clearance" aria-hidden="true">
                                 <Check size={10} strokeWidth={3} />
                               </span>
-                            )}
+                            ) : null}
                           </div>
 
                           <div className="res-item-copy">
@@ -1135,17 +1139,36 @@ export function ReservationDetailPage() {
                                 {item.asset.managementArea.name}
                               </span>
                             </div>
-                            {isApproved && item.approval ? (
+                            {item.status === "PREPARED" && item.approval ? (
                               <div className="res-item-clearance">
                                 <CheckCircle size={14} />
                                 <div>
                                   <span>
-                                    Cleared by{" "}
+                                    Approved by{" "}
                                     {item.approval.approver.name ??
                                       item.approval.approver.email ??
                                       "a user"}
                                   </span>
                                   {item.approval.decidedAt && (
+                                    <small>{formatDate(item.approval.decidedAt, true)}</small>
+                                  )}
+                                </div>
+                              </div>
+                            ) : isRejected ? (
+                              <div className="res-item-clearance res-item-clearance--rejected">
+                                <XCircle size={14} />
+                                <div>
+                                  <span>
+                                    Rejected
+                                    {item.approval
+                                      ? ` by ${
+                                          item.approval.approver.name ??
+                                          item.approval.approver.email ??
+                                          "a user"
+                                        }`
+                                      : ""}
+                                  </span>
+                                  {item.approval?.decidedAt && (
                                     <small>{formatDate(item.approval.decidedAt, true)}</small>
                                   )}
                                 </div>
@@ -1159,7 +1182,7 @@ export function ReservationDetailPage() {
                             ) : isFullyReturned ? (
                               <div className="res-item-sub">All units returned and restocked in inventory</div>
                             ) : (
-                              <div className="res-item-sub">Awaiting area clearance</div>
+                              <div className="res-item-sub">Awaiting Area Manager decision</div>
                             )}
                             {item.approval?.comment && (
                               <blockquote className="res-item-comment">
@@ -1170,19 +1193,17 @@ export function ReservationDetailPage() {
                         </div>
                         <div className="res-item-controls">
                           <div className="res-item-qty-ticket">
-                            <span>{isApproved ? "Approved qty" : "Quantity"}</span>
+                            <span>
+                              {["PREPARED", "DELIVERED", "RETURNED"].includes(item.status)
+                                ? "Approved qty"
+                                : "Quantity"}
+                            </span>
                             <strong>{item.quantity}</strong>
                             <small>{item.quantity === 1 ? "unit" : "units"}</small>
                           </div>
                           <div className="res-item-status-col">
                             <span className={`res-status-badge res-status-badge--${itemStatusClass}`}>
-                              {isApproved
-                                ? "Cleared"
-                                : isFullyReturned
-                                  ? "Returned"
-                                  : isDelivered
-                                    ? "Pending Return"
-                                    : item.status}
+                              {isFullyReturned ? "Returned" : reservationItemStatusLabel[item.status]}
                             </span>
                           </div>
                         </div>

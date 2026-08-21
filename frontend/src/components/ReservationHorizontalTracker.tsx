@@ -281,7 +281,7 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
     summary: isCompleted
       ? "All equipment inspected, approved, and restocked in inventory"
       : isInspectionPending
-        ? "Return slip submitted; awaiting manager inspection & clearance"
+        ? "Return slip submitted; awaiting manager inspection & approval"
         : "Available after return slip is submitted",
     icon: ClipboardCheck,
     logs: [

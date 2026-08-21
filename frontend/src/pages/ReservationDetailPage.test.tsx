@@ -36,7 +36,7 @@ const mockReservation: ReservationDetail = {
     {
       id: "item-1",
       quantity: 2,
-      status: "APPROVED",
+      status: "PREPARED",
       asset: {
         id: "asset-1",
         name: "Stage Camera 4K",
@@ -164,7 +164,7 @@ describe("ReservationDetailPage", () => {
     });
 
     expect(screen.getByText("Stage Camera 4K")).toBeInTheDocument();
-    expect(screen.getByText("All equipment cleared for handover")).toBeInTheDocument();
+    expect(screen.getByText("All equipment approved for handover")).toBeInTheDocument();
     expect(screen.getByText("Handover confirmation (0 of 1 selected)")).toBeInTheDocument();
     expect(screen.getByLabelText("Select Stage Camera 4K for handover")).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Confirm Handover" })).toBeDisabled();

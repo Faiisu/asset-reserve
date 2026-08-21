@@ -1209,6 +1209,24 @@
   font-size: 9px;
 }
 
+.res-item-media__rejected {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  background: var(--red);
+  color: #fff;
+}
+
+.res-item-clearance--rejected {
+  color: var(--red);
+}
+
 .res-item-status-col {
   display: flex;
   flex-direction: column;
@@ -1399,6 +1417,19 @@
   align-items: start;
 }
 
+/* Approval Row Grid: identity column + a wider serial-unit assignment column */
+.res-manifest-item.reservation-item-card--selectable.res-manifest-item--approve {
+  grid-template-columns: 28px 52px minmax(140px, 1fr) minmax(180px, 2fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.res-manifest-item--approve .res-pending-quantity {
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding-top: 2px;
+}
+
 /* Per-serial condition checklist shown during return inspection */
 .res-inspect-serial-list {
   display: flex;
@@ -1470,6 +1501,12 @@
   gap: 6px;
   font-size: 12px;
   color: var(--ink-soft);
+}
+
+.res-manifest-item--approve .res-return-serial-list {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px 14px;
 }
 
 @media (max-width: 720px) {
