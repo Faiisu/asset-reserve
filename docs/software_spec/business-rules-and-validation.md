@@ -51,7 +51,7 @@
 - ทุกหน้าที่ทำ mutation ต้องป้องกัน double submit (idempotency) — double click หรือ network retry ต้องไม่สร้าง reservation, approval, ledger หรือ return ซ้ำ — รายละเอียด implementation อยู่ใน [backend_spec/algorithms-and-validation.md](../backend_spec/algorithms-and-validation.md)
 - Adjustment/registration หลาย line บันทึกเป็น batch เดียว และต้องไม่ทำให้ `totalQuantity` ติดลบ
 - จำนวน returned/broken/lost ต้องไม่ติดลบและไม่เกินยอดค้างคืน
-- ผู้ใช้สองคน prepare/checkout asset unit (serial) เดียวกันพร้อมกัน ต้องมีเพียงฝ่ายเดียว lock unit นั้นได้สำเร็จ อีกฝ่าย fail ด้วย `409`
+- ผู้ใช้สองคน approve (assign) หรือ checkout asset unit (serial) เดียวกันพร้อมกัน ต้องมีเพียงฝ่ายเดียว lock unit นั้นได้สำเร็จ อีกฝ่าย fail ด้วย `409`
 - Transaction conflict ต้อง retry ตาม policy ที่กำหนด และตอบ structured `409` เมื่อไม่สามารถดำเนินการได้หลัง retry หมด
 - ทุก list endpoint ต้องบังคับ page-size limit
 - Backup และ restore procedure ต้องถูกทดสอบอย่างน้อยหนึ่งครั้งก่อน pilot deployment
