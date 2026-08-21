@@ -107,6 +107,57 @@ export function ReservationDetailPage() {
     Record<string, ReturnItemUnitCondition>
   >({});
 
+  // Seed "select everything eligible by default" state from a reservation
+  // snapshot. Used both on initial load and after any action that returns an
+  // updated reservation in-place, so units that just became eligible (e.g.
+  // just approved into PREPARED, or just handed over into CHECKED_OUT)
+  // start selected too, instead of only units that were already eligible
+  // when the page first loaded.
+  const seedDefaultSelections = (data: ReservationDetail) => {
+    // Default every checked-out (not-yet-claimed) serial unit to selected
+    // for return.
+    const initialReturnUnits: Record<string, boolean> = {};
+    data.items.forEach((item) => {
+      item.units
+        .filter((unit) => unit.status === "CHECKED_OUT")
+        .forEach((unit) => {
+          initialReturnUnits[unit.id] = true;
+        });
+    });
+    setSelectedReturnUnitIds(initialReturnUnits);
+
+    // Default every assigned (not-yet-handed-over) serial unit to selected
+    // for handover.
+    const initialDeliveryUnits: Record<string, boolean> = {};
+    data.items.forEach((item) => {
+      item.units
+        .filter((unit) => unit.status === "ASSIGNED")
+        .forEach((unit) => {
+          initialDeliveryUnits[unit.id] = true;
+        });
+    });
+    setSelectedDeliveryUnitIds(initialDeliveryUnits);
+
+    // Initialize inspection state for the pending return slip: default
+    // every undecided unit to GOOD, matching the backend's own default.
+    const pendingReturn = data.returns.find(
+      (ret) => ret.status === "PENDING" || ret.approval?.status === "PENDING",
+    );
+    const initialConditions: Record<string, ReturnItemUnitCondition> = {};
+    const initialInspectUnits: Record<string, boolean> = {};
+    if (pendingReturn && pendingReturn.items && pendingReturn.items.length > 0) {
+      pendingReturn.items.forEach((item) => {
+        item.units.forEach((unit) => {
+          initialConditions[unit.reservationItemUnitId] =
+            unit.condition ?? "GOOD";
+          initialInspectUnits[unit.reservationItemUnitId] = true;
+        });
+      });
+    }
+    setSelectedInspectUnitIds(initialInspectUnits);
+    setUnitConditions(initialConditions);
+  };
+
   // Fetch reservation data
   const loadReservation = useCallback(async () => {
     if (!reservationId) return;
@@ -115,49 +166,7 @@ export function ReservationDetailPage() {
     try {
       const data = await api.reservation(reservationId);
       setReservation(data);
-
-      // Default every checked-out (not-yet-claimed) serial unit to selected
-      // for return.
-      const initialReturnUnits: Record<string, boolean> = {};
-      data.items.forEach((item) => {
-        item.units
-          .filter((unit) => unit.status === "CHECKED_OUT")
-          .forEach((unit) => {
-            initialReturnUnits[unit.id] = true;
-          });
-      });
-      setSelectedReturnUnitIds(initialReturnUnits);
-
-      // Default every assigned (not-yet-handed-over) serial unit to selected
-      // for handover.
-      const initialDeliveryUnits: Record<string, boolean> = {};
-      data.items.forEach((item) => {
-        item.units
-          .filter((unit) => unit.status === "ASSIGNED")
-          .forEach((unit) => {
-            initialDeliveryUnits[unit.id] = true;
-          });
-      });
-      setSelectedDeliveryUnitIds(initialDeliveryUnits);
-
-      // Initialize inspection state for the pending return slip: default
-      // every undecided unit to GOOD, matching the backend's own default.
-      const pendingReturn = data.returns.find(
-        (ret) => ret.status === "PENDING" || ret.approval?.status === "PENDING",
-      );
-      const initialConditions: Record<string, ReturnItemUnitCondition> = {};
-      const initialInspectUnits: Record<string, boolean> = {};
-      if (pendingReturn && pendingReturn.items && pendingReturn.items.length > 0) {
-        pendingReturn.items.forEach((item) => {
-          item.units.forEach((unit) => {
-            initialConditions[unit.reservationItemUnitId] =
-              unit.condition ?? "GOOD";
-            initialInspectUnits[unit.reservationItemUnitId] = true;
-          });
-        });
-      }
-      setSelectedInspectUnitIds(initialInspectUnits);
-      setUnitConditions(initialConditions);
+      seedDefaultSelections(data);
 
       // Fetch ACTIVE serial units for every asset with an item awaiting
       // approval -- approving assigns units in the same request (§7.5).
@@ -410,6 +419,7 @@ export function ReservationDetailPage() {
         comment,
       );
       setReservation(updated);
+      seedDefaultSelections(updated);
       setApprovalComments((prev) => {
         const next = { ...prev };
         delete next[itemId];
@@ -451,6 +461,7 @@ export function ReservationDetailPage() {
     try {
       const updated = await api.confirmDelivery(reservation.id, { items });
       setReservation(updated);
+      seedDefaultSelections(updated);
       const unitCount = items.reduce(
         (sum, entry) => sum + entry.reservationItemUnitIds.length,
         0,
