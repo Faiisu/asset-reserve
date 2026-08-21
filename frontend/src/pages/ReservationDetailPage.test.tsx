@@ -770,6 +770,14 @@ describe("ReservationDetailPage", () => {
       within(secondSerialRow).getByRole("radio", { name: "Good" }),
     ).toHaveAttribute("aria-checked", "true");
 
+    // Unchecking the only item must disable submission instead of silently
+    // approving everything (the old "0 selected == select all" fallback).
+    const itemCheckbox = screen.getByLabelText("Select serial SN-CAM-001 for inspection");
+    fireEvent.click(itemCheckbox);
+    expect(screen.getByRole("button", { name: "Approve Return" })).toBeDisabled();
+    fireEvent.click(itemCheckbox);
+    expect(screen.getByRole("button", { name: "Approve Return" })).not.toBeDisabled();
+
     const remarkInput = screen.getByPlaceholderText(/Inspection remarks \/ condition note/i);
     fireEvent.change(remarkInput, { target: { value: "1 intact, 1 minor cable damage" } });
 

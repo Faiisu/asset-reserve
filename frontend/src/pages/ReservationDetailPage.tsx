@@ -479,9 +479,16 @@ export function ReservationDetailPage() {
     setActionError(null);
     setActionNotice(null);
 
-    const targetReturnItems = (pendingInspectableReturn.items || []).filter((retItem) =>
-      selectedInspectItemIds.length === 0 || selectedInspectItemIds.includes(retItem.reservationItemId)
-    );
+    // An empty items list means this return has no per-item breakdown to
+    // pick from -- approve/reject the whole slip. Otherwise only submit
+    // the items the reviewer actually left checked.
+    const inspectableItems = pendingInspectableReturn.items || [];
+    const targetReturnItems =
+      inspectableItems.length === 0
+        ? []
+        : inspectableItems.filter((retItem) =>
+            selectedInspectItemIds.includes(retItem.reservationItemId),
+          );
 
     const decidedItems: DecideReturnItemInput[] = targetReturnItems.map((retItem) => ({
       reservationItemId: retItem.reservationItemId,
@@ -832,7 +839,11 @@ export function ReservationDetailPage() {
                   />
                   <Button
                     variant="primary"
-                    disabled={actionLoading}
+                    disabled={
+                      actionLoading ||
+                      ((pendingInspectableReturn.items?.length ?? 0) > 0 &&
+                        selectedInspectItemIds.length === 0)
+                    }
                     onClick={() => handleDecideReturn("APPROVE")}
                   >
                     <Check size={14} />
@@ -840,7 +851,11 @@ export function ReservationDetailPage() {
                   </Button>
                   <Button
                     variant="danger"
-                    disabled={actionLoading}
+                    disabled={
+                      actionLoading ||
+                      ((pendingInspectableReturn.items?.length ?? 0) > 0 &&
+                        selectedInspectItemIds.length === 0)
+                    }
                     onClick={() => handleDecideReturn("REJECT")}
                   >
                     <X size={14} />
