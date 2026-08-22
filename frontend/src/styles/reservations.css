@@ -285,6 +285,23 @@
   background: var(--red-soft);
   color: var(--red);
 }
+.reservation-list-status--draft {
+  background: var(--slate-soft);
+  color: var(--slate);
+}
+.reservation-list-status--delivery_confirmed {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+.reservation-list-status--return,
+.reservation-list-status--return_pending {
+  background: var(--orange-soft);
+  color: var(--orange);
+}
+.reservation-list-status--return_confirmed {
+  background: var(--emerald-soft);
+  color: var(--emerald);
+}
 .reservation-list-participant-tag {
   display: inline-flex;
   align-items: center;
