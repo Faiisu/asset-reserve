@@ -90,7 +90,7 @@ export function AppShell() {
     },
     {
       to: "/admin/areas",
-      label: "Workspaces",
+      label: "Management areas",
       icon: Building2,
       show: isGlobalAdmin,
     },
