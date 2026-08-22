@@ -240,13 +240,13 @@ export function ReservationCreatePage() {
       });
       return;
     }
-    if (
-      !startAt ||
-      !endAt ||
-      Number.isNaN(new Date(startAt).getTime()) ||
-      Number.isNaN(new Date(endAt).getTime())
-    ) {
-      setFields({ startAt: "Set a valid start and end time." });
+    const startInvalid = !startAt || Number.isNaN(new Date(startAt).getTime());
+    const endInvalid = !endAt || Number.isNaN(new Date(endAt).getTime());
+    if (startInvalid || endInvalid) {
+      setFields({
+        ...(startInvalid ? { startAt: "Set a valid start time." } : {}),
+        ...(endInvalid ? { endAt: "Set a valid end time." } : {}),
+      });
       return;
     }
     if (new Date(endAt) <= new Date(startAt)) {

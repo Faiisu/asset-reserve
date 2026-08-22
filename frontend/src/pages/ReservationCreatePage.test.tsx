@@ -205,4 +205,34 @@ describe("ReservationCreatePage", () => {
     ).toBeInTheDocument();
     expect(createSpy).not.toHaveBeenCalled();
   });
+
+  it("attaches an invalid end time error to the Ends field, not Starts", async () => {
+    const createSpy = vi.spyOn(api, "createReservation");
+    vi.spyOn(api, "assets").mockResolvedValue({
+      data: [asset],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <ReservationCreatePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText(/^Event name/), {
+      target: { value: "Sprint Planning" },
+    });
+
+    const assetButton = await screen.findByRole("button", { name: /stage camera/i });
+    fireEvent.click(assetButton);
+
+    // Starts keeps its valid default; only Ends is cleared out.
+    fireEvent.change(screen.getByLabelText(/^Ends/), { target: { value: "" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /send for approval/i }));
+
+    expect(await screen.findByText(/set a valid end time/i)).toBeInTheDocument();
+    expect(screen.queryByText(/set a valid start time/i)).not.toBeInTheDocument();
+    expect(createSpy).not.toHaveBeenCalled();
+  });
 });
