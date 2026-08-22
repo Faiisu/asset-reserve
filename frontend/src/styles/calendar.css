@@ -846,13 +846,10 @@
   background: var(--legend-color);
 }
 .calendar-legend__draft {
-  --legend-color: var(--slate);
+  --legend-color: var(--ink);
 }
 .calendar-legend__cancelled {
   --legend-color: var(--amber-dark);
-}
-.calendar-legend__pending {
-  --legend-color: var(--cyan);
 }
 .calendar-legend__pending_approval {
   --legend-color: var(--amber);
@@ -869,15 +866,11 @@
 .calendar-legend__rejected {
   --legend-color: var(--red);
 }
-.calendar-legend__active {
+.calendar-legend__return_pending {
   --legend-color: var(--blue);
 }
-.calendar-legend__return,
-.calendar-legend__return_pending {
-  --legend-color: var(--orange);
-}
 .calendar-legend__return_confirmed {
-  --legend-color: var(--emerald);
+  --legend-color: var(--teal-dark);
 }
 .calendar-legend__completed {
   --legend-color: var(--green-dark);

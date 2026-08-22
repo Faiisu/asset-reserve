@@ -18,6 +18,7 @@ import { Fragment, useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
+import { CancelReservationDialog } from "../components/CancelReservationDialog";
 import { ReservationHorizontalTracker } from "../components/ReservationHorizontalTracker";
 import { ReservationPrintDocument } from "../components/ReservationPrintDocument";
 import {
@@ -60,6 +61,7 @@ export function ReservationDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
 
   // Selection states for manifest actions
 
@@ -559,14 +561,13 @@ export function ReservationDetailPage() {
   };
 
   // Handle Cancel
-  const handleCancelReservation = async () => {
+  const handleCancelReservation = async (reason?: string) => {
     if (!reservation) return;
-    if (!window.confirm("Are you sure you want to cancel this reservation?")) return;
     setActionLoading(true);
     setActionError(null);
     setActionNotice(null);
     try {
-      const updated = await api.cancelReservation(reservation.id);
+      const updated = await api.cancelReservation(reservation.id, reason);
       setReservation(updated);
       setActionNotice("Reservation cancelled successfully.");
     } catch (err: any) {
@@ -686,7 +687,7 @@ export function ReservationDetailPage() {
             {canCancel && (
               <Button
                 variant="danger"
-                onClick={handleCancelReservation}
+                onClick={() => setCancelDialogOpen(true)}
                 disabled={actionLoading}
                 loading={actionLoading}
               >
@@ -1460,6 +1461,13 @@ export function ReservationDetailPage() {
           isModal
         />
       )}
+
+      <CancelReservationDialog
+        open={cancelDialogOpen}
+        eventName={reservation.eventName}
+        onClose={() => setCancelDialogOpen(false)}
+        onConfirm={(reason) => handleCancelReservation(reason)}
+      />
     </div>
   );
 }

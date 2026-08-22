@@ -580,39 +580,58 @@
   letter-spacing: 0.04em;
 }
 
-.res-status-badge--approved {
-  background: var(--blue-soft);
-  color: var(--blue);
-}
-
-.res-status-badge--delivery_confirmed,
-.res-status-badge--return_confirmed {
-  background: var(--green-soft);
-  color: var(--green);
-}
-
-.res-status-badge--active {
-  background: var(--amber-soft);
-  color: var(--amber);
-}
-
-.res-status-badge--completed {
+.res-status-badge--draft {
   background: var(--surface-raised);
   color: var(--ink-soft);
   border: 1px solid var(--line);
 }
 
 .res-status-badge--pending_approval,
-.res-status-badge--return,
-.res-status-badge--return_pending {
+.res-status-badge--pending {
   background: var(--amber-soft);
   color: var(--amber);
 }
 
-.res-status-badge--rejected,
-.res-status-badge--cancelled {
+.res-status-badge--partially_approved {
+  background: var(--purple-soft);
+  color: var(--purple);
+}
+
+.res-status-badge--approved {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.res-status-badge--delivery_confirmed,
+.res-status-badge--active {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+
+.res-status-badge--return,
+.res-status-badge--return_pending {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.res-status-badge--return_confirmed {
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+}
+
+.res-status-badge--completed {
+  background: var(--green-soft);
+  color: var(--green-dark);
+}
+
+.res-status-badge--rejected {
   background: var(--red-soft);
   color: var(--red);
+}
+
+.res-status-badge--cancelled {
+  background: var(--amber-soft);
+  color: var(--amber-dark);
 }
 
 /* Meta Strip */
