@@ -521,11 +521,12 @@ export function ReservationDetailPage() {
     setActionError(null);
     setActionNotice(null);
 
-    // Only submit conditions for units the reviewer explicitly left checked
-    // -- unchecked units are simply omitted, which the backend already
-    // defaults to GOOD, so 0 checked is a valid "everything is fine" submit.
-    // (Note: this only affects APPROVE -- REJECT rejects the whole return
-    // slip regardless of what's submitted here.)
+    // Only submit conditions for units the reviewer explicitly checked. The
+    // Approve button itself is disabled until every unit is checked (see the
+    // review bar below), so by the time this runs it's always the full set
+    // -- an unchecked unit means "still pending review", not "assumed Good".
+    // (Note: REJECT rejects the whole return slip regardless of what's
+    // submitted here, so this filtering only really matters for APPROVE.)
     const inspectableItems = pendingInspectableReturn.items || [];
     const decidedItems: DecideReturnItemInput[] = inspectableItems
       .map((retItem) => ({
@@ -874,7 +875,7 @@ export function ReservationDetailPage() {
                 <div className="res-review-bar__title">
                   <ClipboardCheck size={18} />
                   <span>
-                    Return Inspection Review ({selectedInspectUnitCount} of {inspectableUnitIds.length} serial units flagged)
+                    Return Inspection Review ({selectedInspectUnitCount} of {inspectableUnitIds.length} serial units reviewed)
                   </span>
                 </div>
                 <div className="res-review-bar__actions">
@@ -888,7 +889,15 @@ export function ReservationDetailPage() {
                   />
                   <Button
                     variant="primary"
-                    disabled={actionLoading}
+                    disabled={
+                      actionLoading ||
+                      selectedInspectUnitCount < inspectableUnitIds.length
+                    }
+                    title={
+                      selectedInspectUnitCount < inspectableUnitIds.length
+                        ? "Review every serial unit (check it and confirm its condition) before approving"
+                        : undefined
+                    }
                     onClick={() => handleDecideReturn("APPROVE")}
                   >
                     <Check size={14} />

@@ -770,11 +770,11 @@ describe("ReservationDetailPage", () => {
       within(secondSerialRow).getByRole("radio", { name: "Good" }),
     ).toHaveAttribute("aria-checked", "true");
 
-    // Unchecking a unit omits it from the submit payload entirely (the
-    // backend defaults omitted units to GOOD on its own) -- it must NOT
-    // disable Approve, since "nothing checked" is a valid "everything is
-    // fine" submission.
+    // Unchecking a unit means "still pending review" -- Approve must be
+    // blocked until every unit is reviewed again, not silently defaulted.
     const secondUnitCheckbox = screen.getByLabelText("Select serial SN-CAM-002 for inspection");
+    fireEvent.click(secondUnitCheckbox);
+    expect(screen.getByRole("button", { name: "Approve Return" })).toBeDisabled();
     fireEvent.click(secondUnitCheckbox);
     expect(screen.getByRole("button", { name: "Approve Return" })).not.toBeDisabled();
 
@@ -795,6 +795,7 @@ describe("ReservationDetailPage", () => {
               reservationItemId: "item-1",
               units: [
                 { reservationItemUnitId: "unit-1", condition: "BROKEN" },
+                { reservationItemUnitId: "unit-2", condition: "GOOD" },
               ],
             },
           ],
@@ -804,7 +805,7 @@ describe("ReservationDetailPage", () => {
     });
   });
 
-  it("allows approving a return with every serial unit unchecked (submits no explicit conditions)", async () => {
+  it("blocks approving a return until every serial unit has been reviewed", async () => {
     const pendingReturnReservation: ReservationDetail = {
       ...mockReservation,
       status: "RETURN_PENDING",
@@ -918,10 +919,16 @@ describe("ReservationDetailPage", () => {
       ).toBeChecked();
     });
 
-    // Uncheck the only unit -- 0 checked is a valid "everything is fine"
-    // submission, not a disabled/error state.
-    fireEvent.click(screen.getByLabelText("Select serial SN-CAM-001 for inspection"));
+    // Unchecking the only unit means it's still pending review -- Approve
+    // must be blocked, not silently treated as "everything is fine".
+    const unitCheckbox = screen.getByLabelText("Select serial SN-CAM-001 for inspection");
+    fireEvent.click(unitCheckbox);
     const approveReturnBtn = screen.getByRole("button", { name: "Approve Return" });
+    expect(approveReturnBtn).toBeDisabled();
+    expect(decideReturnSpy).not.toHaveBeenCalled();
+
+    // Re-checking it makes Approve available again.
+    fireEvent.click(unitCheckbox);
     expect(approveReturnBtn).not.toBeDisabled();
     fireEvent.click(approveReturnBtn);
 
@@ -931,7 +938,14 @@ describe("ReservationDetailPage", () => {
         "00000000-0000-4000-8000-000000000201",
         {
           decision: "APPROVE",
-          items: undefined,
+          items: [
+            {
+              reservationItemId: "item-1",
+              units: [
+                { reservationItemUnitId: "unit-1", condition: "GOOD" },
+              ],
+            },
+          ],
           description: undefined,
         }
       );
