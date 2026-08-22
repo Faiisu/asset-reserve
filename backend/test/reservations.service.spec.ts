@@ -63,7 +63,7 @@ function detailRecord(status = "PENDING_APPROVAL") {
         reservationId,
         assetId,
         quantity: 1,
-        status: status === "APPROVED" ? "APPROVED" : "PENDING",
+        status: status === "APPROVED" ? "PREPARED" : "PENDING",
         preparedBy: null,
         preparedAt: null,
         checkedOutBy: null,
@@ -184,6 +184,43 @@ describe("reservation listing", () => {
     );
   });
 
+  it("does not widen ALL browsing with operational area permissions", async () => {
+    const scopedManager: AuthenticatedActor = {
+      ...actor,
+      effectivePermissions: {
+        global: [],
+        byManagementArea: [
+          {
+            managementAreaId: areaId,
+            permissions: ["reservation:approve", "reservation:update"],
+          },
+        ],
+      },
+    };
+    const findMany = vi.fn().mockResolvedValue([]);
+    const service = new ReservationsService(
+      { reservation: { findMany } } as unknown as PrismaService,
+      reservationEvents,
+    );
+
+    await service.list(scopedManager, { view: "ALL", limit: 20 });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: expect.arrayContaining([
+            {
+              OR: [
+                { requesterId: actorId },
+                { participants: { some: { userId: actorId } } },
+              ],
+            },
+          ]),
+        },
+      }),
+    );
+  });
+
   it("lists decided reservations in approval history", async () => {
     const scopedActor: AuthenticatedActor = {
       ...actor,
@@ -220,7 +257,7 @@ describe("reservation listing", () => {
                 expect.objectContaining({
                   items: expect.objectContaining({
                     some: expect.objectContaining({
-                      approval: { isNot: null },
+                      approval: { is: { approverId: actorId } },
                       asset: { managementAreaId: { in: [areaId] } },
                     }),
                   }),
@@ -295,14 +332,52 @@ describe("reservation listing", () => {
   });
 });
 
+describe("reservation detail visibility", () => {
+  it("does not grant general detail access from operational permissions", async () => {
+    const otherUserId = "00000000-0000-4000-8000-000000000099";
+    const reservation = {
+      ...detailRecord("APPROVED"),
+      requesterId: otherUserId,
+      requester: { ...user, id: otherUserId },
+      items: detailRecord("APPROVED").items.map((item) => ({
+        ...item,
+        asset: { ...item.asset, createdById: otherUserId },
+      })),
+    };
+    const scopedManager: AuthenticatedActor = {
+      ...actor,
+      effectivePermissions: {
+        global: [],
+        byManagementArea: [
+          {
+            managementAreaId: areaId,
+            permissions: ["reservation:approve", "reservation:update"],
+          },
+        ],
+      },
+    };
+    const service = new ReservationsService(
+      {
+        reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
+      } as unknown as PrismaService,
+      reservationEvents,
+    );
+
+    await expect(service.get(scopedManager, reservationId)).rejects.toThrow(
+      /permission/i,
+    );
+  });
+});
+
 describe("reservation availability", () => {
   it("returns a soft warning for overlapping unapproved requests", async () => {
+    const groupBy = vi
+      .fn()
+      .mockResolvedValue(unitCountRows([{ assetId, count: 2 }]));
     const prisma = {
       reservation: { findUnique: vi.fn().mockResolvedValue(detailRecord()) },
       assetUnit: {
-        groupBy: vi
-          .fn()
-          .mockResolvedValue(unitCountRows([{ assetId, count: 2 }])),
+        groupBy,
       },
       reservationItem: {
         findMany: vi.fn().mockResolvedValue([
@@ -329,6 +404,14 @@ describe("reservation availability", () => {
     expect(result.items[0]?.warnings).toEqual([
       expect.objectContaining({ code: "PENDING_RESERVATION_OVERLAP" }),
     ]);
+    expect(groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          assetId: { in: [assetId] },
+          status: { in: ["ACTIVE", "RESERVED", "CHECKED_OUT"] },
+        },
+      }),
+    );
   });
 
   it("blocks approval when approved overlapping quantities consume capacity", async () => {
@@ -442,7 +525,9 @@ describe("reservation availability", () => {
       { id: secondUnitId, assetId: secondAssetId, status: "ACTIVE" },
     ]);
     const assetUnitUpdateMany = vi.fn().mockResolvedValue({ count: 2 });
-    const reservationItemUnitCreateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const reservationItemUnitCreateMany = vi
+      .fn()
+      .mockResolvedValue({ count: 1 });
     const assetUnitEventBatchCreate = vi.fn().mockResolvedValue({});
     const assetUnitEventCreateMany = vi.fn().mockResolvedValue({ count: 2 });
     const tx = {
@@ -631,7 +716,9 @@ describe("reservation availability", () => {
           .mockResolvedValue([{ id: unitId, assetId, status: "ACTIVE" }]),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
-      reservationItemUnit: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      reservationItemUnit: {
+        createMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
       assetUnitEventBatch: { create: vi.fn().mockResolvedValue({}) },
       assetUnitEvent: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
       reservationItemApproval: {
@@ -776,7 +863,10 @@ function sampleReturn(status = "PENDING") {
 
 describe("reservation returns", () => {
   it("sets capabilities.canDecideReturn when a PENDING return exists in an area the actor can decide", async () => {
-    const reservation = { ...detailRecord("DELIVERY_CONFIRMED"), returns: [sampleReturn("PENDING")] };
+    const reservation = {
+      ...detailRecord("DELIVERY_CONFIRMED"),
+      returns: [sampleReturn("PENDING")],
+    };
     const prisma = {
       reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
       assetUnit: { groupBy: vi.fn().mockResolvedValue([]) },
@@ -789,7 +879,9 @@ describe("reservation returns", () => {
         ...actor,
         effectivePermissions: {
           global: [],
-          byManagementArea: [{ managementAreaId: areaId, permissions: ["return:approve"] }],
+          byManagementArea: [
+            { managementAreaId: areaId, permissions: ["return:approve"] },
+          ],
         },
       },
       reservationId,
@@ -799,7 +891,10 @@ describe("reservation returns", () => {
   });
 
   it("leaves capabilities.canDecideReturn false when no return is PENDING", async () => {
-    const reservation = { ...detailRecord("COMPLETED"), returns: [sampleReturn("COMPLETED")] };
+    const reservation = {
+      ...detailRecord("COMPLETED"),
+      returns: [sampleReturn("COMPLETED")],
+    };
     const prisma = {
       reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
       assetUnit: { groupBy: vi.fn().mockResolvedValue([]) },
@@ -812,7 +907,9 @@ describe("reservation returns", () => {
         ...actor,
         effectivePermissions: {
           global: [],
-          byManagementArea: [{ managementAreaId: areaId, permissions: ["return:approve"] }],
+          byManagementArea: [
+            { managementAreaId: areaId, permissions: ["return:approve"] },
+          ],
         },
       },
       reservationId,
@@ -822,7 +919,10 @@ describe("reservation returns", () => {
   });
 
   it("leaves capabilities.canDecideReturn false when the actor lacks return:approve in the item's area", async () => {
-    const reservation = { ...detailRecord("DELIVERY_CONFIRMED"), returns: [sampleReturn("PENDING")] };
+    const reservation = {
+      ...detailRecord("DELIVERY_CONFIRMED"),
+      returns: [sampleReturn("PENDING")],
+    };
     const prisma = {
       reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
       assetUnit: { groupBy: vi.fn().mockResolvedValue([]) },
@@ -839,7 +939,10 @@ describe("reservation returns", () => {
   });
 
   it("maps returns with the documented field shape", async () => {
-    const reservation = { ...detailRecord("DELIVERY_CONFIRMED"), returns: [sampleReturn("PENDING")] };
+    const reservation = {
+      ...detailRecord("DELIVERY_CONFIRMED"),
+      returns: [sampleReturn("PENDING")],
+    };
     const prisma = {
       reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
       assetUnit: { groupBy: vi.fn().mockResolvedValue([]) },
@@ -1069,7 +1172,9 @@ describe("reservation lifecycle events", () => {
     const assetUnitUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
     const assetUnitEventBatchCreate = vi.fn().mockResolvedValue({});
     const assetUnitEventCreateMany = vi.fn().mockResolvedValue({ count: 1 });
-    const reservationItemUnitDeleteMany = vi.fn().mockResolvedValue({ count: 1 });
+    const reservationItemUnitDeleteMany = vi
+      .fn()
+      .mockResolvedValue({ count: 1 });
     const prisma = {
       reservation: { findUnique, update },
       reservationItem: { updateMany: itemUpdateMany },
@@ -1165,7 +1270,9 @@ describe("reservation lifecycle events", () => {
           .mockResolvedValue([{ id: unitId, assetId, status: "ACTIVE" }]),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
-      reservationItemUnit: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      reservationItemUnit: {
+        createMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
       assetUnitEventBatch: { create: vi.fn().mockResolvedValue({}) },
       assetUnitEvent: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
       reservationItemApproval: { createMany: vi.fn(), updateMany: vi.fn() },
@@ -1190,7 +1297,9 @@ describe("reservation lifecycle events", () => {
     });
 
     expect(reservationUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: "PENDING_APPROVAL" }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "PENDING_APPROVAL" }),
+      }),
     );
     expect(decidedSpy).not.toHaveBeenCalled();
   });
@@ -1202,7 +1311,9 @@ describe("confirmDelivery", () => {
   const assetUnitOneId = "00000000-0000-4000-8000-000000000911";
   const assetUnitTwoId = "00000000-0000-4000-8000-000000000912";
 
-  function preparedReservation(unitAssignments: Array<{ id: string; assetUnitId: string; status: string }>) {
+  function preparedReservation(
+    unitAssignments: Array<{ id: string; assetUnitId: string; status: string }>,
+  ) {
     return {
       id: reservationId,
       requesterId: actorId,
@@ -1222,9 +1333,14 @@ describe("confirmDelivery", () => {
     };
   }
 
-  function mockTx(item: ReturnType<typeof preparedReservation>["items"][number], finalItemStatus: string) {
+  function mockTx(
+    item: ReturnType<typeof preparedReservation>["items"][number],
+    finalItemStatus: string,
+  ) {
     const reservationItemUpdate = vi.fn().mockResolvedValue({});
-    const reservationItemUnitUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const reservationItemUnitUpdateMany = vi
+      .fn()
+      .mockResolvedValue({ count: 1 });
     const assetUnitUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
     const assetUnitEventBatchCreate = vi.fn().mockResolvedValue({});
     const assetUnitEventCreateMany = vi.fn().mockResolvedValue({ count: 1 });
@@ -1232,7 +1348,9 @@ describe("confirmDelivery", () => {
     const tx = {
       reservationItem: {
         update: reservationItemUpdate,
-        findMany: vi.fn().mockResolvedValue([{ id: item.id, status: finalItemStatus }]),
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ id: item.id, status: finalItemStatus }]),
       },
       reservationItemUnit: { updateMany: reservationItemUnitUpdateMany },
       assetUnit: { updateMany: assetUnitUpdateMany },
@@ -1255,17 +1373,22 @@ describe("confirmDelivery", () => {
       { id: unitOneId, assetUnitId: assetUnitOneId, status: "ASSIGNED" },
       { id: unitTwoId, assetUnitId: assetUnitTwoId, status: "ASSIGNED" },
     ]);
-    const { tx, reservationItemUpdate, reservationItemUnitUpdateMany, assetUnitUpdateMany } = mockTx(
-      reservation.items[0]!,
-      "DELIVERED",
-    );
+    const {
+      tx,
+      reservationItemUpdate,
+      reservationItemUnitUpdateMany,
+      assetUnitUpdateMany,
+    } = mockTx(reservation.items[0]!, "DELIVERED");
     const prisma = {
       reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
       $transaction: vi.fn(
         async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
       ),
     } as unknown as PrismaService;
-    const service = new ReservationsService(prisma, new ReservationLifecycleEvents());
+    const service = new ReservationsService(
+      prisma,
+      new ReservationLifecycleEvents(),
+    );
     vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
 
     await service.confirmDelivery(actor, reservationId);
@@ -1278,12 +1401,17 @@ describe("confirmDelivery", () => {
     );
     expect(assetUnitUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ id: { in: [assetUnitOneId, assetUnitTwoId] } }),
+        where: expect.objectContaining({
+          id: { in: [assetUnitOneId, assetUnitTwoId] },
+        }),
       }),
     );
     expect(reservationItemUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: "DELIVERED", checkedOutBy: actorId }),
+        data: expect.objectContaining({
+          status: "DELIVERED",
+          checkedOutBy: actorId,
+        }),
       }),
     );
   });
@@ -1293,26 +1421,40 @@ describe("confirmDelivery", () => {
       { id: unitOneId, assetUnitId: assetUnitOneId, status: "ASSIGNED" },
       { id: unitTwoId, assetUnitId: assetUnitTwoId, status: "ASSIGNED" },
     ]);
-    const { tx, reservationItemUpdate, reservationItemUnitUpdateMany, assetUnitUpdateMany, reservationUpdate } =
-      mockTx(reservation.items[0]!, "PREPARED");
+    const {
+      tx,
+      reservationItemUpdate,
+      reservationItemUnitUpdateMany,
+      assetUnitUpdateMany,
+      reservationUpdate,
+    } = mockTx(reservation.items[0]!, "PREPARED");
     const prisma = {
       reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
       $transaction: vi.fn(
         async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
       ),
     } as unknown as PrismaService;
-    const service = new ReservationsService(prisma, new ReservationLifecycleEvents());
+    const service = new ReservationsService(
+      prisma,
+      new ReservationLifecycleEvents(),
+    );
     vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
 
     await service.confirmDelivery(actor, reservationId, {
-      items: [{ reservationItemId: itemId, reservationItemUnitIds: [unitOneId] }],
+      items: [
+        { reservationItemId: itemId, reservationItemUnitIds: [unitOneId] },
+      ],
     });
 
     expect(reservationItemUnitUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ id: { in: [unitOneId] } }) }),
+      expect.objectContaining({
+        where: expect.objectContaining({ id: { in: [unitOneId] } }),
+      }),
     );
     expect(assetUnitUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ id: { in: [assetUnitOneId] } }) }),
+      expect.objectContaining({
+        where: expect.objectContaining({ id: { in: [assetUnitOneId] } }),
+      }),
     );
     // Item still has one ASSIGNED unit left over -- stays PREPARED, no
     // checkedOutBy/checkedOutAt (those only get set once the item is fully
@@ -1323,7 +1465,9 @@ describe("confirmDelivery", () => {
       }),
     );
     expect(reservationUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.not.objectContaining({ status: "DELIVERY_CONFIRMED" }) }),
+      expect.objectContaining({
+        data: expect.not.objectContaining({ status: "DELIVERY_CONFIRMED" }),
+      }),
     );
   });
 
@@ -1336,11 +1480,16 @@ describe("confirmDelivery", () => {
       reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
       $transaction: transaction,
     } as unknown as PrismaService;
-    const service = new ReservationsService(prisma, new ReservationLifecycleEvents());
+    const service = new ReservationsService(
+      prisma,
+      new ReservationLifecycleEvents(),
+    );
 
     await expect(
       service.confirmDelivery(actor, reservationId, {
-        items: [{ reservationItemId: itemId, reservationItemUnitIds: [unitTwoId] }],
+        items: [
+          { reservationItemId: itemId, reservationItemUnitIds: [unitTwoId] },
+        ],
       }),
     ).rejects.toMatchObject({ code: "RESERVATION_ITEM_UNIT_UNAVAILABLE" });
     expect(transaction).not.toHaveBeenCalled();

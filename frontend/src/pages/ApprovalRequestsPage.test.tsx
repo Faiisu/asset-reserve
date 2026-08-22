@@ -75,7 +75,7 @@ describe("ApprovalRequestsPage", () => {
     );
     expect(
       screen.getByText(
-        "Past decisions, approvals, and return records from your management areas.",
+        "Reservation item decisions you previously made appear here.",
       ),
     ).toBeInTheDocument();
   });
@@ -83,8 +83,20 @@ describe("ApprovalRequestsPage", () => {
   it("filters approval requests using merged workspace and status filter dropdown", async () => {
     vi.spyOn(api, "areas").mockResolvedValue({
       data: [
-        { id: "area-1", name: "Application Engineer", description: null, createdAt: "", updatedAt: "" },
-        { id: "area-2", name: "Audio Lab", description: null, createdAt: "", updatedAt: "" },
+        {
+          id: "area-1",
+          name: "Application Engineer",
+          description: null,
+          createdAt: "",
+          updatedAt: "",
+        },
+        {
+          id: "area-2",
+          name: "Audio Lab",
+          description: null,
+          createdAt: "",
+          updatedAt: "",
+        },
       ],
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
@@ -112,14 +124,18 @@ describe("ApprovalRequestsPage", () => {
     ).toBeInTheDocument();
 
     // Toggle Application Engineer workspace checkbox
-    const appEngCheckbox = await screen.findByRole("checkbox", { name: "Application Engineer" });
+    const appEngCheckbox = await screen.findByRole("checkbox", {
+      name: "Application Engineer",
+    });
     expect(appEngCheckbox).not.toBeChecked();
     fireEvent.click(appEngCheckbox);
     expect(appEngCheckbox).toBeChecked();
     expect(trigger).toHaveTextContent("1");
 
     // Toggle Pending approval status checkbox
-    const pendingCheckbox = screen.getByRole("checkbox", { name: /Pending approval/i });
+    const pendingCheckbox = screen.getByRole("checkbox", {
+      name: /Pending approval/i,
+    });
     expect(pendingCheckbox).not.toBeChecked();
     fireEvent.click(pendingCheckbox);
     expect(pendingCheckbox).toBeChecked();
@@ -133,4 +149,3 @@ describe("ApprovalRequestsPage", () => {
     expect(pendingCheckbox).not.toBeChecked();
   });
 });
-

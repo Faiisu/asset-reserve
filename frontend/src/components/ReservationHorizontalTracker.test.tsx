@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { generateStepLogs, ReservationHorizontalTracker } from "./ReservationHorizontalTracker";
+import {
+  generateStepLogs,
+  ReservationHorizontalTracker,
+} from "./ReservationHorizontalTracker";
 import type { ReservationDetail } from "../types";
 
 const baseReservation: ReservationDetail = {
@@ -152,7 +155,7 @@ describe("ReservationHorizontalTracker & generateStepLogs", () => {
     expect(steps[4].shortLabel).toBe("Return Approval");
   });
 
-  it("sets both step 4 and step 5 as completed when status is COMPLETED or RETURN_CONFIRMED", () => {
+  it("sets both step 4 and step 5 as completed when status is COMPLETED", () => {
     const completedReservation: ReservationDetail = {
       ...baseReservation,
       status: "COMPLETED",
@@ -202,8 +205,12 @@ describe("ReservationHorizontalTracker & generateStepLogs", () => {
     expect(screen.getByLabelText("Inspect step Drafted")).toBeInTheDocument();
     expect(screen.getByLabelText("Inspect step Approved")).toBeInTheDocument();
     expect(screen.getByLabelText("Inspect step Handover")).toBeInTheDocument();
-    expect(screen.getByLabelText("Inspect step Pending Return")).toBeInTheDocument();
-    expect(screen.getByLabelText("Inspect step Return Approval")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Inspect step Pending Return"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Inspect step Return Approval"),
+    ).toBeInTheDocument();
 
     // Click Pending Return step
     fireEvent.click(screen.getByLabelText("Inspect step Pending Return"));

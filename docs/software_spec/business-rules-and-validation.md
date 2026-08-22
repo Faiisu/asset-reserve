@@ -8,7 +8,7 @@
 
 - ชื่อ (`Asset.name`) ต้อง unique ภายใน management area เดียวกัน ความยาวไม่เกิน 40 ตัวอักษร
 - `Asset` เป็น catalog/part-number entry (เช่น "Projector") ไม่ใช่ตัวเครื่องจริง — ตัวเครื่องจริงแต่ละชิ้นคือ `AssetUnit` แยกตาม serial number
-- `totalQuantity` ไม่ใช่ field ที่แก้ไขตรงได้ — เป็นค่าที่ derive จากการนับ `AssetUnit` ที่ยัง active เท่านั้น การเพิ่มจำนวนทำได้ทางเดียวคือ register หน่วยใหม่ (serial number)
+- `totalQuantity` ไม่ใช่ field ที่แก้ไขตรงได้ — เป็นค่าที่ derive จากการนับ `AssetUnit` ทุกสถานะยกเว้น `INACTIVE` การเพิ่มจำนวนทำได้ทางเดียวคือ register หน่วยใหม่ (serial number)
 - Serial number ของ `AssetUnit` ต้อง unique **ทั้งระบบ** ไม่ใช่แค่ต่อ asset — สร้างซ้ำถูกปฏิเสธ
 - Deactivate asset ใช้ `Asset.isActive = false` ไม่ hard delete เพื่อรักษา relation และ ledger ที่มีอยู่
 - Asset ที่ deactivate แล้วไม่สามารถถูกเพิ่มใน reservation ใหม่ได้
@@ -22,7 +22,7 @@
 - Participant เดิมเพิ่มซ้ำใน `Reservation` เดียวกันไม่ได้
 - `endAt` ต้องมากกว่า `startAt` เสมอ
 - **Past-date protection**: `startAt` ต้องอยู่ในอนาคตเทียบกับเวลาปัจจุบัน (`startAt >= now`, อนุญาต grace window 60 วินาทีสำหรับ clock skew) ทั้งตอนสร้างและตอนแก้ไขกำหนดการ
-- **Conflict detection**: เมื่อ submit, update หรือ approve reservation ระบบต้องตรวจ overlap ของช่วงเวลาต่อ asset — จำนวนที่ขอต้องไม่เกิน headroom ที่เหลือ โดย headroom คำนวณจาก total unit ที่ active ลบด้วยจำนวนที่ถูกจองแล้วในช่วงเวลาที่ทับซ้อนกัน (นับเฉพาะ item/reservation ที่อยู่ใน status ที่ยัง "กันสิทธิ์" อยู่ เช่น approved ขึ้นไป จนถึงก่อน completed) เกินสิทธิ์ให้ปฏิเสธ — รายละเอียด query/algorithm อยู่ใน [backend_spec/algorithms-and-validation.md](../backend_spec/algorithms-and-validation.md)
+- **Conflict detection**: เมื่อ submit, update หรือ approve reservation ระบบต้องตรวจ overlap ของช่วงเวลาต่อ asset — จำนวนที่ขอต้องไม่เกิน headroom ที่เหลือ โดย pool ที่นำมาจองได้มีเฉพาะ unit สถานะ `ACTIVE`, `RESERVED`, `CHECKED_OUT` (ไม่รวม `BROKEN`, `LOST`, `IN_REPAIR`, `INACTIVE`) แล้วลบจำนวนที่ถูกจองในช่วงเวลาที่ทับซ้อนกัน เกินสิทธิ์ให้ปฏิเสธ — รายละเอียด query/algorithm อยู่ใน [backend_spec/algorithms-and-validation.md](../backend_spec/algorithms-and-validation.md)
 - Submit ต้องตรวจ available quantity ซ้ำที่ backend เสมอ (แม้ frontend แสดงเลขมาก่อนแล้ว)
 - อนุมัติราย item แล้ว aggregate status ของ reservation ต้องถูกคำนวณใหม่ตาม [lifecycle-and-state-machines.md#reservation-status](lifecycle-and-state-machines.md#reservation-status)
 - **Approve เป็น unit-based, reject เป็น item-based**: อนุมัติเลือกได้ 1 ถึง `quantity` ที่ขอ (partial approval ได้จริง) แล้ว `quantity` ของ item จะถูกตัดลงให้เท่ากับจำนวนที่ approve ทันที ไม่มีส่วนที่เหลือค้าง `PENDING` รออนุมัติรอบถัดไป — ส่วนปฏิเสธ (reject) เป็น all-or-nothing ทั้ง item เสมอ ไม่มี concept ปฏิเสธเฉพาะบาง unit ภายใน item เดียวกัน

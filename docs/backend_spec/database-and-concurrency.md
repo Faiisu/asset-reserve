@@ -65,7 +65,7 @@ sequenceDiagram
 
 ### Retry policy
 
-- Retry Prisma `P2034` write conflict/deadlock สูงสุด 3 attempts (tunable ผ่าน `DB_TRANSACTION_RETRIES`, ดู [deployment-and-operations.md](deployment-and-operations.md))
+- Retry Prisma `P2034` write conflict/deadlock สูงสุด 3 attempts (ค่าคงที่ใน implementation ปัจจุบัน)
 - ใช้ exponential backoff พร้อม jitter ระยะสั้น
 - ทุก retry ต้องอ่าน availability/state ใหม่
 - ถ้าหลัง retry quantity (ระดับ ReservationItem) ไม่พอ ให้ตอบ `409 INSUFFICIENT_QUANTITY`; ถ้า unit ที่จะ assign ที่ prepare time ไม่ ACTIVE/ถูกจองไปแล้ว ให้ตอบ `409` เช่นกัน (กันซ้ำด้วย partial unique index บน `reservation_item_units`)

@@ -1,4 +1,8 @@
-import type { ReservationDetail, ReservationItemStatus, ReservationStatus } from "./types";
+import type {
+  ReservationDetail,
+  ReservationItemStatus,
+  ReservationStatus,
+} from "./types";
 
 const RECENT_KEY = "asset-rail.recent-reservations";
 
@@ -14,19 +18,19 @@ export const reservationStatusLabel: Record<ReservationStatus, string> = {
   APPROVED: "Approved",
   DELIVERY_CONFIRMED: "Delivery Confirmed",
   RETURN_PENDING: "Return Pending",
-  RETURN_CONFIRMED: "Return Confirmed",
   COMPLETED: "Return Completed",
   REJECTED: "Rejected",
   CANCELLED: "Cancelled",
 };
 
-export const reservationItemStatusLabel: Record<ReservationItemStatus, string> = {
-  PENDING: "Pending",
-  REJECTED: "Rejected",
-  PREPARED: "Prepared",
-  DELIVERED: "Delivered",
-  RETURNED: "Returned",
-};
+export const reservationItemStatusLabel: Record<ReservationItemStatus, string> =
+  {
+    PENDING: "Pending",
+    REJECTED: "Rejected",
+    PREPARED: "Prepared",
+    DELIVERED: "Delivered",
+    RETURNED: "Returned",
+  };
 
 export function toLocalDateTime(value: string) {
   const date = new Date(value);

@@ -2,7 +2,7 @@ model Return {
   id            String    @id @db.Uuid
   reservationId String    @map("reservation_id") @db.Uuid
   returnedBy    String    @map("returned_by") @db.Uuid
-  /// Supported values: PENDING, APPROVED, REJECTED, COMPLETED.
+  /// Supported values: PENDING, REJECTED, COMPLETED. Approval decisions live on ReturnApproval.
   status        String    @default("PENDING") @db.VarChar(20)
   note          String?
   returnedAt    DateTime? @map("returned_at") @db.Timestamptz(6)

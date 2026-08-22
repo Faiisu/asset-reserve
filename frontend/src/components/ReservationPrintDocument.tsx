@@ -1,8 +1,4 @@
-import {
-  Printer,
-  X,
-  FileText,
-} from "lucide-react";
+import { Printer, X, FileText } from "lucide-react";
 import { formatDate } from "./ui";
 import {
   reservationDuration,
@@ -47,7 +43,8 @@ export function ReservationPrintDocument({
             acc +
             ret.items.reduce(
               (s, it) =>
-                s + it.units.filter((unit) => unit.condition === condition).length,
+                s +
+                it.units.filter((unit) => unit.condition === condition).length,
               0,
             ),
           0,
@@ -69,9 +66,7 @@ export function ReservationPrintDocument({
   return (
     <div
       className={
-        isModal
-          ? "res-print-modal-overlay"
-          : "printable-document-container"
+        isModal ? "res-print-modal-overlay" : "printable-document-container"
       }
       role={isModal ? "dialog" : undefined}
       aria-modal={isModal ? true : undefined}
@@ -109,7 +104,10 @@ export function ReservationPrintDocument({
       )}
 
       {/* Main Printable Document Sheet (A4 format) */}
-      <div className="res-print-sheet printable-document" id="printable-manifest-sheet">
+      <div
+        className="res-print-sheet printable-document"
+        id="printable-manifest-sheet"
+      >
         {/* Document Header */}
         <header className="res-print-header">
           <div className="res-print-header__brand">
@@ -118,12 +116,16 @@ export function ReservationPrintDocument({
             </div>
             <div className="res-print-brand-text">
               <span className="res-print-org">ADVANTECH CORPORATION</span>
-              <span className="res-print-system">Asset Reservation & Logistics Management</span>
+              <span className="res-print-system">
+                Asset Reservation & Logistics Management
+              </span>
             </div>
           </div>
 
           <div className="res-print-header__title-block">
-            <h1 className="res-print-title">EQUIPMENT DISPATCH & RETURN MANIFEST</h1>
+            <h1 className="res-print-title">
+              EQUIPMENT DISPATCH & RETURN MANIFEST
+            </h1>
             <span className="res-print-subtitle">
               Official Custody, Handover Approval & Return Inspection Record
             </span>
@@ -138,12 +140,17 @@ export function ReservationPrintDocument({
             </div>
             <div className="res-print-meta-row">
               <span className="res-print-meta-lbl">System UUID:</span>
-              <span className="res-print-meta-val res-print-mono">{reservation.id}</span>
+              <span className="res-print-meta-val res-print-mono">
+                {reservation.id}
+              </span>
             </div>
             <div className="res-print-meta-row">
               <span className="res-print-meta-lbl">Status:</span>
-              <span className={`res-print-status-tag res-print-status-tag--${reservation.status.toLowerCase()}`}>
-                {reservationStatusLabel[reservation.status] ?? reservation.status}
+              <span
+                className={`res-print-status-tag res-print-status-tag--${reservation.status.toLowerCase()}`}
+              >
+                {reservationStatusLabel[reservation.status] ??
+                  reservation.status}
               </span>
             </div>
             <div className="res-print-meta-row">
@@ -165,25 +172,33 @@ export function ReservationPrintDocument({
           <div className="res-print-grid-two">
             <div className="res-print-panel">
               <div className="res-print-field">
-                <span className="res-print-field-label">Event / Activity Name:</span>
+                <span className="res-print-field-label">
+                  Event / Activity Name:
+                </span>
                 <span className="res-print-field-value res-print-strong">
                   {reservation.eventName}
                 </span>
               </div>
               <div className="res-print-field">
-                <span className="res-print-field-label">Purpose / Description:</span>
+                <span className="res-print-field-label">
+                  Purpose / Description:
+                </span>
                 <span className="res-print-field-value">
-                  {reservation.description || "No specific event notes provided."}
+                  {reservation.description ||
+                    "No specific event notes provided."}
                 </span>
               </div>
               <div className="res-print-field">
                 <span className="res-print-field-label">Booking Window:</span>
                 <span className="res-print-field-value">
-                  {formatDate(reservation.startAt, true)} — {formatDate(reservation.endAt, true)}
+                  {formatDate(reservation.startAt, true)} —{" "}
+                  {formatDate(reservation.endAt, true)}
                 </span>
               </div>
               <div className="res-print-field">
-                <span className="res-print-field-label">Scheduled Duration:</span>
+                <span className="res-print-field-label">
+                  Scheduled Duration:
+                </span>
                 <span className="res-print-field-value">
                   {reservationDuration(reservation.startAt, reservation.endAt)}
                 </span>
@@ -192,7 +207,9 @@ export function ReservationPrintDocument({
 
             <div className="res-print-panel">
               <div className="res-print-field">
-                <span className="res-print-field-label">Requester (Borrower):</span>
+                <span className="res-print-field-label">
+                  Requester (Borrower):
+                </span>
                 <span className="res-print-field-value res-print-strong">
                   {reservation.requester.name ?? "Unnamed User"}
                 </span>
@@ -204,7 +221,9 @@ export function ReservationPrintDocument({
                 </span>
               </div>
               <div className="res-print-field">
-                <span className="res-print-field-label">Event Team / Participants:</span>
+                <span className="res-print-field-label">
+                  Event Team / Participants:
+                </span>
                 <span className="res-print-field-value">
                   {reservation.participants.length > 0
                     ? reservation.participants
@@ -238,9 +257,13 @@ export function ReservationPrintDocument({
                 <th>Asset Description & Item</th>
                 <th style={{ width: "110px" }}>Workspace Area</th>
                 <th style={{ width: "65px", textAlign: "center" }}>Req. Qty</th>
-                <th style={{ width: "70px", textAlign: "center" }}>Appr. Qty</th>
+                <th style={{ width: "70px", textAlign: "center" }}>
+                  Appr. Qty
+                </th>
                 <th>Area Approval & Approver</th>
-                <th style={{ width: "95px", textAlign: "center" }}>Item Status</th>
+                <th style={{ width: "95px", textAlign: "center" }}>
+                  Item Status
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -248,11 +271,17 @@ export function ReservationPrintDocument({
                 const isApproved = item.approval?.status === "APPROVED";
                 return (
                   <tr key={item.id}>
-                    <td style={{ textAlign: "center", fontWeight: 600 }}>{idx + 1}</td>
+                    <td style={{ textAlign: "center", fontWeight: 600 }}>
+                      {idx + 1}
+                    </td>
                     <td>
-                      <strong className="res-print-asset-name">{item.asset.name}</strong>
+                      <strong className="res-print-asset-name">
+                        {item.asset.name}
+                      </strong>
                       {item.asset.description && (
-                        <div className="res-print-asset-desc">{item.asset.description}</div>
+                        <div className="res-print-asset-desc">
+                          {item.asset.description}
+                        </div>
                       )}
                     </td>
                     <td>{item.asset.managementArea.name}</td>
@@ -266,8 +295,13 @@ export function ReservationPrintDocument({
                       {item.approval ? (
                         <div className="res-print-approval-cell">
                           <span className="res-print-appr-status">
-                            {item.approval.status === "APPROVED" ? "Approved by " : "Rejected by "}
-                            <strong>{item.approval.approver.name ?? item.approval.approver.email}</strong>
+                            {item.approval.status === "APPROVED"
+                              ? "Approved by "
+                              : "Rejected by "}
+                            <strong>
+                              {item.approval.approver.name ??
+                                item.approval.approver.email}
+                            </strong>
                           </span>
                           {item.approval.decidedAt && (
                             <small className="res-print-appr-time">
@@ -281,11 +315,15 @@ export function ReservationPrintDocument({
                           )}
                         </div>
                       ) : (
-                        <span className="res-print-pending-text">Pending Area Review</span>
+                        <span className="res-print-pending-text">
+                          Pending Area Review
+                        </span>
                       )}
                     </td>
                     <td style={{ textAlign: "center" }}>
-                      <span className={`res-print-badge res-print-badge--${item.status.toLowerCase()}`}>
+                      <span
+                        className={`res-print-badge res-print-badge--${item.status.toLowerCase()}`}
+                      >
                         {reservationItemStatusLabel[item.status]}
                       </span>
                     </td>
@@ -322,7 +360,6 @@ export function ReservationPrintDocument({
               {reservation.returns.map((ret, rIdx) => {
                 const retDate = ret.returnedAt || ret.createdAt;
                 const isCompleted =
-                  ret.status === "APPROVED" ||
                   ret.status === "COMPLETED" ||
                   ret.approval?.status === "APPROVED";
                 return (
@@ -330,16 +367,23 @@ export function ReservationPrintDocument({
                     <div className="res-print-return-header">
                       <div className="res-print-return-id">
                         <strong>Return Slip #{rIdx + 1}:</strong>{" "}
-                        <span className="res-print-mono">RET-{ret.id.slice(0, 8).toUpperCase()}</span>
+                        <span className="res-print-mono">
+                          RET-{ret.id.slice(0, 8).toUpperCase()}
+                        </span>
                       </div>
                       <div className="res-print-return-meta">
                         <span>
-                          <strong>Returned By:</strong> {ret.returner?.name ?? ret.returner?.email ?? "Borrower"}
+                          <strong>Returned By:</strong>{" "}
+                          {ret.returner?.name ??
+                            ret.returner?.email ??
+                            "Borrower"}
                         </span>
                         <span>
                           <strong>Date:</strong> {formatDate(retDate, true)}
                         </span>
-                        <span className={`res-print-status-tag res-print-status-tag--${ret.status.toLowerCase()}`}>
+                        <span
+                          className={`res-print-status-tag res-print-status-tag--${ret.status.toLowerCase()}`}
+                        >
                           {ret.status}
                         </span>
                       </div>
@@ -348,7 +392,9 @@ export function ReservationPrintDocument({
                     <table className="res-print-table res-print-table--return">
                       <thead>
                         <tr>
-                          <th style={{ width: "36px", textAlign: "center" }}>#</th>
+                          <th style={{ width: "36px", textAlign: "center" }}>
+                            #
+                          </th>
                           <th>Equipment Line Item</th>
                           <th style={{ width: "110px" }}>Area</th>
                           <th>Serial Units & Condition</th>
@@ -359,15 +405,24 @@ export function ReservationPrintDocument({
                         {ret.items && ret.items.length > 0 ? (
                           ret.items.map((rItem, iIdx) => (
                             <tr key={rItem.id || iIdx}>
-                              <td style={{ textAlign: "center", fontWeight: 600 }}>{iIdx + 1}</td>
+                              <td
+                                style={{ textAlign: "center", fontWeight: 600 }}
+                              >
+                                {iIdx + 1}
+                              </td>
                               <td>
                                 <strong>{rItem.assetName}</strong>
                               </td>
                               <td>{rItem.managementArea?.name ?? "—"}</td>
                               <td>
                                 {rItem.units.map((unit) => (
-                                  <div key={unit.id} className="res-print-serial-row">
-                                    <span className="res-print-mono">{unit.serialNumber}</span>{" "}
+                                  <div
+                                    key={unit.id}
+                                    className="res-print-serial-row"
+                                  >
+                                    <span className="res-print-mono">
+                                      {unit.serialNumber}
+                                    </span>{" "}
                                     <span
                                       style={{
                                         fontWeight: 700,
@@ -384,13 +439,24 @@ export function ReservationPrintDocument({
                                   </div>
                                 ))}
                               </td>
-                              <td>{rItem.description || "Item in nominal operational condition."}</td>
+                              <td>
+                                {rItem.description ||
+                                  "Item in nominal operational condition."}
+                              </td>
                             </tr>
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={5} style={{ textAlign: "center", fontStyle: "italic", padding: "12px" }}>
-                              No detailed item rows recorded on this return slip.
+                            <td
+                              colSpan={5}
+                              style={{
+                                textAlign: "center",
+                                fontStyle: "italic",
+                                padding: "12px",
+                              }}
+                            >
+                              No detailed item rows recorded on this return
+                              slip.
                             </td>
                           </tr>
                         )}
@@ -400,11 +466,15 @@ export function ReservationPrintDocument({
                     {/* Return Inspection Decision Box */}
                     <div className="res-print-inspection-box">
                       <div className="res-print-inspection-title">
-                        <strong>Receiving Officer Approval & Restock Verification:</strong>
+                        <strong>
+                          Receiving Officer Approval & Restock Verification:
+                        </strong>
                       </div>
                       <div className="res-print-inspection-grid">
                         <div>
-                          <span className="res-print-field-label">Inspector Name:</span>
+                          <span className="res-print-field-label">
+                            Inspector Name:
+                          </span>
                           <span className="res-print-field-value">
                             {ret.approval?.approver?.name ??
                               ret.approval?.approver?.email ??
@@ -412,7 +482,9 @@ export function ReservationPrintDocument({
                           </span>
                         </div>
                         <div>
-                          <span className="res-print-field-label">Inspection Date:</span>
+                          <span className="res-print-field-label">
+                            Inspection Date:
+                          </span>
                           <span className="res-print-field-value">
                             {ret.approval?.decidedAt
                               ? formatDate(ret.approval.decidedAt, true)
@@ -420,17 +492,20 @@ export function ReservationPrintDocument({
                           </span>
                         </div>
                         <div>
-                          <span className="res-print-field-label">Decision / Verdict:</span>
+                          <span className="res-print-field-label">
+                            Decision / Verdict:
+                          </span>
                           <span className="res-print-field-value res-print-strong">
                             {isCompleted
                               ? "CLEARED & RESTOCKED TO INVENTORY"
-                              : ret.approval?.status ?? "PENDING INSPECTION"}
+                              : (ret.approval?.status ?? "PENDING INSPECTION")}
                           </span>
                         </div>
                       </div>
                       {ret.approval?.description && (
                         <div className="res-print-inspection-remarks">
-                          <strong>Inspector Remarks:</strong> {ret.approval.description}
+                          <strong>Inspector Remarks:</strong>{" "}
+                          {ret.approval.description}
                         </div>
                       )}
                     </div>
@@ -440,9 +515,30 @@ export function ReservationPrintDocument({
 
               {/* Grand Return Totals */}
               <div className="res-print-totals-summary">
-                <span>Total Units Returned (Good): <strong>{totalReturnedUnits}</strong></span>
-                <span>Total Units Damaged: <strong style={{ color: totalBrokenUnits > 0 ? "#b93644" : "inherit" }}>{totalBrokenUnits}</strong></span>
-                <span>Total Units Lost: <strong style={{ color: totalLostUnits > 0 ? "#b95b0c" : "inherit" }}>{totalLostUnits}</strong></span>
+                <span>
+                  Total Units Returned (Good):{" "}
+                  <strong>{totalReturnedUnits}</strong>
+                </span>
+                <span>
+                  Total Units Damaged:{" "}
+                  <strong
+                    style={{
+                      color: totalBrokenUnits > 0 ? "#b93644" : "inherit",
+                    }}
+                  >
+                    {totalBrokenUnits}
+                  </strong>
+                </span>
+                <span>
+                  Total Units Lost:{" "}
+                  <strong
+                    style={{
+                      color: totalLostUnits > 0 ? "#b95b0c" : "inherit",
+                    }}
+                  >
+                    {totalLostUnits}
+                  </strong>
+                </span>
               </div>
             </div>
           ) : (
@@ -450,7 +546,9 @@ export function ReservationPrintDocument({
             <div className="res-print-return-blank-sheet">
               <p className="res-print-blank-desc">
                 <em>
-                  Note: Equipment return not yet submitted digitally. Receiving Inspector must complete the physical inspection checklist below upon equipment drop-off:
+                  Note: Equipment return not yet submitted digitally. Receiving
+                  Inspector must complete the physical inspection checklist
+                  below upon equipment drop-off:
                 </em>
               </p>
               <table className="res-print-table res-print-table--return">
@@ -458,10 +556,18 @@ export function ReservationPrintDocument({
                   <tr>
                     <th style={{ width: "36px", textAlign: "center" }}>#</th>
                     <th>Equipment Item</th>
-                    <th style={{ width: "65px", textAlign: "center" }}>Dispatched</th>
-                    <th style={{ width: "70px", textAlign: "center" }}>[ ] Good Qty</th>
-                    <th style={{ width: "70px", textAlign: "center" }}>[ ] Broken Qty</th>
-                    <th style={{ width: "70px", textAlign: "center" }}>[ ] Lost Qty</th>
+                    <th style={{ width: "65px", textAlign: "center" }}>
+                      Dispatched
+                    </th>
+                    <th style={{ width: "70px", textAlign: "center" }}>
+                      [ ] Good Qty
+                    </th>
+                    <th style={{ width: "70px", textAlign: "center" }}>
+                      [ ] Broken Qty
+                    </th>
+                    <th style={{ width: "70px", textAlign: "center" }}>
+                      [ ] Lost Qty
+                    </th>
                     <th>Receiving Notes / Item Condition</th>
                   </tr>
                 </thead>
@@ -470,12 +576,21 @@ export function ReservationPrintDocument({
                     <tr key={item.id}>
                       <td style={{ textAlign: "center" }}>{idx + 1}</td>
                       <td>
-                        <strong>{item.asset.name}</strong> ({item.asset.managementArea.name})
+                        <strong>{item.asset.name}</strong> (
+                        {item.asset.managementArea.name})
                       </td>
-                      <td style={{ textAlign: "center", fontWeight: 600 }}>{item.quantity}</td>
-                      <td style={{ textAlign: "center" }}>[ &nbsp; &nbsp; &nbsp; ]</td>
-                      <td style={{ textAlign: "center" }}>[ &nbsp; &nbsp; &nbsp; ]</td>
-                      <td style={{ textAlign: "center" }}>[ &nbsp; &nbsp; &nbsp; ]</td>
+                      <td style={{ textAlign: "center", fontWeight: 600 }}>
+                        {item.quantity}
+                      </td>
+                      <td style={{ textAlign: "center" }}>
+                        [ &nbsp; &nbsp; &nbsp; ]
+                      </td>
+                      <td style={{ textAlign: "center" }}>
+                        [ &nbsp; &nbsp; &nbsp; ]
+                      </td>
+                      <td style={{ textAlign: "center" }}>
+                        [ &nbsp; &nbsp; &nbsp; ]
+                      </td>
                       <td>
                         <span className="res-print-dotted-line"></span>
                       </td>
@@ -502,17 +617,28 @@ export function ReservationPrintDocument({
                 <small>Custody Acceptance</small>
               </div>
               <p className="res-print-sign-statement">
-                I hereby acknowledge receipt and custody of listed equipment in sound operating condition and accept full responsibility for its safe return.
+                I hereby acknowledge receipt and custody of listed equipment in
+                sound operating condition and accept full responsibility for its
+                safe return.
               </p>
               <div className="res-print-sign-meta">
-                <span>Name: <strong>{reservation.requester.name ?? reservation.requester.email ?? "Borrower"}</strong></span>
+                <span>
+                  Name:{" "}
+                  <strong>
+                    {reservation.requester.name ??
+                      reservation.requester.email ??
+                      "Borrower"}
+                  </strong>
+                </span>
                 <div className="res-print-sign-line">
                   <span>Signature:</span>
                   <div className="res-print-sign-rule" />
                 </div>
                 <div className="res-print-date-line">
                   <span>Date:</span>
-                  <div className="res-print-date-rule">{formatDate(reservation.startAt)}</div>
+                  <div className="res-print-date-rule">
+                    {formatDate(reservation.startAt)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -524,10 +650,18 @@ export function ReservationPrintDocument({
                 <small>Approval Authorization</small>
               </div>
               <p className="res-print-sign-statement">
-                Equipment reservation and resource allocation authorized in accordance with workspace management policies.
+                Equipment reservation and resource allocation authorized in
+                accordance with workspace management policies.
               </p>
               <div className="res-print-sign-meta">
-                <span>Name: <strong>{firstApprover?.name ?? firstApprover?.email ?? "Area Manager"}</strong></span>
+                <span>
+                  Name:{" "}
+                  <strong>
+                    {firstApprover?.name ??
+                      firstApprover?.email ??
+                      "Area Manager"}
+                  </strong>
+                </span>
                 <div className="res-print-sign-line">
                   <span>Signature:</span>
                   <div className="res-print-sign-rule" />
@@ -535,8 +669,13 @@ export function ReservationPrintDocument({
                 <div className="res-print-date-line">
                   <span>Date:</span>
                   <div className="res-print-date-rule">
-                    {reservation.items.find((i) => i.approval?.decidedAt)?.approval?.decidedAt
-                      ? formatDate(reservation.items.find((i) => i.approval?.decidedAt)!.approval!.decidedAt!, true)
+                    {reservation.items.find((i) => i.approval?.decidedAt)
+                      ?.approval?.decidedAt
+                      ? formatDate(
+                          reservation.items.find((i) => i.approval?.decidedAt)!
+                            .approval!.decidedAt!,
+                          true,
+                        )
                       : "________________"}
                   </div>
                 </div>
@@ -550,10 +689,18 @@ export function ReservationPrintDocument({
                 <small>Check-in & Restock Sign-Off</small>
               </div>
               <p className="res-print-sign-statement">
-                Returned equipment condition verified, damage/loss recorded, and items safely restocked into inventory ledger.
+                Returned equipment condition verified, damage/loss recorded, and
+                items safely restocked into inventory ledger.
               </p>
               <div className="res-print-sign-meta">
-                <span>Name: <strong>{firstReturn?.approval?.approver?.name ?? firstReturn?.approval?.approver?.email ?? "Receiving Inspector"}</strong></span>
+                <span>
+                  Name:{" "}
+                  <strong>
+                    {firstReturn?.approval?.approver?.name ??
+                      firstReturn?.approval?.approver?.email ??
+                      "Receiving Inspector"}
+                  </strong>
+                </span>
                 <div className="res-print-sign-line">
                   <span>Signature:</span>
                   <div className="res-print-sign-rule" />
@@ -576,10 +723,17 @@ export function ReservationPrintDocument({
         {/* Document Footer */}
         <footer className="res-print-footer print-avoid-break">
           <div className="res-print-footer__terms">
-            <strong>Advantech Equipment Custody Policy:</strong> All reserved assets remain property of Advantech Corporation. The borrower is liable for damages or loss incurred due to negligence. Discrepancies must be reported to the equipment room supervisor within 24 hours of dispatch.
+            <strong>Advantech Equipment Custody Policy:</strong> All reserved
+            assets remain property of Advantech Corporation. The borrower is
+            liable for damages or loss incurred due to negligence. Discrepancies
+            must be reported to the equipment room supervisor within 24 hours of
+            dispatch.
           </div>
           <div className="res-print-footer__bottom">
-            <span>Doc Ref: RES-{reservation.id.slice(0, 8).toUpperCase()} • {reservation.eventName}</span>
+            <span>
+              Doc Ref: RES-{reservation.id.slice(0, 8).toUpperCase()} •{" "}
+              {reservation.eventName}
+            </span>
             <span>Printed: {nowFormatted} • Official Hard Paper Record</span>
           </div>
         </footer>

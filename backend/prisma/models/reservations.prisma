@@ -6,7 +6,7 @@ model Reservation {
   startAt     DateTime @map("start_at") @db.Timestamptz(6)
   endAt       DateTime @map("end_at") @db.Timestamptz(6)
   /// Supported values: DRAFT, PENDING_APPROVAL, PARTIALLY_APPROVED, APPROVED,
-  /// DELIVERY_CONFIRMED, RETURN_PENDING, RETURN_CONFIRMED, COMPLETED, REJECTED, CANCELLED.
+  /// DELIVERY_CONFIRMED, RETURN_PENDING, COMPLETED, REJECTED, CANCELLED.
   status      String   @default("DRAFT") @db.VarChar(30)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

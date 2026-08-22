@@ -126,11 +126,6 @@ export class ReservationsService {
       "reservation:approve",
     ]);
     const rejectAreaIds = this.permissionAreaIds(actor, ["reservation:reject"]);
-    const operationalAreaIds = this.permissionAreaIds(actor, [
-      "reservation:update",
-      "reservation:approve",
-      "reservation:reject",
-    ]);
     const conditions: Prisma.ReservationWhereInput[] = [];
 
     if (query.view === "MINE") {
@@ -155,6 +150,7 @@ export class ReservationsService {
       conditions.push({ OR: approvalConditions });
     } else if (query.view === "APPROVAL_HISTORY") {
       const historyConditions = this.approvalHistoryConditions(
+        actor.user.id,
         approveAreaIds,
         rejectAreaIds,
       );
@@ -175,11 +171,12 @@ export class ReservationsService {
 
       const viewAreaIds = this.permissionAreaIds(actor, ["reservation:view"]);
 
-      if (viewAreaIds === null || operationalAreaIds === null) {
-        // Global reservation:view OR global operational access — can see all reservations (no filter)
+      if (viewAreaIds === null) {
+        // Global reservation:view can browse every reservation.
       } else {
-        // Build area conditions from both reservation:view scope and operational permissions
-        // (approve/reject/update) so area managers can still see their managed areas.
+        // ALL is the cross-user browse surface, so only reservation:view may
+        // widen it. Operational permissions have their own scoped queues
+        // (APPROVALS / APPROVAL_HISTORY) and must not silently grant browse.
         const viewConditions: Prisma.ReservationWhereInput[] = [
           ownReservationCondition,
         ];
@@ -193,49 +190,19 @@ export class ReservationsService {
           });
         }
 
-        // Operational area permissions (approve/reject/update): managers can always see
-        // reservations in their managed areas regardless of reservation:view
-        if (operationalAreaIds.length) {
-          viewConditions.push({
-            items: {
-              some: {
-                asset: { managementAreaId: { in: operationalAreaIds } },
-              },
-            },
-          });
-        }
-
         if (viewConditions.length > 1) {
           conditions.push({ OR: viewConditions });
         } else {
-          // Only own reservations — no view or operational area access
+          // Only own reservations — no reservation:view access.
           conditions.push(ownReservationCondition);
         }
       }
 
-      // Private-status guard (applies to non-global-admin users):
-      // DRAFT, PENDING_APPROVAL, REJECTED, CANCELLED are only visible to the
-      // reservation owner, its participants, or area managers of the assets involved.
-      if (operationalAreaIds !== null) {
-        const privateStatuses = [
-          "DRAFT",
-          "PENDING_APPROVAL",
-          "REJECTED",
-          "CANCELLED",
-        ];
-        const privateStatusGuardClauses: Prisma.ReservationWhereInput[] = [
-          { status: { notIn: privateStatuses } },
-          ownReservationCondition,
-        ];
-        if (operationalAreaIds.length) {
-          privateStatusGuardClauses.push({
-            items: {
-              some: { asset: { managementAreaId: { in: operationalAreaIds } } },
-            },
-          });
-        }
-        conditions.push({ OR: privateStatusGuardClauses });
-      }
+      // DRAFT remains private to the event team even when reservation:view is
+      // scoped to the same area. Submitted/final records follow view scope.
+      conditions.push({
+        OR: [{ status: { not: "DRAFT" } }, ownReservationCondition],
+      });
     }
 
     if (query.status) conditions.push({ status: query.status });
@@ -365,8 +332,11 @@ export class ReservationsService {
     // approvers at all (caught via live testing: an admin who should
     // receive every submission got no email when a user reserved an asset).
     if (status === "PENDING_APPROVAL") {
-      const managementAreaIds = [...new Set(assets.map((a) => a.managementAreaId))];
-      const approverRecipients = await this.findApproverRecipients(managementAreaIds);
+      const managementAreaIds = [
+        ...new Set(assets.map((a) => a.managementAreaId)),
+      ];
+      const approverRecipients =
+        await this.findApproverRecipients(managementAreaIds);
       this.reservationEvents.emitSubmitted({
         reservationId,
         eventName: input.eventName,
@@ -934,7 +904,10 @@ export class ReservationsService {
       const eventBatchId = randomUUID();
       let batchCreated = false;
       let fullyDeliveredCount = 0;
-      const deliveredUnitsByItem: { reservationItemId: string; reservationItemUnitIds: string[] }[] = [];
+      const deliveredUnitsByItem: {
+        reservationItemId: string;
+        reservationItemUnitIds: string[];
+      }[] = [];
 
       for (const { item, unitIds } of entries) {
         const assignedUnits = item.unitAssignments.filter(
@@ -950,7 +923,9 @@ export class ReservationsService {
 
         if (targetUnits.length > 0) {
           const targetUnitIds = targetUnits.map((unit) => unit.id);
-          const targetAssetUnitIds = targetUnits.map((unit) => unit.assetUnitId);
+          const targetAssetUnitIds = targetUnits.map(
+            (unit) => unit.assetUnitId,
+          );
           await tx.reservationItemUnit.updateMany({
             where: { id: { in: targetUnitIds }, status: "ASSIGNED" },
             data: { status: "CHECKED_OUT", checkedOutAt: deliveredAt },
@@ -1232,9 +1207,7 @@ export class ReservationsService {
       ),
       pendingItemCount: statusCounts.PENDING ?? 0,
       approvedItemCount:
-        (statusCounts.APPROVED ?? 0) +
         (statusCounts.PREPARED ?? 0) +
-        (statusCounts.CHECKED_OUT ?? 0) +
         (statusCounts.DELIVERED ?? 0) +
         (statusCounts.RETURNED ?? 0),
       rejectedItemCount: statusCounts.REJECTED ?? 0,
@@ -1297,6 +1270,7 @@ export class ReservationsService {
   }
 
   private approvalHistoryConditions(
+    actorId: string,
     approveAreaIds: string[] | null,
     rejectAreaIds: string[] | null,
   ): Prisma.ReservationWhereInput[] {
@@ -1313,14 +1287,13 @@ export class ReservationsService {
             "PARTIALLY_APPROVED",
             "DELIVERY_CONFIRMED",
             "RETURN_PENDING",
-            "RETURN_CONFIRMED",
             "COMPLETED",
             "REJECTED",
           ],
         },
         items: {
           some: {
-            approval: { isNot: null },
+            approval: { is: { approverId: actorId } },
             ...(decisionAreaIds === null
               ? {}
               : {
@@ -1393,6 +1366,7 @@ export class ReservationsService {
     actor: AuthenticatedActor,
     reservation: ReservationDetailRecord,
   ) {
+    const returnWindowOpen = new Date() >= reservation.endAt;
     const availability = await this.availabilityByAsset(
       this.prisma,
       reservation.items.map((item) => item.assetId),
@@ -1583,12 +1557,10 @@ export class ReservationsService {
               item.status === "PREPARED" &&
               this.canConfirmDeliveryItem(actor, reservation, item),
             canReturn:
-              [
-                "DELIVERY_CONFIRMED",
-                "RETURN_PENDING",
-                "RETURN_CONFIRMED",
-                "COMPLETED",
-              ].includes(reservation.status) &&
+              returnWindowOpen &&
+              ["DELIVERY_CONFIRMED", "RETURN_PENDING"].includes(
+                reservation.status,
+              ) &&
               item.status !== "REJECTED" &&
               item.status !== "PENDING" &&
               remainingReturnQuantity > 0,
@@ -1616,28 +1588,24 @@ export class ReservationsService {
             "APPROVED",
           ].includes(reservation.status),
         canReturn:
-          [
-            "DELIVERY_CONFIRMED",
-            "RETURN_PENDING",
-            "RETURN_CONFIRMED",
-            "COMPLETED",
-          ].includes(reservation.status) &&
+          returnWindowOpen &&
+          ["DELIVERY_CONFIRMED", "RETURN_PENDING"].includes(
+            reservation.status,
+          ) &&
           reservation.items.some(
             (item) => item.status !== "REJECTED" && item.status !== "PENDING",
           ),
         canDecideReturn,
       },
-      activityLogs: (reservation.activityLogs ?? []).map(
-        (log: any) => ({
-          id: log.id,
-          action: log.action,
-          entityType: log.entityType,
-          entityId: log.entityId,
-          details: log.details,
-          actor: this.userDto(log.actor),
-          createdAt: log.createdAt.toISOString(),
-        }),
-      ),
+      activityLogs: (reservation.activityLogs ?? []).map((log: any) => ({
+        id: log.id,
+        action: log.action,
+        entityType: log.entityType,
+        entityId: log.entityId,
+        details: log.details,
+        actor: this.userDto(log.actor),
+        createdAt: log.createdAt.toISOString(),
+      })),
       createdAt: reservation.createdAt.toISOString(),
       updatedAt: reservation.updatedAt.toISOString(),
     };
@@ -1719,7 +1687,13 @@ export class ReservationsService {
     if (!assetIds.length) return result;
     const rows = await db.assetUnit.groupBy({
       by: ["assetId"],
-      where: { assetId: { in: assetIds }, status: { not: "INACTIVE" } },
+      // Broken, lost, in-repair, and inactive units are never reservable
+      // capacity. RESERVED/CHECKED_OUT units remain part of the schedulable
+      // pool because their overlapping reservation is deducted separately.
+      where: {
+        assetId: { in: assetIds },
+        status: { in: ["ACTIVE", "RESERVED", "CHECKED_OUT"] },
+      },
       _count: { _all: true },
     });
     for (const row of rows) result.set(row.assetId, row._count._all);
@@ -1886,37 +1860,68 @@ export class ReservationsService {
       );
     if (involved) return;
 
-    const operationalAccess =
+    const hasScopedView =
       reservation.items.length === 0
-        ? (
-            [
-              "reservation:update",
-              "reservation:approve",
-              "reservation:reject",
-            ] as PermissionKey[]
-          ).some((permission) => hasGlobalPermission(actor, permission))
+        ? hasGlobalPermission(actor, "reservation:view")
         : reservation.items.some((item) =>
-            (
-              [
-                "reservation:update",
-                "reservation:approve",
-                "reservation:reject",
-              ] as PermissionKey[]
-            ).some((permission) =>
-              hasAreaPermission(actor, permission, item.asset.managementAreaId),
+            hasAreaPermission(
+              actor,
+              "reservation:view",
+              item.asset.managementAreaId,
             ),
           );
+    if (hasScopedView && reservation.status !== "DRAFT") return;
 
+    // Operational permissions do not grant general cross-user visibility.
+    // They only open a detail that is currently actionable in the actor's
+    // scoped queue, which the frontend needs in order to make the decision.
+    const canDecidePendingItem =
+      ["PENDING_APPROVAL", "PARTIALLY_APPROVED"].includes(reservation.status) &&
+      reservation.items.some(
+        (item) =>
+          item.status === "PENDING" &&
+          (hasAreaPermission(
+            actor,
+            "reservation:approve",
+            item.asset.managementAreaId,
+          ) ||
+            hasAreaPermission(
+              actor,
+              "reservation:reject",
+              item.asset.managementAreaId,
+            )),
+      );
+    const canDecidePendingReturn = reservation.returns.some(
+      (returnRecord) =>
+        returnRecord.status === "PENDING" &&
+        returnRecord.items.some((returnItem) =>
+          hasAreaPermission(
+            actor,
+            "return:approve",
+            returnItem.reservationItem.asset.managementAreaId,
+          ),
+        ),
+    );
+    const canViewOwnDecisionHistory = reservation.items.some(
+      (item) =>
+        item.approval?.approverId === actor.user.id &&
+        (hasAreaPermission(
+          actor,
+          "reservation:approve",
+          item.asset.managementAreaId,
+        ) ||
+          hasAreaPermission(
+            actor,
+            "reservation:reject",
+            item.asset.managementAreaId,
+          )),
+    );
     if (
-      ["DRAFT", "PENDING_APPROVAL", "REJECTED", "CANCELLED"].includes(
-        reservation.status,
-      )
+      !canDecidePendingItem &&
+      !canDecidePendingReturn &&
+      !canViewOwnDecisionHistory
     ) {
-      if (!operationalAccess) this.permissionDenied();
-    } else {
-      const canViewGeneral =
-        hasAnyPermission(actor, "reservation:view") || operationalAccess;
-      if (!canViewGeneral) this.permissionDenied();
+      this.permissionDenied();
     }
   }
 

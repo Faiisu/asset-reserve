@@ -49,8 +49,18 @@ const mockReservation: ReservationDetail = {
         },
       },
       units: [
-        { id: "riu-1", assetUnitId: "au-1", serialNumber: "SN-CAM-001", status: "ASSIGNED" },
-        { id: "riu-2", assetUnitId: "au-2", serialNumber: "SN-CAM-002", status: "ASSIGNED" },
+        {
+          id: "riu-1",
+          assetUnitId: "au-1",
+          serialNumber: "SN-CAM-001",
+          status: "ASSIGNED",
+        },
+        {
+          id: "riu-2",
+          assetUnitId: "au-2",
+          serialNumber: "SN-CAM-002",
+          status: "ASSIGNED",
+        },
       ],
       approval: {
         id: "app-1",
@@ -151,7 +161,9 @@ describe("ReservationDetailPage", () => {
     vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
 
     const { container } = render(
-      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -163,19 +175,31 @@ describe("ReservationDetailPage", () => {
 
     // 1. Verify Event title and manifest load
     await waitFor(() => {
-      expect(screen.getByText("Quarterly Town Hall Stream")).toBeInTheDocument();
+      expect(
+        screen.getByText("Quarterly Town Hall Stream"),
+      ).toBeInTheDocument();
     });
 
     expect(screen.getByText("Stage Camera 4K")).toBeInTheDocument();
-    expect(screen.getByText("All equipment approved for handover")).toBeInTheDocument();
+    expect(
+      screen.getByText("All equipment approved for handover"),
+    ).toBeInTheDocument();
     // Every assigned serial unit is pre-selected for handover by default.
     expect(
       screen.getByText("Handover confirmation (2 of 2 serial units selected)"),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Select serial SN-CAM-001 for handover")).toBeChecked();
-    expect(screen.getByLabelText("Select serial SN-CAM-002 for handover")).toBeChecked();
-    expect(screen.getByRole("button", { name: "Confirm Handover" })).toBeEnabled();
-    expect(screen.getAllByText("Reservation Status Track")[0]).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Select serial SN-CAM-001 for handover"),
+    ).toBeChecked();
+    expect(
+      screen.getByLabelText("Select serial SN-CAM-002 for handover"),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("button", { name: "Confirm Handover" }),
+    ).toBeEnabled();
+    expect(
+      screen.getAllByText("Reservation Status Track")[0],
+    ).toBeInTheDocument();
 
     // 2. Click on the "Approved" step in the horizontal tracker (.res-step-btn)
     const approvedStepButton = screen.getByLabelText("Inspect step Approved");
@@ -188,11 +212,15 @@ describe("ReservationDetailPage", () => {
     });
 
     // Close the log inspector
-    const closeButton = screen.getByRole("button", { name: /Close Log Inspector/i });
+    const closeButton = screen.getByRole("button", {
+      name: /Close Log Inspector/i,
+    });
     fireEvent.click(closeButton);
 
     await waitFor(() => {
-      expect(screen.queryByText("Step Metadata & Timeline")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Step Metadata & Timeline"),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -227,20 +255,24 @@ describe("ReservationDetailPage", () => {
       ],
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
-    const decideSpy = vi.spyOn(api, "decideReservationItems").mockResolvedValue({
-      ...mockPendingReservation,
-      status: "APPROVED",
-      items: [
-        {
-          ...mockPendingReservation.items[0],
-          status: "PREPARED",
-          capabilities: { canApprove: false, canReject: false },
-        },
-      ],
-    });
+    const decideSpy = vi
+      .spyOn(api, "decideReservationItems")
+      .mockResolvedValue({
+        ...mockPendingReservation,
+        status: "APPROVED",
+        items: [
+          {
+            ...mockPendingReservation.items[0],
+            status: "PREPARED",
+            capabilities: { canApprove: false, canReject: false },
+          },
+        ],
+      });
 
     render(
-      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -258,7 +290,9 @@ describe("ReservationDetailPage", () => {
       });
     });
 
-    const approveButton = await screen.findByRole("button", { name: "Approve" });
+    const approveButton = await screen.findByRole("button", {
+      name: "Approve",
+    });
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
     expect(approveButton).toBeDisabled();
 
@@ -269,23 +303,34 @@ describe("ReservationDetailPage", () => {
     expect(approveButton).toBeEnabled();
 
     // 3. Type decision remark and click Approve
-    const remarkInput = screen.getByLabelText(/Approval comment for Wireless Microphone Kit/i);
-    fireEvent.change(remarkInput, { target: { value: "Approved for town hall" } });
+    const remarkInput = screen.getByLabelText(
+      /Approval comment for Wireless Microphone Kit/i,
+    );
+    fireEvent.change(remarkInput, {
+      target: { value: "Approved for town hall" },
+    });
     fireEvent.click(approveButton);
 
     // 4. Verify API was called with the selected item's serial units and remark
     await waitFor(() => {
       expect(decideSpy).toHaveBeenCalledWith(
         "00000000-0000-4000-8000-000000000101",
-        [{ reservationItemId: "item-pending-1", assetUnitIds: ["unit-1", "unit-2", "unit-3"] }],
+        [
+          {
+            reservationItemId: "item-pending-1",
+            assetUnitIds: ["unit-1", "unit-2", "unit-3"],
+          },
+        ],
         "APPROVE",
-        "Approved for town hall"
+        "Approved for town hall",
       );
     });
 
     await waitFor(() => {
       expect(
-        screen.getByText("Wireless Microphone Kit").closest(".res-manifest-item"),
+        screen
+          .getByText("Wireless Microphone Kit")
+          .closest(".res-manifest-item"),
       ).toHaveAttribute("data-status", "prepared");
     });
   });
@@ -305,21 +350,25 @@ describe("ReservationDetailPage", () => {
       ],
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
-    const decideSpy = vi.spyOn(api, "decideReservationItems").mockResolvedValue({
-      ...mockPendingReservation,
-      status: "APPROVED",
-      items: [
-        {
-          ...mockPendingReservation.items[0],
-          quantity: 1,
-          status: "PREPARED",
-          capabilities: { canApprove: false, canReject: false },
-        },
-      ],
-    });
+    const decideSpy = vi
+      .spyOn(api, "decideReservationItems")
+      .mockResolvedValue({
+        ...mockPendingReservation,
+        status: "APPROVED",
+        items: [
+          {
+            ...mockPendingReservation.items[0],
+            quantity: 1,
+            status: "PREPARED",
+            capabilities: { canApprove: false, canReject: false },
+          },
+        ],
+      });
 
     render(
-      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -329,7 +378,9 @@ describe("ReservationDetailPage", () => {
       </MemoryRouter>,
     );
 
-    const serialCheckbox = await screen.findByLabelText("Assign serial SN-MIC-001");
+    const serialCheckbox = await screen.findByLabelText(
+      "Assign serial SN-MIC-001",
+    );
     const approveButton = screen.getByRole("button", { name: "Approve" });
     expect(approveButton).toBeDisabled();
 
@@ -368,7 +419,9 @@ describe("ReservationDetailPage", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -403,7 +456,11 @@ describe("ReservationDetailPage", () => {
     await waitFor(() => {
       expect(confirmSpy).toHaveBeenCalledWith(
         "00000000-0000-4000-8000-000000000101",
-        { items: [{ reservationItemId: "item-1", reservationItemUnitIds: ["riu-1"] }] },
+        {
+          items: [
+            { reservationItemId: "item-1", reservationItemUnitIds: ["riu-1"] },
+          ],
+        },
       );
     });
   });
@@ -412,7 +469,9 @@ describe("ReservationDetailPage", () => {
     vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
 
     render(
-      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -501,7 +560,9 @@ describe("ReservationDetailPage", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -525,7 +586,9 @@ describe("ReservationDetailPage", () => {
     expect(serialOne).toBeChecked();
     expect(serialTwo).toBeChecked();
 
-    const submitReturnBtn = screen.getByRole("button", { name: /Submit Return/i });
+    const submitReturnBtn = screen.getByRole("button", {
+      name: /Submit Return/i,
+    });
     fireEvent.click(submitReturnBtn);
 
     await waitFor(() => {
@@ -538,7 +601,7 @@ describe("ReservationDetailPage", () => {
               reservationItemUnitIds: ["unit-1", "unit-2"],
             },
           ],
-        }
+        },
       );
     });
   });
@@ -608,7 +671,9 @@ describe("ReservationDetailPage", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -625,10 +690,16 @@ describe("ReservationDetailPage", () => {
       ).toBeInTheDocument();
     });
 
-    const remarkInput = screen.getByPlaceholderText(/Inspection remarks \/ condition note/i);
-    fireEvent.change(remarkInput, { target: { value: "All parts in good condition" } });
+    const remarkInput = screen.getByPlaceholderText(
+      /Inspection remarks \/ condition note/i,
+    );
+    fireEvent.change(remarkInput, {
+      target: { value: "All parts in good condition" },
+    });
 
-    const approveReturnBtn = screen.getByRole("button", { name: "Approve Return" });
+    const approveReturnBtn = screen.getByRole("button", {
+      name: "Approve Return",
+    });
     fireEvent.click(approveReturnBtn);
 
     await waitFor(() => {
@@ -638,7 +709,7 @@ describe("ReservationDetailPage", () => {
         {
           decision: "APPROVE",
           description: "All parts in good condition",
-        }
+        },
       );
     });
   });
@@ -758,7 +829,9 @@ describe("ReservationDetailPage", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -781,32 +854,46 @@ describe("ReservationDetailPage", () => {
     });
 
     // Every serial defaults to Good; mark the first one Broken.
-    const firstSerialRow = screen.getByText("SN-CAM-001").closest(
-      ".res-manifest-unit-row",
-    ) as HTMLElement;
-    const secondSerialRow = screen.getByText("SN-CAM-002").closest(
-      ".res-manifest-unit-row",
-    ) as HTMLElement;
+    const firstSerialRow = screen
+      .getByText("SN-CAM-001")
+      .closest(".res-manifest-unit-row") as HTMLElement;
+    const secondSerialRow = screen
+      .getByText("SN-CAM-002")
+      .closest(".res-manifest-unit-row") as HTMLElement;
     expect(
       within(firstSerialRow).getByRole("radio", { name: "Good" }),
     ).toHaveAttribute("aria-checked", "true");
-    fireEvent.click(within(firstSerialRow).getByRole("radio", { name: "Broken" }));
+    fireEvent.click(
+      within(firstSerialRow).getByRole("radio", { name: "Broken" }),
+    );
     expect(
       within(secondSerialRow).getByRole("radio", { name: "Good" }),
     ).toHaveAttribute("aria-checked", "true");
 
     // Unchecking a unit means "still pending review" -- Approve must be
     // blocked until every unit is reviewed again, not silently defaulted.
-    const secondUnitCheckbox = screen.getByLabelText("Select serial SN-CAM-002 for inspection");
+    const secondUnitCheckbox = screen.getByLabelText(
+      "Select serial SN-CAM-002 for inspection",
+    );
     fireEvent.click(secondUnitCheckbox);
-    expect(screen.getByRole("button", { name: "Approve Return" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Approve Return" }),
+    ).toBeDisabled();
     fireEvent.click(secondUnitCheckbox);
-    expect(screen.getByRole("button", { name: "Approve Return" })).not.toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Approve Return" }),
+    ).not.toBeDisabled();
 
-    const remarkInput = screen.getByPlaceholderText(/Inspection remarks \/ condition note/i);
-    fireEvent.change(remarkInput, { target: { value: "1 intact, 1 minor cable damage" } });
+    const remarkInput = screen.getByPlaceholderText(
+      /Inspection remarks \/ condition note/i,
+    );
+    fireEvent.change(remarkInput, {
+      target: { value: "1 intact, 1 minor cable damage" },
+    });
 
-    const approveReturnBtn = screen.getByRole("button", { name: "Approve Return" });
+    const approveReturnBtn = screen.getByRole("button", {
+      name: "Approve Return",
+    });
     fireEvent.click(approveReturnBtn);
 
     await waitFor(() => {
@@ -825,7 +912,7 @@ describe("ReservationDetailPage", () => {
             },
           ],
           description: "1 intact, 1 minor cable damage",
-        }
+        },
       );
     });
   });
@@ -928,7 +1015,9 @@ describe("ReservationDetailPage", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -946,9 +1035,13 @@ describe("ReservationDetailPage", () => {
 
     // Unchecking the only unit means it's still pending review -- Approve
     // must be blocked, not silently treated as "everything is fine".
-    const unitCheckbox = screen.getByLabelText("Select serial SN-CAM-001 for inspection");
+    const unitCheckbox = screen.getByLabelText(
+      "Select serial SN-CAM-001 for inspection",
+    );
     fireEvent.click(unitCheckbox);
-    const approveReturnBtn = screen.getByRole("button", { name: "Approve Return" });
+    const approveReturnBtn = screen.getByRole("button", {
+      name: "Approve Return",
+    });
     expect(approveReturnBtn).toBeDisabled();
     expect(decideReturnSpy).not.toHaveBeenCalled();
 
@@ -966,13 +1059,11 @@ describe("ReservationDetailPage", () => {
           items: [
             {
               reservationItemId: "item-1",
-              units: [
-                { reservationItemUnitId: "unit-1", condition: "GOOD" },
-              ],
+              units: [{ reservationItemUnitId: "unit-1", condition: "GOOD" }],
             },
           ],
           description: undefined,
-        }
+        },
       );
     });
   });
@@ -981,7 +1072,9 @@ describe("ReservationDetailPage", () => {
     vi.spyOn(api, "reservation").mockResolvedValue(mockReservation); // status is "APPROVED"
 
     render(
-      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -993,9 +1086,13 @@ describe("ReservationDetailPage", () => {
 
     // Verify Print button is NOT rendered when return is not yet approved
     await waitFor(() => {
-      expect(screen.getByText("Quarterly Town Hall Stream")).toBeInTheDocument();
+      expect(
+        screen.getByText("Quarterly Town Hall Stream"),
+      ).toBeInTheDocument();
     });
-    expect(screen.queryByRole("button", { name: /Print \/ PDF/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Print \/ PDF/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens the hard paper print preview modal on return approved state (COMPLETED) and calls window.print", async () => {
@@ -1006,7 +1103,7 @@ describe("ReservationDetailPage", () => {
         {
           id: "00000000-0000-4000-8000-000000000201",
           reservationId: mockReservation.id,
-          status: "APPROVED",
+          status: "COMPLETED",
           note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
           returnedBy: mockReservation.requester.id,
@@ -1030,7 +1127,9 @@ describe("ReservationDetailPage", () => {
     const printSpy = vi.spyOn(window, "print").mockImplementation(() => {});
 
     render(
-      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -1041,21 +1140,33 @@ describe("ReservationDetailPage", () => {
     );
 
     // Verify Print button is present in hero actions when return is approved
-    const printBtn = await screen.findByRole("button", { name: /Print \/ PDF/i });
+    const printBtn = await screen.findByRole("button", {
+      name: /Print \/ PDF/i,
+    });
     expect(printBtn).toBeInTheDocument();
 
     // Click to open Print Preview modal
     fireEvent.click(printBtn);
 
     // Verify modal and sheet elements
-    expect(screen.getByText("Official Manifest Document Preview")).toBeInTheDocument();
-    expect(screen.getByText("EQUIPMENT DISPATCH & RETURN MANIFEST")).toBeInTheDocument();
+    expect(
+      screen.getByText("Official Manifest Document Preview"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("EQUIPMENT DISPATCH & RETURN MANIFEST"),
+    ).toBeInTheDocument();
     expect(screen.getByText("RES-00000000")).toBeInTheDocument();
-    expect(screen.getByText("Reservation & Event Overview")).toBeInTheDocument();
-    expect(screen.getByText("Chain of Custody & Formal Sign-Off")).toBeInTheDocument();
+    expect(
+      screen.getByText("Reservation & Event Overview"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Chain of Custody & Formal Sign-Off"),
+    ).toBeInTheDocument();
 
     // Click Print / Save PDF action inside the preview toolbar
-    const printActionBtn = screen.getByRole("button", { name: /Print \/ Save PDF/i });
+    const printActionBtn = screen.getByRole("button", {
+      name: /Print \/ Save PDF/i,
+    });
     fireEvent.click(printActionBtn);
     expect(printSpy).toHaveBeenCalled();
 
@@ -1064,7 +1175,9 @@ describe("ReservationDetailPage", () => {
     fireEvent.click(closeBtn);
 
     await waitFor(() => {
-      expect(screen.queryByText("Official Manifest Document Preview")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Official Manifest Document Preview"),
+      ).not.toBeInTheDocument();
     });
 
     printSpy.mockRestore();
@@ -1156,7 +1269,8 @@ describe("ReservationDetailPage", () => {
           approval: {
             id: "ret-app-1",
             status: "APPROVED",
-            description: "Restocked functional unit to locker. Logged broken hood for repair.",
+            description:
+              "Restocked functional unit to locker. Logged broken hood for repair.",
             decidedAt: "2026-09-02T11:00:00.000Z",
             approver: {
               id: "mgr-1",
@@ -1175,7 +1289,9 @@ describe("ReservationDetailPage", () => {
     vi.spyOn(api, "reservation").mockResolvedValue(completedReturnReservation);
 
     render(
-      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -1185,20 +1301,32 @@ describe("ReservationDetailPage", () => {
       </MemoryRouter>,
     );
 
-    const printBtn = await screen.findByRole("button", { name: /Print \/ PDF/i });
+    const printBtn = await screen.findByRole("button", {
+      name: /Print \/ PDF/i,
+    });
     fireEvent.click(printBtn);
 
     // Verify Complete Return Details on the printable sheet
     expect(screen.getByText("Return Slip #1:")).toBeInTheDocument();
     expect(screen.getByText("RET-00000000")).toBeInTheDocument();
-    expect(screen.getByText("CLEARED & RESTOCKED TO INVENTORY")).toBeInTheDocument();
-    expect(screen.getByText(/1 unit intact, 1 unit broken lens hood/i)).toBeInTheDocument();
-    expect(screen.getByText(/Restocked functional unit to locker/i)).toBeInTheDocument();
+    expect(
+      screen.getByText("CLEARED & RESTOCKED TO INVENTORY"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/1 unit intact, 1 unit broken lens hood/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Restocked functional unit to locker/i),
+    ).toBeInTheDocument();
 
     // Verify 3 Sign-off roles
     expect(screen.getByText("1. Requester / Borrower")).toBeInTheDocument();
-    expect(screen.getByText("2. Area Custodian / Approver")).toBeInTheDocument();
-    expect(screen.getByText("3. Return Receiving Inspector")).toBeInTheDocument();
+    expect(
+      screen.getByText("2. Area Custodian / Approver"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("3. Return Receiving Inspector"),
+    ).toBeInTheDocument();
   });
 
   it("lists one manifest row per serial unit, grouped under a single asset sub-header", async () => {
@@ -1239,7 +1367,9 @@ describe("ReservationDetailPage", () => {
     vi.spyOn(api, "reservation").mockResolvedValue(completedReturnReservation);
 
     render(
-      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
         <Routes>
           <Route
             path="/reservations/:reservationId"
@@ -1253,8 +1383,12 @@ describe("ReservationDetailPage", () => {
     // per serial unit row.
     expect(await screen.findAllByText("Stage Camera 4K")).toHaveLength(1);
 
-    const goodRow = screen.getByText("SN-CAM-001").closest(".res-manifest-unit-row") as HTMLElement;
-    const brokenRow = screen.getByText("SN-CAM-002").closest(".res-manifest-unit-row") as HTMLElement;
+    const goodRow = screen
+      .getByText("SN-CAM-001")
+      .closest(".res-manifest-unit-row") as HTMLElement;
+    const brokenRow = screen
+      .getByText("SN-CAM-002")
+      .closest(".res-manifest-unit-row") as HTMLElement;
     expect(within(goodRow).getByText("Good")).toBeInTheDocument();
     expect(within(brokenRow).getByText("Broken")).toBeInTheDocument();
   });

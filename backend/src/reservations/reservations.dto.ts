@@ -29,7 +29,6 @@ const reservationStatuses = [
   "APPROVED",
   "DELIVERY_CONFIRMED",
   "RETURN_PENDING",
-  "RETURN_CONFIRMED",
   "COMPLETED",
   "REJECTED",
   "CANCELLED",

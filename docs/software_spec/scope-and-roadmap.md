@@ -4,7 +4,7 @@
 
 ## Feature ที่ถูกยกเลิก (decommissioned)
 
-- **ReservationChangeRequest (ระบบขอแก้ไข reservation หลัง submit)** — ตัดสินใจยกเลิก feature นี้ เอกสารทั้งหมด (contract, database-schema, algorithms, permissions, lifecycle, frontend spec) ถูกลบ reference ออกแล้ว ณ วันนี้ **แต่ backend/frontend/database ยังไม่ได้ลบโค้ดจริง** — ยังมี endpoint `POST /reservations/:id/change-requests` และ `.../decision`, table `reservation_change_requests`, field `canRequestChange`/`hasPendingChangeRequest`/`changeRequests` ในโค้ดปัจจุบันอยู่ ต้องตามไปลบ/migrate ทิ้งให้ตรงกับเอกสารนี้ก่อนถือว่างานเสร็จ (backend service/controller/dto, Prisma schema + migration, frontend types/components/tests)
+- **ReservationChangeRequest (ระบบขอแก้ไข reservation หลัง submit)** — ยกเลิกและลบ endpoint, frontend flow, Prisma model และ table แล้วผ่าน migration `20260820164846_drop_reservation_change_requests`
 
 ## สิ่งที่ไม่อยู่ใน MVP ปัจจุบัน
 

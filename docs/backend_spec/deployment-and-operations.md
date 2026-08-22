@@ -48,18 +48,21 @@ Requirements:
 | Variable | Purpose | Example |
 | --- | --- | --- |
 | `DATABASE_URL` | PostgreSQL connection | `postgresql://app:secret@postgres:5432/asset_reservation` |
-| `JWT_ACCESS_SECRET` | Sign access token | Secret อย่างน้อย 32 bytes |
-| `CORS_ORIGIN` | Allowed frontend origin | `https://asset.internal.example` |
+| `JWT_SECRET` | Sign access token | Secret อย่างน้อย 32 characters |
+| `CORS_ORIGINS` | Allowed frontend origins คั่นด้วย comma | `https://asset.internal.example` |
 | `PORT` | Backend listen port | `3000` |
 
-Connection-pool/transaction-retry tuning variables (`DB_POOL_MAX`, `DB_CONNECT_TIMEOUT_MS`, `DB_IDLE_TIMEOUT_MS`, `DB_TRANSACTION_TIMEOUT_MS`, `DB_TRANSACTION_RETRIES`) เป็น canonical ที่ [Database and concurrency](database-and-concurrency.md) — ไม่ restate ที่นี่
+Connection pool ที่ implementation รองรับมี `DATABASE_POOL_MAX` (default `10`) และ `DATABASE_CONNECTION_TIMEOUT_MS` (default `5000`) ส่วน serializable transaction retry ใช้ 3 attempts แบบคงที่ ดู [Database and concurrency](database-and-concurrency.md)
 
 ### Other backend tuning
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `LOG_LEVEL` | `info` | Structured log level |
-| `REQUEST_TIMEOUT_MS` | `15000` | API request timeout |
+| `JWT_ACCESS_TTL_SECONDS` | `900` (`28800` ใน root Compose) | อายุ access token เป็นวินาที |
+| `TRUST_PROXY` | `false` | เชื่อ proxy headers เมื่อรันหลัง reverse proxy |
+| `RECOGNITION_SERVICE_URL` | `http://localhost:8000` | Internal recognition service URL |
+
+Email, OAuth/account-linking และ secret-encryption variables เป็น optional groups ตามตัวอย่างใน `.env.example`; ถ้าตั้งค่า provider บางส่วน backend จะ fail fast เพื่อไม่ให้เริ่มระบบด้วย config ที่ใช้ไม่ได้
 
 ### Frontend required
 
@@ -71,14 +74,11 @@ Environment values ต้อง validate ตอน application startup หาก
 
 ## Observability และ operations
 
-- Structured JSON logs ผ่าน Pino
-- ทุก request มี request ID และคืนใน error response
-- Log method, route, status, duration และ actor ID เมื่อเหมาะสม
+- ปัจจุบันใช้ NestJS/Fastify default logging; ยังไม่มี Pino structured log หรือ application-level request ID
 - ห้าม log password, access token, passwordHash หรือ sensitive provider identity
-- Health endpoints แยก liveness และ readiness
-- Readiness ต้องตรวจ database connection ด้วย lightweight query
+- Docker healthcheck ปัจจุบัน probe `GET /api/v1/auth/me` และถือ response ที่ต่ำกว่า 500 ว่าพร้อม; ยังไม่มี liveness/readiness endpoint แยกหรือ database readiness probe
 - เปิด PostgreSQL slow-query visibility เช่น `pg_stat_statements` เมื่อ environment รองรับ
-- เก็บ metric อย่างน้อย request latency, error rate, active DB connections, pool wait และ transaction retries
+- Application metrics (request latency, error rate, active DB connections, pool wait และ transaction retries) ยังไม่ได้ implement
 
 ### Backup
 

@@ -113,9 +113,7 @@ export type RoleAssignment = {
 };
 
 export type EmailTemplateSituation =
-  | "reservation_submitted"
-  | "reservation_decided"
-  | "return_decided";
+  "reservation_submitted" | "reservation_decided" | "return_decided";
 
 export type EmailTemplate = {
   situation: EmailTemplateSituation;
@@ -204,7 +202,7 @@ export type AssetDetail = AssetSummary & {
   activeReservationItems: Array<{
     id: string;
     quantity: number;
-    status: "APPROVED" | "PREPARED" | "CHECKED_OUT";
+    status: "PREPARED" | "DELIVERED";
     reservation: {
       id: string;
       eventName: string;
@@ -263,7 +261,6 @@ export type ReservationStatus =
   | "APPROVED"
   | "DELIVERY_CONFIRMED"
   | "RETURN_PENDING"
-  | "RETURN_CONFIRMED"
   | "COMPLETED"
   | "REJECTED"
   | "CANCELLED";
@@ -272,11 +269,7 @@ export type ReservationStatus =
 // go PENDING -> PREPARED directly (no APPROVED resting state); CHECKED_OUT
 // is a ReservationItemUnit status, not a ReservationItem one.
 export type ReservationItemStatus =
-  | "PENDING"
-  | "PREPARED"
-  | "REJECTED"
-  | "DELIVERED"
-  | "RETURNED";
+  "PENDING" | "PREPARED" | "REJECTED" | "DELIVERED" | "RETURNED";
 
 export type ReservationUser = {
   id: string;
@@ -413,7 +406,7 @@ export type ReturnItemDetail = {
 export type ReturnDetail = {
   id: string;
   reservationId: string;
-  status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
+  status: "PENDING" | "REJECTED" | "COMPLETED";
   note: string | null;
   returnedAt: string | null;
   returnedBy: string;

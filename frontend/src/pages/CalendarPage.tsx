@@ -59,17 +59,11 @@ const STATUS_COLOR_CLASS: Record<ReservationStatus, string> = {
   APPROVED: "calendar-legend__approved",
   DELIVERY_CONFIRMED: "calendar-legend__delivery_confirmed",
   RETURN_PENDING: "calendar-legend__return_pending",
-  RETURN_CONFIRMED: "calendar-legend__return_confirmed",
   COMPLETED: "calendar-legend__completed",
   REJECTED: "calendar-legend__rejected",
   CANCELLED: "calendar-legend__cancelled",
 };
 
-// RETURN_CONFIRMED is left out here -- per
-// docs/software_spec/lifecycle-and-state-machines.md §6, the backend never
-// actually persists it as a resting reservation status (it resolves straight
-// to COMPLETED or DELIVERY_CONFIRMED in the same operation), so offering it
-// as a filter would always return zero results.
 const DISPLAY_STATUSES: ReservationStatus[] = [
   "DRAFT",
   "PENDING_APPROVAL",
@@ -89,7 +83,6 @@ const STATUS_OPTION_STATUSES: Record<ReservationStatus, ReservationStatus[]> = {
   APPROVED: ["APPROVED"],
   DELIVERY_CONFIRMED: ["DELIVERY_CONFIRMED"],
   RETURN_PENDING: ["RETURN_PENDING"],
-  RETURN_CONFIRMED: ["RETURN_CONFIRMED"],
   COMPLETED: ["COMPLETED"],
   REJECTED: ["REJECTED"],
   CANCELLED: ["CANCELLED"],
@@ -124,7 +117,9 @@ export function CalendarPage() {
   const canCreate = hasPermission("reservation:create");
   const canViewOthers = hasPermission("reservation:view");
   const baseMonth = useMemo(() => startOfMonth(new Date()), []);
-  const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
+  const [visibleMonth, setVisibleMonth] = useState(() =>
+    startOfMonth(new Date()),
+  );
   const [monthOffsets, setMonthOffsets] = useState({ before: 0, after: 4 });
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [selectedAreaIds, setSelectedAreaIds] = useState<string[]>([]);
@@ -207,8 +202,10 @@ export function CalendarPage() {
 
   useLayoutEffect(() => {
     if (prevScrollHeightRef.current !== null && calendarScrollRef.current) {
-      const delta = calendarScrollRef.current.scrollHeight - prevScrollHeightRef.current;
-      calendarScrollRef.current.scrollTop = prevSavedScrollTopRef.current + delta;
+      const delta =
+        calendarScrollRef.current.scrollHeight - prevScrollHeightRef.current;
+      calendarScrollRef.current.scrollTop =
+        prevSavedScrollTopRef.current + delta;
       prevScrollHeightRef.current = null;
     }
   }, [monthOffsets.before]);
@@ -290,7 +287,8 @@ export function CalendarPage() {
           do {
             const response = await api.assets({
               search: assetSearch.trim() || undefined,
-              areaId: selectedAreaIds.length === 1 ? selectedAreaIds[0] : undefined,
+              areaId:
+                selectedAreaIds.length === 1 ? selectedAreaIds[0] : undefined,
               isActive: true,
               from: selectedStartAt,
               to: selectedEndAt,
@@ -350,8 +348,7 @@ export function CalendarPage() {
       const visible: ReservationSummary[] = [];
       let cursor: string | undefined;
       const allowedStatuses = selectedStatuses.flatMap(
-        (val) =>
-          statusOptions.find((opt) => opt.value === val)?.statuses ?? [],
+        (val) => statusOptions.find((opt) => opt.value === val)?.statuses ?? [],
       );
       do {
         const response = await api.reservations({
@@ -391,7 +388,14 @@ export function CalendarPage() {
     } finally {
       if (requestId === requestSequence.current) setLoading(false);
     }
-  }, [gridEnd, gridStart, selectedAreaIds, selectedStatuses, canViewOthers, onlyMine]);
+  }, [
+    gridEnd,
+    gridStart,
+    selectedAreaIds,
+    selectedStatuses,
+    canViewOthers,
+    onlyMine,
+  ]);
 
   useEffect(() => {
     void load();
@@ -443,8 +447,12 @@ export function CalendarPage() {
     const scrollContainer = calendarScrollRef.current;
     if (!scrollContainer) return;
     const targetEl =
-      scrollContainer.querySelector<HTMLElement>(`[data-month-start="${targetKey}"]`) ||
-      scrollContainer.querySelector<HTMLElement>(`[data-date-key="${targetKey}"]`);
+      scrollContainer.querySelector<HTMLElement>(
+        `[data-month-start="${targetKey}"]`,
+      ) ||
+      scrollContainer.querySelector<HTMLElement>(
+        `[data-date-key="${targetKey}"]`,
+      );
     if (targetEl) {
       scrollToElement(scrollContainer, targetEl, 0, false);
     }
@@ -457,7 +465,8 @@ export function CalendarPage() {
     // 1. Detect visible month from the week element near the top of the scroll view
     const scrollTop = container.scrollTop;
     const targetOffset = scrollTop + 80;
-    const weekElements = container.querySelectorAll<HTMLElement>(".calendar-week");
+    const weekElements =
+      container.querySelectorAll<HTMLElement>(".calendar-week");
     for (const weekEl of weekElements) {
       if (weekEl.offsetTop + weekEl.offsetHeight >= targetOffset) {
         const firstOfMonthEl =
@@ -502,7 +511,8 @@ export function CalendarPage() {
         return { ...prev, before: prev.before + 2 };
       });
     } else if (
-      container.scrollHeight - scrollTop - container.clientHeight < 150
+      container.scrollHeight - scrollTop - container.clientHeight <
+      150
     ) {
       setMonthOffsets((prev) => {
         if (prev.after >= 24) return prev;
@@ -524,9 +534,7 @@ export function CalendarPage() {
     if (!dragging.current || !canCreate) return;
     setVisibleMonth(startOfMonth(date));
     setSelection((current) =>
-      current
-        ? { ...current, focus: date }
-        : { anchor: date, focus: date },
+      current ? { ...current, focus: date } : { anchor: date, focus: date },
     );
   }
 
@@ -575,7 +583,10 @@ export function CalendarPage() {
         (targetMonth.getMonth() - baseMonth.getMonth()),
     );
     if (diffMonths < -monthOffsets.before) {
-      setMonthOffsets((prev) => ({ ...prev, before: Math.abs(diffMonths) + 1 }));
+      setMonthOffsets((prev) => ({
+        ...prev,
+        before: Math.abs(diffMonths) + 1,
+      }));
     } else if (diffMonths > monthOffsets.after) {
       setMonthOffsets((prev) => ({ ...prev, after: diffMonths + 1 }));
     }
@@ -585,8 +596,12 @@ export function CalendarPage() {
       const scrollContainer = calendarScrollRef.current;
       if (!scrollContainer) return;
       const targetEl =
-        scrollContainer.querySelector<HTMLElement>(`[data-month-start="${targetKey}"]`) ||
-        scrollContainer.querySelector<HTMLElement>(`[data-date-key="${targetKey}"]`);
+        scrollContainer.querySelector<HTMLElement>(
+          `[data-month-start="${targetKey}"]`,
+        ) ||
+        scrollContainer.querySelector<HTMLElement>(
+          `[data-date-key="${targetKey}"]`,
+        );
       if (targetEl) {
         scrollToElement(scrollContainer, targetEl, 0, true);
       }
@@ -604,7 +619,10 @@ export function CalendarPage() {
         (targetMonth.getMonth() - baseMonth.getMonth()),
     );
     if (diffMonths < -monthOffsets.before) {
-      setMonthOffsets((prev) => ({ ...prev, before: Math.abs(diffMonths) + 1 }));
+      setMonthOffsets((prev) => ({
+        ...prev,
+        before: Math.abs(diffMonths) + 1,
+      }));
     } else if (diffMonths > monthOffsets.after) {
       setMonthOffsets((prev) => ({ ...prev, after: diffMonths + 1 }));
     }
@@ -614,9 +632,15 @@ export function CalendarPage() {
       const scrollContainer = calendarScrollRef.current;
       if (!scrollContainer) return;
       const targetEl =
-        scrollContainer.querySelector<HTMLElement>(`[data-month-start="${monthStartKey}"]`) ||
-        scrollContainer.querySelector<HTMLElement>(`[data-date-key="${monthStartKey}"]`) ||
-        scrollContainer.querySelector<HTMLElement>(`[data-date-key="${dateKey(targetDate)}"]`);
+        scrollContainer.querySelector<HTMLElement>(
+          `[data-month-start="${monthStartKey}"]`,
+        ) ||
+        scrollContainer.querySelector<HTMLElement>(
+          `[data-date-key="${monthStartKey}"]`,
+        ) ||
+        scrollContainer.querySelector<HTMLElement>(
+          `[data-date-key="${dateKey(targetDate)}"]`,
+        );
       if (targetEl) {
         scrollToElement(scrollContainer, targetEl, 0, true);
       }
@@ -634,7 +658,10 @@ export function CalendarPage() {
         (todayMonth.getMonth() - baseMonth.getMonth()),
     );
     if (diffMonths < -monthOffsets.before) {
-      setMonthOffsets((prev) => ({ ...prev, before: Math.abs(diffMonths) + 1 }));
+      setMonthOffsets((prev) => ({
+        ...prev,
+        before: Math.abs(diffMonths) + 1,
+      }));
     } else if (diffMonths > monthOffsets.after) {
       setMonthOffsets((prev) => ({ ...prev, after: diffMonths + 1 }));
     }
@@ -644,9 +671,15 @@ export function CalendarPage() {
       const scrollContainer = calendarScrollRef.current;
       if (!scrollContainer) return;
       const targetEl =
-        scrollContainer.querySelector<HTMLElement>(`[data-month-start="${monthStartKey}"]`) ||
-        scrollContainer.querySelector<HTMLElement>(`[data-date-key="${monthStartKey}"]`) ||
-        scrollContainer.querySelector<HTMLElement>(`[data-date-key="${dateKey(today)}"]`);
+        scrollContainer.querySelector<HTMLElement>(
+          `[data-month-start="${monthStartKey}"]`,
+        ) ||
+        scrollContainer.querySelector<HTMLElement>(
+          `[data-date-key="${monthStartKey}"]`,
+        ) ||
+        scrollContainer.querySelector<HTMLElement>(
+          `[data-date-key="${dateKey(today)}"]`,
+        );
       if (targetEl) {
         scrollToElement(scrollContainer, targetEl, 0, true);
       }
@@ -790,7 +823,8 @@ export function CalendarPage() {
                   type="button"
                   className={cx(
                     "calendar-filter-btn",
-                    (hasActiveFilters || filterOpen) && "calendar-filter-btn--active",
+                    (hasActiveFilters || filterOpen) &&
+                      "calendar-filter-btn--active",
                   )}
                   onClick={() => setFilterOpen((prev) => !prev)}
                   aria-haspopup="dialog"
@@ -930,7 +964,9 @@ export function CalendarPage() {
                         </div>
                         <div className="calendar-filter-popover__list">
                           {statusOptions.map((option) => {
-                            const checked = selectedStatuses.includes(option.value);
+                            const checked = selectedStatuses.includes(
+                              option.value,
+                            );
                             return (
                               <label
                                 key={option.value}
@@ -946,7 +982,9 @@ export function CalendarPage() {
                                   onChange={() => {
                                     setSelectedStatuses((prev) =>
                                       prev.includes(option.value)
-                                        ? prev.filter((val) => val !== option.value)
+                                        ? prev.filter(
+                                            (val) => val !== option.value,
+                                          )
                                         : [...prev, option.value],
                                     );
                                   }}
@@ -1386,7 +1424,8 @@ function CalendarWeek({
                   <span
                     className={cx(
                       "calendar-day__month-name",
-                      isFirstOfActiveMonth && "calendar-day__month-name--active",
+                      isFirstOfActiveMonth &&
+                        "calendar-day__month-name--active",
                     )}
                   >
                     {formatShortMonth(date)}

@@ -125,6 +125,7 @@ export class AssetsService {
           asset,
           unitCountsById.get(asset.id) ?? emptyUnitCounts(),
           allocated.get(asset.id) ?? 0,
+          Boolean(availabilityRange),
         ),
       ),
       pageInfo: page.pageInfo,
@@ -389,9 +390,7 @@ export class AssetsService {
     return { data: ids.map((id) => ({ id, status: "INACTIVE" as const })) };
   }
 
-  private countUnits(
-    units: ReadonlyArray<{ status: string }>,
-  ): UnitCounts {
+  private countUnits(units: ReadonlyArray<{ status: string }>): UnitCounts {
     const counts = emptyUnitCounts();
     for (const unit of units) {
       switch (unit.status) {
@@ -619,9 +618,13 @@ export class AssetsService {
     asset: Prisma.AssetGetPayload<{ include: typeof assetInclude }>,
     unitCounts: UnitCounts,
     allocatedQuantity: number,
+    timeBasedAvailability = false,
   ) {
+    const schedulableQuantity = timeBasedAvailability
+      ? unitCounts.active + unitCounts.reserved + unitCounts.checkedOut
+      : unitCounts.active;
     const availableQuantity = Math.max(
-      unitCounts.active - allocatedQuantity,
+      schedulableQuantity - allocatedQuantity,
       0,
     );
     return {

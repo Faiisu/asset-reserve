@@ -7,7 +7,6 @@ ReservationStatus:
     - APPROVED
     - DELIVERY_CONFIRMED
     - RETURN_PENDING
-    - RETURN_CONFIRMED
     - COMPLETED
     - REJECTED
     - CANCELLED
@@ -756,18 +755,12 @@ ReturnApprovalDetail:
   type: object
   required:
     - id
-    - returnId
-    - approverId
     - status
-    - createdAt
+    - description
+    - decidedAt
+    - approver
   properties:
     id:
-      type: string
-      format: uuid
-    returnId:
-      type: string
-      format: uuid
-    approverId:
       type: string
       format: uuid
     status:
@@ -780,9 +773,6 @@ ReturnApprovalDetail:
       type: string
       format: date-time
       nullable: true
-    createdAt:
-      type: string
-      format: date-time
     approver:
       $ref: "#/components/schemas/ReservationUser"
 ReturnDetail:
@@ -807,7 +797,8 @@ ReturnDetail:
       format: uuid
     status:
       type: string
-      enum: [PENDING, APPROVED, REJECTED, COMPLETED]
+      description: APPROVED is recorded on ReturnApproval; Return itself transitions directly from PENDING to COMPLETED.
+      enum: [PENDING, REJECTED, COMPLETED]
     returnedAt:
       type: string
       format: date-time
@@ -852,4 +843,3 @@ ReturnListResponse:
         $ref: "#/components/schemas/ReturnDetail"
     pageInfo:
       $ref: "#/components/schemas/PageInfo"
-

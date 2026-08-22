@@ -64,12 +64,19 @@ function queryString(
   return text ? `?${text}` : "";
 }
 
-export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function request<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
   const token = getAccessToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
+  if (
+    init.body &&
+    !(init.body instanceof FormData) &&
+    !headers.has("Content-Type")
+  ) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -114,7 +121,8 @@ export const api = {
   // the Bearer token to a browser-initiated navigation) -- fetch the
   // consent URL first, then the caller navigates the browser there itself.
   googleConnectUrl: () => request<{ url: string }>("/auth/google/connect"),
-  microsoftConnectUrl: () => request<{ url: string }>("/auth/microsoft/connect"),
+  microsoftConnectUrl: () =>
+    request<{ url: string }>("/auth/microsoft/connect"),
 
   updateMe: (input: UpdateSelfInput) =>
     request<UserDetail>("/users/me", { method: "PATCH", body: json(input) }),
@@ -130,8 +138,7 @@ export const api = {
     name: string;
     description?: string | null;
     permissions: PermissionKey[];
-  }) =>
-    request<Role>("/roles", { method: "POST", body: json(input) }),
+  }) => request<Role>("/roles", { method: "POST", body: json(input) }),
   updateRole: (
     roleId: string,
     input: {
@@ -202,16 +209,22 @@ export const api = {
   sendTestNotification: () =>
     request<void>("/notification-settings/test", { method: "POST" }),
   emailTemplates: () => request<EmailTemplate[]>("/email-templates"),
-  emailTemplate: (situation: EmailTemplateSituation) =>
-    request<EmailTemplate>(`/email-templates/${situation}`),
-  updateEmailTemplate: (situation: EmailTemplateSituation, input: EmailTemplateInput) =>
+  updateEmailTemplate: (
+    situation: EmailTemplateSituation,
+    input: EmailTemplateInput,
+  ) =>
     request<EmailTemplate>(`/email-templates/${situation}`, {
       method: "PATCH",
       body: json(input),
     }),
   resetEmailTemplate: (situation: EmailTemplateSituation) =>
-    request<EmailTemplate>(`/email-templates/${situation}`, { method: "DELETE" }),
-  previewEmailTemplate: (situation: EmailTemplateSituation, input: EmailTemplateInput) =>
+    request<EmailTemplate>(`/email-templates/${situation}`, {
+      method: "DELETE",
+    }),
+  previewEmailTemplate: (
+    situation: EmailTemplateSituation,
+    input: EmailTemplateInput,
+  ) =>
     request<EmailTemplatePreview>(`/email-templates/${situation}/preview`, {
       method: "POST",
       body: json(input),
@@ -303,29 +316,6 @@ export const api = {
     ),
   reservation: (reservationId: string) =>
     request<ReservationDetail>(`/reservations/${reservationId}`),
-  submitReservation: (reservationId: string, expectedUpdatedAt: string) =>
-    request<ReservationDetail>(`/reservations/${reservationId}/submit`, {
-      method: "POST",
-      body: json({ expectedUpdatedAt }),
-    }),
-  decideReservationItem: (
-    reservationId: string,
-    itemId: string,
-    decision: "APPROVE" | "REJECT",
-    comment?: string,
-    assetUnitIds?: string[],
-  ) =>
-    request<ReservationDetail>(
-      `/reservations/${reservationId}/items/${itemId}/decision`,
-      {
-        method: "POST",
-        body: json({
-          decision,
-          ...(assetUnitIds ? { assetUnitIds } : {}),
-          ...(comment ? { comment } : {}),
-        }),
-      },
-    ),
   decideReservationItems: (
     reservationId: string,
     items: Array<{ reservationItemId: string; assetUnitIds?: string[] }>,
@@ -369,18 +359,6 @@ export const api = {
         body: json(input),
       },
     ),
-  returns: (filters: {
-    view?: "MINE" | "APPROVALS" | "ALL";
-    status?: string;
-    areaId?: string;
-    reservationId?: string;
-    search?: string;
-    cursor?: string;
-    limit?: number;
-  }) =>
-    request<ListResponse<ReturnDetail>>(`/returns${queryString(filters)}`),
-  returnDetail: (returnId: string) =>
-    request<ReturnDetail>(`/returns/${returnId}`),
   uploadImage: (file: File) => {
     const formData = new FormData();
     formData.append("file", file);

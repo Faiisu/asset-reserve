@@ -48,17 +48,11 @@ const STATUS_COLOR_CLASS: Record<ReservationStatus, string> = {
   APPROVED: "calendar-legend__approved",
   DELIVERY_CONFIRMED: "calendar-legend__delivery_confirmed",
   RETURN_PENDING: "calendar-legend__return_pending",
-  RETURN_CONFIRMED: "calendar-legend__return_confirmed",
   COMPLETED: "calendar-legend__completed",
   REJECTED: "calendar-legend__rejected",
   CANCELLED: "calendar-legend__cancelled",
 };
 
-// RETURN_CONFIRMED is left out here -- per
-// docs/software_spec/lifecycle-and-state-machines.md §6, the backend never
-// actually persists it as a resting reservation status (it resolves straight
-// to COMPLETED or DELIVERY_CONFIRMED in the same operation), so offering it
-// as a filter would always return zero results.
 const DISPLAY_STATUSES: ReservationStatus[] = [
   "DRAFT",
   "PENDING_APPROVAL",
@@ -78,7 +72,6 @@ const STATUS_OPTION_STATUSES: Record<ReservationStatus, ReservationStatus[]> = {
   APPROVED: ["APPROVED"],
   DELIVERY_CONFIRMED: ["DELIVERY_CONFIRMED"],
   RETURN_PENDING: ["RETURN_PENDING"],
-  RETURN_CONFIRMED: ["RETURN_CONFIRMED"],
   COMPLETED: ["COMPLETED"],
   REJECTED: ["REJECTED"],
   CANCELLED: ["CANCELLED"],
@@ -173,9 +166,7 @@ export function ReservationsPage() {
         if (selectedStatuses.length > 0) {
           list = list.filter((res) => allowedStatuses.includes(res.status));
         }
-        setItems((current) =>
-          cursor ? [...current, ...list] : list,
-        );
+        setItems((current) => (cursor ? [...current, ...list] : list));
         setPageInfo(response.pageInfo);
       } catch (caught) {
         if (requestId !== requestSequence.current) return;
@@ -262,7 +253,8 @@ export function ReservationsPage() {
               type="button"
               className={cx(
                 "calendar-filter-btn",
-                (hasActiveFilters || filterOpen) && "calendar-filter-btn--active",
+                (hasActiveFilters || filterOpen) &&
+                  "calendar-filter-btn--active",
               )}
               onClick={() => setFilterOpen((prev) => !prev)}
               aria-haspopup="dialog"
@@ -575,11 +567,17 @@ function ReservationListRow({
           </span>
           <span>
             <Avatar
-              name={reservation.requester.name ?? reservation.requester.email ?? "User"}
+              name={
+                reservation.requester.name ??
+                reservation.requester.email ??
+                "User"
+              }
               imageUrl={reservation.requester.profilePictureUrl}
               size="sm"
             />{" "}
-            {reservation.requester.name ?? reservation.requester.email ?? "User"}
+            {reservation.requester.name ??
+              reservation.requester.email ??
+              "User"}
           </span>
         </div>
         <div className="reservation-list-areas">
@@ -623,10 +621,8 @@ function ReservationListRow({
           <Inbox size={16} />
           <span aria-hidden>
             <strong>{reservation.pendingDecisionCount}</strong>{" "}
-            {reservation.pendingDecisionCount === 1
-              ? "item"
-              : "items"}{" "}
-            awaiting manager decision
+            {reservation.pendingDecisionCount === 1 ? "item" : "items"} awaiting
+            manager decision
           </span>
         </div>
       )}

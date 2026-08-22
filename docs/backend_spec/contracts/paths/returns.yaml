@@ -15,7 +15,7 @@
         in: query
         schema:
           type: string
-          enum: [PENDING, APPROVED, REJECTED, COMPLETED]
+          enum: [PENDING, REJECTED, COMPLETED]
       - name: areaId
         in: query
         schema:

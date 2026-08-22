@@ -33,8 +33,7 @@ Status เก็บเป็น `String` ใน database (ไม่ใช่ Pri
 | `PARTIALLY_APPROVED` | บาง item อนุมัติ (พร้อมผูก serial unit แล้ว — ดู §3) บาง item ถูกปฏิเสธ | `DELIVERY_CONFIRMED`, `CANCELLED` |
 | `APPROVED` | ทุก item อนุมัติและผูก serial unit แล้ว รอส่งมอบ | `DELIVERY_CONFIRMED`, `CANCELLED` |
 | `DELIVERY_CONFIRMED` | ส่งมอบอุปกรณ์ให้ผู้ขอแล้ว | `RETURN_PENDING`, `COMPLETED` |
-| `RETURN_PENDING` | ส่ง return slip แล้ว รอตรวจรับ | `RETURN_CONFIRMED`, `COMPLETED` |
-| `RETURN_CONFIRMED` | ตรวจรับและบันทึกสภาพแล้ว | `COMPLETED`, `DELIVERY_CONFIRMED` (ถ้าคืนบางส่วน ยังมี item ค้าง) |
+| `RETURN_PENDING` | ส่ง return slip แล้ว รอตรวจรับ | `COMPLETED`, `DELIVERY_CONFIRMED` (ถ้าคืนบางส่วน ยังมี item ค้าง) |
 | `COMPLETED` | คืนครบทุก item ที่ checkout แล้ว (final) | – |
 | `REJECTED` | ทุก item ถูกปฏิเสธ (final) | – |
 | `CANCELLED` | ยกเลิกก่อนรับมอบ (final) | – |
@@ -48,7 +47,6 @@ flowchart TD
     REJECTED["REJECTED"]
     DELIVERY_CONFIRMED["DELIVERY_CONFIRMED"]
     RETURN_PENDING["RETURN_PENDING"]
-    RETURN_CONFIRMED["RETURN_CONFIRMED"]
     COMPLETED["COMPLETED"]
     CANCELLED["CANCELLED"]
 
@@ -63,9 +61,8 @@ flowchart TD
     APPROVED -->|ยืนยัน handover| DELIVERY_CONFIRMED
     PARTIAL -->|ยืนยัน handover ของ item ที่ approve| DELIVERY_CONFIRMED
     DELIVERY_CONFIRMED -->|ส่ง return slip| RETURN_PENDING
-    RETURN_PENDING -->|ตรวจสอบและอนุมัติ Good/Broken/Lost| RETURN_CONFIRMED
-    RETURN_CONFIRMED -->|คืนครบทุก item| COMPLETED
-    RETURN_CONFIRMED -->|คืนบางส่วน ยังมี item ค้าง| DELIVERY_CONFIRMED
+    RETURN_PENDING -->|ตรวจรับครบทุก item| COMPLETED
+    RETURN_PENDING -->|คืนบางส่วน ยังมี item ค้าง| DELIVERY_CONFIRMED
 ```
 
 ### Return eligibility rule
@@ -134,9 +131,10 @@ Constraint: หน่วยเดียวกัน (`asset_unit_id`) มีไ�
 | Status | ความหมาย |
 | --- | --- |
 | `PENDING` | รอตรวจรับ |
-| `APPROVED` | ตรวจรับผ่าน |
 | `REJECTED` | ปฏิเสธหรือให้แก้ไข |
 | `COMPLETED` | backend ประมวลผล item/ledger และปิดการคืนแล้ว |
+
+ผลอนุมัติ `APPROVED` ถูกเก็บที่ `ReturnApproval.status`; ตัว `Return.status` เปลี่ยนจาก `PENDING` ไป `COMPLETED` โดยตรงใน transaction เดียว จึงไม่มี `APPROVED` เป็นสถานะพัก
 
 เมื่อคืนครบสำหรับ item หนึ่ง ให้ `ReservationItem` เป็น `RETURNED` (§3) และเมื่อทุก item ที่ checkout คืนครบ ให้ `Reservation` เป็น `COMPLETED` (§2)
 
@@ -159,7 +157,7 @@ sequenceDiagram
     Note over Manager,System: Step 5: Return Approval & Inspection
     Manager->>Manager: ตรวจสภาพอุปกรณ์จริงที่คลัง
     Manager->>System: ส่งผลตรวจสอบต่อหน่วย (condition ต่อ serial) พร้อม decision
-    Note over System: อัปเดต AssetUnit status ต่อ serial (§7)<br/>Reservation -> COMPLETED (คืนครบ) หรือ -> DELIVERY_CONFIRMED (คืนบางส่วน)<br/>ไม่ persist RETURN_CONFIRMED เป็นสถานะพัก
+    Note over System: อัปเดต AssetUnit status ต่อ serial (§7)<br/>Reservation -> COMPLETED (คืนครบ) หรือ -> DELIVERY_CONFIRMED (คืนบางส่วน) โดยตรง
 ```
 
 Condition ถูกบันทึก**ต่อ serial-numbered unit** (`ReturnItemUnit.condition`) ไม่ใช่ตัวเลข quantity รวม

@@ -308,8 +308,8 @@ Global ADMIN เท่านั้น ปฏิเสธเมื่อ area ย
 
 1. `unitCounts` คำนวณจากการนับแถว `AssetUnit` ของ asset นั้น แยกตาม status (`ACTIVE`, `RESERVED`, `CHECKED_OUT`, `BROKEN`, `LOST`, `IN_REPAIR`, `INACTIVE`) ด้วย `groupBy` — ไม่มี quantity column เก็บไว้ที่ `Asset`
 2. `totalQuantity = unitCounts.total` (นับทุก unit ยกเว้น `INACTIVE`)
-3. `allocatedQuantity` คือผลรวม `ReservationItem.quantity` ที่ item status เป็น `PREPARED` หรือ `DELIVERED` และ reservation status เป็น `PARTIALLY_APPROVED`, `APPROVED`, `DELIVERY_CONFIRMED`, `RETURN_PENDING` หรือ `RETURN_CONFIRMED`
-4. `availableQuantity = max(unitCounts.active - allocatedQuantity, 0)`
+3. `allocatedQuantity` คือผลรวม `ReservationItem.quantity` ที่ item status เป็น `PREPARED` หรือ `DELIVERED` และ reservation status เป็น `PARTIALLY_APPROVED`, `APPROVED`, `DELIVERY_CONFIRMED` หรือ `RETURN_PENDING`
+4. เมื่อไม่ส่ง date range: `availableQuantity = unitCounts.active`; เมื่อส่ง date range: `availableQuantity = max(unitCounts.active + unitCounts.reserved + unitCounts.checkedOut - allocatedQuantity, 0)` เพื่อคง unit ที่ถูกกันสิทธิ์อยู่ใน schedulable pool ก่อนหักเฉพาะ allocation ที่ overlap และไม่เคยนับ `BROKEN`/`LOST`/`IN_REPAIR`/`INACTIVE` เป็น capacity
 5. `isActive` เป็น boolean ตรงๆ บน `Asset`; status ระดับ asset ไม่มีแล้ว — status ย้ายไปอยู่ระดับ `AssetUnit` แต่ละชิ้น
 6. `owner` มาจาก `Asset.createdBy`; asset เก่าก่อนมี creator tracking อาจเป็น `null`
 7. `capabilities` คำนวณเฉพาะ actor ปัจจุบันจาก permission ใน management area ของ asset
@@ -451,7 +451,8 @@ Authorization: Scoped `asset:delete`
 
 Availability ใช้ช่วงเวลาแบบ half-open: overlap เมื่อ `existing.startAt < requested.endAt` และ `existing.endAt > requested.startAt` ดังนั้นรายการที่จบตรงเวลาเริ่มของอีกรายการไม่ชนกัน
 
-- Hard allocation นับเฉพาะ item สถานะ `PREPARED`, `DELIVERED` ใน reservation สถานะ `PARTIALLY_APPROVED`, `APPROVED`, `DELIVERY_CONFIRMED`, `RETURN_PENDING`, `RETURN_CONFIRMED`
+- Schedulable pool นับ unit สถานะ `ACTIVE`, `RESERVED`, `CHECKED_OUT`; ไม่รวม `BROKEN`, `LOST`, `IN_REPAIR`, `INACTIVE` แล้วจึงหัก hard allocation ที่ overlap
+- Hard allocation นับเฉพาะ item สถานะ `PREPARED`, `DELIVERED` ใน reservation สถานะ `PARTIALLY_APPROVED`, `APPROVED`, `DELIVERY_CONFIRMED`, `RETURN_PENDING`
 - Soft warning นับ item สถานะ `PENDING` ใน reservation สถานะ `PENDING_APPROVAL`
 - Approval lock asset row ตาม UUID, ตรวจ availability ซ้ำใน `SERIALIZABLE` transaction และ retry `P2034` สูงสุด 3 ครั้ง (รายละเอียด retry policy: [database-and-concurrency.md](database-and-concurrency.md))
 - Pending request ไม่กัน quantity แต่ detail จะคืน `PENDING_RESERVATION_OVERLAP`, `pendingQuantity` และ `pendingReservationCount`
@@ -559,7 +560,7 @@ flowchart LR
 
 ทุก unit ที่อยู่ในสลิปต้องถูกตัดสิน condition ครบก่อนเปลี่ยนสถานะ item เป็น `RETURNED`; ถ้า reject ทั้งสลิป ระบบลบ claim (`ReturnItemUnit`) เพื่อปลดปล่อย unit ให้ส่งสลิปใหม่ได้ โดยไม่แตะสถานะ item หรือ asset unit เดิม เมื่อทุก item ที่ active/approved ของ reservation กลายเป็น `RETURNED` ครบ สถานะการจองจะถูกปรับเป็น `COMPLETED` อัตโนมัติ
 
-ผลของ decision ต่อสถานะ `reservation` (`RETURN_CONFIRMED` ไม่ถูก persist เป็นสถานะพัก — ดู [lifecycle-and-state-machines.md §2](../software_spec/lifecycle-and-state-machines.md#reservation-status)):
+ผลของ decision ต่อสถานะ `reservation` ถูกบันทึกโดยตรงดังนี้:
 
 - **APPROVE ครบทุก item**: `reservation.status` → `COMPLETED`
 - **APPROVE บางส่วน (ยังมี item ค้าง)**: `reservation.status` กลับไป `DELIVERY_CONFIRMED` ทันที เพื่อรอส่งสลิปคืนเพิ่มเติม
