@@ -35,15 +35,15 @@ import {
 } from "../reservations";
 import type {
   ReservationDetail,
+  ReservationStatus,
   CreateReturnItemInput,
   DecideReturnItemInput,
   ReturnItemUnitCondition,
   AssetUnit,
 } from "../types";
 
-const RETURN_PHASE_STATUSES = [
+const RETURN_PHASE_STATUSES: ReservationStatus[] = [
   "DELIVERY_CONFIRMED",
-  "ACTIVE",
   "RETURN_PENDING",
   "RETURN_CONFIRMED",
 ];

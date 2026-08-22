@@ -252,27 +252,29 @@ export type AssetInput = {
   isActive?: boolean;
 };
 
+// Kept in sync with docs/software_spec/lifecycle-and-state-machines.md §2 --
+// that table is the single source of truth for accepted values. `ACTIVE`,
+// `RETURN`, and bare `PENDING` are explicitly called out there as retired
+// aliases the system no longer supports; don't reintroduce them.
 export type ReservationStatus =
   | "DRAFT"
-  | "PENDING"
   | "PENDING_APPROVAL"
   | "PARTIALLY_APPROVED"
   | "APPROVED"
   | "DELIVERY_CONFIRMED"
-  | "ACTIVE"
-  | "RETURN"
   | "RETURN_PENDING"
   | "RETURN_CONFIRMED"
   | "COMPLETED"
   | "REJECTED"
   | "CANCELLED";
 
+// Per docs §3: approval now assigns serial units in the same step, so items
+// go PENDING -> PREPARED directly (no APPROVED resting state); CHECKED_OUT
+// is a ReservationItemUnit status, not a ReservationItem one.
 export type ReservationItemStatus =
   | "PENDING"
-  | "APPROVED"
-  | "REJECTED"
   | "PREPARED"
-  | "CHECKED_OUT"
+  | "REJECTED"
   | "DELIVERED"
   | "RETURNED";
 

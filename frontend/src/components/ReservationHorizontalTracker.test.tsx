@@ -22,7 +22,7 @@ const baseReservation: ReservationDetail = {
     {
       id: "item-1",
       quantity: 2,
-      status: "APPROVED",
+      status: "PREPARED",
       asset: {
         id: "asset-1",
         name: "Stage Camera 4K",

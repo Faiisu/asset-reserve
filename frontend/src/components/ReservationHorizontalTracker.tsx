@@ -119,8 +119,6 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
   const isApprovedOrBeyond = [
     "APPROVED",
     "DELIVERY_CONFIRMED",
-    "ACTIVE",
-    "RETURN",
     "RETURN_PENDING",
     "RETURN_CONFIRMED",
     "COMPLETED",
@@ -168,8 +166,6 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
   // 3. DELIVERY / HANDOVER STEP
   const isDeliveredOrBeyond = [
     "DELIVERY_CONFIRMED",
-    "ACTIVE",
-    "RETURN",
     "RETURN_PENDING",
     "RETURN_CONFIRMED",
     "COMPLETED",
@@ -210,9 +206,9 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
   const latestReturn = reservation.returns[0];
   const hasSubmittedReturn =
     reservation.returns.length > 0 ||
-    ["RETURN", "RETURN_PENDING", "RETURN_CONFIRMED", "COMPLETED"].includes(status);
+    ["RETURN_PENDING", "RETURN_CONFIRMED", "COMPLETED"].includes(status);
   const isAwaitingReturnSubmission =
-    ["DELIVERY_CONFIRMED", "ACTIVE"].includes(status) && reservation.returns.length === 0;
+    ["DELIVERY_CONFIRMED"].includes(status) && reservation.returns.length === 0;
 
   const pendingReturnStep: StepLogItem = {
     id: "step-pending-return",
@@ -260,7 +256,7 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
   // 5. RETURN APPROVE & INSPECTION PHASE (Manager approval & Restock)
   const isCompleted = ["RETURN_CONFIRMED", "COMPLETED"].includes(status);
   const isInspectionPending =
-    ["RETURN", "RETURN_PENDING"].includes(status) ||
+    ["RETURN_PENDING"].includes(status) ||
     (reservation.returns.length > 0 && !isCompleted);
 
   const returnApproveStep: StepLogItem = {

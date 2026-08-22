@@ -49,8 +49,6 @@ export function buildReservationSteps(reservation: ReservationDetail): Reservati
     "APPROVED",
     "PARTIALLY_APPROVED",
     "DELIVERY_CONFIRMED",
-    "ACTIVE",
-    "RETURN",
     "RETURN_PENDING",
     "RETURN_CONFIRMED",
     "COMPLETED",
@@ -78,8 +76,6 @@ export function buildReservationSteps(reservation: ReservationDetail): Reservati
   // Step 3: Equipment Handover / Delivery Confirm
   const isDeliveredOrBeyond = [
     "DELIVERY_CONFIRMED",
-    "ACTIVE",
-    "RETURN",
     "RETURN_PENDING",
     "RETURN_CONFIRMED",
     "COMPLETED",
@@ -108,9 +104,9 @@ export function buildReservationSteps(reservation: ReservationDetail): Reservati
   const latestReturn = reservation.returns[0];
   const hasSubmittedReturn =
     reservation.returns.length > 0 ||
-    ["RETURN", "RETURN_PENDING", "RETURN_CONFIRMED", "COMPLETED"].includes(status);
+    ["RETURN_PENDING", "RETURN_CONFIRMED", "COMPLETED"].includes(status);
   const isAwaitingReturnSubmission =
-    ["DELIVERY_CONFIRMED", "ACTIVE"].includes(status) && reservation.returns.length === 0;
+    ["DELIVERY_CONFIRMED"].includes(status) && reservation.returns.length === 0;
 
   steps.push({
     name: "Pending Return",
@@ -134,7 +130,7 @@ export function buildReservationSteps(reservation: ReservationDetail): Reservati
   // Step 5: Return Approval & Inspection (Manager Approval & Restock)
   const isCompleted = ["RETURN_CONFIRMED", "COMPLETED"].includes(status);
   const isInspectionPending =
-    ["RETURN", "RETURN_PENDING"].includes(status) ||
+    ["RETURN_PENDING"].includes(status) ||
     (reservation.returns.length > 0 && !isCompleted);
 
   steps.push({

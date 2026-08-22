@@ -9,13 +9,10 @@ export type RecentReservation = Pick<
 
 export const reservationStatusLabel: Record<ReservationStatus, string> = {
   DRAFT: "Draft",
-  PENDING: "Pending",
   PENDING_APPROVAL: "Pending approval",
   PARTIALLY_APPROVED: "Partially approved",
   APPROVED: "Approved",
   DELIVERY_CONFIRMED: "Delivery Confirmed",
-  ACTIVE: "Delivery Confirmed",
-  RETURN: "Return Pending",
   RETURN_PENDING: "Return Pending",
   RETURN_CONFIRMED: "Partially Return",
   COMPLETED: "Return Completed",
@@ -25,10 +22,8 @@ export const reservationStatusLabel: Record<ReservationStatus, string> = {
 
 export const reservationItemStatusLabel: Record<ReservationItemStatus, string> = {
   PENDING: "Pending",
-  APPROVED: "Prepared",
   REJECTED: "Rejected",
   PREPARED: "Prepared",
-  CHECKED_OUT: "Delivered",
   DELIVERED: "Delivered",
   RETURNED: "Returned",
 };
