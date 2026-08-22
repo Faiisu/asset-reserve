@@ -47,7 +47,7 @@ export function NotificationsPage() {
     try {
       const result = await api.notificationSettings();
       setSettings(result);
-      setSmtpHost(result.smtpHost || "smtp.gmail.com");
+      setSmtpHost(result.smtpHost || "");
       setSmtpPort(String(result.smtpPort || 465));
       setSmtpUser(result.smtpUser);
       setFromName(result.fromName);
@@ -94,7 +94,7 @@ export function NotificationsPage() {
     setSaveError("");
     setTestError("");
     if (!smtpHost.trim() || !smtpUser.trim() || !fromName.trim() || !fromEmail.trim()) {
-      setSaveError("All fields except App Password are required.");
+      setSaveError("All fields except Password are required.");
       return;
     }
     const port = Number(smtpPort);
@@ -177,7 +177,7 @@ export function NotificationsPage() {
         <section className="form-section">
           <div className="form-section__heading">
             <div>
-              <h2>Email (Gmail SMTP)</h2>
+              <h2>Email (SMTP)</h2>
               <p>
                 Reservation submissions, decisions, and return outcomes are emailed through
                 this account. Changes take effect immediately -- no redeploy needed.
@@ -214,7 +214,7 @@ export function NotificationsPage() {
                 <Input
                   value={smtpHost}
                   onChange={(event) => setSmtpHost(event.target.value)}
-                  placeholder="smtp.gmail.com"
+                  placeholder="smtp.yourprovider.com"
                   required
                 />
               </Field>
@@ -229,7 +229,7 @@ export function NotificationsPage() {
                 />
               </Field>
             </div>
-            <Field label="SMTP username" required hint="The Gmail or Workspace address that sends these emails">
+            <Field label="SMTP username" required hint="The mailbox address that sends these emails">
               <Input
                 value={smtpUser}
                 onChange={(event) => setSmtpUser(event.target.value)}
@@ -238,11 +238,11 @@ export function NotificationsPage() {
               />
             </Field>
             <Field
-              label="App password"
+              label="Password"
               hint={
                 settings?.smtpPasswordSet
                   ? "Leave blank to keep the current password"
-                  : "Generate one from your Google Account → Security → App Passwords"
+                  : "Your mailbox password, or an app-specific password if your provider requires one"
               }
             >
               <Input
@@ -286,7 +286,7 @@ export function NotificationsPage() {
                 title={
                   settings?.smtpPasswordSet
                     ? "Send a test email to your own address"
-                    : "Save settings with an App Password first"
+                    : "Save settings with a password first"
                 }
               >
                 <Send size={16} />

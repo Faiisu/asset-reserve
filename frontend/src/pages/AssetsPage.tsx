@@ -20,6 +20,7 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
+import { AssetUnitStatusBreakdown } from "../components/AssetUnitStatus";
 import {
   AssetPicture,
   Button,
@@ -30,7 +31,6 @@ import {
   Input,
   Notice,
   Select,
-  StatusBadge,
   Textarea,
   apiError,
   cx,
@@ -964,57 +964,3 @@ function AssetTableSkeleton() {
   );
 }
 
-const unitStatusPresentation: Array<{
-  key: keyof AssetSummary["unitCounts"];
-  label: string;
-  className: string;
-}> = [
-  { key: "active", label: "Active", className: "status-badge--active" },
-  { key: "reserved", label: "Reserved", className: "status-badge--reserved" },
-  {
-    key: "checkedOut",
-    label: "Checked out",
-    className: "status-badge--checked-out",
-  },
-  { key: "broken", label: "Broken", className: "status-badge--broken" },
-  {
-    key: "inRepair",
-    label: "In repair",
-    className: "status-badge--in-repair",
-  },
-  { key: "lost", label: "Lost", className: "status-badge--lost" },
-  { key: "inactive", label: "Inactive", className: "status-badge--inactive" },
-];
-
-function AssetUnitStatusBreakdown({
-  unitCounts,
-}: {
-  unitCounts: AssetSummary["unitCounts"];
-}) {
-  const present = unitStatusPresentation.filter(
-    (status) => unitCounts[status.key] > 0,
-  );
-
-  if (present.length === 0) {
-    return (
-      <span className="status-badge status-badge--inactive">
-        <span />
-        No units
-      </span>
-    );
-  }
-
-  return (
-    <div className="asset-unit-status-group">
-      {present.map((status) => (
-        <span
-          key={status.key}
-          className={cx("status-badge", status.className)}
-        >
-          <span />
-          {unitCounts[status.key]} {status.label}
-        </span>
-      ))}
-    </div>
-  );
-}

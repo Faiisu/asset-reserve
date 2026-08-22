@@ -271,6 +271,18 @@ export const api = {
       method: "POST",
       body: json({ serialNumbers, reason }),
     }),
+  retireAssetUnits: (
+    items: Array<{ assetUnitId: string; expectedUpdatedAt: string }>,
+    reason?: string,
+  ) =>
+    request<{ data: AssetUnit[] }>("/assets/units/batch-retire", {
+      method: "POST",
+      body: json({ items, reason }),
+    }),
+  assetUnits: (assetId: string, filters: { status?: string; limit?: number }) =>
+    request<ListResponse<AssetUnit>>(
+      `/assets/${assetId}/units${queryString(filters)}`,
+    ),
   createReservation: (input: CreateReservationInput) =>
     request<ReservationDetail>("/reservations", {
       method: "POST",
@@ -301,17 +313,22 @@ export const api = {
     itemId: string,
     decision: "APPROVE" | "REJECT",
     comment?: string,
+    assetUnitIds?: string[],
   ) =>
     request<ReservationDetail>(
       `/reservations/${reservationId}/items/${itemId}/decision`,
       {
         method: "POST",
-        body: json({ decision, ...(comment ? { comment } : {}) }),
+        body: json({
+          decision,
+          ...(assetUnitIds ? { assetUnitIds } : {}),
+          ...(comment ? { comment } : {}),
+        }),
       },
     ),
   decideReservationItems: (
     reservationId: string,
-    itemIds: string[],
+    items: Array<{ reservationItemId: string; assetUnitIds?: string[] }>,
     decision: "APPROVE" | "REJECT",
     comment?: string,
   ) =>
@@ -319,7 +336,7 @@ export const api = {
       `/reservations/${reservationId}/items/decision`,
       {
         method: "POST",
-        body: json({ itemIds, decision, ...(comment ? { comment } : {}) }),
+        body: json({ items, decision, ...(comment ? { comment } : {}) }),
       },
     ),
   cancelReservation: (reservationId: string, reason?: string) =>
@@ -327,19 +344,14 @@ export const api = {
       method: "POST",
       body: json({ ...(reason ? { reason } : {}) }),
     }),
-  confirmDelivery: (
-    reservationId: string,
-    input?: ConfirmDeliveryInput | string[],
-  ) => {
-    const payload = Array.isArray(input) ? { itemIds: input } : input;
-    return request<ReservationDetail>(
+  confirmDelivery: (reservationId: string, input?: ConfirmDeliveryInput) =>
+    request<ReservationDetail>(
       `/reservations/${reservationId}/delivery-confirm`,
       {
         method: "POST",
-        ...(payload ? { body: json(payload) } : {}),
+        ...(input ? { body: json(input) } : {}),
       },
-    );
-  },
+    ),
   createReturn: (reservationId: string, input: CreateReturnInput) =>
     request<ReturnDetail>(`/reservations/${reservationId}/returns`, {
       method: "POST",

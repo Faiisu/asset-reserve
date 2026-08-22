@@ -308,7 +308,7 @@ Global ADMIN เท่านั้น ปฏิเสธเมื่อ area ย
 
 1. `unitCounts` คำนวณจากการนับแถว `AssetUnit` ของ asset นั้น แยกตาม status (`ACTIVE`, `RESERVED`, `CHECKED_OUT`, `BROKEN`, `LOST`, `IN_REPAIR`, `INACTIVE`) ด้วย `groupBy` — ไม่มี quantity column เก็บไว้ที่ `Asset`
 2. `totalQuantity = unitCounts.total` (นับทุก unit ยกเว้น `INACTIVE`)
-3. `allocatedQuantity` คือผลรวม `ReservationItem.quantity` ที่ item status เป็น `APPROVED`, `PREPARED` หรือ `DELIVERED` และ reservation status เป็น `PARTIALLY_APPROVED`, `APPROVED`, `DELIVERY_CONFIRMED`, `RETURN_PENDING` หรือ `RETURN_CONFIRMED`
+3. `allocatedQuantity` คือผลรวม `ReservationItem.quantity` ที่ item status เป็น `PREPARED` หรือ `DELIVERED` และ reservation status เป็น `PARTIALLY_APPROVED`, `APPROVED`, `DELIVERY_CONFIRMED`, `RETURN_PENDING` หรือ `RETURN_CONFIRMED`
 4. `availableQuantity = max(unitCounts.active - allocatedQuantity, 0)`
 5. `isActive` เป็น boolean ตรงๆ บน `Asset`; status ระดับ asset ไม่มีแล้ว — status ย้ายไปอยู่ระดับ `AssetUnit` แต่ละชิ้น
 6. `owner` มาจาก `Asset.createdBy`; asset เก่าก่อนมี creator tracking อาจเป็น `null`
@@ -451,7 +451,7 @@ Authorization: Scoped `asset:delete`
 
 Availability ใช้ช่วงเวลาแบบ half-open: overlap เมื่อ `existing.startAt < requested.endAt` และ `existing.endAt > requested.startAt` ดังนั้นรายการที่จบตรงเวลาเริ่มของอีกรายการไม่ชนกัน
 
-- Hard allocation นับเฉพาะ item สถานะ `APPROVED`, `PREPARED`, `DELIVERED` ใน reservation สถานะ `PARTIALLY_APPROVED`, `APPROVED`, `DELIVERY_CONFIRMED`, `RETURN_PENDING`, `RETURN_CONFIRMED`
+- Hard allocation นับเฉพาะ item สถานะ `PREPARED`, `DELIVERED` ใน reservation สถานะ `PARTIALLY_APPROVED`, `APPROVED`, `DELIVERY_CONFIRMED`, `RETURN_PENDING`, `RETURN_CONFIRMED`
 - Soft warning นับ item สถานะ `PENDING` ใน reservation สถานะ `PENDING_APPROVAL`
 - Approval lock asset row ตาม UUID, ตรวจ availability ซ้ำใน `SERIALIZABLE` transaction และ retry `P2034` สูงสุด 3 ครั้ง (รายละเอียด retry policy: [database-and-concurrency.md](database-and-concurrency.md))
 - Pending request ไม่กัน quantity แต่ detail จะคืน `PENDING_RESERVATION_OVERLAP`, `pendingQuantity` และ `pendingReservationCount`
@@ -485,7 +485,7 @@ Status transitions และความหมายทางธุรกิจ�
 | Flag | True เมื่อ |
 | --- | --- |
 | `canSubmit` | actor เป็น requester, reservation เป็น `DRAFT` (ตรงกับ precondition ของ §7.4) |
-| `canConfirmDelivery` | actor เป็นเจ้าหน้าที่คลัง/Area Manager, reservation เป็น `APPROVED` หรือ `PARTIALLY_APPROVED` ที่มี item approved อย่างน้อยหนึ่งรายการ (ตรงกับ precondition ของ §7.11) |
+| `canConfirmDelivery` | actor เป็นเจ้าหน้าที่คลัง/Area Manager, reservation เป็น `APPROVED` หรือ `PARTIALLY_APPROVED` ที่มี item อยู่สถานะ `PREPARED` (ผูก serial unit ตอนอนุมัติแล้ว — ดู §7.5) อย่างน้อยหนึ่งรายการ (ตรงกับ precondition ของ §7.11) |
 | `canReturn` | actor เป็นผู้ยืม/participant, มี `ReservationItemUnit` อย่างน้อยหนึ่งหน่วยของ reservation นี้อยู่สถานะ `CHECKED_OUT` (ตรงกับ precondition ของ §8.2) |
 | `canDecideReturn` | actor เป็น Area Manager ของ management area ที่ reservation นี้อยู่, มี `Return` อย่างน้อยหนึ่งใบของ reservation นี้อยู่สถานะ `PENDING` (ตรงกับ precondition ของ §8.3) |
 
@@ -495,21 +495,20 @@ Status transitions และความหมายทางธุรกิจ�
 
 ### 7.5 `POST /reservations/:reservationId/items/:itemId/decision`
 
-Approve/reject เป็นราย item ตาม area permission เมื่อ approve ต้องมี quantity พอหลังหัก approved overlap อื่น แล้วคำนวณ reservation status ใหม่
+Approve/reject เป็นราย item ตาม area permission เมื่อ `decision = APPROVE` ต้องส่ง `assetUnitIds[]` มาพร้อมกันในคำขอเดียว — นี่คือจุดที่ quantity-based allocation (ตั้งแต่ submit) กลายเป็น serial-numbered assignment จริง ไม่มีขั้นตอน "prepare" แยกต่างหากอีกต่อไป (breaking change จากรุ่นก่อนหน้าที่แยก approve กับ prepare เป็นคนละ endpoint — ดู [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status))
+
+**Approve เป็น unit-based**: เลือก S/N ได้น้อยกว่าจำนวนที่ขอ (partial approval) แต่ reject ยังเป็น all-or-nothing ทั้ง item เหมือนเดิม ไม่มี concept "reject บาง unit ภายใน item เดียวกัน":
+
+1. ตรวจ quantity พอหลังหัก approved overlap อื่น (เหมือนเดิม, ตรวจกับ quantity ที่ขอเดิม) — ถ้าไม่พอตอบ `409`
+2. `assetUnitIds[]` ต้องมีจำนวนตั้งแต่ 1 ถึง quantity ที่ขอ (**อนุญาตน้อยกว่าได้ — ไม่บังคับเท่ากันอีกต่อไป**) ทุก unit ต้องเป็นของ `asset_id` เดียวกับ item และ unique กันเอง มิฉะนั้นตอบ `422`
+3. รัน**ใน `SERIALIZABLE` transaction** — lock แถว `asset_units` ที่เลือกตาม UUID ที่ sort แล้ว (ลด deadlock เมื่อสอง request แย่ง asset เดียวกัน), ตรวจซ้ำว่าทุก unit ยังมีสถานะ `ACTIVE` ณ เวลา lock ถ้ามี unit ใดไม่ `ACTIVE` แล้ว ตอบ `409` ทั้งชุดและไม่ commit บางส่วน — retry ตาม policy เดียวกับ allocation อื่น (สูงสุด 3 ครั้งสำหรับ Prisma `P2034`, ดู [database-and-concurrency.md](database-and-concurrency.md))
+4. เมื่อผ่าน: สร้าง `ReservationItemUnit` หนึ่งแถวต่อ unit (ผูก `reservation_item_id` + `asset_unit_id`), เปลี่ยน `AssetUnit.status` จาก `ACTIVE` เป็น `RESERVED` ทีละแถวพร้อม `AssetUnitEvent`, และอัปเดต `reservation_items.status` เป็น `PREPARED` โดยตรง (ข้าม `APPROVED`) พร้อม **`reservation_items.quantity` ถูกตัดลงให้เท่ากับจำนวน unit ที่ approve จริง** (เช่น ขอ 3 แต่เลือก approve 2 หน่วย → `quantity` กลายเป็น 2 ทันที ไม่มีส่วนที่เหลือค้าง `PENDING` รออนุมัติรอบถัดไป) และ `prepared_by = actor.id`, `prepared_at = now` — ทั้งหมด commit พร้อมกันใน transaction เดียวกับ decision
+5. `decision = REJECT` ไม่ต้องส่ง `assetUnitIds` — item ทั้งใบไปเป็น `REJECTED` เหมือนเดิม (reject เป็นระดับ item เท่านั้น ไม่ใช่ unit-based)
+6. คำนวณ reservation status ใหม่จากผลรวม item status (`APPROVED`/`PARTIALLY_APPROVED`/`REJECTED`) เหมือนเดิม — ชื่อ reservation-level status ยังคงเดิม แม้ item-level จะข้ามไป `PREPARED` ตรงแล้วก็ตาม
 
 ### 7.6 `POST /reservations/:reservationId/items/decision`
 
-รับ itemIds สูงสุด 100 รายการ ตัดสินทั้งหมดใน transaction เดียว ล็อก asset ตาม UUID และ rollback ทั้งชุดเมื่อ item ใดไม่ผ่าน permission/state/availability
-
-### 7.7 `POST /reservations/:reservationId/items/:itemId/prepare`
-
-Warehouse staff ผูก `AssetUnit` จริงเข้ากับ item ที่ approved แล้ว ก่อนส่งมอบ นี่คือจุดที่ quantity-based allocation (ตั้งแต่ submit/approve) กลายเป็น serial-numbered assignment จริงเป็นครั้งแรก:
-
-1. ตรวจสอบสถานะของ `reservation_items` ต้องเป็น `APPROVED` เท่านั้น มิฉะนั้นตอบ `409`
-2. Input `assetUnitIds[]` ต้องมีจำนวนเท่ากับ `ReservationItem.quantity` ที่ approved พอดี (ไม่มากไม่น้อยกว่า) ทุก unit ต้องเป็นของ `asset_id` เดียวกับ item และมี unique กันเอง
-3. รัน**ใน `SERIALIZABLE` transaction** — lock แถว `asset_units` ที่เลือกตาม UUID ที่ sort แล้ว (ลด deadlock เมื่อสอง request แย่ง asset เดียวกัน), ตรวจซ้ำว่าทุก unit ยังมีสถานะ `ACTIVE` ณ เวลา lock ถ้ามี unit ใดไม่ `ACTIVE` แล้ว (ถูก prepare/reserve ไปโดย request อื่นระหว่างรอ) ตอบ `409` ทั้งชุดและไม่ commit บางส่วน — retry ตาม policy เดียวกับ allocation อื่น (สูงสุด 3 ครั้งสำหรับ Prisma `P2034`, ดู [database-and-concurrency.md](database-and-concurrency.md))
-4. เมื่อผ่าน: สร้าง `ReservationItemUnit` หนึ่งแถวต่อ unit (ผูก `reservation_item_id` + `asset_unit_id`), เปลี่ยน `AssetUnit.status` จาก `ACTIVE` เป็น `RESERVED` ทีละแถวพร้อม `AssetUnitEvent`, และอัปเดต `reservation_items.status` เป็น `PREPARED` พร้อม `prepared_by = actor.id`, `prepared_at = now` — ทั้งหมด commit พร้อมกันใน transaction เดียว
-5. Reservation status โดยรวมไม่เปลี่ยนจากขั้นตอนนี้ (ยังคง `APPROVED`/`PARTIALLY_APPROVED` จนกว่าจะ delivery-confirm ที่ §7.11)
+รับ `items[]` สูงสุด 100 รายการ แต่ละรายการระบุ `reservationItemId` และ (เมื่อ `decision = APPROVE`) `assetUnitIds[]` ของตัวเอง ตัดสินทั้งหมดใน transaction เดียว ล็อก `asset_units` ของทุก item ตาม UUID ที่ sort รวมกันทั้ง batch (กันสอง item แย่ง asset เดียวกันแล้ว deadlock) และ rollback ทั้งชุดเมื่อ item ใดไม่ผ่าน permission/state/availability/unit — เงื่อนไขต่อ item เหมือน §7.5 ทุกข้อ
 
 ### 7.10 `POST /reservations/:reservationId/cancel`
 
@@ -517,11 +516,14 @@ Requester หรือ actor ที่ manage reservation ได้ยกเล�
 
 ### 7.11 `POST /reservations/:reservationId/delivery-confirm`
 
-เจ้าหน้าที่คลังหรือ Area Manager ยืนยันการส่งมอบอุปกรณ์:
+เจ้าหน้าที่คลังหรือ Area Manager ยืนยันการส่งมอบอุปกรณ์ **แบบ unit-based**: รับ `items[]` แต่ละรายการระบุ `reservationItemId` และ `reservationItemUnitIds[]` (optional) ของตัวเอง — ไม่ต้องส่งมอบทั้ง item พร้อมกัน (breaking change จากรุ่นก่อนหน้าที่รับแค่ `itemIds[]` และส่งมอบทั้ง item เสมอ — ดู [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status))
 
-1. ตรวจสอบสถานะการจองต้องเป็น `APPROVED` (หรือ `PARTIALLY_APPROVED` ที่มีรายการ approved)
-2. อัปเดตสถานะของ `reservation_items` ที่อนุมัติเป็น `DELIVERED` พร้อมบันทึก `checkedOutBy = actor.id` และ `checkedOutAt = now`
-3. เปลี่ยนสถานะภาพรวมของ `reservations` เป็น `DELIVERY_CONFIRMED`
+1. ตรวจสอบสถานะการจองต้องเป็น `APPROVED` หรือ `PARTIALLY_APPROVED`/`DELIVERY_CONFIRMED` (รองรับยืนยัน handover เพิ่มเติมหลังบางรายการส่งมอบไปแล้ว)
+2. แต่ละ item ที่ระบุต้องอยู่สถานะ `PREPARED` และ actor ต้องผ่าน `canConfirmDelivery` ของ item นั้น — มิฉะนั้นตอบ `409`/`403`
+3. ถ้าไม่ส่ง `reservationItemUnitIds` มาสำหรับ item ใด ให้ถือว่าส่งมอบ**ทุก unit ที่ยังเป็น `ASSIGNED`** ของ item นั้น (พฤติกรรมเดิม เท่ากับ full handover) ถ้าส่งมา ต้องเป็น `ReservationItemUnit.id` ของ item นั้นเองและอยู่สถานะ `ASSIGNED` เท่านั้น มิฉะนั้นตอบ `409`
+4. อัปเดตเฉพาะ unit ที่เลือก: `ReservationItemUnit.status` และ `AssetUnit.status` จาก `ASSIGNED`/`RESERVED` เป็น `CHECKED_OUT` พร้อม `AssetUnitEvent` (`eventType: CHECKED_OUT`) และ `ReservationItemUnit.checkedOutAt = now` ต่อหน่วย
+5. หลังอัปเดต ถ้า item นั้น**ไม่เหลือ unit สถานะ `ASSIGNED` อีกแล้ว** ให้เปลี่ยน `reservation_items.status` เป็น `DELIVERED` พร้อมบันทึก `checkedOutBy = actor.id`, `checkedOutAt = now` **ที่ระดับ item** (หมายถึงเวลา/actor ที่ทำให้ item ส่งมอบครบ) — ถ้ายังมี unit ค้าง `ASSIGNED` อยู่ item ยังคง `PREPARED` ต่อไป (ยืนยัน handover ส่วนที่เหลือได้อีกในคำขอถัดไป)
+6. เปลี่ยนสถานะภาพรวมของ `reservations` เป็น `DELIVERY_CONFIRMED` เมื่อทุก item ที่ approved/active เป็น `DELIVERED` หรือ `RETURNED` ครบ (เหมือนเดิม — ไม่นับ item ที่ยัง `PREPARED` บางส่วน)
 
 ### 7.12 Past date/time validation (creation and reschedule)
 
@@ -544,7 +546,7 @@ flowchart LR
 
 ### 8.2 `POST /reservations/:reservationId/returns`
 
-ผู้ยืมหรือ participant ส่งสลิปเพื่อคืนอุปกรณ์ ระบุ `items[]` แต่ละรายการมี `reservationItemId` และ `reservationItemUnitIds[]` (1–200 unit ต่อ item, unique) คือ asset unit ที่ยังไม่ได้คืน ตรวจว่า unit แต่ละตัวอยู่ในสถานะ checked-out ของ item นั้นจริง ก่อนสร้างสลิป สร้างเรคคอร์ด `returns` ในสถานะ `PENDING`; รองรับ `immediateApprove` เพื่อให้ผู้ส่งที่มีสิทธิ์ approve ในตัวเองข้ามขั้นตรวจได้ทันที
+ผู้ยืมหรือ participant ส่งสลิปเพื่อคืนอุปกรณ์ ระบุ `items[]` แต่ละรายการมี `reservationItemId` และ `reservationItemUnitIds[]` (1–200 unit ต่อ item, unique) คือ asset unit ที่ยังไม่ได้คืน ตรวจว่า unit แต่ละตัวอยู่ในสถานะ checked-out ของ item นั้นจริง ก่อนสร้างสลิป สร้างเรคคอร์ด `returns` ในสถานะ `PENDING` เสมอ — ทุกสลิปต้องผ่านขั้นตรวจสภาพ (§8.3) ไม่มี self-approve ข้ามขั้นตอน
 
 ### 8.3 `POST /reservations/:reservationId/returns/:returnId/decision`
 
@@ -556,6 +558,14 @@ flowchart LR
 - แต่ละการเปลี่ยนบันทึกใน `AssetUnitEvent` (`eventType` = `RETURNED_GOOD` / `RETURNED_BROKEN` / `RETURNED_LOST`) ไม่ใช่การหักลบ `totalQuantity` เพราะระบบไม่มี field นี้
 
 ทุก unit ที่อยู่ในสลิปต้องถูกตัดสิน condition ครบก่อนเปลี่ยนสถานะ item เป็น `RETURNED`; ถ้า reject ทั้งสลิป ระบบลบ claim (`ReturnItemUnit`) เพื่อปลดปล่อย unit ให้ส่งสลิปใหม่ได้ โดยไม่แตะสถานะ item หรือ asset unit เดิม เมื่อทุก item ที่ active/approved ของ reservation กลายเป็น `RETURNED` ครบ สถานะการจองจะถูกปรับเป็น `COMPLETED` อัตโนมัติ
+
+ผลของ decision ต่อสถานะ `reservation` (`RETURN_CONFIRMED` ไม่ถูก persist เป็นสถานะพัก — ดู [lifecycle-and-state-machines.md §2](../software_spec/lifecycle-and-state-machines.md#reservation-status)):
+
+- **APPROVE ครบทุก item**: `reservation.status` → `COMPLETED`
+- **APPROVE บางส่วน (ยังมี item ค้าง)**: `reservation.status` กลับไป `DELIVERY_CONFIRMED` ทันที เพื่อรอส่งสลิปคืนเพิ่มเติม
+- **REJECT**: ถ้าไม่มี `Return` อื่นของ reservation นี้ที่ยังสถานะ `PENDING` แล้ว `reservation.status` จะกลับไป `DELIVERY_CONFIRMED`; ถ้ายังมีสลิปอื่นค้างตัดสินอยู่ จะคงสถานะ `RETURN_PENDING` ไว้
+
+การส่งสลิปคืน (§8.2) เปลี่ยน `reservation.status` จาก `DELIVERY_CONFIRMED` เป็น `RETURN_PENDING` ทันทีที่สร้างสลิปสำเร็จ
 
 ## 9. Upload API
 

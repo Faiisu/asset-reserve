@@ -7,6 +7,10 @@ import { ApiException } from "../common/api-exception.js";
 import { decodeCursor, pageInfo } from "../common/pagination.js";
 import { PrismaService } from "../database/prisma.service.js";
 import {
+  HARD_ALLOCATION_ITEM_STATUSES,
+  HARD_ALLOCATION_RESERVATION_STATUSES,
+} from "../common/reservation-allocation.js";
+import {
   assertAreaPermission,
   hasAreaPermission,
   permittedAreaIds,
@@ -25,20 +29,8 @@ const assetInclude = {
   createdBy: { include: { profile: true } },
 } satisfies Prisma.AssetInclude;
 
-const allocatedItemStatuses = [
-  "APPROVED",
-  "PREPARED",
-  "CHECKED_OUT",
-  "DELIVERED",
-];
-const allocatedReservationStatuses = [
-  "PARTIALLY_APPROVED",
-  "APPROVED",
-  "DELIVERY_CONFIRMED",
-  "ACTIVE",
-  "RETURN",
-  "RETURN_PENDING",
-];
+const allocatedItemStatuses = HARD_ALLOCATION_ITEM_STATUSES;
+const allocatedReservationStatuses = HARD_ALLOCATION_RESERVATION_STATUSES;
 
 type UnitCounts = {
   total: number;
@@ -242,6 +234,7 @@ export class AssetsService {
       assertAreaPermission(actor, "asset:create", item.managementAreaId);
     }
     await this.assertReferences(input.items);
+    await this.assertNoExistingNameConflict(input.items);
 
     const prepared = input.items.map((item) => ({
       id: randomUUID(),
@@ -578,9 +571,36 @@ export class AssetsService {
 
   private assertUniqueAssetInputs(items: CreateAssetDto[]) {
     const keys = items.map(
-      (item) => `${item.managementAreaId} ${item.name}`,
+      (item) => `${item.managementAreaId} ${item.name.toLowerCase()}`,
     );
     this.assertUniqueIds(keys, "items");
+  }
+
+  /**
+   * Name uniqueness is case-insensitive by policy (matches the frontend
+   * batch-form dedupe check) even though the DB's @@unique([managementAreaId,
+   * name]) constraint is case-sensitive -- a same-case collision is still
+   * caught by rethrowAssetWrite()'s P2002 handling; this covers the
+   * case-insensitive gap on top of it, against already-persisted assets.
+   */
+  private async assertNoExistingNameConflict(items: CreateAssetDto[]) {
+    if (!items.length) return;
+    const existing = await this.prisma.asset.findFirst({
+      where: {
+        OR: items.map((item) => ({
+          managementAreaId: item.managementAreaId,
+          name: { equals: item.name, mode: "insensitive" },
+        })),
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new ApiException(
+        409,
+        "ASSET_NAME_ALREADY_EXISTS",
+        "An asset with this name already exists in the management area.",
+      );
+    }
   }
 
   private assertUniqueIds(ids: string[], field: string) {

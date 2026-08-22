@@ -324,7 +324,7 @@ Table reservation_items {
 
 
 // =====================================================
-// RESERVATION ITEM UNITS (specific serials assigned at prepare time)
+// RESERVATION ITEM UNITS (specific serials assigned when the item is approved -- §7.5)
 // =====================================================
 
 Table reservation_item_units {

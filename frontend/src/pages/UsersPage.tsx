@@ -591,7 +591,7 @@ function CreateUserDialog({
     <Dialog
       open={open}
       title="Create new user"
-      description="Create a username + password account. The user must link their Google account before they can otherwise use the app -- that's where their name, email, and photo come from."
+      description="Create a username + password account. The user must link a Google or Microsoft account before they can otherwise use the app -- that's where their name, email, and photo come from."
       onClose={onClose}
       wide
     >

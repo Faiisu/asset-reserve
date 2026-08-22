@@ -1,7 +1,6 @@
 import {
   CalendarDays,
   Check,
-  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -34,6 +33,7 @@ import {
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
+import { CancelReservationDialog } from "../components/CancelReservationDialog";
 import {
   AssetPicture,
   Button,
@@ -41,7 +41,6 @@ import {
   ErrorState,
   Field,
   Select,
-  Textarea,
   cx,
 } from "../components/ui";
 import { reservationStatusLabel } from "../reservations";
@@ -55,13 +54,10 @@ import type {
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const STATUS_COLOR_CLASS: Record<ReservationStatus, string> = {
   DRAFT: "calendar-legend__draft",
-  PENDING: "calendar-legend__pending_approval",
   PENDING_APPROVAL: "calendar-legend__pending_approval",
   PARTIALLY_APPROVED: "calendar-legend__partially_approved",
   APPROVED: "calendar-legend__approved",
   DELIVERY_CONFIRMED: "calendar-legend__delivery_confirmed",
-  ACTIVE: "calendar-legend__delivery_confirmed",
-  RETURN: "calendar-legend__return_pending",
   RETURN_PENDING: "calendar-legend__return_pending",
   RETURN_CONFIRMED: "calendar-legend__return_confirmed",
   COMPLETED: "calendar-legend__completed",
@@ -69,6 +65,11 @@ const STATUS_COLOR_CLASS: Record<ReservationStatus, string> = {
   CANCELLED: "calendar-legend__cancelled",
 };
 
+// RETURN_CONFIRMED is left out here -- per
+// docs/software_spec/lifecycle-and-state-machines.md §6, the backend never
+// actually persists it as a resting reservation status (it resolves straight
+// to COMPLETED or DELIVERY_CONFIRMED in the same operation), so offering it
+// as a filter would always return zero results.
 const DISPLAY_STATUSES: ReservationStatus[] = [
   "DRAFT",
   "PENDING_APPROVAL",
@@ -76,7 +77,6 @@ const DISPLAY_STATUSES: ReservationStatus[] = [
   "APPROVED",
   "DELIVERY_CONFIRMED",
   "RETURN_PENDING",
-  "RETURN_CONFIRMED",
   "COMPLETED",
   "REJECTED",
   "CANCELLED",
@@ -84,14 +84,11 @@ const DISPLAY_STATUSES: ReservationStatus[] = [
 
 const STATUS_OPTION_STATUSES: Record<ReservationStatus, ReservationStatus[]> = {
   DRAFT: ["DRAFT"],
-  PENDING: ["PENDING", "PENDING_APPROVAL"],
-  PENDING_APPROVAL: ["PENDING_APPROVAL", "PENDING"],
+  PENDING_APPROVAL: ["PENDING_APPROVAL"],
   PARTIALLY_APPROVED: ["PARTIALLY_APPROVED"],
   APPROVED: ["APPROVED"],
-  DELIVERY_CONFIRMED: ["DELIVERY_CONFIRMED", "ACTIVE"],
-  ACTIVE: ["ACTIVE", "DELIVERY_CONFIRMED"],
-  RETURN: ["RETURN", "RETURN_PENDING"],
-  RETURN_PENDING: ["RETURN_PENDING", "RETURN"],
+  DELIVERY_CONFIRMED: ["DELIVERY_CONFIRMED"],
+  RETURN_PENDING: ["RETURN_PENDING"],
   RETURN_CONFIRMED: ["RETURN_CONFIRMED"],
   COMPLETED: ["COMPLETED"],
   REJECTED: ["REJECTED"],
@@ -147,9 +144,9 @@ export function CalendarPage() {
   const [cancelTarget, setCancelTarget] = useState<ReservationSummary | null>(
     null,
   );
-  const [eventAction, setEventAction] = useState<
-    "APPROVE" | "REJECT" | "CANCEL" | null
-  >(null);
+  const [eventAction, setEventAction] = useState<"REJECT" | "CANCEL" | null>(
+    null,
+  );
   const [eventActionError, setEventActionError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
@@ -673,7 +670,10 @@ export function CalendarPage() {
     setEventMenu({ reservation, top, left });
   }
 
-  async function decideEvent(decision: "APPROVE" | "REJECT") {
+  // Reject only -- approving now requires picking serial-numbered units per
+  // item (§7.5), which this lightweight quick-action menu has no room for.
+  // Use the Reservation Detail page's Approve flow instead.
+  async function decideEvent(decision: "REJECT") {
     if (!eventMenu) return;
     setEventAction(decision);
     setEventActionError("");
@@ -681,11 +681,7 @@ export function CalendarPage() {
       const detail = await api.reservation(eventMenu.reservation.id);
       const itemIds = detail.items
         .filter(
-          (item) =>
-            item.status === "PENDING" &&
-            (decision === "APPROVE"
-              ? item.capabilities.canApprove
-              : item.capabilities.canReject),
+          (item) => item.status === "PENDING" && item.capabilities.canReject,
         )
         .map((item) => item.id);
       if (itemIds.length === 0) {
@@ -696,7 +692,7 @@ export function CalendarPage() {
       }
       await api.decideReservationItems(
         eventMenu.reservation.id,
-        itemIds,
+        itemIds.map((reservationItemId) => ({ reservationItemId })),
         decision,
       );
       setEventMenu(null);
@@ -1207,11 +1203,6 @@ export function CalendarPage() {
         <EventActionMenu
           menuRef={eventMenuRef}
           menu={eventMenu}
-          canApprove={
-            eventMenu.reservation.capabilities.canReview &&
-            eventMenu.reservation.pendingItemCount > 0 &&
-            hasPermission("reservation:approve")
-          }
           canReject={
             eventMenu.reservation.capabilities.canReview &&
             eventMenu.reservation.pendingItemCount > 0 &&
@@ -1533,7 +1524,6 @@ function CalendarAssetOption({
 function EventActionMenu({
   menuRef,
   menu,
-  canApprove,
   canReject,
   canCancel,
   action,
@@ -1544,12 +1534,11 @@ function EventActionMenu({
 }: {
   menuRef: RefObject<HTMLElement | null>;
   menu: Exclude<EventMenu, null>;
-  canApprove: boolean;
   canReject: boolean;
   canCancel: boolean;
-  action: "APPROVE" | "REJECT" | "CANCEL" | null;
+  action: "REJECT" | "CANCEL" | null;
   error: string;
-  onDecision: (decision: "APPROVE" | "REJECT") => void;
+  onDecision: (decision: "REJECT") => void;
   onCancelRequest: () => void;
   onClose: () => void;
 }) {
@@ -1608,7 +1597,7 @@ function EventActionMenu({
         >
           <Eye size={14} /> View
         </Link>
-        {(canApprove || canReject || canCancel) && <span aria-hidden />}
+        {(canReject || canCancel) && <span aria-hidden />}
         {canCancel && (
           <Button
             variant="danger"
@@ -1631,82 +1620,8 @@ function EventActionMenu({
             <X size={14} /> Reject
           </Button>
         )}
-        {canApprove && (
-          <Button
-            size="sm"
-            loading={action === "APPROVE"}
-            disabled={Boolean(action)}
-            onClick={() => onDecision("APPROVE")}
-          >
-            <CheckCircle2 size={14} /> Approve
-          </Button>
-        )}
       </footer>
     </aside>
-  );
-}
-
-function CancelReservationDialog({
-  open,
-  eventName,
-  onClose,
-  onConfirm,
-}: {
-  open: boolean;
-  eventName: string;
-  onClose: () => void;
-  onConfirm: (reason?: string) => Promise<void>;
-}) {
-  const [reason, setReason] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<unknown>(null);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      await onConfirm(reason.trim() || undefined);
-      onClose();
-    } catch (caught) {
-      setError(caught);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <Dialog
-      open={open}
-      title="Cancel reservation"
-      description={`Are you sure you want to cancel "${eventName}"? All allocated assets will be released back into available inventory.`}
-      onClose={onClose}
-    >
-      <form className="dialog-form" onSubmit={(event) => void submit(event)}>
-        {Boolean(error) && <ErrorState error={error} />}
-        <Field
-          label="Reason for cancellation"
-          hint="Optional — provide context for managers and requesters"
-        >
-          <Textarea
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            maxLength={2000}
-            rows={3}
-            placeholder="e.g. Event cancelled, date changed, or assets no longer needed"
-          />
-        </Field>
-        <div className="dialog-actions">
-          <Button type="button" variant="quiet" onClick={onClose}>
-            Keep reservation
-          </Button>
-          <Button type="submit" variant="danger" loading={loading}>
-            <XCircle size={17} />
-            Confirm cancellation
-          </Button>
-        </div>
-      </form>
-    </Dialog>
   );
 }
 

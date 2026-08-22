@@ -217,7 +217,7 @@ function AreaDialog({
     <Dialog
       open={Boolean(area)}
       title={existing ? "Edit management area" : "Create management area"}
-      description="Define a physical workspace or team location where assets and roles are grouped."
+      description="Define a physical location or team grouping where assets and roles are managed."
       onClose={onClose}
     >
       <form className="form-stack" onSubmit={submit}>
@@ -240,7 +240,7 @@ function AreaDialog({
           <Textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="Optional workspace description or location details"
+            placeholder="Optional description or location details"
             rows={4}
             maxLength={1000}
           />

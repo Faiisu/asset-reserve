@@ -397,6 +397,13 @@ export class ReturnsService {
           },
         });
 
+        if (reservation.status === "DELIVERY_CONFIRMED") {
+          await tx.reservation.update({
+            where: { id: reservationId },
+            data: { status: "RETURN_PENDING", updatedAt: now },
+          });
+        }
+
         await this.logActivity(tx, {
           reservationId,
           actorId: actor.user.id,
@@ -415,24 +422,6 @@ export class ReturnsService {
         );
       }
       throw error;
-    }
-
-    if (input.immediateApprove) {
-      const canImmediateApprove = input.items.every((line) => {
-        const item = itemMap.get(line.reservationItemId)!;
-        return hasAreaPermission(
-          actor,
-          "return:approve",
-          item.asset.managementAreaId,
-        );
-      });
-
-      if (canImmediateApprove) {
-        return this.decide(actor, reservationId, returnId, {
-          decision: "APPROVE",
-          description: "Approved upon return recording.",
-        });
-      }
     }
 
     return this.get(actor, returnId);
@@ -492,11 +481,11 @@ export class ReturnsService {
         condition: "GOOD" | "BROKEN" | "LOST";
       }
     >();
-    if (input.decision === "APPROVE" && input.items) {
+    if (input.decision === "APPROVE") {
       const allUnitIds = new Set(
         returnRecord.items.flatMap((item) => item.units.map((u) => u.reservationItemUnitId)),
       );
-      for (const line of input.items) {
+      for (const line of input.items ?? []) {
         for (const unit of line.units ?? []) {
           if (!allUnitIds.has(unit.reservationItemUnitId)) {
             throw new ApiException(
@@ -509,6 +498,15 @@ export class ReturnsService {
             condition: unit.condition,
           });
         }
+      }
+      // Per docs/software_spec/business-rules-and-validation.md §3 (Return):
+      // the decision must specify a condition per unit -- no silent default.
+      if (conditionByUnitId.size !== allUnitIds.size) {
+        throw new ApiException(
+          400,
+          "MISSING_UNIT_CONDITION",
+          "Every serial unit in this return must have a condition (GOOD/BROKEN/LOST) before it can be approved.",
+        );
       }
     }
 
@@ -634,6 +632,11 @@ export class ReturnsService {
             where: { id: reservationId },
             data: { status: "COMPLETED", updatedAt: decidedAt },
           });
+        } else {
+          await tx.reservation.update({
+            where: { id: reservationId },
+            data: { status: "DELIVERY_CONFIRMED", updatedAt: decidedAt },
+          });
         }
       } else {
         // REJECT: free the claimed units so they can be resubmitted in a
@@ -663,6 +666,22 @@ export class ReturnsService {
             decidedAt,
           },
         });
+
+        if (returnRecord.reservation.status === "RETURN_PENDING") {
+          const otherPendingReturns = await tx.return.count({
+            where: {
+              reservationId,
+              status: "PENDING",
+              id: { not: returnId },
+            },
+          });
+          if (otherPendingReturns === 0) {
+            await tx.reservation.update({
+              where: { id: reservationId },
+              data: { status: "DELIVERY_CONFIRMED", updatedAt: decidedAt },
+            });
+          }
+        }
       }
 
       await this.logActivity(tx, {
@@ -707,7 +726,8 @@ export class ReturnsService {
       status: record.status,
       note: record.note,
       returnedAt: record.returnedAt?.toISOString() ?? null,
-      returnedBy: this.userDto(record.returner),
+      returnedBy: record.returnedBy,
+      returner: this.userDto(record.returner),
       reservation: {
         id: record.reservation.id,
         eventName: record.reservation.eventName,
@@ -715,6 +735,7 @@ export class ReturnsService {
       },
       items: record.items.map((item) => ({
         id: item.id,
+        returnId: item.returnId,
         reservationItemId: item.reservationItemId,
         assetId: item.reservationItem.asset.id,
         assetName: item.reservationItem.asset.name,
@@ -726,13 +747,16 @@ export class ReturnsService {
         pictureUrl: item.pictureUrl,
         units: item.units.map((unit) => ({
           id: unit.id,
+          returnItemId: unit.returnItemId,
           reservationItemUnitId: unit.reservationItemUnitId,
           assetUnitId: unit.reservationItemUnit.assetUnitId,
           serialNumber: unit.reservationItemUnit.assetUnit.serialNumber,
           condition: unit.condition,
           pictureUrl: unit.pictureUrl,
           note: unit.note,
+          createdAt: unit.createdAt.toISOString(),
         })),
+        createdAt: item.createdAt.toISOString(),
       })),
       approval: record.approval
         ? {

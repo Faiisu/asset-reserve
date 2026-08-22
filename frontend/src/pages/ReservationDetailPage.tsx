@@ -9,16 +9,16 @@ import {
   XCircle,
   Info,
   CheckCircle,
-  ShieldCheck,
   Check,
   X,
   ClipboardCheck,
   Printer,
 } from "lucide-react";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { Fragment, useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
+import { CancelReservationDialog } from "../components/CancelReservationDialog";
 import { ReservationHorizontalTracker } from "../components/ReservationHorizontalTracker";
 import { ReservationPrintDocument } from "../components/ReservationPrintDocument";
 import {
@@ -29,13 +29,25 @@ import {
   Notice,
   formatDate,
 } from "../components/ui";
-import { reservationDuration, reservationStatusLabel } from "../reservations";
+import {
+  reservationDuration,
+  reservationItemStatusLabel,
+  reservationStatusLabel,
+} from "../reservations";
 import type {
   ReservationDetail,
+  ReservationStatus,
   CreateReturnItemInput,
   DecideReturnItemInput,
   ReturnItemUnitCondition,
+  AssetUnit,
 } from "../types";
+
+const RETURN_PHASE_STATUSES: ReservationStatus[] = [
+  "DELIVERY_CONFIRMED",
+  "RETURN_PENDING",
+  "RETURN_CONFIRMED",
+];
 
 export function ReservationDetailPage() {
   const { reservationId } = useParams<{ reservationId: string }>();
@@ -49,19 +61,41 @@ export function ReservationDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
 
   // Selection states for manifest actions
-  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
-  const [selectedDeliveryItemIds, setSelectedDeliveryItemIds] = useState<string[]>([]);
-  const [selectedReturnItemIds, setSelectedReturnItemIds] = useState<string[]>([]);
-  const [selectedInspectItemIds, setSelectedInspectItemIds] = useState<string[]>([]);
 
-  // Remarks / notes for each state
-  const [approvalComment, setApprovalComment] = useState("");
+  // Handover: which ASSIGNED serial units to hand over now, keyed by
+  // reservationItemUnitId -- handover is unit-based (partial handover
+  // allowed), matching how the return step already selects units.
+  const [selectedDeliveryUnitIds, setSelectedDeliveryUnitIds] = useState<
+    Record<string, boolean>
+  >({});
+  // Inspection: which serial units (of the pending return) the reviewer is
+  // explicitly reporting a condition for, keyed by reservationItemUnitId.
+  // Checked = submit this unit's condition; unchecked = omit it, which the
+  // backend already defaults to GOOD -- so 0 checked is a valid "everything
+  // is fine" state, not an incomplete one.
+  const [selectedInspectUnitIds, setSelectedInspectUnitIds] = useState<
+    Record<string, boolean>
+  >({});
+
+  // Approval: ACTIVE serial units available per asset, and the units
+  // currently checked per reservation item, keyed by item.id -- approving an
+  // item assigns these units in the same request (§7.5), there is no
+  // separate "prepare" step.
+  const [decisionUnitOptions, setDecisionUnitOptions] = useState<
+    Record<string, AssetUnit[]>
+  >({});
+  const [decisionUnitSelections, setDecisionUnitSelections] = useState<
+    Record<string, string[]>
+  >({});
+
+  // Remarks / notes for each state -- approval comment is per-item since
+  // Approve/Reject are now per-row actions, not a shared batch decision.
+  const [approvalComments, setApprovalComments] = useState<Record<string, string>>({});
   const [inspectionComment, setInspectionComment] = useState("");
-
-  // Approval quantity adjustments
-  const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
+  const [returnNote, setReturnNote] = useState("");
 
   // Drop-off: which CHECKED_OUT serial units the borrower is returning, keyed
   // by reservationItemUnitId.
@@ -76,6 +110,57 @@ export function ReservationDetailPage() {
     Record<string, ReturnItemUnitCondition>
   >({});
 
+  // Seed "select everything eligible by default" state from a reservation
+  // snapshot. Used both on initial load and after any action that returns an
+  // updated reservation in-place, so units that just became eligible (e.g.
+  // just approved into PREPARED, or just handed over into CHECKED_OUT)
+  // start selected too, instead of only units that were already eligible
+  // when the page first loaded.
+  const seedDefaultSelections = (data: ReservationDetail) => {
+    // Default every checked-out (not-yet-claimed) serial unit to selected
+    // for return.
+    const initialReturnUnits: Record<string, boolean> = {};
+    data.items.forEach((item) => {
+      item.units
+        .filter((unit) => unit.status === "CHECKED_OUT")
+        .forEach((unit) => {
+          initialReturnUnits[unit.id] = true;
+        });
+    });
+    setSelectedReturnUnitIds(initialReturnUnits);
+
+    // Default every assigned (not-yet-handed-over) serial unit to selected
+    // for handover.
+    const initialDeliveryUnits: Record<string, boolean> = {};
+    data.items.forEach((item) => {
+      item.units
+        .filter((unit) => unit.status === "ASSIGNED")
+        .forEach((unit) => {
+          initialDeliveryUnits[unit.id] = true;
+        });
+    });
+    setSelectedDeliveryUnitIds(initialDeliveryUnits);
+
+    // Initialize inspection state for the pending return slip: default
+    // every undecided unit to GOOD, matching the backend's own default.
+    const pendingReturn = data.returns.find(
+      (ret) => ret.status === "PENDING" || ret.approval?.status === "PENDING",
+    );
+    const initialConditions: Record<string, ReturnItemUnitCondition> = {};
+    const initialInspectUnits: Record<string, boolean> = {};
+    if (pendingReturn && pendingReturn.items && pendingReturn.items.length > 0) {
+      pendingReturn.items.forEach((item) => {
+        item.units.forEach((unit) => {
+          initialConditions[unit.reservationItemUnitId] =
+            unit.condition ?? "GOOD";
+          initialInspectUnits[unit.reservationItemUnitId] = true;
+        });
+      });
+    }
+    setSelectedInspectUnitIds(initialInspectUnits);
+    setUnitConditions(initialConditions);
+  };
+
   // Fetch reservation data
   const loadReservation = useCallback(async () => {
     if (!reservationId) return;
@@ -84,45 +169,28 @@ export function ReservationDetailPage() {
     try {
       const data = await api.reservation(reservationId);
       setReservation(data);
+      seedDefaultSelections(data);
 
-      // Default every checked-out (not-yet-claimed) serial unit to selected
-      // for return, and initialize approvable-item quantities.
-      const initialReturnUnits: Record<string, boolean> = {};
-      const initialItemQty: Record<string, number> = {};
-      data.items.forEach((item) => {
-        item.units
-          .filter((unit) => unit.status === "CHECKED_OUT")
-          .forEach((unit) => {
-            initialReturnUnits[unit.id] = true;
-          });
-        initialItemQty[item.id] = item.quantity;
-      });
-      setSelectedReturnUnitIds(initialReturnUnits);
-      setItemQuantities(initialItemQty);
-
-      // Initialize inspection state for the pending return slip: default
-      // every undecided unit to GOOD, matching the backend's own default.
-      const pendingReturn = data.returns.find(
-        (ret) => ret.status === "PENDING" || ret.approval?.status === "PENDING",
+      // Fetch ACTIVE serial units for every asset with an item awaiting
+      // approval -- approving assigns units in the same request (§7.5).
+      const pendingItems = data.items.filter(
+        (item) => item.status === "PENDING" && item.capabilities?.canApprove,
       );
-      const initialConditions: Record<string, ReturnItemUnitCondition> = {};
-      if (pendingReturn && pendingReturn.items && pendingReturn.items.length > 0) {
-        pendingReturn.items.forEach((item) => {
-          item.units.forEach((unit) => {
-            initialConditions[unit.reservationItemUnitId] =
-              unit.condition ?? "GOOD";
-          });
-        });
-        setSelectedInspectItemIds(pendingReturn.items.map((i) => i.reservationItemId));
+      const distinctAssetIds = [...new Set(pendingItems.map((i) => i.asset.id))];
+      if (distinctAssetIds.length > 0) {
+        const results = await Promise.all(
+          distinctAssetIds.map((assetId) =>
+            api
+              .assetUnits(assetId, { status: "ACTIVE", limit: 100 })
+              .then((res) => [assetId, res.data] as const),
+          ),
+        );
+        setDecisionUnitOptions(Object.fromEntries(results));
       } else {
-        setSelectedInspectItemIds([]);
+        setDecisionUnitOptions({});
       }
-      setUnitConditions(initialConditions);
-
-      // Reset selection state
-      setSelectedItemIds([]);
-      setSelectedDeliveryItemIds([]);
-      setSelectedReturnItemIds([]);
+      setDecisionUnitSelections({});
+      setApprovalComments({});
     } catch (err: any) {
       setError(err.message ?? "Failed to load reservation details.");
     } finally {
@@ -149,11 +217,40 @@ export function ReservationDetailPage() {
   const deliverableItems = useMemo(() => {
     if (!reservation) return [];
     return reservation.items.filter(
-      (item) =>
-        item.capabilities?.canConfirmDelivery &&
-        ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status),
+      (item) => item.capabilities?.canConfirmDelivery && item.status === "PREPARED",
     );
   }, [reservation]);
+
+  // Every ASSIGNED serial unit across deliverable items -- handover
+  // selection is unit-based (partial handover allowed), not grouped by item.
+  const deliverableUnitIds = useMemo(
+    () =>
+      deliverableItems.flatMap((item) =>
+        item.units.filter((unit) => unit.status === "ASSIGNED").map((unit) => unit.id),
+      ),
+    [deliverableItems],
+  );
+  const selectedDeliveryUnitCount = deliverableUnitIds.filter(
+    (id) => selectedDeliveryUnitIds[id],
+  ).length;
+
+  const toggleSelectAllDeliveryUnits = () => {
+    if (selectedDeliveryUnitCount === deliverableUnitIds.length) {
+      setSelectedDeliveryUnitIds((prev) => {
+        const next = { ...prev };
+        deliverableUnitIds.forEach((id) => delete next[id]);
+        return next;
+      });
+    } else {
+      setSelectedDeliveryUnitIds((prev) => {
+        const next = { ...prev };
+        deliverableUnitIds.forEach((id) => {
+          next[id] = true;
+        });
+        return next;
+      });
+    }
+  };
 
   // Returnable items helper (Pending Return)
   const returnableItems = useMemo(() => {
@@ -168,24 +265,71 @@ export function ReservationDetailPage() {
       return (
         itemCanReturn &&
         remaining > 0 &&
-        (["DELIVERED", "APPROVED", "DELIVERY_CONFIRMED"].includes(item.status) ||
-          ["DELIVERY_CONFIRMED", "ACTIVE"].includes(reservation.status))
+        (item.status === "DELIVERED" || RETURN_PHASE_STATUSES.includes(reservation.status))
       );
     });
   }, [reservation]);
 
-  // Pending return slip that requires inspection (Area Manager)
+  // Every CHECKED_OUT serial unit across returnable items -- return selection
+  // is unit-based, not grouped by item (no item-level checkbox).
+  const returnableUnitIds = useMemo(
+    () =>
+      returnableItems.flatMap((item) =>
+        item.units.filter((unit) => unit.status === "CHECKED_OUT").map((unit) => unit.id),
+      ),
+    [returnableItems],
+  );
+  const selectedReturnUnitCount = returnableUnitIds.filter(
+    (id) => selectedReturnUnitIds[id],
+  ).length;
+
+  const toggleSelectAllReturnUnits = () => {
+    if (selectedReturnUnitCount === returnableUnitIds.length) {
+      setSelectedReturnUnitIds((prev) => {
+        const next = { ...prev };
+        returnableUnitIds.forEach((id) => delete next[id]);
+        return next;
+      });
+    } else {
+      setSelectedReturnUnitIds((prev) => {
+        const next = { ...prev };
+        returnableUnitIds.forEach((id) => {
+          next[id] = true;
+        });
+        return next;
+      });
+    }
+  };
+
+  // Pending return slip that requires inspection (Area Manager). Trust the
+  // backend-computed capability -- it already requires return:approve on
+  // every item's management area (not just the first), so re-deriving it
+  // client-side against only one item risks showing this UI to a manager
+  // who doesn't actually have permission over the whole return.
   const pendingInspectableReturn = useMemo(() => {
     if (!reservation || !reservation.returns) return null;
     return (
       reservation.returns.find(
         (ret) =>
           (ret.status === "PENDING" || ret.approval?.status === "PENDING") &&
-          (ret.capabilities?.canApprove ||
-            hasAreaPermission("return:approve", ret.items?.[0]?.managementArea?.id || ""))
+          ret.capabilities?.canApprove
       ) ?? null
     );
-  }, [reservation, hasAreaPermission]);
+  }, [reservation]);
+
+  // Every serial unit that belongs to the pending return -- inspection
+  // selection is unit-based (checked = submit its condition, matching how
+  // handover/return already select units), not grouped by reservation item.
+  const inspectableUnitIds = useMemo(
+    () =>
+      (pendingInspectableReturn?.items || []).flatMap((item) =>
+        item.units.map((unit) => unit.reservationItemUnitId),
+      ),
+    [pendingInspectableReturn],
+  );
+  const selectedInspectUnitCount = inspectableUnitIds.filter(
+    (id) => selectedInspectUnitIds[id],
+  ).length;
 
   // Print PDF is available only when return is approved or partially approved
   const canPrintPdf = useMemo(() => {
@@ -203,77 +347,59 @@ export function ReservationDetailPage() {
     );
   }, [reservation]);
 
-  // Toggle selection for approval
-  const toggleItemSelection = (itemId: string) => {
-    setSelectedItemIds((prev) =>
-      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
-    );
+  const toggleDecisionUnit = (itemId: string, assetUnitId: string) => {
+    setDecisionUnitSelections((prev) => {
+      const current = prev[itemId] ?? [];
+      if (current.includes(assetUnitId)) {
+        return { ...prev, [itemId]: current.filter((id) => id !== assetUnitId) };
+      }
+      const item = reservation?.items.find((i) => i.id === itemId);
+      if (item && current.length >= item.quantity) return prev;
+      return { ...prev, [itemId]: [...current, assetUnitId] };
+    });
   };
 
-  const toggleSelectAllApprovable = () => {
-    if (selectedItemIds.length === approvableItems.length) {
-      setSelectedItemIds([]);
+  // Toggle selection for inspection review -- per serial unit
+  const toggleInspectUnitSelection = (unitId: string) => {
+    setSelectedInspectUnitIds((prev) => ({ ...prev, [unitId]: !prev[unitId] }));
+  };
+
+  const toggleSelectAllInspectUnits = () => {
+    if (selectedInspectUnitCount === inspectableUnitIds.length) {
+      setSelectedInspectUnitIds((prev) => {
+        const next = { ...prev };
+        inspectableUnitIds.forEach((id) => delete next[id]);
+        return next;
+      });
     } else {
-      setSelectedItemIds(approvableItems.map((i) => i.id));
+      setSelectedInspectUnitIds((prev) => {
+        const next = { ...prev };
+        inspectableUnitIds.forEach((id) => {
+          next[id] = true;
+        });
+        return next;
+      });
     }
   };
 
-  // Toggle selection for delivery handover
-  const toggleDeliveryItemSelection = (itemId: string) => {
-    setSelectedDeliveryItemIds((prev) =>
-      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
-    );
-  };
-
-  const toggleSelectAllDeliverable = () => {
-    if (selectedDeliveryItemIds.length === deliverableItems.length) {
-      setSelectedDeliveryItemIds([]);
-    } else {
-      setSelectedDeliveryItemIds(deliverableItems.map((item) => item.id));
-    }
-  };
-
-  // Toggle selection for equipment return
-  const toggleReturnItemSelection = (itemId: string) => {
-    setSelectedReturnItemIds((prev) =>
-      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
-    );
-  };
-
-  const toggleSelectAllReturnable = () => {
-    if (selectedReturnItemIds.length === returnableItems.length) {
-      setSelectedReturnItemIds([]);
-    } else {
-      setSelectedReturnItemIds(returnableItems.map((item) => item.id));
-    }
-  };
-
-  // Toggle selection for inspection review
-  const toggleInspectItemSelection = (itemId: string) => {
-    setSelectedInspectItemIds((prev) =>
-      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
-    );
-  };
-
-  const toggleSelectAllInspectable = () => {
-    const inspectableIds = (pendingInspectableReturn?.items || []).map((i) => i.reservationItemId);
-    if (selectedInspectItemIds.length === inspectableIds.length) {
-      setSelectedInspectItemIds([]);
-    } else {
-      setSelectedInspectItemIds(inspectableIds);
-    }
-  };
-
-  // Handle Area Manager Item Decision (Approve / Reject)
-  const handleDecideItems = async (
+  // Handle Area Manager Item Decision (Approve / Reject) -- per row, one
+  // item at a time. Approval is unit-based (at least one serial required,
+  // fewer than requested is a valid partial approval); reject is always
+  // whole-item, no units involved.
+  const handleDecideItem = async (
+    itemId: string,
     decision: "APPROVE" | "REJECT",
-    targetItemIds?: string[]
   ) => {
     if (!reservation) return;
-    const ids = targetItemIds ?? selectedItemIds;
-    if (ids.length === 0) {
-      setActionError("Please select at least one item to decide.");
-      return;
+    const item = reservation.items.find((i) => i.id === itemId);
+    if (!item) return;
+
+    if (decision === "APPROVE") {
+      const units = decisionUnitSelections[itemId] ?? [];
+      if (units.length < 1) {
+        setActionError(`Select at least one serial unit for ${item.asset.name}.`);
+        return;
+      }
     }
 
     setActionLoading(true);
@@ -281,45 +407,69 @@ export function ReservationDetailPage() {
     setActionNotice(null);
 
     try {
+      const comment = (approvalComments[itemId] ?? "").trim() || undefined;
       const updated = await api.decideReservationItems(
         reservation.id,
-        ids,
+        [
+          {
+            reservationItemId: itemId,
+            ...(decision === "APPROVE"
+              ? { assetUnitIds: decisionUnitSelections[itemId] ?? [] }
+              : {}),
+          },
+        ],
         decision,
-        approvalComment.trim() || undefined
+        comment,
       );
       setReservation(updated);
-      setSelectedItemIds([]);
-      setApprovalComment("");
+      seedDefaultSelections(updated);
+      setApprovalComments((prev) => {
+        const next = { ...prev };
+        delete next[itemId];
+        return next;
+      });
       setActionNotice(
-        `Successfully ${decision === "APPROVE" ? "approved" : "rejected"} ${ids.length} item(s).`
+        `Successfully ${decision === "APPROVE" ? "approved" : "rejected"} ${item.asset.name}.`,
       );
     } catch (err: any) {
-      setActionError(err.message ?? `Failed to ${decision.toLowerCase()} items.`);
+      setActionError(err.message ?? `Failed to ${decision.toLowerCase()} item.`);
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Handle Delivery Confirm
+  // Handle Delivery Confirm -- unit-based, partial handover allowed: only
+  // the units the user actually checked are sent, grouped back into one
+  // entry per reservation item.
   const handleConfirmDelivery = async () => {
     if (!reservation) return;
-    if (selectedDeliveryItemIds.length === 0) {
-      setActionError("Please select at least one item to confirm handover.");
+
+    const items = deliverableItems
+      .map((item) => ({
+        reservationItemId: item.id,
+        reservationItemUnitIds: item.units
+          .filter((unit) => unit.status === "ASSIGNED" && selectedDeliveryUnitIds[unit.id])
+          .map((unit) => unit.id),
+      }))
+      .filter((entry) => entry.reservationItemUnitIds.length > 0);
+
+    if (items.length === 0) {
+      setActionError("Select at least one serial unit to confirm handover.");
       return;
     }
+
     setActionLoading(true);
     setActionError(null);
     setActionNotice(null);
     try {
-      const updated = await api.confirmDelivery(
-        reservation.id,
-        selectedDeliveryItemIds,
-      );
+      const updated = await api.confirmDelivery(reservation.id, { items });
       setReservation(updated);
-      setSelectedDeliveryItemIds([]);
-      setActionNotice(
-        `Handover confirmed for ${selectedDeliveryItemIds.length} item(s).`,
+      seedDefaultSelections(updated);
+      const unitCount = items.reduce(
+        (sum, entry) => sum + entry.reservationItemUnitIds.length,
+        0,
       );
+      setActionNotice(`Handover confirmed for ${unitCount} serial unit(s).`);
     } catch (err: any) {
       setActionError(err.message ?? "Failed to confirm delivery.");
     } finally {
@@ -330,17 +480,9 @@ export function ReservationDetailPage() {
   // Handle Return Submit directly from Equipment Manifest
   const handleReturnSubmit = async () => {
     if (!reservation) return;
-    const targetIds =
-      selectedReturnItemIds.length > 0
-        ? selectedReturnItemIds
-        : returnableItems.map((i) => i.id);
 
-    if (targetIds.length === 0) {
-      setActionError("Please select at least one item to return.");
-      return;
-    }
-
-    const itemsToReturn: CreateReturnItemInput[] = targetIds
+    const itemsToReturn: CreateReturnItemInput[] = returnableItems
+      .map((i) => i.id)
       .map((itemId) => {
         const item = reservation.items.find((i) => i.id === itemId);
         const checkedOutUnitIds = (item?.units ?? [])
@@ -365,8 +507,9 @@ export function ReservationDetailPage() {
     try {
       await api.createReturn(reservation.id, {
         items: itemsToReturn,
+        note: returnNote.trim() || undefined,
       });
-      setSelectedReturnItemIds([]);
+      setReturnNote("");
       setActionNotice("Return slip submitted. Equipment room inspection pending.");
       await loadReservation();
     } catch (err: any) {
@@ -383,17 +526,24 @@ export function ReservationDetailPage() {
     setActionError(null);
     setActionNotice(null);
 
-    const targetReturnItems = (pendingInspectableReturn.items || []).filter((retItem) =>
-      selectedInspectItemIds.length === 0 || selectedInspectItemIds.includes(retItem.reservationItemId)
-    );
-
-    const decidedItems: DecideReturnItemInput[] = targetReturnItems.map((retItem) => ({
-      reservationItemId: retItem.reservationItemId,
-      units: retItem.units.map((unit) => ({
-        reservationItemUnitId: unit.reservationItemUnitId,
-        condition: unitConditions[unit.reservationItemUnitId] ?? "GOOD",
-      })),
-    }));
+    // Only submit conditions for units the reviewer explicitly checked. The
+    // Approve button itself is disabled until every unit is checked (see the
+    // review bar below), so by the time this runs it's always the full set
+    // -- an unchecked unit means "still pending review", not "assumed Good".
+    // (Note: REJECT rejects the whole return slip regardless of what's
+    // submitted here, so this filtering only really matters for APPROVE.)
+    const inspectableItems = pendingInspectableReturn.items || [];
+    const decidedItems: DecideReturnItemInput[] = inspectableItems
+      .map((retItem) => ({
+        reservationItemId: retItem.reservationItemId,
+        units: retItem.units
+          .filter((unit) => selectedInspectUnitIds[unit.reservationItemUnitId])
+          .map((unit) => ({
+            reservationItemUnitId: unit.reservationItemUnitId,
+            condition: unitConditions[unit.reservationItemUnitId] ?? "GOOD",
+          })),
+      }))
+      .filter((item) => item.units.length > 0);
 
     try {
       await api.decideReturn(reservation.id, pendingInspectableReturn.id, {
@@ -414,14 +564,13 @@ export function ReservationDetailPage() {
   };
 
   // Handle Cancel
-  const handleCancelReservation = async () => {
+  const handleCancelReservation = async (reason?: string) => {
     if (!reservation) return;
-    if (!window.confirm("Are you sure you want to cancel this reservation?")) return;
     setActionLoading(true);
     setActionError(null);
     setActionNotice(null);
     try {
-      const updated = await api.cancelReservation(reservation.id);
+      const updated = await api.cancelReservation(reservation.id, reason);
       setReservation(updated);
       setActionNotice("Reservation cancelled successfully.");
     } catch (err: any) {
@@ -453,7 +602,7 @@ export function ReservationDetailPage() {
   const canCancel = reservation.capabilities?.canCancel;
   const statusClass = reservation.status.toLowerCase();
   const approvedItemCount = reservation.items.filter(
-    (item) => item.status === "APPROVED",
+    (item) => item.approval?.status === "APPROVED",
   ).length;
   const startDate = new Date(reservation.startAt);
   const startMonth = new Intl.DateTimeFormat("en", { month: "short" })
@@ -528,7 +677,6 @@ export function ReservationDetailPage() {
               <Button
                 variant="primary"
                 onClick={() => {
-                  toggleSelectAllReturnable();
                   const manifestEl = document.getElementById("manifest-card");
                   manifestEl?.scrollIntoView({ behavior: "smooth" });
                 }}
@@ -542,8 +690,9 @@ export function ReservationDetailPage() {
             {canCancel && (
               <Button
                 variant="danger"
-                onClick={handleCancelReservation}
+                onClick={() => setCancelDialogOpen(true)}
                 disabled={actionLoading}
+                loading={actionLoading}
               >
                 <XCircle size={15} />
                 <span>Cancel</span>
@@ -618,8 +767,8 @@ export function ReservationDetailPage() {
                     ? `${approvedItemCount} of ${reservation.items.length} equipment lines approved`
                     : deliverableItems.length > 0
                       ? approvedItemCount === reservation.items.length
-                        ? "All equipment cleared for handover"
-                        : `${deliverableItems.length} line(s) cleared for equipment handover`
+                        ? "All equipment approved for handover"
+                        : `${deliverableItems.length} line(s) approved for equipment handover`
                       : returnableItems.length > 0
                         ? `${returnableItems.length} equipment line(s) pending return`
                         : pendingInspectableReturn
@@ -630,102 +779,56 @@ export function ReservationDetailPage() {
                 </p>
               </div>
 
-              {/* Action Select All Toggles */}
-              {approvableItems.length > 0 ? (
-                <label className="approval-select-all">
-                  <input
-                    type="checkbox"
-                    checked={
-                      selectedItemIds.length > 0 &&
-                      selectedItemIds.length === approvableItems.length
-                    }
-                    onChange={toggleSelectAllApprovable}
-                    aria-label="Select all pending assets"
-                  />
-                  <span>Select all pending ({approvableItems.length})</span>
-                </label>
-              ) : deliverableItems.length > 0 ? (
-                <label className="approval-select-all">
-                  <input
-                    type="checkbox"
-                    checked={
-                      selectedDeliveryItemIds.length > 0 &&
-                      selectedDeliveryItemIds.length === deliverableItems.length
-                    }
-                    onChange={toggleSelectAllDeliverable}
-                    aria-label="Select all items for handover"
-                  />
-                  <span>Select all for handover ({deliverableItems.length})</span>
-                </label>
-              ) : returnableItems.length > 0 ? (
-                <label className="approval-select-all">
-                  <input
-                    type="checkbox"
-                    checked={
-                      selectedReturnItemIds.length > 0 &&
-                      selectedReturnItemIds.length === returnableItems.length
-                    }
-                    onChange={toggleSelectAllReturnable}
-                    aria-label="Select all items for return"
-                  />
-                  <span>Select all for return ({returnableItems.length})</span>
-                </label>
-              ) : pendingInspectableReturn && pendingInspectableReturn.items?.length ? (
-                <label className="approval-select-all">
-                  <input
-                    type="checkbox"
-                    checked={
-                      selectedInspectItemIds.length > 0 &&
-                      selectedInspectItemIds.length === pendingInspectableReturn.items.length
-                    }
-                    onChange={toggleSelectAllInspectable}
-                    aria-label="Select all items for inspection"
-                  />
-                  <span>Select all for inspection ({pendingInspectableReturn.items.length})</span>
-                </label>
-              ) : null}
-            </div>
-
-            {/* 🛡️ 1. AREA MANAGER BATCH DECISION TOOLBAR */}
-            {approvableItems.length > 0 && (
-              <div className="res-review-bar">
-                <div className="res-review-bar__title">
-                  <ShieldCheck size={18} color="var(--teal)" />
-                  <span>
-                    Area Manager Review ({selectedItemIds.length} of {approvableItems.length} selected)
-                  </span>
-                </div>
-
-                <div className="res-review-bar__actions">
-                  <input
-                    type="text"
-                    placeholder="Decision comment / remark..."
-                    value={approvalComment}
-                    onChange={(e) => setApprovalComment(e.target.value)}
-                    className="control"
-                    aria-label="Decision comment"
-                  />
-
-                  <Button
-                    variant="primary"
-                    disabled={actionLoading || selectedItemIds.length === 0}
-                    onClick={() => handleDecideItems("APPROVE")}
-                  >
-                    <Check size={14} />
-                    <span>Approve Selected</span>
-                  </Button>
-
-                  <Button
-                    variant="danger"
-                    disabled={actionLoading || selectedItemIds.length === 0}
-                    onClick={() => handleDecideItems("REJECT")}
-                  >
-                    <X size={14} />
-                    <span>Reject</span>
-                  </Button>
-                </div>
+              {/* Action Select All Toggles -- Approve/Reject are per-row now,
+                  no batch selection. These render independently (not an
+                  if/else chain) since a reservation can have items in
+                  different phases at once -- e.g. one item awaiting handover
+                  while another has a pending return awaiting inspection. */}
+              <div className="res-card-header__select-all-group">
+                {deliverableUnitIds.length > 0 && (
+                  <label className="approval-select-all">
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedDeliveryUnitCount > 0 &&
+                        selectedDeliveryUnitCount === deliverableUnitIds.length
+                      }
+                      onChange={toggleSelectAllDeliveryUnits}
+                      aria-label="Select all serial units for handover"
+                    />
+                    <span>Select all for handover ({deliverableUnitIds.length})</span>
+                  </label>
+                )}
+                {returnableUnitIds.length > 0 && (
+                  <label className="approval-select-all">
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedReturnUnitCount > 0 &&
+                        selectedReturnUnitCount === returnableUnitIds.length
+                      }
+                      onChange={toggleSelectAllReturnUnits}
+                      aria-label="Select all serial units for return"
+                    />
+                    <span>Select all for return ({returnableUnitIds.length})</span>
+                  </label>
+                )}
+                {inspectableUnitIds.length > 0 && (
+                  <label className="approval-select-all">
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedInspectUnitCount > 0 &&
+                        selectedInspectUnitCount === inspectableUnitIds.length
+                      }
+                      onChange={toggleSelectAllInspectUnits}
+                      aria-label="Select all serial units for inspection"
+                    />
+                    <span>Select all for inspection ({inspectableUnitIds.length})</span>
+                  </label>
+                )}
               </div>
-            )}
+            </div>
 
             {/* 🚚 2. HANDOVER CONFIRMATION TOOLBAR */}
             {deliverableItems.length > 0 && (
@@ -733,13 +836,14 @@ export function ReservationDetailPage() {
                 <div className="res-review-bar__title">
                   <Truck size={18} />
                   <span>
-                    Handover confirmation ({selectedDeliveryItemIds.length} of {deliverableItems.length} selected)
+                    Handover confirmation ({selectedDeliveryUnitCount} of {deliverableUnitIds.length} serial units selected)
                   </span>
                 </div>
                 <div className="res-review-bar__actions">
                   <Button
                     variant="primary"
-                    disabled={actionLoading || selectedDeliveryItemIds.length === 0}
+                    disabled={actionLoading || selectedDeliveryUnitCount === 0}
+                    loading={actionLoading}
                     onClick={handleConfirmDelivery}
                   >
                     <Check size={14} />
@@ -755,17 +859,26 @@ export function ReservationDetailPage() {
                 <div className="res-review-bar__title">
                   <RotateCcw size={18} />
                   <span>
-                    Equipment Return ({selectedReturnItemIds.length} of {returnableItems.length} selected)
+                    Equipment Return ({selectedReturnUnitCount} of {returnableUnitIds.length} serial units selected)
                   </span>
                 </div>
                 <div className="res-review-bar__actions">
+                  <input
+                    type="text"
+                    placeholder="Note for this return (optional)..."
+                    value={returnNote}
+                    onChange={(e) => setReturnNote(e.target.value)}
+                    className="control"
+                    aria-label="Return note"
+                  />
                   <Button
                     variant="primary"
-                    disabled={actionLoading || selectedReturnItemIds.length === 0}
+                    disabled={actionLoading || selectedReturnUnitCount === 0}
+                    loading={actionLoading}
                     onClick={handleReturnSubmit}
                   >
                     <RotateCcw size={14} />
-                    <span>Submit Return ({selectedReturnItemIds.length})</span>
+                    <span>Submit Return ({selectedReturnUnitCount})</span>
                   </Button>
                 </div>
               </div>
@@ -777,7 +890,7 @@ export function ReservationDetailPage() {
                 <div className="res-review-bar__title">
                   <ClipboardCheck size={18} />
                   <span>
-                    Return Inspection Review ({selectedInspectItemIds.length} of {pendingInspectableReturn.items?.length || reservation.items.length} selected)
+                    Return Inspection Review ({selectedInspectUnitCount} of {inspectableUnitIds.length} serial units reviewed)
                   </span>
                 </div>
                 <div className="res-review-bar__actions">
@@ -791,7 +904,16 @@ export function ReservationDetailPage() {
                   />
                   <Button
                     variant="primary"
-                    disabled={actionLoading}
+                    disabled={
+                      actionLoading ||
+                      selectedInspectUnitCount < inspectableUnitIds.length
+                    }
+                    title={
+                      selectedInspectUnitCount < inspectableUnitIds.length
+                        ? "Review every serial unit (check it and confirm its condition) before approving"
+                        : undefined
+                    }
+                    loading={actionLoading}
                     onClick={() => handleDecideReturn("APPROVE")}
                   >
                     <Check size={14} />
@@ -800,6 +922,7 @@ export function ReservationDetailPage() {
                   <Button
                     variant="danger"
                     disabled={actionLoading}
+                    loading={actionLoading}
                     onClick={() => handleDecideReturn("REJECT")}
                   >
                     <X size={14} />
@@ -809,19 +932,9 @@ export function ReservationDetailPage() {
               </div>
             )}
 
-            {/* Manifest Table Header for Return Inspection */}
-            {pendingInspectableReturn && (
-              <div className="res-manifest-grid-header res-manifest-grid-header--inspection">
-                <span className="res-grid-th res-grid-th--check"></span>
-                <span className="res-grid-th res-grid-th--media"></span>
-                <span className="res-grid-th res-grid-th--asset">Equipment & Area</span>
-                <span className="res-grid-th res-grid-th--serials">
-                  Condition per serial unit
-                </span>
-              </div>
-            )}
-
-            {/* Equipment Items List (Uniform across all 4 lifecycle states) */}
+            {/* Equipment Items List -- pending items get a unit-picker row;
+                everything else lists one row per serial unit, grouped under
+                an asset sub-header. */}
             <div className="res-manifest-list">
               {reservation.items.map((item) => {
                 const itemStatusClass = item.status.toLowerCase();
@@ -830,8 +943,7 @@ export function ReservationDetailPage() {
                   (item.capabilities?.canApprove ||
                     hasAreaPermission("reservation:approve", item.asset.managementArea.id));
                 const isDeliverySelectable = Boolean(
-                  item.capabilities?.canConfirmDelivery &&
-                    ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status),
+                  item.capabilities?.canConfirmDelivery && item.status === "PREPARED",
                 );
                 const remainingReturn =
                   item.returnSummary?.remainingReturnQuantity ??
@@ -839,29 +951,18 @@ export function ReservationDetailPage() {
                 const isReturnSelectable = Boolean(
                   (item.capabilities?.canReturn ?? reservation.capabilities?.canReturn) &&
                     remainingReturn > 0 &&
-                    (["DELIVERED", "APPROVED", "DELIVERY_CONFIRMED"].includes(item.status) ||
-                      ["DELIVERY_CONFIRMED", "ACTIVE"].includes(reservation.status)),
+                    (item.status === "DELIVERED" ||
+                      RETURN_PHASE_STATUSES.includes(reservation.status)),
                 );
 
                 const retItem = pendingInspectableReturn?.items?.find(
                   (ri) => ri.reservationItemId === item.id,
                 );
-                const isInspectSelectable = Boolean(
-                  pendingInspectableReturn &&
-                  (retItem || pendingInspectableReturn.items?.length === 0 || pendingInspectableReturn.status === "PENDING"),
-                );
-
-                const isSelected = selectedItemIds.includes(item.id);
-                const isDeliverySelected = selectedDeliveryItemIds.includes(item.id);
-                const isReturnSelected = selectedReturnItemIds.includes(item.id);
-                const isInspectSelected = selectedInspectItemIds.includes(item.id);
-
-                const isSelectable =
-                  isApprovable || isDeliverySelectable || isReturnSelectable || isInspectSelectable;
-                const isApproved = item.status === "APPROVED";
-                const isDelivered =
-                  item.status === "DELIVERED" ||
-                  ["DELIVERY_CONFIRMED", "ACTIVE"].includes(reservation.status);
+                // Only real -- this item must actually be part of the
+                // pending return, not just "some return exists somewhere".
+                const isInspectSelectable = Boolean(retItem);
+                const isRejected = item.status === "REJECTED";
+                const isDelivered = item.status === "DELIVERED";
                 const isFullyReturned =
                   item.status === "RETURNED" ||
                   (item.returnSummary !== undefined &&
@@ -869,82 +970,24 @@ export function ReservationDetailPage() {
                     item.returnSummary.remainingReturnQuantity === 0 &&
                     ["RETURN_CONFIRMED", "COMPLETED"].includes(reservation.status));
 
-                const returnableUnits = item.units.filter(
-                  (unit) => unit.status === "CHECKED_OUT",
-                );
                 const inspectUnitCount = retItem?.units.length ?? 0;
 
-                return (
-                  <div
-                    key={item.id}
-                    className={`res-manifest-item ${
-                      isSelectable ? "reservation-item-card--selectable" : ""
-                    } ${
-                      isDeliverySelectable ? "reservation-item-card--handover" : ""
-                    } ${
-                      isReturnSelectable ? "res-manifest-item--return" : ""
-                    } ${
-                      isInspectSelectable ? "res-manifest-item--inspection" : ""
-                    }`}
-                    data-selected={(isSelected || isDeliverySelected || isReturnSelected || isInspectSelected) || undefined}
-                    data-status={itemStatusClass}
-                    onClick={(e) => {
-                      if (
-                        isSelectable &&
-                        !(e.target instanceof HTMLInputElement) &&
-                        !(e.target instanceof HTMLButtonElement)
-                      ) {
-                        if (isApprovable) toggleItemSelection(item.id);
-                        else if (isDeliverySelectable) toggleDeliveryItemSelection(item.id);
-                        else if (isReturnSelectable) toggleReturnItemSelection(item.id);
-                        else if (isInspectSelectable) toggleInspectItemSelection(item.id);
-                      }
-                    }}
-                  >
-                    {isSelectable ? (
-                      <>
-                        <div className="res-pending-check">
-                          <input
-                            type="checkbox"
-                            checked={
-                              isApprovable
-                                ? isSelected
-                                : isDeliverySelectable
-                                  ? isDeliverySelected
-                                  : isReturnSelectable
-                                    ? isReturnSelected
-                                    : isInspectSelected
-                            }
-                            onChange={() => {
-                              if (isApprovable) toggleItemSelection(item.id);
-                              else if (isDeliverySelectable) toggleDeliveryItemSelection(item.id);
-                              else if (isReturnSelectable) toggleReturnItemSelection(item.id);
-                              else if (isInspectSelectable) toggleInspectItemSelection(item.id);
-                            }}
-                            aria-label={
-                              isApprovable
-                                ? `Select ${item.asset.name}`
-                                : isDeliverySelectable
-                                  ? `Select ${item.asset.name} for handover`
-                                  : isReturnSelectable
-                                    ? `Select ${item.asset.name} for return`
-                                    : `Select ${item.asset.name} for inspection`
-                            }
-                            className="reservation-item-select"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
-
+                // 1. Pending, awaiting this manager's decision -- unchanged
+                // unit-picker row (no S/N assigned to the item yet, so there
+                // is nothing to list one-row-per-unit).
+                if (isApprovable) {
+                  const selectedForItem = decisionUnitSelections[item.id] ?? [];
+                  return (
+                    <Fragment key={item.id}>
+                      <div
+                        className="res-manifest-item reservation-item-card--selectable res-manifest-item--approve"
+                        data-status={itemStatusClass}
+                      >
                         <div className="res-item-media">
                           {item.asset.pictureUrl ? (
                             <img src={item.asset.pictureUrl} alt="" />
                           ) : (
                             <span>{item.asset.name.slice(0, 2).toUpperCase()}</span>
-                          )}
-                          {isApproved && (
-                            <span className="res-item-media__clearance" aria-hidden="true">
-                              <Check size={10} strokeWidth={3} />
-                            </span>
                           )}
                         </div>
 
@@ -956,130 +999,107 @@ export function ReservationDetailPage() {
                                 {item.asset.managementArea.name}
                               </span>
                             </div>
-                            <div className="res-item-sub">
-                              {isInspectSelectable
-                                ? `Returned by borrower (${inspectUnitCount} ${inspectUnitCount === 1 ? "unit" : "units"})`
-                                : isReturnSelectable
-                                  ? `Awaiting return (${remainingReturn} units remaining)`
-                                  : isDeliverySelectable
-                                    ? `Cleared for handover`
-                                    : `Awaiting area clearance`}
-                            </div>
+                            <div className="res-item-sub">Select serial unit to approve</div>
                           </div>
                         </div>
 
-                        {isInspectSelectable ? (
-                          <div
-                            className="res-inspect-serial-list"
-                            onClick={(e) => e.stopPropagation()}
+                        <div className="res-item-qty-ticket">
+                          <span>Selected</span>
+                          <strong>
+                            {selectedForItem.length}/{item.quantity}
+                          </strong>
+                          <small>units</small>
+                        </div>
+
+                        <div
+                          className="res-item-approve-actions"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="text"
+                            placeholder="Comment (optional)"
+                            value={approvalComments[item.id] ?? ""}
+                            onChange={(e) =>
+                              setApprovalComments((prev) => ({
+                                ...prev,
+                                [item.id]: e.target.value,
+                              }))
+                            }
+                            className="control"
+                            aria-label={`Approval comment for ${item.asset.name}`}
+                          />
+                          <Button
+                            variant="primary"
+                            disabled={actionLoading || selectedForItem.length < 1}
+                            loading={actionLoading}
+                            onClick={() => handleDecideItem(item.id, "APPROVE")}
                           >
-                            {(retItem?.units ?? []).map((unit) => {
-                              const condition =
-                                unitConditions[unit.reservationItemUnitId] ?? "GOOD";
-                              return (
-                                <div
-                                  key={unit.id}
-                                  className="res-inspect-serial-row"
-                                >
-                                  <span className="res-inspect-serial-row__serial mono">
-                                    {unit.serialNumber}
-                                  </span>
-                                  <div
-                                    className="res-condition-toggle"
-                                    role="radiogroup"
-                                    aria-label={`Condition for serial ${unit.serialNumber}`}
-                                  >
-                                    {(["GOOD", "BROKEN", "LOST"] as const).map(
-                                      (option) => (
-                                        <button
-                                          key={option}
-                                          type="button"
-                                          role="radio"
-                                          aria-checked={condition === option}
-                                          className={`res-condition-toggle__option res-condition-toggle__option--${option.toLowerCase()} ${
-                                            condition === option ? "is-active" : ""
-                                          }`}
-                                          onClick={() =>
-                                            setUnitConditions((prev) => ({
-                                              ...prev,
-                                              [unit.reservationItemUnitId]: option,
-                                            }))
-                                          }
-                                        >
-                                          {option === "GOOD"
-                                            ? "Good"
-                                            : option === "BROKEN"
-                                              ? "Broken"
-                                              : "Lost"}
-                                        </button>
-                                      ),
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="res-pending-quantity">
-                            {isApprovable ? (
-                              <>
+                            <Check size={14} />
+                            <span>Approve</span>
+                          </Button>
+                          <Button
+                            variant="danger"
+                            disabled={actionLoading}
+                            loading={actionLoading}
+                            onClick={() => handleDecideItem(item.id, "REJECT")}
+                          >
+                            <X size={14} />
+                            <span>Reject</span>
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="res-manifest-unit-list">
+                        {(decisionUnitOptions[item.asset.id] ?? []).map((unit) => {
+                          const isChecked = selectedForItem.includes(unit.id);
+                          const atCap = selectedForItem.length >= item.quantity;
+                          const isDisabled = !isChecked && atCap;
+                          const toggleUnit = () => {
+                            if (isDisabled) return;
+                            toggleDecisionUnit(item.id, unit.id);
+                          };
+                          return (
+                            <label
+                              key={unit.id}
+                              className={`res-manifest-unit-row ${
+                                isDisabled ? "" : "res-manifest-unit-row--clickable"
+                              }`}
+                              title={
+                                isDisabled
+                                  ? `Already selected ${item.quantity} of ${item.quantity} approved units -- uncheck one to pick a different serial`
+                                  : undefined
+                              }
+                            >
+                              <span className="res-manifest-unit-row__check">
                                 <input
-                                  id={`approve-qty-${item.id}`}
-                                  aria-label={`Approve quantity for ${item.asset.name}`}
-                                  type="number"
-                                  min={1}
-                                  max={item.quantity}
-                                  value={itemQuantities[item.id] ?? item.quantity}
-                                  onChange={(e) => {
-                                    const val = Math.min(
-                                      item.quantity,
-                                      Math.max(1, parseInt(e.target.value) || 1),
-                                    );
-                                    setItemQuantities((prev) => ({ ...prev, [item.id]: val }));
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="control"
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  disabled={isDisabled}
+                                  onChange={toggleUnit}
+                                  aria-label={`Assign serial ${unit.serialNumber}`}
                                 />
-                                <span aria-label={`${item.quantity} total reserved`}>
-                                  / {item.quantity}
-                                </span>
-                              </>
-                            ) : isReturnSelectable ? (
-                              <div
-                                className="res-return-serial-list"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {returnableUnits.map((unit) => (
-                                  <label
-                                    key={unit.id}
-                                    className="res-return-serial-row"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={Boolean(selectedReturnUnitIds[unit.id])}
-                                      onChange={() =>
-                                        setSelectedReturnUnitIds((prev) => ({
-                                          ...prev,
-                                          [unit.id]: !prev[unit.id],
-                                        }))
-                                      }
-                                      aria-label={`Return serial ${unit.serialNumber}`}
-                                    />
-                                    <span className="mono">{unit.serialNumber}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            ) : (
-                              <>
-                                <strong>{item.quantity}</strong>
-                                <span>{item.quantity === 1 ? "unit" : "units"}</span>
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <>
+                              </span>
+                              <span className="mono res-manifest-unit-row__serial">
+                                {unit.serialNumber}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </Fragment>
+                  );
+                }
+
+                // 2. Serial units are already assigned to this item -- list
+                // one row per S/N under an asset sub-header, instead of
+                // collapsing every unit into a single item row.
+                if (item.units.length > 0) {
+                  return (
+                    <Fragment key={item.id}>
+                      <div
+                        className="res-manifest-item res-manifest-group-header"
+                        data-status={itemStatusClass}
+                      >
                         <div className="res-item-info">
                           <div className="res-item-media">
                             {item.asset.pictureUrl ? (
@@ -1087,11 +1107,9 @@ export function ReservationDetailPage() {
                             ) : (
                               <span>{item.asset.name.slice(0, 2).toUpperCase()}</span>
                             )}
-                            {isApproved && (
-                              <span className="res-item-media__clearance" aria-hidden="true">
-                                <Check size={10} strokeWidth={3} />
-                              </span>
-                            )}
+                            <span className="res-item-media__clearance" aria-hidden="true">
+                              <Check size={10} strokeWidth={3} />
+                            </span>
                           </div>
 
                           <div className="res-item-copy">
@@ -1101,12 +1119,12 @@ export function ReservationDetailPage() {
                                 {item.asset.managementArea.name}
                               </span>
                             </div>
-                            {isApproved && item.approval ? (
+                            {item.approval && (
                               <div className="res-item-clearance">
                                 <CheckCircle size={14} />
                                 <div>
                                   <span>
-                                    Cleared by{" "}
+                                    Approved by{" "}
                                     {item.approval.approver.name ??
                                       item.approval.approver.email ??
                                       "a user"}
@@ -1116,17 +1134,22 @@ export function ReservationDetailPage() {
                                   )}
                                 </div>
                               </div>
-                            ) : isDelivered ? (
-                              <div className="res-item-sub">
-                                {item.returnSummary?.pendingReturnCount
-                                  ? `Return slip submitted (${item.returnSummary.pendingReturnCount} units pending inspection)`
-                                  : `Equipment handed over • Pending return`}
-                              </div>
-                            ) : isFullyReturned ? (
-                              <div className="res-item-sub">All units returned and restocked in inventory</div>
-                            ) : (
-                              <div className="res-item-sub">Awaiting area clearance</div>
                             )}
+                            <div className="res-item-sub">
+                              {isInspectSelectable
+                                ? `Returned by borrower (${inspectUnitCount} ${inspectUnitCount === 1 ? "unit" : "units"})`
+                                : isDeliverySelectable
+                                  ? `Approved — awaiting handover`
+                                  : isReturnSelectable
+                                    ? `Awaiting return (${remainingReturn} units remaining)`
+                                    : isFullyReturned
+                                      ? `All units returned and restocked in inventory`
+                                      : isDelivered
+                                        ? item.returnSummary?.pendingReturnCount
+                                          ? `Return slip submitted (${item.returnSummary.pendingReturnCount} units pending inspection)`
+                                          : `Equipment handed over • Pending return`
+                                        : `Prepared — awaiting handover`}
+                            </div>
                             {item.approval?.comment && (
                               <blockquote className="res-item-comment">
                                 {item.approval.comment}
@@ -1136,24 +1159,249 @@ export function ReservationDetailPage() {
                         </div>
                         <div className="res-item-controls">
                           <div className="res-item-qty-ticket">
-                            <span>{isApproved ? "Approved qty" : "Quantity"}</span>
+                            <span>Approved qty</span>
                             <strong>{item.quantity}</strong>
                             <small>{item.quantity === 1 ? "unit" : "units"}</small>
                           </div>
                           <div className="res-item-status-col">
                             <span className={`res-status-badge res-status-badge--${itemStatusClass}`}>
-                              {isApproved
-                                ? "Cleared"
-                                : isFullyReturned
-                                  ? "Returned"
-                                  : isDelivered
-                                    ? "Pending Return"
-                                    : item.status}
+                              {isFullyReturned ? "Returned" : reservationItemStatusLabel[item.status]}
                             </span>
                           </div>
                         </div>
-                      </>
-                    )}
+                      </div>
+
+                      <div className="res-manifest-unit-list">
+                        {item.units.map((unit) => {
+                          const inspectUnit = retItem?.units.find(
+                            (u) => u.reservationItemUnitId === unit.id,
+                          );
+
+                          if (inspectUnit) {
+                            const condition = unitConditions[unit.id] ?? "GOOD";
+                            const isUnitSelected = Boolean(
+                              selectedInspectUnitIds[unit.id],
+                            );
+                            const toggleUnit = () =>
+                              toggleInspectUnitSelection(unit.id);
+                            return (
+                              <label
+                                key={unit.id}
+                                className="res-manifest-unit-row res-manifest-unit-row--inspect res-manifest-unit-row--clickable"
+                              >
+                                <span className="res-manifest-unit-row__check">
+                                  <input
+                                    type="checkbox"
+                                    checked={isUnitSelected}
+                                    onChange={toggleUnit}
+                                    aria-label={`Select serial ${unit.serialNumber} for inspection`}
+                                  />
+                                </span>
+                                <span className="mono res-manifest-unit-row__serial">
+                                  {unit.serialNumber}
+                                </span>
+                                <div
+                                  className="res-condition-toggle"
+                                  role="radiogroup"
+                                  aria-label={`Condition for serial ${unit.serialNumber}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {(["GOOD", "BROKEN", "LOST"] as const).map((option) => (
+                                    <button
+                                      key={option}
+                                      type="button"
+                                      role="radio"
+                                      aria-checked={condition === option}
+                                      className={`res-condition-toggle__option res-condition-toggle__option--${option.toLowerCase()} ${
+                                        condition === option ? "is-active" : ""
+                                      }`}
+                                      onClick={() =>
+                                        setUnitConditions((prev) => ({
+                                          ...prev,
+                                          [unit.id]: option,
+                                        }))
+                                      }
+                                    >
+                                      {option === "GOOD"
+                                        ? "Good"
+                                        : option === "BROKEN"
+                                          ? "Broken"
+                                          : "Lost"}
+                                    </button>
+                                  ))}
+                                </div>
+                              </label>
+                            );
+                          }
+
+                          if (unit.status === "ASSIGNED") {
+                            const toggleDeliveryUnit = () => {
+                              if (!isDeliverySelectable) return;
+                              setSelectedDeliveryUnitIds((prev) => ({
+                                ...prev,
+                                [unit.id]: !prev[unit.id],
+                              }));
+                            };
+                            return (
+                              <label
+                                key={unit.id}
+                                className={`res-manifest-unit-row ${
+                                  isDeliverySelectable ? "res-manifest-unit-row--clickable" : ""
+                                }`}
+                              >
+                                <span className="res-manifest-unit-row__check">
+                                  {isDeliverySelectable && (
+                                    <input
+                                      type="checkbox"
+                                      checked={Boolean(selectedDeliveryUnitIds[unit.id])}
+                                      onChange={toggleDeliveryUnit}
+                                      aria-label={`Select serial ${unit.serialNumber} for handover`}
+                                    />
+                                  )}
+                                </span>
+                                <span className="mono res-manifest-unit-row__serial">
+                                  {unit.serialNumber}
+                                </span>
+                                <span className="res-manifest-unit-row__status">
+                                  {isDeliverySelectable
+                                    ? "Ready for handover"
+                                    : "Prepared — awaiting handover"}
+                                </span>
+                              </label>
+                            );
+                          }
+
+                          if (unit.status === "CHECKED_OUT") {
+                            const toggleReturnUnit = () => {
+                              if (!isReturnSelectable) return;
+                              setSelectedReturnUnitIds((prev) => ({
+                                ...prev,
+                                [unit.id]: !prev[unit.id],
+                              }));
+                            };
+                            return (
+                              <label
+                                key={unit.id}
+                                className={`res-manifest-unit-row ${
+                                  isReturnSelectable ? "res-manifest-unit-row--clickable" : ""
+                                }`}
+                              >
+                                <span className="res-manifest-unit-row__check">
+                                  {isReturnSelectable && (
+                                    <input
+                                      type="checkbox"
+                                      checked={Boolean(selectedReturnUnitIds[unit.id])}
+                                      onChange={toggleReturnUnit}
+                                      aria-label={`Return serial ${unit.serialNumber}`}
+                                    />
+                                  )}
+                                </span>
+                                <span className="mono res-manifest-unit-row__serial">
+                                  {unit.serialNumber}
+                                </span>
+                                <span className="res-manifest-unit-row__status">
+                                  {isReturnSelectable
+                                    ? "Checked out"
+                                    : "Checked out — awaiting return"}
+                                </span>
+                              </label>
+                            );
+                          }
+
+                          const condition =
+                            unit.status === "RETURNED_GOOD"
+                              ? { text: "Good", modifier: "good" }
+                              : unit.status === "RETURNED_BROKEN"
+                                ? { text: "Broken", modifier: "broken" }
+                                : unit.status === "RETURNED_LOST"
+                                  ? { text: "Lost", modifier: "lost" }
+                                  : { text: unit.status, modifier: "" };
+
+                          return (
+                            <div key={unit.id} className="res-manifest-unit-row">
+                              <span className="res-manifest-unit-row__check" />
+                              <span className="mono res-manifest-unit-row__serial">
+                                {unit.serialNumber}
+                              </span>
+                              <span
+                                className={`res-manifest-unit-row__status res-manifest-unit-row__status--${condition.modifier}`}
+                              >
+                                {condition.text}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Fragment>
+                  );
+                }
+
+                // 3. No serial units assigned (rejected, or still pending
+                // someone else's decision) -- a single summary row.
+                return (
+                  <div key={item.id} className="res-manifest-item" data-status={itemStatusClass}>
+                    <div className="res-item-info">
+                      <div className="res-item-media">
+                        {item.asset.pictureUrl ? (
+                          <img src={item.asset.pictureUrl} alt="" />
+                        ) : (
+                          <span>{item.asset.name.slice(0, 2).toUpperCase()}</span>
+                        )}
+                        {isRejected && (
+                          <span className="res-item-media__rejected" aria-hidden="true">
+                            <X size={10} strokeWidth={3} />
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="res-item-copy">
+                        <div className="res-item-name-row">
+                          <div className="res-item-name">{item.asset.name}</div>
+                          <span className="res-item-area">
+                            {item.asset.managementArea.name}
+                          </span>
+                        </div>
+                        {isRejected ? (
+                          <div className="res-item-clearance res-item-clearance--rejected">
+                            <XCircle size={14} />
+                            <div>
+                              <span>
+                                Rejected
+                                {item.approval
+                                  ? ` by ${
+                                      item.approval.approver.name ??
+                                      item.approval.approver.email ??
+                                      "a user"
+                                    }`
+                                  : ""}
+                              </span>
+                              {item.approval?.decidedAt && (
+                                <small>{formatDate(item.approval.decidedAt, true)}</small>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="res-item-sub">Awaiting Area Manager decision</div>
+                        )}
+                        {item.approval?.comment && (
+                          <blockquote className="res-item-comment">
+                            {item.approval.comment}
+                          </blockquote>
+                        )}
+                      </div>
+                    </div>
+                    <div className="res-item-controls">
+                      <div className="res-item-qty-ticket">
+                        <span>Quantity</span>
+                        <strong>{item.quantity}</strong>
+                        <small>{item.quantity === 1 ? "unit" : "units"}</small>
+                      </div>
+                      <div className="res-item-status-col">
+                        <span className={`res-status-badge res-status-badge--${itemStatusClass}`}>
+                          {reservationItemStatusLabel[item.status]}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
@@ -1224,6 +1472,13 @@ export function ReservationDetailPage() {
           isModal
         />
       )}
+
+      <CancelReservationDialog
+        open={cancelDialogOpen}
+        eventName={reservation.eventName}
+        onClose={() => setCancelDialogOpen(false)}
+        onConfirm={(reason) => handleCancelReservation(reason)}
+      />
     </div>
   );
 }

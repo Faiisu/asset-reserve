@@ -261,30 +261,6 @@ export function CheckboxDropdownFilter({
   );
 }
 
-export function WorkspaceCheckboxFilter({
-  areas,
-  selectedIds,
-  onChange,
-  className,
-}: {
-  areas: ManagementAreaRef[];
-  selectedIds: string[];
-  onChange: (ids: string[]) => void;
-  className?: string;
-}) {
-  return (
-    <CheckboxDropdownFilter
-      label="Workspaces"
-      allLabel="All workspaces"
-      options={areas.map((a) => ({ value: a.id, label: a.name }))}
-      selectedValues={selectedIds}
-      onChange={onChange}
-      className={className}
-      ariaLabel="Filter workspaces"
-    />
-  );
-}
-
 export const Textarea = forwardRef<
   HTMLTextAreaElement,
   TextareaHTMLAttributes<HTMLTextAreaElement>

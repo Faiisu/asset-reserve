@@ -49,8 +49,10 @@ subject line alone is fine when the change is truly self-explanatory (e.g.
 3. Check for anything that looks like a secret or credential before staging,
    same as the normal git-safety rules.
 4. Commit with a message describing the change and its reason, using the
-   HEREDOC form and the `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`
-   trailer, consistent with this project's existing commit style.
+   HEREDOC form. Do **not** add a `Co-Authored-By: Claude` trailer or any
+   other AI-attribution line — use the machine's default git identity
+   (`git config user.name`/`user.email`) as-is, same as any other commit on
+   this PC.
 5. Do not push, force-push, or amend published commits as part of this
    skill — those still require explicit user request per the normal git
    safety rules. This skill only covers routine local commits.

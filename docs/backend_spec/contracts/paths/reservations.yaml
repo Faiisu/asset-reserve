@@ -140,7 +140,11 @@
     tags:
       - Reservations
     summary: Approve or reject one reservation item
-    description: Approval locks the asset and rechecks approved overlapping quantities in a serializable transaction.
+    description: >-
+      Approval requires assetUnitIds (exact serial units matching the approved quantity) in the
+      same request -- assigns them and moves the item straight to PREPARED, locking the asset
+      and rechecking approved overlapping quantities in a serializable transaction. There is no
+      separate "prepare" step.
     operationId: decideReservationItem
     requestBody:
       required: true
@@ -165,42 +169,6 @@
         $ref: "#/components/responses/Conflict"
       "422":
         $ref: "#/components/responses/ValidationError"
-/reservations/{reservationId}/items/{itemId}/prepare:
-  parameters:
-    - $ref: "#/components/parameters/ReservationId"
-    - $ref: "#/components/parameters/ReservationItemId"
-  post:
-    tags:
-      - Reservations
-    summary: Assign serial-numbered units to an approved item before delivery
-    description: >-
-      Requires the item's status to be APPROVED. Assigns exactly the item's approved quantity
-      of ACTIVE asset units, moving each to RESERVED and the item to PREPARED. Run in a
-      serializable transaction; fails with 409 if a selected unit is no longer ACTIVE.
-    operationId: prepareReservationItem
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/PrepareReservationItemRequest"
-    responses:
-      "201":
-        description: Updated reservation detail.
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ReservationDetail"
-      "401":
-        $ref: "#/components/responses/Unauthorized"
-      "403":
-        $ref: "#/components/responses/Forbidden"
-      "404":
-        $ref: "#/components/responses/NotFound"
-      "409":
-        $ref: "#/components/responses/Conflict"
-      "422":
-        $ref: "#/components/responses/ValidationError"
 /reservations/{reservationId}/items/decision:
   parameters:
     - $ref: "#/components/parameters/ReservationId"
@@ -208,7 +176,11 @@
     tags:
       - Reservations
     summary: Approve or reject selected reservation items together
-    description: The batch is atomic. Approval locks assets in stable order and rechecks approved overlapping quantities before recording any decision.
+    description: >-
+      The batch is atomic. Approval requires assetUnitIds per item in the same request (see
+      ReservationItemDecisionEntry) -- assigns them and moves each item straight to PREPARED,
+      locking assets in stable order across the whole batch and rechecking approved overlapping
+      quantities before recording any decision. There is no separate "prepare" step.
     operationId: decideReservationItems
     requestBody:
       required: true
@@ -238,7 +210,7 @@
     - $ref: "#/components/parameters/ReservationId"
   post:
     tags: [Reservations]
-    summary: Confirm equipment delivery
+    summary: Confirm equipment delivery (unit-based, partial handover allowed)
     operationId: confirmDelivery
     requestBody:
       required: false

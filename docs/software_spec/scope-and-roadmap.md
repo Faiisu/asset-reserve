@@ -31,7 +31,7 @@
 5. ทำ Asset list/detail/create/edit และ inventory ledger
 6. ทำ Calendar จาก Reservation
 7. ทำ Create Reservation หลาย item พร้อม quantity
-8. ทำ item approval, prepare และ check out
+8. ทำ item approval (เลือก serial unit พร้อมกันในขั้นตอนเดียว — ดู [lifecycle-and-state-machines.md §3](lifecycle-and-state-machines.md#reservation-item-status)) และ check out
 9. ทำ Return และ ReturnApproval
 10. ทำ users, roles และ scopes
 11. เพิ่ม loading/error/empty states และ E2E tests

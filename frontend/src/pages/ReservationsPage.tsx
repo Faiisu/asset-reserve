@@ -43,13 +43,10 @@ type ReservationView = "MINE" | "PARTICIPATING";
 
 const STATUS_COLOR_CLASS: Record<ReservationStatus, string> = {
   DRAFT: "calendar-legend__draft",
-  PENDING: "calendar-legend__pending_approval",
   PENDING_APPROVAL: "calendar-legend__pending_approval",
   PARTIALLY_APPROVED: "calendar-legend__partially_approved",
   APPROVED: "calendar-legend__approved",
   DELIVERY_CONFIRMED: "calendar-legend__delivery_confirmed",
-  ACTIVE: "calendar-legend__delivery_confirmed",
-  RETURN: "calendar-legend__return_pending",
   RETURN_PENDING: "calendar-legend__return_pending",
   RETURN_CONFIRMED: "calendar-legend__return_confirmed",
   COMPLETED: "calendar-legend__completed",
@@ -57,6 +54,11 @@ const STATUS_COLOR_CLASS: Record<ReservationStatus, string> = {
   CANCELLED: "calendar-legend__cancelled",
 };
 
+// RETURN_CONFIRMED is left out here -- per
+// docs/software_spec/lifecycle-and-state-machines.md §6, the backend never
+// actually persists it as a resting reservation status (it resolves straight
+// to COMPLETED or DELIVERY_CONFIRMED in the same operation), so offering it
+// as a filter would always return zero results.
 const DISPLAY_STATUSES: ReservationStatus[] = [
   "DRAFT",
   "PENDING_APPROVAL",
@@ -64,7 +66,6 @@ const DISPLAY_STATUSES: ReservationStatus[] = [
   "APPROVED",
   "DELIVERY_CONFIRMED",
   "RETURN_PENDING",
-  "RETURN_CONFIRMED",
   "COMPLETED",
   "REJECTED",
   "CANCELLED",
@@ -72,14 +73,11 @@ const DISPLAY_STATUSES: ReservationStatus[] = [
 
 const STATUS_OPTION_STATUSES: Record<ReservationStatus, ReservationStatus[]> = {
   DRAFT: ["DRAFT"],
-  PENDING: ["PENDING", "PENDING_APPROVAL"],
-  PENDING_APPROVAL: ["PENDING_APPROVAL", "PENDING"],
+  PENDING_APPROVAL: ["PENDING_APPROVAL"],
   PARTIALLY_APPROVED: ["PARTIALLY_APPROVED"],
   APPROVED: ["APPROVED"],
-  DELIVERY_CONFIRMED: ["DELIVERY_CONFIRMED", "ACTIVE"],
-  ACTIVE: ["ACTIVE", "DELIVERY_CONFIRMED"],
-  RETURN: ["RETURN", "RETURN_PENDING"],
-  RETURN_PENDING: ["RETURN_PENDING", "RETURN"],
+  DELIVERY_CONFIRMED: ["DELIVERY_CONFIRMED"],
+  RETURN_PENDING: ["RETURN_PENDING"],
   RETURN_CONFIRMED: ["RETURN_CONFIRMED"],
   COMPLETED: ["COMPLETED"],
   REJECTED: ["REJECTED"],
@@ -200,6 +198,14 @@ export function ReservationsPage() {
     event.preventDefault();
     setSearch(searchInput.trim());
   }
+
+  useEffect(() => {
+    const trimmed = searchInput.trim();
+    const timer = setTimeout(() => {
+      setSearch((current) => (current === trimmed ? current : trimmed));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const totalFilterCount = selectedAreaIds.length + selectedStatuses.length;
   const hasActiveFilters = totalFilterCount > 0;
@@ -612,15 +618,15 @@ function ReservationListRow({
       {reservation.pendingDecisionCount > 0 && (
         <div
           className="reservation-decision-flag"
-          aria-label={`${reservation.pendingDecisionCount} ${reservation.pendingDecisionCount === 1 ? "decision" : "decisions"} waiting`}
+          aria-label={`Awaiting manager decision on ${reservation.pendingDecisionCount} ${reservation.pendingDecisionCount === 1 ? "item" : "items"}`}
         >
           <Inbox size={16} />
           <span aria-hidden>
             <strong>{reservation.pendingDecisionCount}</strong>{" "}
             {reservation.pendingDecisionCount === 1
-              ? "decision"
-              : "decisions"}{" "}
-            waiting
+              ? "item"
+              : "items"}{" "}
+            awaiting manager decision
           </span>
         </div>
       )}

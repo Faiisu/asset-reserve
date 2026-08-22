@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { generateStepLogs, ReservationHorizontalTracker } from "./ReservationHorizontalTracker";
-import { buildReservationSteps, ReservationTrackingTimeline } from "./ReservationTracking";
 import type { ReservationDetail } from "../types";
 
 const baseReservation: ReservationDetail = {
@@ -22,7 +21,7 @@ const baseReservation: ReservationDetail = {
     {
       id: "item-1",
       quantity: 2,
-      status: "APPROVED",
+      status: "PREPARED",
       asset: {
         id: "asset-1",
         name: "Stage Camera 4K",
@@ -129,7 +128,8 @@ describe("ReservationHorizontalTracker & generateStepLogs", () => {
           status: "PENDING",
           note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
-          returnedBy: baseReservation.requester,
+          returnedBy: baseReservation.requester.id,
+          returner: baseReservation.requester,
           createdAt: "2026-09-02T10:00:00.000Z",
           updatedAt: "2026-09-02T10:00:00.000Z",
           capabilities: { canApprove: true, canReject: true },
@@ -163,7 +163,8 @@ describe("ReservationHorizontalTracker & generateStepLogs", () => {
           status: "COMPLETED",
           note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
-          returnedBy: baseReservation.requester,
+          returnedBy: baseReservation.requester.id,
+          returner: baseReservation.requester,
           createdAt: "2026-09-02T10:00:00.000Z",
           updatedAt: "2026-09-02T11:00:00.000Z",
           capabilities: {
@@ -208,32 +209,5 @@ describe("ReservationHorizontalTracker & generateStepLogs", () => {
     fireEvent.click(screen.getByLabelText("Inspect step Pending Return"));
     expect(screen.getByText("Step Metadata & Timeline")).toBeInTheDocument();
     expect(screen.getByText("4. Pending Return")).toBeInTheDocument();
-  });
-});
-
-describe("ReservationTracking (buildReservationSteps & ReservationTrackingTimeline)", () => {
-  it("builds 5 steps with Pending Return and Return Approval phases", () => {
-    const deliveryReservation: ReservationDetail = {
-      ...baseReservation,
-      status: "DELIVERY_CONFIRMED",
-    };
-    const steps = buildReservationSteps(deliveryReservation);
-    expect(steps).toHaveLength(5);
-    expect(steps.map((s) => s.name)).toEqual([
-      "Reservation Drafted",
-      "Area Approval",
-      "Equipment Handover",
-      "Pending Return",
-      "Return Approval & Inspection",
-    ]);
-    expect(steps[3].status).toBe("current");
-    expect(steps[4].status).toBe("upcoming");
-  });
-
-  it("renders timeline with 5 steps", () => {
-    render(<ReservationTrackingTimeline reservation={baseReservation} />);
-    expect(screen.getByText("Reservation Lifecycle Tracking")).toBeInTheDocument();
-    expect(screen.getByText("Pending Return")).toBeInTheDocument();
-    expect(screen.getByText("Return Approval & Inspection")).toBeInTheDocument();
   });
 });

@@ -32,7 +32,7 @@ model ReservationItem {
   reservationId String    @map("reservation_id") @db.Uuid
   assetId       String    @map("asset_id") @db.Uuid
   quantity      Int
-  /// Supported values: PENDING, APPROVED, REJECTED, PREPARED, CHECKED_OUT, DELIVERED, RETURNED.
+  /// Supported values: see docs/software_spec/lifecycle-and-state-machines.md §3 (Reservation Item status) — source of truth, do not duplicate the list here.
   status        String    @default("PENDING") @db.VarChar(30)
   preparedBy    String?   @map("prepared_by") @db.Uuid
   preparedAt    DateTime? @map("prepared_at") @db.Timestamptz(6)

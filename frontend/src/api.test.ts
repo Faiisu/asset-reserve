@@ -82,7 +82,10 @@ describe("API client", () => {
     });
     await api.decideReservationItems(
       "reservation-1",
-      ["item-1", "item-2"],
+      [
+        { reservationItemId: "item-1", assetUnitIds: ["unit-1"] },
+        { reservationItemId: "item-2", assetUnitIds: ["unit-2"] },
+      ],
       "APPROVE",
       "Ready",
     );
@@ -98,7 +101,10 @@ describe("API client", () => {
     expect(fetchMock.mock.calls[1][1]).toMatchObject({
       method: "POST",
       body: JSON.stringify({
-        itemIds: ["item-1", "item-2"],
+        items: [
+          { reservationItemId: "item-1", assetUnitIds: ["unit-1"] },
+          { reservationItemId: "item-2", assetUnitIds: ["unit-2"] },
+        ],
         decision: "APPROVE",
         comment: "Ready",
       }),

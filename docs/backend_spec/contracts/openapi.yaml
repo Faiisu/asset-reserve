@@ -105,8 +105,6 @@ paths:
     $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1submit
   /reservations/{reservationId}/items/{itemId}/decision:
     $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1items~1{itemId}~1decision
-  /reservations/{reservationId}/items/{itemId}/prepare:
-    $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1items~1{itemId}~1prepare
   /reservations/{reservationId}/items/decision:
     $ref: ./paths/reservations.yaml#/~1reservations~1{reservationId}~1items~1decision
   /reservations/{reservationId}/delivery-confirm:
@@ -331,6 +329,8 @@ components:
       $ref: ./components/schemas/reservations.yaml#/SubmitReservationRequest
     ReservationItemDecisionRequest:
       $ref: ./components/schemas/reservations.yaml#/ReservationItemDecisionRequest
+    ReservationItemDecisionEntry:
+      $ref: ./components/schemas/reservations.yaml#/ReservationItemDecisionEntry
     ReservationItemsDecisionRequest:
       $ref: ./components/schemas/reservations.yaml#/ReservationItemsDecisionRequest
     ReservationUser:
@@ -347,8 +347,8 @@ components:
       $ref: ./components/schemas/reservations.yaml#/ReservationDetailItem
     ReservationDetail:
       $ref: ./components/schemas/reservations.yaml#/ReservationDetail
-    PrepareReservationItemRequest:
-      $ref: ./components/schemas/reservations.yaml#/PrepareReservationItemRequest
+    ConfirmDeliveryItem:
+      $ref: ./components/schemas/reservations.yaml#/ConfirmDeliveryItem
     ConfirmDeliveryRequest:
       $ref: ./components/schemas/reservations.yaml#/ConfirmDeliveryRequest
     ReturnItemInput:

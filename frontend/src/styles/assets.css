@@ -273,68 +273,17 @@
   flex-direction: column;
   gap: 8px;
 }
-.quantity-board {
-  padding: 20px 24px;
-  display: grid;
-  grid-template-columns: auto minmax(250px, 1fr) auto;
-  align-items: center;
-  gap: 34px;
-  border-radius: 13px;
-  background: var(--ink);
-  color: var(--surface);
-}
-:root[data-theme="dark"] .quantity-board {
-  background: #e3ebf3;
-  color: #10213a;
-}
-.quantity-board__primary {
-  display: grid;
-  grid-template-columns: auto auto;
-  align-items: baseline;
-  column-gap: 8px;
-}
-.quantity-board__primary small {
-  grid-column: 1 / -1;
-  color: #8fa3ba;
-  font-size: 10px;
-}
-.quantity-board__primary strong {
-  font-family: var(--mono);
-  font-size: 36px;
-}
-.quantity-board__primary span {
-  color: #8fa3ba;
-  font-size: 11px;
-}
-.quantity-board__context {
+.asset-availability-note {
+  margin: 10px 2px 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  color: #8fa3ba;
-}
-.quantity-board__context > svg {
-  flex: 0 0 auto;
-  color: #65c6b7;
-}
-.quantity-board__context span,
-.quantity-board__context strong,
-.quantity-board__context small {
-  display: block;
-}
-.quantity-board__context strong {
-  color: var(--surface);
-  font-size: 11px;
-}
-.quantity-board__context small {
-  margin-top: 3px;
-  font-size: 9px;
-}
-:root[data-theme="dark"] .quantity-board__context strong {
-  color: #10213a;
-}
-.quantity-board__actions {
-  display: flex;
   gap: 7px;
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+.asset-availability-note svg {
+  flex: 0 0 auto;
+  color: var(--teal);
 }
 .detail-grid {
   display: grid;
@@ -361,6 +310,37 @@
 .ledger-card h2 {
   margin: 0;
   font-size: 17px;
+}
+.detail-card .toolbar--compact,
+.detail-card .selection-bar,
+.detail-card .data-table-wrap,
+.detail-card .empty-state {
+  margin-top: 14px;
+}
+.detail-card__header-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.unit-count-stat {
+  padding: 6px 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  border-radius: var(--card-radius-md);
+  background: var(--surface-raised);
+}
+.unit-count-stat strong {
+  font-family: var(--mono);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+}
+.unit-count-stat span {
+  color: var(--ink-faint);
+  font-size: 11px;
+  white-space: nowrap;
 }
 .owner-row {
   margin: 20px 0 12px;

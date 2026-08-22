@@ -1,17 +1,31 @@
 import {
+  ArchiveX,
   ArrowDownToLine,
   ArrowLeft,
   CalendarClock,
   CalendarPlus,
+  ChevronDown,
   Edit3,
+  Filter,
   PackageCheck,
   Power,
+  Search,
   UserRound,
 } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
+import {
+  assetUnitStatuses,
+  AssetUnitStatusBadge,
+} from "../components/AssetUnitStatus";
 import {
   AssetPicture,
   Avatar,
@@ -26,9 +40,10 @@ import {
   Notice,
   StatusBadge,
   Textarea,
+  cx,
   formatDate,
 } from "../components/ui";
-import type { AssetDetail } from "../types";
+import type { AssetDetail, AssetUnit } from "../types";
 
 export function AssetDetailPage() {
   const { hasAreaPermission } = useAuth();
@@ -40,11 +55,33 @@ export function AssetDetailPage() {
   const [notice, setNotice] = useState(
     (location.state as { notice?: string } | null)?.notice ?? "",
   );
-  const [adjustOperation, setAdjustOperation] = useState<
-    "ADD" | "REMOVE" | null
-  >(null);
+  const [adjustOperation, setAdjustOperation] = useState<"ADD" | null>(null);
   const [statusOpen, setStatusOpen] = useState(false);
   const [mutating, setMutating] = useState(false);
+  const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
+  const [retireOpen, setRetireOpen] = useState(false);
+  const [unitSearch, setUnitSearch] = useState("");
+  const [unitStatusFilter, setUnitStatusFilter] = useState<string[]>([]);
+  const [unitFilterOpen, setUnitFilterOpen] = useState(false);
+  const unitFilterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!unitFilterOpen) return;
+    const onPointerDown = (event: globalThis.PointerEvent) => {
+      if (!unitFilterRef.current?.contains(event.target as Node)) {
+        setUnitFilterOpen(false);
+      }
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setUnitFilterOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [unitFilterOpen]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,6 +112,55 @@ export function AssetDetailPage() {
   const canRequest =
     asset.isActive &&
     hasAreaPermission("reservation:create", asset.managementArea.id);
+
+  const unitRetireBlocked = new Set(["RESERVED", "CHECKED_OUT", "INACTIVE"]);
+  const trimmedUnitSearch = unitSearch.trim().toLowerCase();
+  const filteredUnits = asset.units.filter((unit) => {
+    const matchesSearch =
+      !trimmedUnitSearch ||
+      unit.serialNumber.toLowerCase().includes(trimmedUnitSearch);
+    const matchesStatus =
+      unitStatusFilter.length === 0 || unitStatusFilter.includes(unit.status);
+    return matchesSearch && matchesStatus;
+  });
+  const selectableUnits = filteredUnits.filter(
+    (unit) => !unitRetireBlocked.has(unit.status),
+  );
+  const allUnitsSelected =
+    selectableUnits.length > 0 &&
+    selectableUnits.every((unit) => selectedUnitIds.includes(unit.id));
+  const selectedUnits = asset.units.filter((unit) =>
+    selectedUnitIds.includes(unit.id),
+  );
+  const hasActiveUnitFilters = unitStatusFilter.length > 0;
+
+  function toggleUnit(id: string) {
+    setSelectedUnitIds((current) =>
+      current.includes(id)
+        ? current.filter((value) => value !== id)
+        : [...current, id],
+    );
+  }
+
+  function toggleAllUnits() {
+    setSelectedUnitIds((current) => {
+      if (allUnitsSelected) {
+        const selectableIds = new Set(selectableUnits.map((unit) => unit.id));
+        return current.filter((id) => !selectableIds.has(id));
+      }
+      const merged = new Set(current);
+      for (const unit of selectableUnits) merged.add(unit.id);
+      return [...merged];
+    });
+  }
+
+  function toggleUnitStatusFilter(status: string) {
+    setUnitStatusFilter((current) =>
+      current.includes(status)
+        ? current.filter((value) => value !== status)
+        : [...current, status],
+    );
+  }
 
   async function toggleStatus() {
     if (!asset) return;
@@ -125,6 +211,7 @@ export function AssetDetailPage() {
             {asset.description || "No description for this asset."}
           </p>
           <div className="asset-hero__meta">
+            <span className="mono">P/N: {asset.partNumber || "No part number"}</span>
             <span>Updated {formatDate(asset.updatedAt, true)}</span>
           </div>
         </div>
@@ -161,25 +248,234 @@ export function AssetDetailPage() {
         </div>
       </section>
 
-      <section className="quantity-board">
-        <div className="quantity-board__primary">
-          <small>Total inventory</small>
-          <strong>{asset.totalQuantity}</strong>
-          <span>recorded units</span>
-        </div>
-        <div className="quantity-board__context">
-          <CalendarClock size={19} />
-          <span>
-            <strong>Reservation quantities are schedule-based</strong>
-            <small>Choose dates in Calendar to see reservable units.</small>
-          </span>
-        </div>
-        {asset.capabilities.canManageUnits && (
-          <div className="quantity-board__actions">
-            <Button onClick={() => setAdjustOperation("ADD")}>
-              <ArrowDownToLine size={16} />
-              Register units
-            </Button>
+      <p className="asset-availability-note">
+        <CalendarClock size={14} />
+        Reservation quantities are schedule-based — choose dates in Calendar
+        to see reservable units.
+      </p>
+
+      <section className="detail-card">
+        <header>
+          <div>
+            <p className="eyebrow">Physical inventory</p>
+            <h2>Serial units</h2>
+          </div>
+          <div className="detail-card__header-actions">
+            <div className="unit-count-stat">
+              <strong>{asset.units.length}</strong>
+              <span>
+                {hasActiveUnitFilters || trimmedUnitSearch
+                  ? `unit${asset.units.length === 1 ? "" : "s"} total · showing ${filteredUnits.length}`
+                  : `unit${asset.units.length === 1 ? "" : "s"} total`}
+              </span>
+            </div>
+            {asset.capabilities.canManageUnits && (
+              <Button size="sm" onClick={() => setAdjustOperation("ADD")}>
+                <ArrowDownToLine size={16} />
+                Register units
+              </Button>
+            )}
+          </div>
+        </header>
+
+        {asset.units.length > 0 && (
+          <div className="toolbar toolbar--compact" aria-label="Serial unit filters">
+            <div className="search-box">
+              <Search size={16} />
+              <input
+                value={unitSearch}
+                onChange={(event) => setUnitSearch(event.target.value)}
+                placeholder="Search by serial number"
+                aria-label="Search serial units"
+              />
+            </div>
+            <div className="calendar-filter-picker" ref={unitFilterRef}>
+              <button
+                type="button"
+                className={cx(
+                  "calendar-filter-btn",
+                  (hasActiveUnitFilters || unitFilterOpen) &&
+                    "calendar-filter-btn--active",
+                )}
+                onClick={() => setUnitFilterOpen((prev) => !prev)}
+                aria-haspopup="dialog"
+                aria-expanded={unitFilterOpen}
+                aria-label="Filter serial units by status"
+              >
+                <Filter size={13} />
+                <span>Status</span>
+                {hasActiveUnitFilters && (
+                  <span className="calendar-filter-btn__badge">
+                    {unitStatusFilter.length}
+                  </span>
+                )}
+                <ChevronDown
+                  size={14}
+                  className={cx(
+                    "calendar-filter-btn__chevron",
+                    unitFilterOpen && "calendar-filter-btn__chevron--open",
+                  )}
+                  aria-hidden
+                />
+              </button>
+              {unitFilterOpen && (
+                <div
+                  className="calendar-filter-popover calendar-filter-popover--single"
+                  role="dialog"
+                  aria-label="Filter serial units"
+                >
+                  <div className="calendar-filter-popover__top">
+                    <div className="calendar-filter-popover__title">
+                      <Filter size={13} />
+                      <strong>Status</strong>
+                    </div>
+                    {hasActiveUnitFilters && (
+                      <button
+                        type="button"
+                        className="calendar-filter-popover__reset"
+                        onClick={() => setUnitStatusFilter([])}
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                  <div className="calendar-filter-popover__columns">
+                    <section className="calendar-filter-popover__section">
+                      <div className="calendar-filter-popover__list">
+                        {assetUnitStatuses.map((status) => {
+                          const checked = unitStatusFilter.includes(
+                            status.status,
+                          );
+                          return (
+                            <label
+                              key={status.status}
+                              className={cx(
+                                "workspace-filter-checkbox-item",
+                                checked &&
+                                  "workspace-filter-checkbox-item--checked",
+                              )}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() =>
+                                  toggleUnitStatusFilter(status.status)
+                                }
+                                aria-label={status.label}
+                              />
+                              <span className="workspace-filter-checkbox-item__name">
+                                {status.label}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {selectedUnitIds.length > 0 && (
+          <div className="selection-bar" aria-live="polite">
+            <span>
+              <strong>{selectedUnitIds.length}</strong> selected
+            </span>
+            <div>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setRetireOpen(true)}
+              >
+                <ArchiveX size={16} />
+                Retire
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {asset.units.length === 0 ? (
+          <EmptyState
+            title="No serial units registered"
+            description="Register serial numbers above to start tracking physical units for this asset."
+          />
+        ) : filteredUnits.length === 0 ? (
+          <EmptyState
+            title="No units match the current filters"
+            description="Try a different serial number or clear the status filter."
+          />
+        ) : (
+          <div className="data-table-wrap asset-units-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  {asset.capabilities.canManageUnits && (
+                    <th className="cell-check">
+                      <input
+                        type="checkbox"
+                        checked={allUnitsSelected}
+                        disabled={selectableUnits.length === 0}
+                        onChange={toggleAllUnits}
+                        aria-label="Select all"
+                      />
+                    </th>
+                  )}
+                  <th>Serial number</th>
+                  <th>Status</th>
+                  <th>Note</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUnits.map((unit) => {
+                  const isSelectable = !unitRetireBlocked.has(unit.status);
+                  const isSelected = selectedUnitIds.includes(unit.id);
+                  return (
+                    <tr
+                      key={unit.id}
+                      className={cx(isSelected && "asset-table-row--selected")}
+                    >
+                      {asset.capabilities.canManageUnits && (
+                        <td className="cell-check">
+                          <div
+                            className={cx(
+                              "cell-check__hit",
+                              !isSelectable && "cell-check__hit--disabled",
+                            )}
+                            onClick={() => {
+                              if (!isSelectable) return;
+                              toggleUnit(unit.id);
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={!isSelectable}
+                              readOnly
+                              aria-label={`Select unit ${unit.serialNumber}`}
+                            />
+                          </div>
+                        </td>
+                      )}
+                      <td className="mono">{unit.serialNumber}</td>
+                      <td>
+                        <AssetUnitStatusBadge status={unit.status} />
+                      </td>
+                      <td>
+                        <span className="table-secondary">
+                          {unit.note || "—"}
+                        </span>
+                      </td>
+                      <td className="mono table-date">
+                        {formatDate(unit.updatedAt, true)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </section>
@@ -327,6 +623,17 @@ export function AssetDetailPage() {
           await load();
         }}
       />
+      <RetireUnitsDialog
+        units={selectedUnits}
+        open={retireOpen}
+        onClose={() => setRetireOpen(false)}
+        onDone={async (message) => {
+          setRetireOpen(false);
+          setSelectedUnitIds([]);
+          setNotice(message);
+          await load();
+        }}
+      />
       <Dialog
         open={statusOpen}
         title={asset.isActive ? "Disable asset?" : "Enable asset?"}
@@ -365,7 +672,7 @@ function AdjustOneDialog({
   onDone,
 }: {
   asset: AssetDetail;
-  operation: "ADD" | "REMOVE" | null;
+  operation: "ADD" | null;
   onClose: () => void;
   onDone: (message: string) => void | Promise<void>;
 }) {
@@ -401,7 +708,7 @@ function AdjustOneDialog({
     <Dialog
       open={Boolean(operation)}
       title={`Register units for ${asset.name}`}
-      description={`Current quantity: ${asset.totalQuantity} units`}
+      description={`Currently on record: ${asset.unitCounts.total} units`}
       onClose={onClose}
     >
       <form className="form-stack" onSubmit={submit}>
@@ -437,6 +744,89 @@ function AdjustOneDialog({
           >
             Register {parsedSerials.length || ""} unit
             {parsedSerials.length === 1 ? "" : "s"}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+function RetireUnitsDialog({
+  units,
+  open,
+  onClose,
+  onDone,
+}: {
+  units: AssetUnit[];
+  open: boolean;
+  onClose: () => void;
+  onDone: (message: string) => void | Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (units.length === 0) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await api.retireAssetUnits(
+        units.map((unit) => ({
+          assetUnitId: unit.id,
+          expectedUpdatedAt: unit.updatedAt,
+        })),
+        reason || undefined,
+      );
+      await onDone(
+        `Retired ${units.length} unit${units.length === 1 ? "" : "s"}`,
+      );
+      setReason("");
+    } catch (caught) {
+      setError(
+        caught instanceof ApiClientError
+          ? caught.message
+          : "Unable to retire units",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      title={`Retire ${units.length} unit${units.length === 1 ? "" : "s"}?`}
+      description="Retired units move to INACTIVE and are excluded from useable inventory. This cannot be undone from this screen."
+      onClose={onClose}
+    >
+      <form className="form-stack" onSubmit={submit}>
+        {error && (
+          <div className="form-alert" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="confirm-list">
+          {units.map((unit) => (
+            <span key={unit.id} className="mono">
+              {unit.serialNumber}
+            </span>
+          ))}
+        </div>
+        <Field label="Reason">
+          <Input
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Reason for retiring these units"
+          />
+        </Field>
+        <div className="dialog__actions">
+          <Button type="button" variant="quiet" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="danger" loading={submitting}>
+            Confirm retire
           </Button>
         </div>
       </form>

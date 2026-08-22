@@ -18,6 +18,7 @@ import {
   Button,
   Field,
   Input,
+  Notice,
   Textarea,
   cx,
 } from "../components/ui";
@@ -222,6 +223,10 @@ export function ReservationCreatePage() {
       setFields({ eventName: "Enter an event name." });
       return;
     }
+    if (selected.length === 0) {
+      setFields({ items: "Select at least one asset for this reservation." });
+      return;
+    }
     if (
       selected.some(
         (item) =>
@@ -236,13 +241,13 @@ export function ReservationCreatePage() {
       });
       return;
     }
-    if (
-      !startAt ||
-      !endAt ||
-      Number.isNaN(new Date(startAt).getTime()) ||
-      Number.isNaN(new Date(endAt).getTime())
-    ) {
-      setFields({ startAt: "Set a valid start and end time." });
+    const startInvalid = !startAt || Number.isNaN(new Date(startAt).getTime());
+    const endInvalid = !endAt || Number.isNaN(new Date(endAt).getTime());
+    if (startInvalid || endInvalid) {
+      setFields({
+        ...(startInvalid ? { startAt: "Set a valid start time." } : {}),
+        ...(endInvalid ? { endAt: "Set a valid end time." } : {}),
+      });
       return;
     }
     if (new Date(endAt) <= new Date(startAt)) {
@@ -289,6 +294,10 @@ export function ReservationCreatePage() {
     return (
       <div className="page-stack page-stack--form reservation-page">
         <div className="reservation-review-landing">
+          <Notice tone="warning">
+            Your account doesn't have permission to create new reservations.
+            You can still open an existing one below if you have its ID.
+          </Notice>
           <section className="reservation-panel">
             <div className="reservation-panel__heading">
               <span className="reservation-step">→</span>
@@ -412,7 +421,12 @@ export function ReservationCreatePage() {
             )}
             {selected.length > 0 && (
               <div className="reservation-manifest">
-                {selected.map(({ asset, quantity }, index) => (
+                {selected.map(({ asset, quantity }, index) => {
+                  const quantityInvalid =
+                    !Number.isInteger(quantity) ||
+                    quantity < 1 ||
+                    quantity > asset.availableQuantity;
+                  return (
                   <div className="manifest-row" key={asset.id}>
                     <span className="manifest-row__number">
                       {String(index + 1).padStart(2, "0")}
@@ -425,7 +439,14 @@ export function ReservationCreatePage() {
                         available for this time
                       </span>
                     </div>
-                    <Field label="Quantity">
+                    <Field
+                      label="Quantity"
+                      error={
+                        quantityInvalid
+                          ? `Enter a whole number from 1 to ${asset.availableQuantity}`
+                          : undefined
+                      }
+                    >
                       <Input
                         className="manifest-row__quantity"
                         type="number"
@@ -451,7 +472,8 @@ export function ReservationCreatePage() {
                       <Trash2 size={17} />
                     </button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -527,7 +549,7 @@ export function ReservationCreatePage() {
             </Button>
             <Button type="submit" loading={submitting === "PENDING_APPROVAL"}>
               <Send size={17} />
-              {selected.length === 0 ? "Create event" : "Send for approval"}
+              Send for approval
             </Button>
           </div>
         </div>

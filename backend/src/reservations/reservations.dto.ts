@@ -115,18 +115,47 @@ export class ReservationItemDecisionDto {
   decision!: "APPROVE" | "REJECT";
 
   @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  assetUnitIds?: string[];
+
+  @IsOptional()
   @IsString()
   @MaxLength(2_000)
   comment?: string;
 }
 
-export class ReservationItemsDecisionDto extends ReservationItemDecisionDto {
+export class ReservationItemDecisionEntryDto {
+  @IsUUID()
+  reservationItemId!: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  assetUnitIds?: string[];
+}
+
+export class ReservationItemsDecisionDto {
+  @IsIn(["APPROVE", "REJECT"])
+  decision!: "APPROVE" | "REJECT";
+
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(100)
-  @ArrayUnique()
-  @IsUUID(undefined, { each: true })
-  itemIds!: string[];
+  @ValidateNested({ each: true })
+  @Type(() => ReservationItemDecisionEntryDto)
+  items!: ReservationItemDecisionEntryDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000)
+  comment?: string;
 }
 
 export class CancelReservationDto {
@@ -136,20 +165,25 @@ export class CancelReservationDto {
   reason?: string;
 }
 
-export class PrepareReservationItemDto {
+export class ConfirmDeliveryItemDto {
+  @IsUUID()
+  reservationItemId!: string;
+
+  @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(200)
   @ArrayUnique()
   @IsUUID(undefined, { each: true })
-  assetUnitIds!: string[];
+  reservationItemUnitIds?: string[];
 }
 
 export class ConfirmDeliveryDto {
   @IsOptional()
   @IsArray()
+  @ArrayMinSize(1)
   @ArrayMaxSize(100)
-  @ArrayUnique()
-  @IsUUID(undefined, { each: true })
-  itemIds?: string[];
+  @ValidateNested({ each: true })
+  @Type(() => ConfirmDeliveryItemDto)
+  items?: ConfirmDeliveryItemDto[];
 }

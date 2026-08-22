@@ -79,6 +79,7 @@
   box-sizing: border-box;
 }
 .reservation-list-search {
+  flex: 1;
   min-width: 320px;
   height: 42px;
   padding-left: 11px;
@@ -285,6 +286,23 @@
   background: var(--red-soft);
   color: var(--red);
 }
+.reservation-list-status--draft {
+  background: var(--slate-soft);
+  color: var(--slate);
+}
+.reservation-list-status--delivery_confirmed {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+.reservation-list-status--return,
+.reservation-list-status--return_pending {
+  background: var(--orange-soft);
+  color: var(--orange);
+}
+.reservation-list-status--return_confirmed {
+  background: var(--emerald-soft);
+  color: var(--emerald);
+}
 .reservation-list-participant-tag {
   display: inline-flex;
   align-items: center;
@@ -379,6 +397,13 @@
 
 
 /* Selection Checkbox Utilities */
+.res-card-header__select-all-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
 .approval-select-all {
   display: inline-flex;
   align-items: center;
@@ -388,8 +413,7 @@
   font-weight: 650;
   cursor: pointer;
 }
-.approval-select-all input,
-.reservation-item-select {
+.approval-select-all input {
   width: 17px;
   height: 17px;
   margin: 0;
@@ -556,39 +580,58 @@
   letter-spacing: 0.04em;
 }
 
-.res-status-badge--approved {
-  background: var(--blue-soft);
-  color: var(--blue);
-}
-
-.res-status-badge--delivery_confirmed,
-.res-status-badge--return_confirmed {
-  background: var(--green-soft);
-  color: var(--green);
-}
-
-.res-status-badge--active {
-  background: var(--amber-soft);
-  color: var(--amber);
-}
-
-.res-status-badge--completed {
+.res-status-badge--draft {
   background: var(--surface-raised);
   color: var(--ink-soft);
   border: 1px solid var(--line);
 }
 
 .res-status-badge--pending_approval,
-.res-status-badge--return,
-.res-status-badge--return_pending {
+.res-status-badge--pending {
   background: var(--amber-soft);
   color: var(--amber);
 }
 
-.res-status-badge--rejected,
-.res-status-badge--cancelled {
+.res-status-badge--partially_approved {
+  background: var(--purple-soft);
+  color: var(--purple);
+}
+
+.res-status-badge--approved {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.res-status-badge--delivery_confirmed,
+.res-status-badge--active {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+
+.res-status-badge--return,
+.res-status-badge--return_pending {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.res-status-badge--return_confirmed {
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+}
+
+.res-status-badge--completed {
+  background: var(--green-soft);
+  color: var(--green-dark);
+}
+
+.res-status-badge--rejected {
   background: var(--red-soft);
   color: var(--red);
+}
+
+.res-status-badge--cancelled {
+  background: var(--amber-soft);
+  color: var(--amber-dark);
 }
 
 /* Meta Strip */
@@ -730,6 +773,14 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 25%, transparent);
 }
 
+/* Area-approval step waiting on a decision -- amber, matching the
+   pending-approval highlight used in the manifest and calendar legend. */
+.res-step-node--pending-approval {
+  background: var(--amber);
+  color: #ffffff;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--amber) 25%, transparent);
+}
+
 .res-step-node--upcoming {
   background: var(--surface);
   border: 2px solid var(--line-strong);
@@ -853,7 +904,6 @@
 }
 
 .res-manifest-item[data-status="delivered"],
-.res-manifest-item[data-status="delivery_confirmed"],
 .res-manifest-item[data-status="returned"] {
   padding-block: 18px;
   background: linear-gradient(
@@ -864,7 +914,6 @@
 }
 
 .res-manifest-item[data-status="delivered"]:hover,
-.res-manifest-item[data-status="delivery_confirmed"]:hover,
 .res-manifest-item[data-status="returned"]:hover {
   background: linear-gradient(
     90deg,
@@ -879,11 +928,6 @@
 
 .res-manifest-item:hover {
   background: var(--surface-raised);
-}
-
-.res-manifest-item[data-selected="true"] {
-  background: color-mix(in srgb, var(--teal-soft) 52%, var(--surface));
-  box-shadow: inset 3px 0 var(--teal);
 }
 
 .res-review-bar {
@@ -1209,18 +1253,30 @@
   font-size: 9px;
 }
 
+.res-item-media__rejected {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  background: var(--red);
+  color: #fff;
+}
+
+.res-item-clearance--rejected {
+  color: var(--red);
+}
+
 .res-item-status-col {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
   flex-shrink: 0;
-}
-
-.res-item-qty {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink);
 }
 
 .res-item-qty-ticket {
@@ -1256,13 +1312,13 @@
   line-height: 1.3;
 }
 
-/* Pending area-review docket */
+/* Pending area-review docket -- grid-template-columns/align-items are set
+   by the more specific --approve rule below (the only user of this class);
+   left out here since declaring them would just be dead, unreachable CSS. */
 .res-manifest-item.reservation-item-card--selectable {
   min-height: 80px;
   padding: 12px 16px;
   display: grid;
-  grid-template-columns: 28px 52px minmax(150px, 1fr) 94px;
-  align-items: center;
   gap: 12px;
   cursor: pointer;
   background: var(--surface);
@@ -1275,35 +1331,25 @@
   background: color-mix(in srgb, var(--teal-soft) 24%, var(--surface));
 }
 
-.res-manifest-item.reservation-item-card--selectable[data-selected="true"] {
-  background: color-mix(in srgb, var(--teal-soft) 36%, var(--surface));
-  box-shadow: inset 3px 0 var(--teal);
+.res-item-approve-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
-.res-manifest-item.reservation-item-card--selectable.reservation-item-card--handover {
-  background: color-mix(in srgb, var(--blue-soft) 24%, var(--surface));
+.res-item-approve-actions .control {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  font-size: 12px;
 }
 
-.res-manifest-item.reservation-item-card--selectable.reservation-item-card--handover:hover {
-  background: color-mix(in srgb, var(--blue-soft) 40%, var(--surface));
-}
-
-.res-manifest-item.reservation-item-card--selectable.reservation-item-card--handover[data-selected="true"] {
-  background: color-mix(in srgb, var(--blue-soft) 56%, var(--surface));
-  box-shadow: inset 3px 0 var(--blue);
-}
-
-.res-pending-check {
-  display: grid;
-  place-items: center;
-}
-
-.res-pending-check .reservation-item-select {
-  width: 17px;
-  height: 17px;
-  margin: 0;
-  accent-color: var(--teal);
-  cursor: pointer;
+.res-item-approve-actions .button {
+  min-height: 36px;
+  padding-inline: 12px;
+  font-size: 12px;
 }
 
 .res-pending-identity {
@@ -1312,91 +1358,122 @@
   align-items: center;
 }
 
-.res-pending-quantity {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-}
-
-.res-pending-quantity .control {
-  width: 52px;
-  height: 34px;
-  padding: 0 5px;
-  border-color: var(--line-strong);
-  text-align: center;
-  font-family: var(--mono);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.res-pending-quantity > span {
-  color: var(--ink-soft);
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.res-pending-quantity > strong {
-  color: var(--ink);
-  font-family: var(--mono);
-  font-size: 15px;
-}
-
-/* Manifest Grid Header for Return Inspection */
-.res-manifest-grid-header {
-  display: grid;
-  align-items: center;
-  padding: 8px 16px;
-  background: var(--surface-raised);
-  border-bottom: 1px solid var(--line);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.res-manifest-grid-header--inspection {
-  grid-template-columns: 28px 52px minmax(140px, 1fr) minmax(220px, 2fr);
-  gap: 12px;
-}
-
-.res-grid-th {
-  display: flex;
-  align-items: center;
-}
-
-.res-grid-th--serials {
-  color: var(--ink-faint);
-}
-
-/* Inspection Row Grid: identity column + a serial/condition list column */
-.res-manifest-item.reservation-item-card--selectable.res-manifest-item--inspection {
-  grid-template-columns: 28px 52px minmax(140px, 1fr) minmax(220px, 2fr);
+/* Approval Row Grid: identity column takes the remaining width now that
+   serial-unit assignment lives in its own res-manifest-unit-list below;
+   the qty ticket sits at the far right like the approved-item header row. */
+.res-manifest-item.reservation-item-card--selectable.res-manifest-item--approve {
+  grid-template-columns: 52px 1fr auto;
   gap: 12px;
   align-items: start;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--amber-soft) 55%, var(--surface)) 0 5px,
+    var(--surface) 5px 100%
+  );
 }
 
-/* Per-serial condition checklist shown during return inspection */
-.res-inspect-serial-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 0;
+.res-manifest-item.reservation-item-card--selectable.res-manifest-item--approve:hover {
+  background: linear-gradient(
+    90deg,
+    var(--amber) 0 5px,
+    color-mix(in srgb, var(--amber-soft) 25%, var(--surface)) 5px 100%
+  );
 }
 
-.res-inspect-serial-row {
+/* Tint the S/N picker grid that belongs to this P/N so each approval
+   section reads as one block instead of blending into the next item. */
+.res-manifest-item--approve + .res-manifest-unit-list {
+  background: color-mix(in srgb, var(--amber-soft) 14%, var(--surface));
+}
+
+.res-manifest-item--approve .res-item-qty-ticket {
+  justify-self: end;
+}
+
+/* Asset sub-header above a flattened one-row-per-serial-unit list. Scoped
+   with [data-status] to outweigh the .res-manifest-item[data-status=...]
+   status-color rules above (which have higher specificity than the plain
+   class alone) -- the group header should always read as a neutral
+   section title, regardless of the underlying item's status. */
+.res-manifest-item.res-manifest-group-header[data-status] {
+  padding-block: 12px;
+  background: var(--surface-raised);
+}
+
+/* Serial units for the asset above, packed 2 per row instead of one
+   full-width row per unit, to cut down on page height. */
+.res-manifest-unit-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  padding: 10px 18px 14px 82px;
+  border-bottom: 1px solid var(--line);
+}
+
+.res-manifest-unit-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.res-inspect-serial-row__serial {
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
   font-size: 12px;
   color: var(--ink-soft);
+}
+
+.res-manifest-unit-row__check {
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.res-manifest-unit-row__check input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--teal);
+  cursor: pointer;
+}
+
+.res-manifest-unit-row__serial {
+  flex: 1;
+  color: var(--ink);
+}
+
+.res-manifest-unit-row__status {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-faint);
   white-space: nowrap;
+}
+
+.res-manifest-unit-row__status--good {
+  color: var(--green, #168a4a);
+}
+
+.res-manifest-unit-row__status--broken {
+  color: var(--amber, #d97706);
+}
+
+.res-manifest-unit-row__status--lost {
+  color: var(--red, #dc2626);
+}
+
+.res-manifest-unit-row--inspect {
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.res-manifest-unit-row--clickable {
+  cursor: pointer;
+}
+
+.res-manifest-unit-row--clickable:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.03));
 }
 
 .res-condition-toggle {
@@ -1410,10 +1487,10 @@
   border: none;
   background: var(--surface);
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  padding: 6px 10px;
+  padding: 5px 7px;
   cursor: pointer;
 }
 
@@ -1434,21 +1511,6 @@
 .res-condition-toggle__option--lost.is-active {
   background: var(--red-soft, color-mix(in srgb, var(--red) 18%, transparent));
   color: var(--red, #dc2626);
-}
-
-/* Per-serial checklist shown when selecting units to return (drop-off) */
-.res-return-serial-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.res-return-serial-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--ink-soft);
 }
 
 @media (max-width: 720px) {
@@ -1483,27 +1545,41 @@
 
   .res-manifest-item.reservation-item-card--selectable {
     padding: 14px;
-    grid-template-columns: 22px 44px minmax(0, 1fr);
-    align-items: center;
     gap: 12px;
   }
 
-  .res-manifest-item.reservation-item-card--selectable > .res-item-media {
+  /* The approve row is the only user of .reservation-item-card--selectable;
+     its grid-template-columns/align-items are set here (not on the plain
+     selector above) since a bare declaration there would be unreachable --
+     the desktop --approve rule outweighs it in specificity regardless of
+     this media query. Stack the qty ticket under media+identity instead of
+     squeezing all three into one row on a narrow screen. */
+  .res-manifest-item.reservation-item-card--selectable.res-manifest-item--approve {
+    grid-template-columns: 44px 1fr;
+    align-items: center;
+  }
+
+  .res-manifest-item.reservation-item-card--selectable.res-manifest-item--approve
+    > .res-item-media {
     width: 44px;
     height: 44px;
+  }
+
+  .res-manifest-item--approve .res-item-qty-ticket {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    border-left: none;
+    border-top: 1px dashed var(--line-strong);
+    padding: 8px 0 0;
   }
 
   .res-pending-identity {
     min-width: 0;
   }
 
-  .res-pending-quantity {
-    grid-column: 3;
-    padding-top: 12px;
-    justify-content: flex-start;
-    border-top: 1px solid var(--line);
+  .res-manifest-unit-list {
+    padding-left: 14px;
   }
-
 }
 
 /* Modals */

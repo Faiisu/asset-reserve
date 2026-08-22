@@ -187,7 +187,11 @@ describe("CalendarPage", () => {
     );
   });
 
-  it("approves pending assets from the calendar event action menu", async () => {
+  it("rejects pending assets from the calendar event action menu, with no Approve button", async () => {
+    // Approving now requires picking serial-numbered units per item (§7.5),
+    // which this lightweight quick-action menu has no room for -- only
+    // Reject remains a one-click action here; Approve happens on the
+    // Reservation Detail page instead.
     vi.spyOn(api, "reservations").mockResolvedValue({
       data: [pendingReservation],
       pageInfo: { nextCursor: null, hasNextPage: false },
@@ -197,11 +201,11 @@ describe("CalendarPage", () => {
       .spyOn(api, "decideReservationItems")
       .mockResolvedValue({
         ...pendingReservationDetail,
-        status: "APPROVED",
+        status: "REJECTED",
         items: [
           {
             ...pendingReservationDetail.items[0],
-            status: "APPROVED",
+            status: "REJECTED",
             capabilities: { canApprove: false, canReject: false },
           },
         ],
@@ -218,14 +222,14 @@ describe("CalendarPage", () => {
     });
     fireEvent.click(eventButtons[0]);
     expect(screen.queryByRole("button", { name: /Cancel/i })).toBeNull();
-    expect(screen.getByRole("button", { name: /Reject/i })).toBeEnabled();
-    fireEvent.click(screen.getByRole("button", { name: /Approve/i }));
+    expect(screen.queryByRole("button", { name: /Approve/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Reject/i }));
 
     await waitFor(() =>
       expect(decideSpy).toHaveBeenCalledWith(
         pendingReservation.id,
-        ["item-1"],
-        "APPROVE",
+        [{ reservationItemId: "item-1" }],
+        "REJECT",
       ),
     );
     await waitFor(() =>

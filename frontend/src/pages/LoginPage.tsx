@@ -9,20 +9,7 @@ import { ApiClientError } from "../api";
 import { useAuth } from "../auth";
 import { Button, Field, Input } from "../components/ui";
 import { GoogleIcon, MicrosoftIcon } from "../components/OAuthIcons";
-
-const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
-  not_linked: "That Google account isn't linked to any user yet. Sign in with your username and password, then link it from there.",
-  inactive: "This account is disabled. Contact an administrator.",
-  google_not_configured: "Google sign-in isn't set up for this deployment.",
-  google_failed: "Something went wrong connecting to Google. Try again.",
-};
-
-const MICROSOFT_ERROR_MESSAGES: Record<string, string> = {
-  not_linked: "That Microsoft account isn't linked to any user yet. Sign in with your username and password, then link it from there.",
-  inactive: "This account is disabled. Contact an administrator.",
-  microsoft_not_configured: "Microsoft sign-in isn't set up for this deployment.",
-  microsoft_failed: "Something went wrong connecting to Microsoft. Try again.",
-};
+import { oauthErrorMessage } from "../oauth-errors";
 
 export function LoginPage() {
   const { session, login } = useAuth();
@@ -35,11 +22,7 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const googleError = searchParams.get("googleError");
   const microsoftError = searchParams.get("microsoftError");
-  const oauthErrorMessage = googleError
-    ? (GOOGLE_ERROR_MESSAGES[googleError] ?? GOOGLE_ERROR_MESSAGES.google_failed)
-    : microsoftError
-      ? (MICROSOFT_ERROR_MESSAGES[microsoftError] ?? MICROSOFT_ERROR_MESSAGES.microsoft_failed)
-      : "";
+  const oauthError = oauthErrorMessage(googleError, microsoftError);
 
   if (session) return <Navigate to="/" replace />;
 
@@ -110,10 +93,10 @@ export function LoginPage() {
               />
             </Field>
             <div className="login-alert-slot" aria-live="polite">
-              {(error || oauthErrorMessage) && (
+              {(error || oauthError) && (
                 <div className="form-alert" role="alert">
                   <AlertCircle size={16} aria-hidden />
-                  <span>{error || oauthErrorMessage}</span>
+                  <span>{error || oauthError}</span>
                 </div>
               )}
             </div>

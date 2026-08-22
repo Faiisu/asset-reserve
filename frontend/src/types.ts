@@ -252,27 +252,29 @@ export type AssetInput = {
   isActive?: boolean;
 };
 
+// Kept in sync with docs/software_spec/lifecycle-and-state-machines.md §2 --
+// that table is the single source of truth for accepted values. `ACTIVE`,
+// `RETURN`, and bare `PENDING` are explicitly called out there as retired
+// aliases the system no longer supports; don't reintroduce them.
 export type ReservationStatus =
   | "DRAFT"
-  | "PENDING"
   | "PENDING_APPROVAL"
   | "PARTIALLY_APPROVED"
   | "APPROVED"
   | "DELIVERY_CONFIRMED"
-  | "ACTIVE"
-  | "RETURN"
   | "RETURN_PENDING"
   | "RETURN_CONFIRMED"
   | "COMPLETED"
   | "REJECTED"
   | "CANCELLED";
 
+// Per docs §3: approval now assigns serial units in the same step, so items
+// go PENDING -> PREPARED directly (no APPROVED resting state); CHECKED_OUT
+// is a ReservationItemUnit status, not a ReservationItem one.
 export type ReservationItemStatus =
   | "PENDING"
-  | "APPROVED"
-  | "REJECTED"
   | "PREPARED"
-  | "CHECKED_OUT"
+  | "REJECTED"
   | "DELIVERED"
   | "RETURNED";
 
@@ -289,7 +291,10 @@ export type ReservationItemInput = {
 };
 
 export type ConfirmDeliveryInput = {
-  itemIds?: string[];
+  items: Array<{
+    reservationItemId: string;
+    reservationItemUnitIds?: string[];
+  }>;
 };
 
 export type ReservationDetail = {
@@ -362,6 +367,7 @@ export type ReservationDetail = {
     canConfirmDelivery?: boolean;
     canCancel?: boolean;
     canReturn?: boolean;
+    canDecideReturn?: boolean;
   };
   createdAt: string;
   updatedAt: string;
@@ -381,16 +387,19 @@ export type ReturnItemUnitCondition = "GOOD" | "BROKEN" | "LOST";
 
 export type ReturnItemUnitDetail = {
   id: string;
+  returnItemId: string;
   reservationItemUnitId: string;
   assetUnitId: string;
   serialNumber: string;
   condition: ReturnItemUnitCondition | null;
   pictureUrl: string | null;
   note: string | null;
+  createdAt: string;
 };
 
 export type ReturnItemDetail = {
   id: string;
+  returnId: string;
   reservationItemId: string;
   assetId: string;
   assetName: string;
@@ -398,6 +407,7 @@ export type ReturnItemDetail = {
   description: string | null;
   pictureUrl: string | null;
   units: ReturnItemUnitDetail[];
+  createdAt: string;
 };
 
 export type ReturnDetail = {
@@ -406,7 +416,8 @@ export type ReturnDetail = {
   status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
   note: string | null;
   returnedAt: string | null;
-  returnedBy: ReservationUser;
+  returnedBy: string;
+  returner: ReservationUser;
   reservation?: {
     id: string;
     eventName: string;
@@ -437,7 +448,6 @@ export type CreateReturnItemInput = {
 export type CreateReturnInput = {
   items: CreateReturnItemInput[];
   note?: string | null;
-  immediateApprove?: boolean;
 };
 
 export type DecideReturnItemUnitInput = {

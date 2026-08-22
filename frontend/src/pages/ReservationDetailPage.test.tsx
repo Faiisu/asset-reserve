@@ -36,7 +36,7 @@ const mockReservation: ReservationDetail = {
     {
       id: "item-1",
       quantity: 2,
-      status: "APPROVED",
+      status: "PREPARED",
       asset: {
         id: "asset-1",
         name: "Stage Camera 4K",
@@ -48,7 +48,10 @@ const mockReservation: ReservationDetail = {
           name: "Marketing",
         },
       },
-      units: [],
+      units: [
+        { id: "riu-1", assetUnitId: "au-1", serialNumber: "SN-CAM-001", status: "ASSIGNED" },
+        { id: "riu-2", assetUnitId: "au-2", serialNumber: "SN-CAM-002", status: "ASSIGNED" },
+      ],
       approval: {
         id: "app-1",
         status: "APPROVED",
@@ -164,10 +167,14 @@ describe("ReservationDetailPage", () => {
     });
 
     expect(screen.getByText("Stage Camera 4K")).toBeInTheDocument();
-    expect(screen.getByText("All equipment cleared for handover")).toBeInTheDocument();
-    expect(screen.getByText("Handover confirmation (0 of 1 selected)")).toBeInTheDocument();
-    expect(screen.getByLabelText("Select Stage Camera 4K for handover")).not.toBeChecked();
-    expect(screen.getByRole("button", { name: "Confirm Handover" })).toBeDisabled();
+    expect(screen.getByText("All equipment approved for handover")).toBeInTheDocument();
+    // Every assigned serial unit is pre-selected for handover by default.
+    expect(
+      screen.getByText("Handover confirmation (2 of 2 serial units selected)"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Select serial SN-CAM-001 for handover")).toBeChecked();
+    expect(screen.getByLabelText("Select serial SN-CAM-002 for handover")).toBeChecked();
+    expect(screen.getByRole("button", { name: "Confirm Handover" })).toBeEnabled();
     expect(screen.getAllByText("Reservation Status Track")[0]).toBeInTheDocument();
 
     // 2. Click on the "Approved" step in the horizontal tracker (.res-step-btn)
@@ -189,15 +196,44 @@ describe("ReservationDetailPage", () => {
     });
   });
 
-  it("allows Area Manager to select items, adjust approved quantity, and submit batch approval", async () => {
+  it("allows Area Manager to assign serial units and approve an item inline", async () => {
     vi.spyOn(api, "reservation").mockResolvedValue(mockPendingReservation);
+    const assetUnitsSpy = vi.spyOn(api, "assetUnits").mockResolvedValue({
+      data: [
+        {
+          id: "unit-1",
+          serialNumber: "SN-MIC-001",
+          status: "ACTIVE",
+          note: null,
+          createdAt: "2026-08-15T00:00:00.000Z",
+          updatedAt: "2026-08-15T00:00:00.000Z",
+        },
+        {
+          id: "unit-2",
+          serialNumber: "SN-MIC-002",
+          status: "ACTIVE",
+          note: null,
+          createdAt: "2026-08-15T00:00:00.000Z",
+          updatedAt: "2026-08-15T00:00:00.000Z",
+        },
+        {
+          id: "unit-3",
+          serialNumber: "SN-MIC-003",
+          status: "ACTIVE",
+          note: null,
+          createdAt: "2026-08-15T00:00:00.000Z",
+          updatedAt: "2026-08-15T00:00:00.000Z",
+        },
+      ],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
     const decideSpy = vi.spyOn(api, "decideReservationItems").mockResolvedValue({
       ...mockPendingReservation,
       status: "APPROVED",
       items: [
         {
           ...mockPendingReservation.items[0],
-          status: "APPROVED",
+          status: "PREPARED",
           capabilities: { canApprove: false, canReject: false },
         },
       ],
@@ -214,65 +250,72 @@ describe("ReservationDetailPage", () => {
       </MemoryRouter>,
     );
 
-    // 1. Wait for reservation to load and Area Manager Review toolbar to appear
+    // 1. Wait for reservation to load and the serial-unit picker to fetch
     await waitFor(() => {
-      expect(screen.getByText(/Area Manager Review/i)).toBeInTheDocument();
+      expect(assetUnitsSpy).toHaveBeenCalledWith("asset-pending-1", {
+        status: "ACTIVE",
+        limit: 100,
+      });
     });
 
-    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    const approveButton = await screen.findByRole("button", { name: "Approve" });
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
-    expect(screen.getByLabelText("3 total reserved")).toBeInTheDocument();
+    expect(approveButton).toBeDisabled();
 
-    // 2. Verify checkbox and quantity input box
-    const checkbox = screen.getByLabelText("Select Wireless Microphone Kit");
-    expect(checkbox).toBeInTheDocument();
-    expect(checkbox).not.toBeChecked();
+    // 2. Select all 3 required serial units
+    fireEvent.click(await screen.findByLabelText("Assign serial SN-MIC-001"));
+    fireEvent.click(screen.getByLabelText("Assign serial SN-MIC-002"));
+    fireEvent.click(screen.getByLabelText("Assign serial SN-MIC-003"));
+    expect(approveButton).toBeEnabled();
 
-    fireEvent.click(checkbox);
-    expect(checkbox).toBeChecked();
-
-    const qtyInput = screen.getByLabelText("Approve quantity for Wireless Microphone Kit");
-    expect(qtyInput).toBeInTheDocument();
-
-    // Change approved quantity
-    fireEvent.change(qtyInput, { target: { value: "2" } });
-    expect(qtyInput).toHaveValue(2);
-
-    // 3. Type decision remark and click Approve Selected
-    const remarkInput = screen.getByPlaceholderText(/Decision comment \/ remark/i);
-    fireEvent.change(remarkInput, { target: { value: "Approved 2 units for town hall" } });
-
-    const approveButton = screen.getByRole("button", { name: /Approve Selected/i });
+    // 3. Type decision remark and click Approve
+    const remarkInput = screen.getByLabelText(/Approval comment for Wireless Microphone Kit/i);
+    fireEvent.change(remarkInput, { target: { value: "Approved for town hall" } });
     fireEvent.click(approveButton);
 
-    // 4. Verify API was called with selected items and remark
+    // 4. Verify API was called with the selected item's serial units and remark
     await waitFor(() => {
       expect(decideSpy).toHaveBeenCalledWith(
         "00000000-0000-4000-8000-000000000101",
-        ["item-pending-1"],
+        [{ reservationItemId: "item-pending-1", assetUnitIds: ["unit-1", "unit-2", "unit-3"] }],
         "APPROVE",
-        "Approved 2 units for town hall"
+        "Approved for town hall"
       );
     });
 
     await waitFor(() => {
       expect(
         screen.getByText("Wireless Microphone Kit").closest(".res-manifest-item"),
-      ).toHaveAttribute("data-status", "approved");
+      ).toHaveAttribute("data-status", "prepared");
     });
   });
 
-  it("confirms handover only for explicitly selected authorized items", async () => {
-    vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
-    const confirmSpy = vi.spyOn(api, "confirmDelivery").mockResolvedValue({
-      ...mockReservation,
-      status: "DELIVERY_CONFIRMED",
-      items: mockReservation.items.map((item) => ({
-        ...item,
-        status: "DELIVERED",
-        capabilities: { ...item.capabilities, canConfirmDelivery: false },
-      })),
-      capabilities: { ...mockReservation.capabilities, canConfirmDelivery: false },
+  it("enables Approve as soon as one serial unit is picked (partial unit-based approval)", async () => {
+    vi.spyOn(api, "reservation").mockResolvedValue(mockPendingReservation);
+    vi.spyOn(api, "assetUnits").mockResolvedValue({
+      data: [
+        {
+          id: "unit-1",
+          serialNumber: "SN-MIC-001",
+          status: "ACTIVE",
+          note: null,
+          createdAt: "2026-08-15T00:00:00.000Z",
+          updatedAt: "2026-08-15T00:00:00.000Z",
+        },
+      ],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+    const decideSpy = vi.spyOn(api, "decideReservationItems").mockResolvedValue({
+      ...mockPendingReservation,
+      status: "APPROVED",
+      items: [
+        {
+          ...mockPendingReservation.items[0],
+          quantity: 1,
+          status: "PREPARED",
+          capabilities: { canApprove: false, canReject: false },
+        },
+      ],
     });
 
     render(
@@ -286,25 +329,108 @@ describe("ReservationDetailPage", () => {
       </MemoryRouter>,
     );
 
-    const checkbox = await screen.findByLabelText(
-      "Select Stage Camera 4K for handover",
+    const serialCheckbox = await screen.findByLabelText("Assign serial SN-MIC-001");
+    const approveButton = screen.getByRole("button", { name: "Approve" });
+    expect(approveButton).toBeDisabled();
+
+    // mockPendingReservation's item requests quantity 3 -- picking just 1
+    // unit should still enable Approve (approval is unit-based: fewer than
+    // requested is allowed, cuts the item's quantity down to match).
+    fireEvent.click(serialCheckbox);
+    expect(serialCheckbox).toBeChecked();
+    expect(approveButton).toBeEnabled();
+
+    fireEvent.click(approveButton);
+
+    await waitFor(() => {
+      expect(decideSpy).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000101",
+        [{ reservationItemId: "item-pending-1", assetUnitIds: ["unit-1"] }],
+        "APPROVE",
+        undefined,
+      );
+    });
+  });
+
+  it("confirms handover for only the serial units explicitly selected (partial handover)", async () => {
+    vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
+    const confirmSpy = vi.spyOn(api, "confirmDelivery").mockResolvedValue({
+      ...mockReservation,
+      items: [
+        {
+          ...mockReservation.items[0],
+          units: [
+            { ...mockReservation.items[0].units[0], status: "CHECKED_OUT" },
+            mockReservation.items[0].units[1],
+          ],
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
     );
+
+    const serialOne = await screen.findByLabelText(
+      "Select serial SN-CAM-001 for handover",
+    );
+    const serialTwo = screen.getByLabelText(
+      "Select serial SN-CAM-002 for handover",
+    );
+
     const confirmButton = screen.getByRole("button", {
       name: "Confirm Handover",
     });
-    expect(checkbox).not.toBeChecked();
-    expect(confirmButton).toBeDisabled();
+    // Every assigned serial unit is pre-selected by default.
+    expect(serialOne).toBeChecked();
+    expect(serialTwo).toBeChecked();
+    expect(confirmButton).toBeEnabled();
 
-    fireEvent.click(checkbox);
+    // Partial handover: deselect one serial unit, hand over only the other.
+    fireEvent.click(serialTwo);
+    expect(serialOne).toBeChecked();
+    expect(serialTwo).not.toBeChecked();
     expect(confirmButton).toBeEnabled();
     fireEvent.click(confirmButton);
 
     await waitFor(() => {
       expect(confirmSpy).toHaveBeenCalledWith(
         "00000000-0000-4000-8000-000000000101",
-        ["item-1"],
+        { items: [{ reservationItemId: "item-1", reservationItemUnitIds: ["riu-1"] }] },
       );
     });
+  });
+
+  it("toggles a manifest row's checkbox by clicking anywhere in the row (label association, not a div onClick)", async () => {
+    vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const checkbox = await screen.findByLabelText(
+      "Select serial SN-CAM-001 for handover",
+    );
+    expect(checkbox).toBeChecked();
+
+    // Click the serial number text, not the checkbox itself -- this only
+    // toggles the checkbox if the row is a real <label> associated with it.
+    fireEvent.click(screen.getByText("SN-CAM-001"));
+    expect(checkbox).not.toBeChecked();
   });
 
   it("submits equipment return directly from Reserved Equipment Manifest during pending return state", async () => {
@@ -359,7 +485,8 @@ describe("ReservationDetailPage", () => {
       status: "PENDING",
       note: null,
       returnedAt: null,
-      returnedBy: deliveredReservation.requester,
+      returnedBy: deliveredReservation.requester.id,
+      returner: deliveredReservation.requester,
       items: [],
       approval: {
         id: "ret-app-1",
@@ -391,13 +518,8 @@ describe("ReservationDetailPage", () => {
       ).toBeInTheDocument();
     });
 
-    const checkbox = screen.getByLabelText("Select Stage Camera 4K for return");
-    expect(checkbox).not.toBeChecked();
-
-    fireEvent.click(checkbox);
-    expect(checkbox).toBeChecked();
-
-    // Both checked-out serials are pre-selected for return by default.
+    // Both checked-out serials are pre-selected for return by default, no
+    // item-level grouping checkbox needed -- selection is per-unit only.
     const serialOne = screen.getByLabelText("Return serial SN-CAM-001");
     const serialTwo = screen.getByLabelText("Return serial SN-CAM-002");
     expect(serialOne).toBeChecked();
@@ -446,7 +568,8 @@ describe("ReservationDetailPage", () => {
           status: "PENDING",
           note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
-          returnedBy: mockReservation.requester,
+          returnedBy: mockReservation.requester.id,
+          returner: mockReservation.requester,
           items: [],
           approval: {
             id: "ret-app-1",
@@ -469,7 +592,8 @@ describe("ReservationDetailPage", () => {
       status: "COMPLETED",
       note: null,
       returnedAt: "2026-09-02T10:00:00.000Z",
-      returnedBy: mockReservation.requester,
+      returnedBy: mockReservation.requester.id,
+      returner: mockReservation.requester,
       items: [],
       approval: {
         id: "ret-app-1",
@@ -558,10 +682,12 @@ describe("ReservationDetailPage", () => {
           status: "PENDING",
           note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
-          returnedBy: mockReservation.requester,
+          returnedBy: mockReservation.requester.id,
+          returner: mockReservation.requester,
           items: [
             {
               id: "ret-item-1",
+              returnId: "00000000-0000-4000-8000-000000000201",
               reservationItemId: "item-1",
               assetId: "asset-1",
               assetName: "Stage Camera 4K",
@@ -571,23 +697,28 @@ describe("ReservationDetailPage", () => {
               units: [
                 {
                   id: "retunit-1",
+                  returnItemId: "ret-item-1",
                   reservationItemUnitId: "unit-1",
                   assetUnitId: "au-1",
                   serialNumber: "SN-CAM-001",
                   condition: null,
                   pictureUrl: null,
                   note: null,
+                  createdAt: "2026-09-02T10:00:00.000Z",
                 },
                 {
                   id: "retunit-2",
+                  returnItemId: "ret-item-1",
                   reservationItemUnitId: "unit-2",
                   assetUnitId: "au-2",
                   serialNumber: "SN-CAM-002",
                   condition: null,
                   pictureUrl: null,
                   note: null,
+                  createdAt: "2026-09-02T10:00:00.000Z",
                 },
               ],
+              createdAt: "2026-09-02T10:00:00.000Z",
             },
           ],
           approval: {
@@ -611,7 +742,8 @@ describe("ReservationDetailPage", () => {
       status: "COMPLETED",
       note: null,
       returnedAt: "2026-09-02T10:00:00.000Z",
-      returnedBy: mockReservation.requester,
+      returnedBy: mockReservation.requester.id,
+      returner: mockReservation.requester,
       items: [],
       approval: {
         id: "ret-app-1",
@@ -642,7 +774,7 @@ describe("ReservationDetailPage", () => {
         screen.getByText(/Return Inspection Review/i, { selector: "span" }),
       ).toBeInTheDocument();
       expect(
-        screen.getByLabelText("Select Stage Camera 4K for inspection"),
+        screen.getByLabelText("Select serial SN-CAM-001 for inspection"),
       ).toBeChecked();
       expect(screen.getByText("Stage Camera 4K")).toBeInTheDocument();
       expect(screen.getByText("Marketing")).toBeInTheDocument();
@@ -650,10 +782,10 @@ describe("ReservationDetailPage", () => {
 
     // Every serial defaults to Good; mark the first one Broken.
     const firstSerialRow = screen.getByText("SN-CAM-001").closest(
-      ".res-inspect-serial-row",
+      ".res-manifest-unit-row",
     ) as HTMLElement;
     const secondSerialRow = screen.getByText("SN-CAM-002").closest(
-      ".res-inspect-serial-row",
+      ".res-manifest-unit-row",
     ) as HTMLElement;
     expect(
       within(firstSerialRow).getByRole("radio", { name: "Good" }),
@@ -662,6 +794,14 @@ describe("ReservationDetailPage", () => {
     expect(
       within(secondSerialRow).getByRole("radio", { name: "Good" }),
     ).toHaveAttribute("aria-checked", "true");
+
+    // Unchecking a unit means "still pending review" -- Approve must be
+    // blocked until every unit is reviewed again, not silently defaulted.
+    const secondUnitCheckbox = screen.getByLabelText("Select serial SN-CAM-002 for inspection");
+    fireEvent.click(secondUnitCheckbox);
+    expect(screen.getByRole("button", { name: "Approve Return" })).toBeDisabled();
+    fireEvent.click(secondUnitCheckbox);
+    expect(screen.getByRole("button", { name: "Approve Return" })).not.toBeDisabled();
 
     const remarkInput = screen.getByPlaceholderText(/Inspection remarks \/ condition note/i);
     fireEvent.change(remarkInput, { target: { value: "1 intact, 1 minor cable damage" } });
@@ -685,6 +825,153 @@ describe("ReservationDetailPage", () => {
             },
           ],
           description: "1 intact, 1 minor cable damage",
+        }
+      );
+    });
+  });
+
+  it("blocks approving a return until every serial unit has been reviewed", async () => {
+    const pendingReturnReservation: ReservationDetail = {
+      ...mockReservation,
+      status: "RETURN_PENDING",
+      items: [
+        {
+          ...mockReservation.items[0],
+          status: "DELIVERED",
+          units: [
+            {
+              id: "unit-1",
+              assetUnitId: "au-1",
+              serialNumber: "SN-CAM-001",
+              status: "CHECKED_OUT",
+            },
+          ],
+          returnSummary: {
+            totalUnits: 1,
+            returnedGoodCount: 0,
+            returnedBrokenCount: 0,
+            returnedLostCount: 0,
+            pendingReturnCount: 1,
+            remainingReturnQuantity: 0,
+          },
+        },
+      ],
+      returns: [
+        {
+          id: "00000000-0000-4000-8000-000000000201",
+          reservationId: mockReservation.id,
+          status: "PENDING",
+          note: null,
+          returnedAt: "2026-09-02T10:00:00.000Z",
+          returnedBy: mockReservation.requester.id,
+          returner: mockReservation.requester,
+          items: [
+            {
+              id: "ret-item-1",
+              returnId: "00000000-0000-4000-8000-000000000201",
+              reservationItemId: "item-1",
+              assetId: "asset-1",
+              assetName: "Stage Camera 4K",
+              managementArea: { id: "area-1", name: "Marketing" },
+              description: null,
+              pictureUrl: null,
+              units: [
+                {
+                  id: "retunit-1",
+                  returnItemId: "ret-item-1",
+                  reservationItemUnitId: "unit-1",
+                  assetUnitId: "au-1",
+                  serialNumber: "SN-CAM-001",
+                  condition: null,
+                  pictureUrl: null,
+                  note: null,
+                  createdAt: "2026-09-02T10:00:00.000Z",
+                },
+              ],
+              createdAt: "2026-09-02T10:00:00.000Z",
+            },
+          ],
+          approval: {
+            id: "ret-app-1",
+            status: "PENDING",
+            description: null,
+            decidedAt: null,
+            approver: mockReservation.requester,
+          },
+          capabilities: { canApprove: true, canReject: true },
+          createdAt: "2026-09-02T10:00:00.000Z",
+          updatedAt: "2026-09-02T10:00:00.000Z",
+        },
+      ],
+    };
+
+    vi.spyOn(api, "reservation").mockResolvedValue(pendingReturnReservation);
+    const decideReturnSpy = vi.spyOn(api, "decideReturn").mockResolvedValue({
+      id: "00000000-0000-4000-8000-000000000201",
+      reservationId: mockReservation.id,
+      status: "COMPLETED",
+      note: null,
+      returnedAt: "2026-09-02T10:00:00.000Z",
+      returnedBy: mockReservation.requester.id,
+      returner: mockReservation.requester,
+      items: [],
+      approval: {
+        id: "ret-app-1",
+        status: "APPROVED",
+        description: null,
+        decidedAt: "2026-09-02T11:00:00.000Z",
+        approver: mockReservation.requester,
+      },
+      capabilities: { canApprove: false, canReject: false },
+      createdAt: "2026-09-02T10:00:00.000Z",
+      updatedAt: "2026-09-02T11:00:00.000Z",
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText("Select serial SN-CAM-001 for inspection"),
+      ).toBeChecked();
+    });
+
+    // Unchecking the only unit means it's still pending review -- Approve
+    // must be blocked, not silently treated as "everything is fine".
+    const unitCheckbox = screen.getByLabelText("Select serial SN-CAM-001 for inspection");
+    fireEvent.click(unitCheckbox);
+    const approveReturnBtn = screen.getByRole("button", { name: "Approve Return" });
+    expect(approveReturnBtn).toBeDisabled();
+    expect(decideReturnSpy).not.toHaveBeenCalled();
+
+    // Re-checking it makes Approve available again.
+    fireEvent.click(unitCheckbox);
+    expect(approveReturnBtn).not.toBeDisabled();
+    fireEvent.click(approveReturnBtn);
+
+    await waitFor(() => {
+      expect(decideReturnSpy).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000101",
+        "00000000-0000-4000-8000-000000000201",
+        {
+          decision: "APPROVE",
+          items: [
+            {
+              reservationItemId: "item-1",
+              units: [
+                { reservationItemUnitId: "unit-1", condition: "GOOD" },
+              ],
+            },
+          ],
+          description: undefined,
         }
       );
     });
@@ -722,7 +1009,8 @@ describe("ReservationDetailPage", () => {
           status: "APPROVED",
           note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
-          returnedBy: mockReservation.requester,
+          returnedBy: mockReservation.requester.id,
+          returner: mockReservation.requester,
           items: [],
           approval: {
             id: "ret-app-1",
@@ -821,7 +1109,8 @@ describe("ReservationDetailPage", () => {
           status: "COMPLETED",
           note: null,
           returnedAt: "2026-09-02T10:00:00.000Z",
-          returnedBy: {
+          returnedBy: "00000000-0000-4000-8000-000000000001",
+          returner: {
             id: "00000000-0000-4000-8000-000000000001",
             email: "owner@example.com",
             name: "Event Owner",
@@ -830,6 +1119,7 @@ describe("ReservationDetailPage", () => {
           items: [
             {
               id: "ret-item-1",
+              returnId: "00000000-0000-4000-8000-000000000201",
               reservationItemId: "item-1",
               assetId: "asset-1",
               assetName: "Stage Camera 4K",
@@ -838,24 +1128,29 @@ describe("ReservationDetailPage", () => {
               units: [
                 {
                   id: "retunit-1",
+                  returnItemId: "ret-item-1",
                   reservationItemUnitId: "unit-1",
                   assetUnitId: "au-1",
                   serialNumber: "SN-CAM-001",
                   condition: "GOOD",
                   pictureUrl: null,
                   note: null,
+                  createdAt: "2026-09-02T10:00:00.000Z",
                 },
                 {
                   id: "retunit-2",
+                  returnItemId: "ret-item-1",
                   reservationItemUnitId: "unit-2",
                   assetUnitId: "au-2",
                   serialNumber: "SN-CAM-002",
                   condition: "BROKEN",
                   pictureUrl: null,
                   note: null,
+                  createdAt: "2026-09-02T10:00:00.000Z",
                 },
               ],
               managementArea: { id: "area-1", name: "Marketing" },
+              createdAt: "2026-09-02T10:00:00.000Z",
             },
           ],
           approval: {
@@ -904,5 +1199,63 @@ describe("ReservationDetailPage", () => {
     expect(screen.getByText("1. Requester / Borrower")).toBeInTheDocument();
     expect(screen.getByText("2. Area Custodian / Approver")).toBeInTheDocument();
     expect(screen.getByText("3. Return Receiving Inspector")).toBeInTheDocument();
+  });
+
+  it("lists one manifest row per serial unit, grouped under a single asset sub-header", async () => {
+    const completedReturnReservation: ReservationDetail = {
+      ...mockReservation,
+      status: "COMPLETED",
+      items: [
+        {
+          ...mockReservation.items[0],
+          status: "RETURNED",
+          units: [
+            {
+              id: "unit-1",
+              assetUnitId: "au-1",
+              serialNumber: "SN-CAM-001",
+              status: "RETURNED_GOOD",
+            },
+            {
+              id: "unit-2",
+              assetUnitId: "au-2",
+              serialNumber: "SN-CAM-002",
+              status: "RETURNED_BROKEN",
+            },
+          ],
+          returnSummary: {
+            totalUnits: 2,
+            returnedGoodCount: 1,
+            returnedBrokenCount: 1,
+            returnedLostCount: 0,
+            pendingReturnCount: 0,
+            remainingReturnQuantity: 0,
+          },
+        },
+      ],
+      returns: [],
+    };
+
+    vi.spyOn(api, "reservation").mockResolvedValue(completedReturnReservation);
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // The asset name appears once, in the group sub-header -- not repeated
+    // per serial unit row.
+    expect(await screen.findAllByText("Stage Camera 4K")).toHaveLength(1);
+
+    const goodRow = screen.getByText("SN-CAM-001").closest(".res-manifest-unit-row") as HTMLElement;
+    const brokenRow = screen.getByText("SN-CAM-002").closest(".res-manifest-unit-row") as HTMLElement;
+    expect(within(goodRow).getByText("Good")).toBeInTheDocument();
+    expect(within(brokenRow).getByText("Broken")).toBeInTheDocument();
   });
 });
