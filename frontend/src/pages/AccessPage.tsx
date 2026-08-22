@@ -246,7 +246,7 @@ export function AccessPage() {
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                   rows={3}
-                  maxLength={10000}
+                  maxLength={500}
                 />
               </label>
             </div>

@@ -142,7 +142,7 @@ export const PERMISSION_DETAILS: Record<string, PermissionDetail> = {
     example:
       "The Media Lab manager approves camera kit bookings after verifying schedule availability.",
     impact:
-      "Transitions items to APPROVED status and locks equipment capacity.",
+      "Records an APPROVED decision, moves items to PREPARED, and locks equipment capacity.",
   },
   "reservation:reject": {
     key: "reservation:reject",
