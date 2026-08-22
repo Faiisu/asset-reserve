@@ -1040,12 +1040,11 @@ export function ReservationDetailPage() {
                             toggleDecisionUnit(item.id, unit.id);
                           };
                           return (
-                            <div
+                            <label
                               key={unit.id}
                               className={`res-manifest-unit-row ${
                                 isDisabled ? "" : "res-manifest-unit-row--clickable"
                               }`}
-                              onClick={toggleUnit}
                             >
                               <span className="res-manifest-unit-row__check">
                                 <input
@@ -1053,14 +1052,13 @@ export function ReservationDetailPage() {
                                   checked={isChecked}
                                   disabled={isDisabled}
                                   onChange={toggleUnit}
-                                  onClick={(e) => e.stopPropagation()}
                                   aria-label={`Assign serial ${unit.serialNumber}`}
                                 />
                               </span>
                               <span className="mono res-manifest-unit-row__serial">
                                 {unit.serialNumber}
                               </span>
-                            </div>
+                            </label>
                           );
                         })}
                       </div>
@@ -1163,17 +1161,15 @@ export function ReservationDetailPage() {
                             const toggleUnit = () =>
                               toggleInspectUnitSelection(unit.id);
                             return (
-                              <div
+                              <label
                                 key={unit.id}
                                 className="res-manifest-unit-row res-manifest-unit-row--inspect res-manifest-unit-row--clickable"
-                                onClick={toggleUnit}
                               >
                                 <span className="res-manifest-unit-row__check">
                                   <input
                                     type="checkbox"
                                     checked={isUnitSelected}
                                     onChange={toggleUnit}
-                                    onClick={(e) => e.stopPropagation()}
                                     aria-label={`Select serial ${unit.serialNumber} for inspection`}
                                   />
                                 </span>
@@ -1210,7 +1206,7 @@ export function ReservationDetailPage() {
                                     </button>
                                   ))}
                                 </div>
-                              </div>
+                              </label>
                             );
                           }
 
@@ -1223,12 +1219,11 @@ export function ReservationDetailPage() {
                               }));
                             };
                             return (
-                              <div
+                              <label
                                 key={unit.id}
                                 className={`res-manifest-unit-row ${
                                   isDeliverySelectable ? "res-manifest-unit-row--clickable" : ""
                                 }`}
-                                onClick={toggleDeliveryUnit}
                               >
                                 <span className="res-manifest-unit-row__check">
                                   {isDeliverySelectable && (
@@ -1236,7 +1231,6 @@ export function ReservationDetailPage() {
                                       type="checkbox"
                                       checked={Boolean(selectedDeliveryUnitIds[unit.id])}
                                       onChange={toggleDeliveryUnit}
-                                      onClick={(e) => e.stopPropagation()}
                                       aria-label={`Select serial ${unit.serialNumber} for handover`}
                                     />
                                   )}
@@ -1249,7 +1243,7 @@ export function ReservationDetailPage() {
                                     ? "Ready for handover"
                                     : "Prepared — awaiting handover"}
                                 </span>
-                              </div>
+                              </label>
                             );
                           }
 
@@ -1262,12 +1256,11 @@ export function ReservationDetailPage() {
                               }));
                             };
                             return (
-                              <div
+                              <label
                                 key={unit.id}
                                 className={`res-manifest-unit-row ${
                                   isReturnSelectable ? "res-manifest-unit-row--clickable" : ""
                                 }`}
-                                onClick={toggleReturnUnit}
                               >
                                 <span className="res-manifest-unit-row__check">
                                   {isReturnSelectable && (
@@ -1275,7 +1268,6 @@ export function ReservationDetailPage() {
                                       type="checkbox"
                                       checked={Boolean(selectedReturnUnitIds[unit.id])}
                                       onChange={toggleReturnUnit}
-                                      onClick={(e) => e.stopPropagation()}
                                       aria-label={`Return serial ${unit.serialNumber}`}
                                     />
                                   )}
@@ -1288,7 +1280,7 @@ export function ReservationDetailPage() {
                                     ? "Checked out"
                                     : "Checked out — awaiting return"}
                                 </span>
-                              </div>
+                              </label>
                             );
                           }
 

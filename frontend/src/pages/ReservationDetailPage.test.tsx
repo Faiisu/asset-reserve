@@ -408,6 +408,31 @@ describe("ReservationDetailPage", () => {
     });
   });
 
+  it("toggles a manifest row's checkbox by clicking anywhere in the row (label association, not a div onClick)", async () => {
+    vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
+
+    render(
+      <MemoryRouter initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}>
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const checkbox = await screen.findByLabelText(
+      "Select serial SN-CAM-001 for handover",
+    );
+    expect(checkbox).toBeChecked();
+
+    // Click the serial number text, not the checkbox itself -- this only
+    // toggles the checkbox if the row is a real <label> associated with it.
+    fireEvent.click(screen.getByText("SN-CAM-001"));
+    expect(checkbox).not.toBeChecked();
+  });
+
   it("submits equipment return directly from Reserved Equipment Manifest during pending return state", async () => {
     const deliveredReservation: ReservationDetail = {
       ...mockReservation,
