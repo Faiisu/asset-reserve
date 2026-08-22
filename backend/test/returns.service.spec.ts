@@ -440,7 +440,16 @@ describe("ReturnsService", () => {
       areaManagerActor,
       reservationId,
       returnId,
-      { decision: "APPROVE", description: "Looks good" },
+      {
+        decision: "APPROVE",
+        description: "Looks good",
+        items: [
+          {
+            reservationItemId: itemId,
+            units: [{ reservationItemUnitId, condition: "GOOD" }],
+          },
+        ],
+      },
     );
 
     expect(result.status).toBe("COMPLETED");
@@ -678,6 +687,12 @@ describe("ReturnsService", () => {
     const service = new ReturnsService(prismaMock, reservationEvents);
     await service.decide(areaManagerActor, reservationId, returnId, {
       decision: "APPROVE",
+      items: [
+        {
+          reservationItemId: itemId,
+          units: [{ reservationItemUnitId, condition: "GOOD" }],
+        },
+      ],
     });
 
     expect(updateReservation).toHaveBeenCalledWith(

@@ -499,11 +499,11 @@ export class ReturnsService {
         condition: "GOOD" | "BROKEN" | "LOST";
       }
     >();
-    if (input.decision === "APPROVE" && input.items) {
+    if (input.decision === "APPROVE") {
       const allUnitIds = new Set(
         returnRecord.items.flatMap((item) => item.units.map((u) => u.reservationItemUnitId)),
       );
-      for (const line of input.items) {
+      for (const line of input.items ?? []) {
         for (const unit of line.units ?? []) {
           if (!allUnitIds.has(unit.reservationItemUnitId)) {
             throw new ApiException(
@@ -516,6 +516,15 @@ export class ReturnsService {
             condition: unit.condition,
           });
         }
+      }
+      // Per docs/software_spec/business-rules-and-validation.md §3 (Return):
+      // the decision must specify a condition per unit -- no silent default.
+      if (conditionByUnitId.size !== allUnitIds.size) {
+        throw new ApiException(
+          400,
+          "MISSING_UNIT_CONDITION",
+          "Every serial unit in this return must have a condition (GOOD/BROKEN/LOST) before it can be approved.",
+        );
       }
     }
 
