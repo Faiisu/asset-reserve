@@ -78,7 +78,7 @@ Permission key ที่ควบคุมแต่ละ action ดู [softwar
 - ไม่มี standalone inventory-adjustment route; การปรับยอดทำจาก asset list/detail
 - Return payload shape (`reservationItemUnitIds` ตอน drop-off, per-unit `{reservationItemUnitId, condition}` จัดกลุ่มตาม `reservationItemId` ตอน decision) — frontend (`ReservationDetailPage`) แก้ให้ตรง backend DTO แล้ว ไม่ใช่ gap อีกต่อไป
 - Asset units: backend มี `POST /assets/units/batch-retire` และ `PATCH /assets/units/:assetUnitId/status` แต่ frontend ไม่มี UI เรียกเส้นทางเหล่านี้ ต้องปลดระวางหรือแก้ status ผ่าน API/DB ตรงๆ
-- Frontend ยังใช้ `asset.totalQuantity` และ batch stock add/remove ตามโมเดลเก่า ยังไม่ตามโมเดล serial-numbered `AssetUnit` เต็มรูปแบบที่ backend ใช้แล้ว
+- Frontend เป็น serial-numbered `AssetUnit` เต็มรูปแบบแล้ว ตรงกับ backend: `AssetsPage` ("Register units" dialog รับ serial number ทีละบรรทัด) และ `AssetDetailPage` เรียก `api.registerAssetUnits`/`api.retireAssetUnits` โดยตรง ไม่มี quantity-based batch add/remove เหลืออยู่ในโค้ด — `asset.totalQuantity` ที่เหลืออยู่เป็นแค่ read-only display label ไม่ใช่ gap อีกต่อไป
 
 ## Endpoint status: BFF vs domain call (as-built)
 
