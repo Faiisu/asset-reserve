@@ -94,7 +94,7 @@ Permission key ที่ควบคุมแต่ละ action ดู [softwar
 | Approve/reject item                       | Domain command API                        | ✅ Implemented |
 | Register/retire asset unit                | Domain command API                        | ✅ Implemented (register); retire ไม่มี UI — ดู gap ด้านบน |
 | Prepare (serial-unit assignment) / check out | Domain command API                     | ✅ Implemented — รวมเข้ากับ approve เป็นคำขอเดียวแล้ว (`items/:itemId/decision` รับ `assetUnitIds`), check out แยกเป็น `delivery-confirm` ตามเดิม และเป็น unit-based (`items[].reservationItemUnitIds`, partial handover ได้) |
-| Create/decide Return                      | Domain command API                        | ⚠️ Implemented แต่ payload shape ผิด — ดู gap ด้านบน |
+| Create/decide Return                      | Domain command API                        | ✅ Implemented — payload shape ตรงกับ backend DTO แล้ว (ดู gap ด้านบน) |
 
 Recommended BFF read endpoint (ยังไม่ implement — เป้าหมายสถาปัตยกรรม ไม่ blocked การใช้งานปัจจุบันเพราะ frontend เรียก domain endpoint ตรงได้เต็มรูปแบบอยู่แล้ว):
 
