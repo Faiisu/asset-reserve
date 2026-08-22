@@ -95,6 +95,7 @@ export function ReservationDetailPage() {
   // Approve/Reject are now per-row actions, not a shared batch decision.
   const [approvalComments, setApprovalComments] = useState<Record<string, string>>({});
   const [inspectionComment, setInspectionComment] = useState("");
+  const [returnNote, setReturnNote] = useState("");
 
   // Drop-off: which CHECKED_OUT serial units the borrower is returning, keyed
   // by reservationItemUnitId.
@@ -506,7 +507,9 @@ export function ReservationDetailPage() {
     try {
       await api.createReturn(reservation.id, {
         items: itemsToReturn,
+        note: returnNote.trim() || undefined,
       });
+      setReturnNote("");
       setActionNotice("Return slip submitted. Equipment room inspection pending.");
       await loadReservation();
     } catch (err: any) {
@@ -860,6 +863,14 @@ export function ReservationDetailPage() {
                   </span>
                 </div>
                 <div className="res-review-bar__actions">
+                  <input
+                    type="text"
+                    placeholder="Note for this return (optional)..."
+                    value={returnNote}
+                    onChange={(e) => setReturnNote(e.target.value)}
+                    className="control"
+                    aria-label="Return note"
+                  />
                   <Button
                     variant="primary"
                     disabled={actionLoading || selectedReturnUnitCount === 0}
