@@ -610,15 +610,15 @@ function ReservationListRow({
       {reservation.pendingDecisionCount > 0 && (
         <div
           className="reservation-decision-flag"
-          aria-label={`${reservation.pendingDecisionCount} ${reservation.pendingDecisionCount === 1 ? "decision" : "decisions"} waiting`}
+          aria-label={`Awaiting manager decision on ${reservation.pendingDecisionCount} ${reservation.pendingDecisionCount === 1 ? "item" : "items"}`}
         >
           <Inbox size={16} />
           <span aria-hidden>
             <strong>{reservation.pendingDecisionCount}</strong>{" "}
             {reservation.pendingDecisionCount === 1
-              ? "decision"
-              : "decisions"}{" "}
-            waiting
+              ? "item"
+              : "items"}{" "}
+            awaiting manager decision
           </span>
         </div>
       )}

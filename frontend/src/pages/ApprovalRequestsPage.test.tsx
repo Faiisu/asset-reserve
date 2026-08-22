@@ -62,7 +62,7 @@ describe("ApprovalRequestsPage", () => {
     expect(screen.getByLabelText("1 decision waiting")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Only reservations needing a decision from your management areas appear here.",
+        "Reservation requests and return inspections needing a decision from your management areas appear here.",
       ),
     ).toBeInTheDocument();
 

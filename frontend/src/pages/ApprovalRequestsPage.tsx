@@ -233,13 +233,13 @@ export function ApprovalRequestsPage() {
           </p>
           <strong>
             {tab === "PENDING"
-              ? "Only reservations needing a decision from your management areas appear here."
+              ? "Reservation requests and return inspections needing a decision from your management areas appear here."
               : "Past decisions, approvals, and return records from your management areas."}
           </strong>
         </div>
         <small>
           {tab === "PENDING"
-            ? "Open an event to approve assets or review a requested edit."
+            ? "Open an event to approve assets or inspect a returned item."
             : "Review audit trails and decision comments."}
         </small>
       </section>
@@ -479,7 +479,7 @@ export function ApprovalRequestsPage() {
           }
           description={
             tab === "PENDING"
-              ? "New reservation requests requiring review from your areas will appear here."
+              ? "New reservation requests and return inspections requiring review from your areas will appear here."
               : "Decided requests and return inspections from your areas will appear here."
           }
         />
