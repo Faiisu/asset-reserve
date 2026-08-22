@@ -79,6 +79,7 @@
   box-sizing: border-box;
 }
 .reservation-list-search {
+  flex: 1;
   min-width: 320px;
   height: 42px;
   padding-left: 11px;

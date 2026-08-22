@@ -191,6 +191,14 @@ export function ApprovalRequestsPage() {
     setSearch(searchInput.trim());
   }
 
+  useEffect(() => {
+    const trimmed = searchInput.trim();
+    const timer = setTimeout(() => {
+      setSearch((current) => (current === trimmed ? current : trimmed));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   const totalFilterCount = selectedAreaIds.length + selectedStatuses.length;
   const hasActiveFilters = totalFilterCount > 0;
 
