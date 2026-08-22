@@ -55,9 +55,7 @@ export function AssetDetailPage() {
   const [notice, setNotice] = useState(
     (location.state as { notice?: string } | null)?.notice ?? "",
   );
-  const [adjustOperation, setAdjustOperation] = useState<
-    "ADD" | "REMOVE" | null
-  >(null);
+  const [adjustOperation, setAdjustOperation] = useState<"ADD" | null>(null);
   const [statusOpen, setStatusOpen] = useState(false);
   const [mutating, setMutating] = useState(false);
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
@@ -674,7 +672,7 @@ function AdjustOneDialog({
   onDone,
 }: {
   asset: AssetDetail;
-  operation: "ADD" | "REMOVE" | null;
+  operation: "ADD" | null;
   onClose: () => void;
   onDone: (message: string) => void | Promise<void>;
 }) {

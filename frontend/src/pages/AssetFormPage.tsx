@@ -556,6 +556,7 @@ export function AssetFormPage() {
                     setForm({ ...form, name: event.target.value })
                   }
                   placeholder="For example, Sony FX3 Cinema Camera"
+                  maxLength={40}
                   required
                 />
               </Field>
@@ -570,6 +571,7 @@ export function AssetFormPage() {
                       setForm({ ...form, partNumber: event.target.value })
                     }
                     placeholder="For example, EPS-PRJ-100"
+                    maxLength={100}
                   />
                 </Field>
                 <Field
@@ -986,6 +988,7 @@ function BatchAssetForm({
                             update(row.key, { name: event.target.value })
                           }
                           placeholder="Asset name"
+                          maxLength={40}
                           required
                         />
                       </Field>
@@ -996,6 +999,7 @@ function BatchAssetForm({
                             update(row.key, { partNumber: event.target.value })
                           }
                           placeholder="Part number"
+                          maxLength={100}
                         />
                       </Field>
                     </div>
