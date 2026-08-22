@@ -448,7 +448,6 @@ export type CreateReturnItemInput = {
 export type CreateReturnInput = {
   items: CreateReturnItemInput[];
   note?: string | null;
-  immediateApprove?: boolean;
 };
 
 export type DecideReturnItemUnitInput = {

@@ -620,8 +620,6 @@ CreateReturnRequest:
       type: string
       maxLength: 2000
       nullable: true
-    immediateApprove:
-      type: boolean
 DecideReturnItemUnitInput:
   type: object
   additionalProperties: false

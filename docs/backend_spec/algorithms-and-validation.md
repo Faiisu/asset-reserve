@@ -546,7 +546,7 @@ flowchart LR
 
 ### 8.2 `POST /reservations/:reservationId/returns`
 
-ผู้ยืมหรือ participant ส่งสลิปเพื่อคืนอุปกรณ์ ระบุ `items[]` แต่ละรายการมี `reservationItemId` และ `reservationItemUnitIds[]` (1–200 unit ต่อ item, unique) คือ asset unit ที่ยังไม่ได้คืน ตรวจว่า unit แต่ละตัวอยู่ในสถานะ checked-out ของ item นั้นจริง ก่อนสร้างสลิป สร้างเรคคอร์ด `returns` ในสถานะ `PENDING`; รองรับ `immediateApprove` เพื่อให้ผู้ส่งที่มีสิทธิ์ approve ในตัวเองข้ามขั้นตรวจได้ทันที
+ผู้ยืมหรือ participant ส่งสลิปเพื่อคืนอุปกรณ์ ระบุ `items[]` แต่ละรายการมี `reservationItemId` และ `reservationItemUnitIds[]` (1–200 unit ต่อ item, unique) คือ asset unit ที่ยังไม่ได้คืน ตรวจว่า unit แต่ละตัวอยู่ในสถานะ checked-out ของ item นั้นจริง ก่อนสร้างสลิป สร้างเรคคอร์ด `returns` ในสถานะ `PENDING` เสมอ — ทุกสลิปต้องผ่านขั้นตรวจสภาพ (§8.3) ไม่มี self-approve ข้ามขั้นตอน
 
 ### 8.3 `POST /reservations/:reservationId/returns/:returnId/decision`
 

@@ -4,7 +4,6 @@ import {
   ArrayMinSize,
   ArrayUnique,
   IsArray,
-  IsBoolean,
   IsIn,
   IsOptional,
   IsString,
@@ -13,10 +12,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from "class-validator";
-import {
-  SearchPaginationQueryDto,
-  parseOptionalBoolean,
-} from "../common/dto.js";
+import { SearchPaginationQueryDto } from "../common/dto.js";
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === "string" ? value.trim() : value;
@@ -54,11 +50,6 @@ export class CreateReturnDto {
   @IsString()
   @MaxLength(2_000)
   note?: string | null;
-
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) => parseOptionalBoolean(value))
-  @IsBoolean()
-  immediateApprove?: boolean;
 }
 
 export class DecideReturnItemUnitDto {

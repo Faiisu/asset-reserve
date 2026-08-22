@@ -424,24 +424,6 @@ export class ReturnsService {
       throw error;
     }
 
-    if (input.immediateApprove) {
-      const canImmediateApprove = input.items.every((line) => {
-        const item = itemMap.get(line.reservationItemId)!;
-        return hasAreaPermission(
-          actor,
-          "return:approve",
-          item.asset.managementAreaId,
-        );
-      });
-
-      if (canImmediateApprove) {
-        return this.decide(actor, reservationId, returnId, {
-          decision: "APPROVE",
-          description: "Approved upon return recording.",
-        });
-      }
-    }
-
     return this.get(actor, returnId);
   }
 
