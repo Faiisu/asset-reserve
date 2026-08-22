@@ -222,6 +222,10 @@ export function ReservationCreatePage() {
       setFields({ eventName: "Enter an event name." });
       return;
     }
+    if (selected.length === 0) {
+      setFields({ items: "Select at least one asset for this reservation." });
+      return;
+    }
     if (
       selected.some(
         (item) =>
@@ -527,7 +531,7 @@ export function ReservationCreatePage() {
             </Button>
             <Button type="submit" loading={submitting === "PENDING_APPROVAL"}>
               <Send size={17} />
-              {selected.length === 0 ? "Create event" : "Send for approval"}
+              Send for approval
             </Button>
           </div>
         </div>

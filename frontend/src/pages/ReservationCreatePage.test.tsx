@@ -178,7 +178,7 @@ describe("ReservationCreatePage", () => {
     expect(items[1]).toHaveTextContent("Booked Camera");
   });
 
-  it("allows submitting an event without selecting any assets", async () => {
+  it("blocks submitting an event without selecting any assets", async () => {
     const createSpy = vi.spyOn(api, "createReservation").mockResolvedValue({
       id: "new-res-id",
     } as never);
@@ -197,16 +197,12 @@ describe("ReservationCreatePage", () => {
       target: { value: "Sprint Planning" },
     });
 
-    const createBtn = screen.getByRole("button", { name: /create event/i });
-    expect(createBtn).toBeInTheDocument();
-    fireEvent.click(createBtn);
+    const submitBtn = screen.getByRole("button", { name: /send for approval/i });
+    fireEvent.click(submitBtn);
 
-    expect(createSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventName: "Sprint Planning",
-        status: "PENDING_APPROVAL",
-        items: [],
-      }),
-    );
+    expect(
+      await screen.findByText(/select at least one asset/i),
+    ).toBeInTheDocument();
+    expect(createSpy).not.toHaveBeenCalled();
   });
 });
