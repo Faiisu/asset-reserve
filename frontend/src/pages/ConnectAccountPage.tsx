@@ -1,9 +1,11 @@
 import { AlertCircle, LogOut, ShieldCheck } from "lucide-react";
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
 import { Button } from "../components/ui";
 import { GoogleIcon, MicrosoftIcon } from "../components/OAuthIcons";
+import { oauthErrorMessage } from "../oauth-errors";
 
 type Provider = "google" | "microsoft";
 
@@ -21,8 +23,13 @@ type Provider = "google" | "microsoft";
  */
 export function ConnectAccountPage() {
   const { logout } = useAuth();
+  const [searchParams] = useSearchParams();
   const [starting, setStarting] = useState<Provider | null>(null);
   const [error, setError] = useState("");
+  const oauthError = oauthErrorMessage(
+    searchParams.get("googleError"),
+    searchParams.get("microsoftError"),
+  );
 
   async function startConnect(provider: Provider) {
     setStarting(provider);
@@ -70,10 +77,10 @@ export function ConnectAccountPage() {
             nothing else to fill in.
           </p>
           <div className="login-alert-slot" aria-live="polite">
-            {error && (
+            {(error || oauthError) && (
               <div className="form-alert" role="alert">
                 <AlertCircle size={16} aria-hidden />
-                <span>{error}</span>
+                <span>{error || oauthError}</span>
               </div>
             )}
           </div>
