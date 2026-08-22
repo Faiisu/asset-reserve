@@ -688,6 +688,7 @@ export function ReservationDetailPage() {
                 variant="danger"
                 onClick={handleCancelReservation}
                 disabled={actionLoading}
+                loading={actionLoading}
               >
                 <XCircle size={15} />
                 <span>Cancel</span>
@@ -838,6 +839,7 @@ export function ReservationDetailPage() {
                   <Button
                     variant="primary"
                     disabled={actionLoading || selectedDeliveryUnitCount === 0}
+                    loading={actionLoading}
                     onClick={handleConfirmDelivery}
                   >
                     <Check size={14} />
@@ -860,6 +862,7 @@ export function ReservationDetailPage() {
                   <Button
                     variant="primary"
                     disabled={actionLoading || selectedReturnUnitCount === 0}
+                    loading={actionLoading}
                     onClick={handleReturnSubmit}
                   >
                     <RotateCcw size={14} />
@@ -898,6 +901,7 @@ export function ReservationDetailPage() {
                         ? "Review every serial unit (check it and confirm its condition) before approving"
                         : undefined
                     }
+                    loading={actionLoading}
                     onClick={() => handleDecideReturn("APPROVE")}
                   >
                     <Check size={14} />
@@ -906,6 +910,7 @@ export function ReservationDetailPage() {
                   <Button
                     variant="danger"
                     disabled={actionLoading}
+                    loading={actionLoading}
                     onClick={() => handleDecideReturn("REJECT")}
                   >
                     <X size={14} />
@@ -1014,6 +1019,7 @@ export function ReservationDetailPage() {
                           <Button
                             variant="primary"
                             disabled={actionLoading || selectedForItem.length < 1}
+                            loading={actionLoading}
                             onClick={() => handleDecideItem(item.id, "APPROVE")}
                           >
                             <Check size={14} />
@@ -1022,6 +1028,7 @@ export function ReservationDetailPage() {
                           <Button
                             variant="danger"
                             disabled={actionLoading}
+                            loading={actionLoading}
                             onClick={() => handleDecideItem(item.id, "REJECT")}
                           >
                             <X size={14} />
@@ -1045,6 +1052,11 @@ export function ReservationDetailPage() {
                               className={`res-manifest-unit-row ${
                                 isDisabled ? "" : "res-manifest-unit-row--clickable"
                               }`}
+                              title={
+                                isDisabled
+                                  ? `Already selected ${item.quantity} of ${item.quantity} approved units -- uncheck one to pick a different serial`
+                                  : undefined
+                              }
                             >
                               <span className="res-manifest-unit-row__check">
                                 <input

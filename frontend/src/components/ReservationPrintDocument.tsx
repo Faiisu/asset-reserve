@@ -4,7 +4,11 @@ import {
   FileText,
 } from "lucide-react";
 import { formatDate } from "./ui";
-import { reservationDuration, reservationStatusLabel } from "../reservations";
+import {
+  reservationDuration,
+  reservationItemStatusLabel,
+  reservationStatusLabel,
+} from "../reservations";
 import type { ReservationDetail } from "../types";
 
 export interface ReservationPrintDocumentProps {
@@ -282,7 +286,7 @@ export function ReservationPrintDocument({
                     </td>
                     <td style={{ textAlign: "center" }}>
                       <span className={`res-print-badge res-print-badge--${item.status.toLowerCase()}`}>
-                        {item.status}
+                        {reservationItemStatusLabel[item.status]}
                       </span>
                     </td>
                   </tr>
