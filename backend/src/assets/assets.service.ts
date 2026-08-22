@@ -7,6 +7,10 @@ import { ApiException } from "../common/api-exception.js";
 import { decodeCursor, pageInfo } from "../common/pagination.js";
 import { PrismaService } from "../database/prisma.service.js";
 import {
+  HARD_ALLOCATION_ITEM_STATUSES,
+  HARD_ALLOCATION_RESERVATION_STATUSES,
+} from "../common/reservation-allocation.js";
+import {
   assertAreaPermission,
   hasAreaPermission,
   permittedAreaIds,
@@ -25,20 +29,8 @@ const assetInclude = {
   createdBy: { include: { profile: true } },
 } satisfies Prisma.AssetInclude;
 
-const allocatedItemStatuses = [
-  "APPROVED",
-  "PREPARED",
-  "CHECKED_OUT",
-  "DELIVERED",
-];
-const allocatedReservationStatuses = [
-  "PARTIALLY_APPROVED",
-  "APPROVED",
-  "DELIVERY_CONFIRMED",
-  "ACTIVE",
-  "RETURN",
-  "RETURN_PENDING",
-];
+const allocatedItemStatuses = HARD_ALLOCATION_ITEM_STATUSES;
+const allocatedReservationStatuses = HARD_ALLOCATION_RESERVATION_STATUSES;
 
 type UnitCounts = {
   total: number;

@@ -7,6 +7,10 @@ import type { AuthenticatedActor } from "../auth/auth.types.js";
 import { ApiException } from "../common/api-exception.js";
 import { decodeCursor, pageInfo } from "../common/pagination.js";
 import { ReservationLifecycleEvents } from "../common/reservation-lifecycle.events.js";
+import {
+  HARD_ALLOCATION_ITEM_STATUSES,
+  HARD_ALLOCATION_RESERVATION_STATUSES,
+} from "../common/reservation-allocation.js";
 import { PrismaService } from "../database/prisma.service.js";
 import {
   hasAnyPermission,
@@ -24,19 +28,8 @@ import type {
   SubmitReservationDto,
 } from "./reservations.dto.js";
 
-const allocatedReservationStatuses = [
-  "PARTIALLY_APPROVED",
-  "APPROVED",
-  "DELIVERY_CONFIRMED",
-  "RETURN_PENDING",
-  "RETURN_CONFIRMED",
-  "COMPLETED",
-];
-const allocatedItemStatuses = [
-  "PREPARED",
-  "CHECKED_OUT",
-  "DELIVERED",
-];
+const allocatedReservationStatuses = HARD_ALLOCATION_RESERVATION_STATUSES;
+const allocatedItemStatuses = HARD_ALLOCATION_ITEM_STATUSES;
 const reservationInclude = {
   requester: { include: { profile: true } },
   participants: {
@@ -1253,7 +1246,7 @@ export class ReservationsService {
           ["APPROVED", "PARTIALLY_APPROVED"].includes(reservation.status) &&
           reservation.items.some(
             (item) =>
-              ["APPROVED", "PREPARED", "CHECKED_OUT"].includes(item.status) &&
+              item.status === "PREPARED" &&
               (isEventTeamMember ||
                 hasAreaPermission(
                   actor,
@@ -1598,7 +1591,6 @@ export class ReservationsService {
               ].includes(reservation.status) &&
               item.status !== "REJECTED" &&
               item.status !== "PENDING" &&
-              item.status !== "APPROVED" &&
               remainingReturnQuantity > 0,
           },
         };
@@ -1631,10 +1623,7 @@ export class ReservationsService {
             "COMPLETED",
           ].includes(reservation.status) &&
           reservation.items.some(
-            (item) =>
-              item.status !== "REJECTED" &&
-              item.status !== "PENDING" &&
-              item.status !== "APPROVED",
+            (item) => item.status !== "REJECTED" && item.status !== "PENDING",
           ),
         canDecideReturn,
       },

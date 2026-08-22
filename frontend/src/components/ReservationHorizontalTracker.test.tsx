@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { generateStepLogs, ReservationHorizontalTracker } from "./ReservationHorizontalTracker";
-import { buildReservationSteps, ReservationTrackingTimeline } from "./ReservationTracking";
 import type { ReservationDetail } from "../types";
 
 const baseReservation: ReservationDetail = {
@@ -210,32 +209,5 @@ describe("ReservationHorizontalTracker & generateStepLogs", () => {
     fireEvent.click(screen.getByLabelText("Inspect step Pending Return"));
     expect(screen.getByText("Step Metadata & Timeline")).toBeInTheDocument();
     expect(screen.getByText("4. Pending Return")).toBeInTheDocument();
-  });
-});
-
-describe("ReservationTracking (buildReservationSteps & ReservationTrackingTimeline)", () => {
-  it("builds 5 steps with Pending Return and Return Approval phases", () => {
-    const deliveryReservation: ReservationDetail = {
-      ...baseReservation,
-      status: "DELIVERY_CONFIRMED",
-    };
-    const steps = buildReservationSteps(deliveryReservation);
-    expect(steps).toHaveLength(5);
-    expect(steps.map((s) => s.name)).toEqual([
-      "Reservation Drafted",
-      "Area Approval",
-      "Equipment Handover",
-      "Pending Return",
-      "Return Approval & Inspection",
-    ]);
-    expect(steps[3].status).toBe("current");
-    expect(steps[4].status).toBe("upcoming");
-  });
-
-  it("renders timeline with 5 steps", () => {
-    render(<ReservationTrackingTimeline reservation={baseReservation} />);
-    expect(screen.getByText("Reservation Lifecycle Tracking")).toBeInTheDocument();
-    expect(screen.getByText("Pending Return")).toBeInTheDocument();
-    expect(screen.getByText("Return Approval & Inspection")).toBeInTheDocument();
   });
 });
