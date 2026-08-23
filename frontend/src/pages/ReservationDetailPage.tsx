@@ -527,28 +527,31 @@ export function ReservationDetailPage() {
   const handleConfirmDelivery = async () => {
     if (!reservation) return;
 
-    const items = deliverableItems
-      .map((item) => {
-        const assigned = item.units.filter(
-          (unit) => unit.status === "ASSIGNED",
-        );
-        const disposition = (unitId: string) =>
-          deliveryDispositions[unitId] ?? "HANDOVER";
-        return {
+    const items = deliverableItems.flatMap((item) => {
+      const assigned = item.units.filter((unit) => unit.status === "ASSIGNED");
+      const disposition = (unitId: string) =>
+        deliveryDispositions[unitId] ?? "HANDOVER";
+      const unitIdsFor = (wanted: DeliveryDisposition) =>
+        assigned
+          .filter((unit) => disposition(unit.id) === wanted)
+          .map((unit) => unit.id);
+      const handedOver = unitIdsFor("HANDOVER");
+      const cancelled = unitIdsFor("CANCEL");
+      if (handedOver.length === 0 && cancelled.length === 0) return [];
+      // Both arrays are minItems: 1 in the contract -- an empty one is a
+      // 422, not "nothing of that kind", so leave it out entirely.
+      return [
+        {
           reservationItemId: item.id,
-          reservationItemUnitIds: assigned
-            .filter((unit) => disposition(unit.id) === "HANDOVER")
-            .map((unit) => unit.id),
-          cancelledReservationItemUnitIds: assigned
-            .filter((unit) => disposition(unit.id) === "CANCEL")
-            .map((unit) => unit.id),
-        };
-      })
-      .filter(
-        (entry) =>
-          entry.reservationItemUnitIds.length > 0 ||
-          entry.cancelledReservationItemUnitIds.length > 0,
-      );
+          ...(handedOver.length > 0
+            ? { reservationItemUnitIds: handedOver }
+            : {}),
+          ...(cancelled.length > 0
+            ? { cancelledReservationItemUnitIds: cancelled }
+            : {}),
+        },
+      ];
+    });
 
     if (items.length === 0) {
       setActionError("There are no serial units awaiting handover.");
@@ -563,11 +566,12 @@ export function ReservationDetailPage() {
       setReservation(updated);
       seedDefaultSelections(updated);
       const handedOver = items.reduce(
-        (sum, entry) => sum + entry.reservationItemUnitIds.length,
+        (sum, entry) => sum + (entry.reservationItemUnitIds?.length ?? 0),
         0,
       );
       const cancelled = items.reduce(
-        (sum, entry) => sum + entry.cancelledReservationItemUnitIds.length,
+        (sum, entry) =>
+          sum + (entry.cancelledReservationItemUnitIds?.length ?? 0),
         0,
       );
       setActionNotice(

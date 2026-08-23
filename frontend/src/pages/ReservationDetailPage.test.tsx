@@ -468,6 +468,47 @@ describe("ReservationDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("omits the cancellation list entirely when nothing is cancelled", async () => {
+    // Both lists are minItems: 1 in the contract, so sending [] for the one
+    // that has nothing in it fails validation with a 422 -- a plain "confirm
+    // everything" handover has to leave the key out.
+    vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
+    const confirmSpy = vi
+      .spyOn(api, "confirmDelivery")
+      .mockResolvedValue(mockReservation);
+
+    render(
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Confirm Handover" }),
+    );
+
+    await waitFor(() => {
+      expect(confirmSpy).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000101",
+        {
+          items: [
+            {
+              reservationItemId: "item-1",
+              reservationItemUnitIds: ["riu-1", "riu-2"],
+            },
+          ],
+        },
+      );
+    });
+  });
+
   it("hands over the units marked Hand over and cancels the rest", async () => {
     vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
     const confirmSpy = vi.spyOn(api, "confirmDelivery").mockResolvedValue({
