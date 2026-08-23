@@ -108,7 +108,6 @@ DeliveryConflict:
                         type: string
                         enum:
                           - INVALID_RESERVATION_STATUS
-                          - HANDOVER_TOO_EARLY
                           - HANDOVER_WINDOW_CLOSED
                           - INVALID_ITEM_STATUS
                           - RESERVATION_ITEM_UNIT_UNAVAILABLE

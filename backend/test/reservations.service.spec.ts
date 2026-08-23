@@ -1687,25 +1687,34 @@ describe("confirmDelivery", () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
-  it("rejects handover before the assignment window starts", async () => {
+  it("allows handover before the assignment window starts (early pickup)", async () => {
     vi.setSystemTime(new Date("2026-09-01T08:59:59.000Z"));
     const reservation = preparedReservation([
       { id: unitOneId, assetUnitId: assetUnitOneId, status: "ASSIGNED" },
     ]);
-    const transaction = vi.fn();
+    const { tx, reservationItemUpdate } = mockTx(
+      reservation.items[0]!,
+      "DELIVERED",
+    );
     const prisma = {
       reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
-      $transaction: transaction,
+      $transaction: vi.fn(
+        async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
+      ),
     } as unknown as PrismaService;
     const service = new ReservationsService(
       prisma,
       new ReservationLifecycleEvents(),
     );
+    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
 
-    await expect(
-      service.confirmDelivery(actor, reservationId),
-    ).rejects.toMatchObject({ code: "HANDOVER_TOO_EARLY" });
-    expect(transaction).not.toHaveBeenCalled();
+    await service.confirmDelivery(actor, reservationId);
+
+    expect(reservationItemUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "DELIVERED" }),
+      }),
+    );
   });
 
   it("rechecks status after locking and cannot hand over a cancelled reservation", async () => {

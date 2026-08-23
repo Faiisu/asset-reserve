@@ -787,13 +787,6 @@ export class ReservationsService {
         `Cannot confirm delivery for reservation in state "${reservation.status}". Reservation must be approved.`,
       );
     }
-    if (deliveredAt < reservation.startAt) {
-      throw new ApiException(
-        409,
-        "HANDOVER_TOO_EARLY",
-        "Equipment cannot be handed over before the reservation start time.",
-      );
-    }
     if (deliveredAt >= reservation.endAt) {
       throw new ApiException(
         409,
@@ -913,7 +906,7 @@ export class ReservationsService {
       await this.lockReservation(tx, reservationId);
       const currentReservation = await tx.reservation.findUnique({
         where: { id: reservationId },
-        select: { status: true, startAt: true, endAt: true },
+        select: { status: true, endAt: true },
       });
       if (!currentReservation) {
         throw new ApiException(
@@ -929,13 +922,6 @@ export class ReservationsService {
       ) {
         throw this.invalidStatus(
           `Cannot confirm delivery for reservation in state "${currentReservation.status}". Reservation must be approved.`,
-        );
-      }
-      if (deliveredAt < currentReservation.startAt) {
-        throw new ApiException(
-          409,
-          "HANDOVER_TOO_EARLY",
-          "Equipment cannot be handed over before the reservation start time.",
         );
       }
       if (deliveredAt >= currentReservation.endAt) {
