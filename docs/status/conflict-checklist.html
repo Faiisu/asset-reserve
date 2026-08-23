@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Docs ↔ Backend ↔ Frontend — Conflict Checklist</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --surface-2: #f0efec;
+    --line: #dcdad4;
+    --ink: #1c1b19;
+    --ink-soft: #6b6862;
+    --accent: #1a5fb4;
+    --red: #b3261e;
+    --red-soft: #fbe9e7;
+    --amber: #8a5a00;
+    --amber-soft: #fdf1dc;
+    --blue: #1a5fb4;
+    --blue-soft: #e6eefa;
+    --green: #1f6f43;
+    --green-soft: #e4f2e9;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16151a;
+      --surface: #1e1d23;
+      --surface-2: #26252c;
+      --line: #35343d;
+      --ink: #eceaf2;
+      --ink-soft: #a09daa;
+      --accent: #7cb0f5;
+      --red: #f2a49d;
+      --red-soft: #3a1f1d;
+      --amber: #e5be7a;
+      --amber-soft: #35291a;
+      --blue: #9cc4f8;
+      --blue-soft: #1c2739;
+      --green: #8fd3ac;
+      --green-soft: #1a2d22;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 40px 24px 96px; }
+  header.page { border-bottom: 1px solid var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  h1 { font-size: 28px; line-height: 1.25; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .sub { color: var(--ink-soft); font-size: 14px; margin: 0; }
+  .meta { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); margin-top: 12px; }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 28px;
+    position: sticky; top: 0; z-index: 5;
+  }
+  .progress { flex: 1 1 220px; min-width: 200px; }
+  .progress-bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+  .progress-bar > i { display: block; height: 100%; width: 0%; background: var(--green); transition: width .25s ease; }
+  .progress-text { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); margin-top: 6px; }
+  button.tool {
+    font: inherit; font-size: 13px; cursor: pointer;
+    background: var(--surface-2); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px;
+  }
+  button.tool:hover { border-color: var(--accent); color: var(--accent); }
+
+  section.group { margin-bottom: 40px; }
+  section.group > h2 {
+    font-size: 15px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--ink-soft); margin: 0 0 4px;
+  }
+  section.group > p.scope { margin: 0 0 16px; font-size: 14px; color: var(--ink-soft); }
+
+  .item {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 16px 18px; margin-bottom: 12px;
+    display: grid; grid-template-columns: 24px 1fr; gap: 14px;
+    transition: opacity .2s ease;
+  }
+  .item.done { opacity: .45; }
+  .item.done .title { text-decoration: line-through; }
+  .item input[type=checkbox] { width: 18px; height: 18px; margin-top: 4px; accent-color: var(--green); cursor: pointer; }
+  .title { font-weight: 600; font-size: 15px; margin: 0 0 6px; }
+  .id { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); margin-right: 8px; }
+  .body { font-size: 14px; margin: 0 0 10px; }
+  .body p { margin: 0 0 8px; }
+  .fix { font-size: 14px; background: var(--surface-2); border-left: 3px solid var(--accent); padding: 8px 12px; border-radius: 0 6px 6px 0; }
+  .fix strong { color: var(--accent); }
+  code { font-family: var(--mono); font-size: .88em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+  .item.done code { background: transparent; }
+  ul.refs { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  ul.refs li { font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px; }
+
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .tag { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; }
+  .tag--blocker { background: var(--red-soft); color: var(--red); }
+  .tag--high { background: var(--amber-soft); color: var(--amber); }
+  .tag--medium { background: var(--blue-soft); color: var(--blue); }
+  .tag--low { background: var(--surface-2); color: var(--ink-soft); }
+  .tag--side { background: transparent; color: var(--ink-soft); border: 1px solid var(--line); }
+
+  table.summary { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 32px; }
+  table.summary th, table.summary td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  table.summary th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); font-weight: 600; }
+  table.summary td:first-child { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+  .scroll { overflow-x: auto; }
+
+  .note { font-size: 13px; color: var(--ink-soft); border: 1px dashed var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 28px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="page">
+  <h1>Conflict Checklist — docs/ ↔ backend/ ↔ frontend/</h1>
+  <p class="sub">รายการจุดที่เอกสาร, backend และ frontend ทำงานไม่ตรงกัน จัดกลุ่มตามส่วนที่ต้องแก้ ไล่ทีละข้อได้ (ติ๊กแล้วจำไว้ใน browser)</p>
+  <p class="meta">Audit 2026-08-23 · branch audit/backend · 23 findings</p>
+</header>
+
+<div class="toolbar">
+  <div class="progress">
+    <div class="progress-bar"><i id="bar"></i></div>
+    <div class="progress-text" id="ptext">0 / 0 เสร็จแล้ว</div>
+  </div>
+  <button class="tool" id="reset">ล้างเครื่องหมายทั้งหมด</button>
+</div>
+
+<div class="note">
+  <strong>วิธีอ่าน:</strong> แต่ละข้อระบุว่า “ใครพูดว่าอะไร” แล้วตามด้วยแนวทางแก้ที่แนะนำ — ส่วนใหญ่เลือกได้ว่าจะแก้โค้ดให้ตรงเอกสาร หรือแก้เอกสารให้ตรงโค้ด
+  ตาม <code>docs/README.md</code> เอกสารเป็น single source of truth ดังนั้น default คือแก้โค้ด ยกเว้นข้อที่เป็น as-built snapshot (กลุ่ม D) ซึ่งต้องแก้เอกสารเสมอ
+</div>
+
+<div class="scroll">
+<table class="summary">
+  <thead><tr><th>กลุ่ม</th><th>ขอบเขต</th><th>จำนวน</th><th>ระดับสูงสุด</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>Contract ↔ Backend</td><td>3</td><td>High</td></tr>
+    <tr><td>B</td><td>Frontend ↔ Contract/Backend (endpoint หาย / limit ไม่ตรง)</td><td>10</td><td>Blocker</td></tr>
+    <tr><td>C</td><td>frontend_spec ↔ frontend code (สถาปัตยกรรม)</td><td>4</td><td>High</td></tr>
+    <tr><td>D</td><td>status/implementation-status.md ↔ ของจริง</td><td>5</td><td>Medium</td></tr>
+    <tr><td>E</td><td>สุขภาพ test/build</td><td>1</td><td>Low</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ================= GROUP A ================= -->
+<section class="group">
+  <h2>A · Contract ↔ Backend</h2>
+  <p class="scope">OpenAPI contract เป็น sole source ของ request/response shape — backend ต้องตรงกับมัน</p>
+
+  <label class="item" data-id="A1">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--high">High</span><span class="tag tag--side">แก้ค้างอยู่แล้ว</span></div>
+      <p class="title"><span class="id">A1</span>HTTP status ของ POST 5 เส้นเป็น 201 แต่ contract ระบุ 200</p>
+      <div class="body">
+        <p>NestJS ตั้ง <code>POST</code> เป็น 201 by default แต่ contract ระบุ <code>"200"</code> สำหรับ
+        <code>/notification-settings/test</code>, <code>/recognition/assets</code>,
+        <code>/recognition/assets/{assetId}/photos</code>, <code>/recognition/recognize</code>,
+        <code>/recognition/recognize/multi</code></p>
+        <p>มี working-tree diff ที่เพิ่ม <code>@HttpCode(HttpStatus.OK)</code> ให้ทั้ง 5 เส้นแล้ว แต่ <strong>ยังไม่ commit</strong></p>
+      </div>
+      <div class="fix"><strong>แก้:</strong> ตรวจ diff, รัน backend typecheck แล้ว commit — ที่เหลือ (login 200, logout/password/role-assignment 204) มี <code>@HttpCode</code> ครบแล้ว</div>
+      <ul class="refs">
+        <li>backend/src/notification-settings/notification-settings.controller.ts</li>
+        <li>backend/src/recognition/recognition.controller.ts</li>
+        <li>docs/backend_spec/contracts/paths/*.yaml</li>
+      </ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="A2">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--low">Low</span></div>
+      <p class="title"><span class="id">A2</span>เลขหัวข้อ algorithms doc ข้ามจาก §7.6 ไป §7.10</p>
+      <div class="body"><p>§7.7–7.9 หายไปตอนตัด endpoint <code>/prepare</code> และ check-out แยกออก ตอนนี้ไม่มีเอกสารไหนอ้าง §7.7–7.9 แล้ว แต่เลขที่ขาดทำให้คนอ่านสงสัยว่าตกหล่น</p></div>
+      <div class="fix"><strong>แก้:</strong> renumber ให้ต่อเนื่อง (แล้วอัปเดต anchor ที่ lifecycle-and-state-machines.md อ้าง <code>#711-…</code> / <code>#75-…</code>) หรือเพิ่มบรรทัดอธิบายว่าเลขถูกสงวนไว้หลังตัด endpoint</div>
+      <ul class="refs"><li>docs/backend_spec/algorithms-and-validation.md</li></ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="A3">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--low">Low</span></div>
+      <p class="title"><span class="id">A3</span><code>OPENAPI_CONTRACT_PATH</code> ไม่อยู่ใน <code>.env.example</code></p>
+      <div class="body"><p><code>backend/src/main.ts:113</code> อ่าน env นี้ และ contracts/README.md ก็พูดถึง แต่ <code>.env.example</code> ไม่มีบรรทัดนี้ — คนตั้งค่าใหม่จะไม่รู้ว่ามี</p></div>
+      <div class="fix"><strong>แก้:</strong> เพิ่มบรรทัด optional พร้อม comment ลง <code>.env.example</code></div>
+      <ul class="refs"><li>.env.example</li><li>backend/src/main.ts:113</li></ul>
+    </div>
+  </label>
+</section>
+
+<!-- ================= GROUP B ================= -->
+<section class="group">
+  <h2>B · Frontend ↔ Contract / Backend</h2>
+  <p class="scope">Endpoint ที่ backend มีแต่ frontend ไม่เรียก และ validation limit ที่สองฝั่งไม่ตรงกัน</p>
+
+  <label class="item" data-id="B1">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--blocker">Blocker</span></div>
+      <p class="title"><span class="id">B1</span>Draft reservation ที่สร้างแล้ว submit ไม่ได้เลย</p>
+      <div class="body">
+        <p><code>POST /reservations/:id/submit</code> มีทั้งใน backend controller และ contract แต่ <code>frontend/src/api.ts</code> ไม่มี method นี้ และไม่มีปุ่มไหนเรียก</p>
+        <p>ยิ่งกว่านั้น <code>ReservationDetail.capabilities.canSubmit</code> ที่ backend คำนวณส่งมาให้ ถูกอ้างแค่ใน <code>types.ts</code> กับ test fixture — <strong>ไม่มีหน้าไหนอ่านค่านี้จริง</strong></p>
+        <p>ผลคือ user ที่กด “Save draft” ในหน้า <code>/reservations/new</code> ติดอยู่ตรงนั้นถาวร ต้องยิง API เองถึงจะ submit ได้</p>
+      </div>
+      <div class="fix"><strong>แก้:</strong> เพิ่ม <code>api.submitReservation()</code> แล้วโชว์ปุ่มใน <code>ReservationDetailPage</code> โดย gate ด้วย <code>capabilities.canSubmit</code></div>
+      <ul class="refs">
+        <li>frontend/src/api.ts</li>
+        <li>frontend/src/pages/ReservationDetailPage.tsx</li>
+        <li>backend/src/reservations/reservations.controller.ts:51</li>
+      </ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="B2">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--high">High</span></div>
+      <p class="title"><span class="id">B2</span>Recognition มี backend proxy ครบ แต่ไม่มี UI ที่ “จดจำของ” ได้</p>
+      <div class="body">
+        <p><code>POST /recognition/recognize</code> และ <code>/recognize/multi</code> มีครบทั้ง backend, contract และ module doc — แต่ <code>frontend/src/recognitionApi.ts</code> มีแค่ method จัดการรูป reference (register / addPhoto / listPhotos / delete) <strong>ไม่มี method เรียก recognize เลย</strong></p>
+        <p>แปลว่าฟีเจอร์ recognition ทั้งฟีเจอร์อัปโหลดรูปเข้าไปเก็บได้อย่างเดียว ใช้จำแนกของจริงไม่ได้</p>
+      </div>
+      <div class="fix"><strong>แก้:</strong> ตัดสินใจก่อนว่าฟีเจอร์นี้อยู่ใน scope รอบนี้ไหม — ถ้าใช่ เพิ่ม <code>recognitionApi.recognize()</code> + entry point ใน UI; ถ้ายัง ให้บันทึกใน <code>scope-and-roadmap.md</code> ว่า backend-only ตั้งใจ</div>
+      <ul class="refs">
+        <li>frontend/src/recognitionApi.ts</li>
+        <li>docs/backend_spec/modules/recognition.md</li>
+      </ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="B3">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--high">High</span></div>
+      <p class="title"><span class="id">B3</span><code>GET /returns</code> · <code>GET /returns/:returnId</code> ไม่มีคนเรียก แต่ frontend_spec บอกว่ามี</p>
+      <div class="body">
+        <p><code>docs/frontend_spec/data-fetching-architecture.md</code> ตาราง query-key ระบุ “Return detail → Domain ตรง (<code>/returns/:id</code>)” และ algorithms §8.1 อธิบาย view <code>MINE</code>/<code>APPROVALS</code>/<code>ALL</code> ไว้ละเอียด</p>
+        <p>ของจริง frontend อ่าน return ผ่าน <code>ReservationDetail.returns[]</code> ที่ฝังมาใน reservation detail เท่านั้น ไม่เคยแตะ <code>/returns</code></p>
+      </div>
+      <div class="fix"><strong>แก้:</strong> แก้ตาราง query-key ให้ตรง as-built (Return detail = embedded ใน reservation detail) หรือ implement หน้า returns แยกถ้าต้องการ view <code>APPROVALS</code> ข้าม reservation</div>
+      <ul class="refs">
+        <li>docs/frontend_spec/data-fetching-architecture.md</li>
+        <li>backend/src/returns/returns.controller.ts:23,31</li>
+      </ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="B4">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--medium">Medium</span></div>
+      <p class="title"><span class="id">B4</span><code>PATCH /assets/units/:assetUnitId/status</code> ไม่มี UI</p>
+      <div class="body"><p>backend รองรับปรับสถานะรายหน่วยด้วยมือ (<code>ACTIVE</code>/<code>BROKEN</code>/<code>LOST</code>/<code>IN_REPAIR</code>/<code>INACTIVE</code>) และ algorithms §6.9 อธิบายไว้ แต่ frontend มีแค่ retire — งานซ่อม (<code>IN_REPAIR</code>) กับการกู้ของที่หายเจอ ต้องแก้ผ่าน API/DB ตรง</p></div>
+      <div class="fix"><strong>แก้:</strong> เพิ่ม dialog เปลี่ยนสถานะ unit ใน <code>AssetDetailPage</code> (มี <code>expectedUpdatedAt</code> อยู่ในมืออยู่แล้ว) — ให้ครบวงจร BROKEN → IN_REPAIR → ACTIVE</div>
+      <ul class="refs">
+        <li>frontend/src/pages/AssetDetailPage.tsx</li>
+        <li>docs/backend_spec/algorithms-and-validation.md §6.9</li>
+      </ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="B5">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--high">High</span></div>
+      <p class="title"><span class="id">B5</span>Role description: frontend ตัดที่ 500 แต่ contract/backend ให้ 10,000</p>
+      <div class="body">
+        <p>ทั้ง <code>CreateRoleDto</code> และ contract <code>CreateRoleRequest.description</code> ระบุ <code>maxLength: 10000</code> แต่ <code>AccessPage</code> ใส่ <code>maxLength={500}</code> ทั้งในฟอร์ม create และ editor</p>
+        <p><code>&lt;input maxlength&gt;</code> ตัดข้อความเงียบๆ ตอนพิมพ์/วาง — user ไม่รู้ว่าโดนตัด</p>
+      </div>
+      <div class="fix"><strong>แก้:</strong> ปรับ frontend เป็น 10000 ให้ตรง contract — หรือถ้าอยากคุม UX ที่ 500 จริง ต้องแก้ contract + DTO ให้เป็น 500 พร้อมกันทั้งสามที่</div>
+      <ul class="refs">
+        <li>frontend/src/pages/AccessPage.tsx:249,425</li>
+        <li>backend/src/access-control/access-control.dto.ts</li>
+        <li>docs/backend_spec/contracts/components/schemas/access-control.yaml:97</li>
+      </ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="B6">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--medium">Medium</span></div>
+      <p class="title"><span class="id">B6</span>Email template editor ไม่มี client-side cap</p>
+      <div class="body"><p>backend/contract กำหนด <code>subject</code> 1–255 และ <code>bodyMarkdown</code> 1–10,000 แต่ <code>EmailTemplateEditor</code> ไม่มี <code>maxLength</code> บนทั้งสอง field — พิมพ์ยาวเกินแล้วค่อยเจอ <code>422</code> ตอนกด save</p></div>
+      <div class="fix"><strong>แก้:</strong> ใส่ <code>maxLength={255}</code> / <code>maxLength={10000}</code> พร้อม counter ตาม <code>ui-states-and-accessibility.md</code> (“server error ไม่ทำให้ข้อมูลใน form หาย”)</div>
+      <ul class="refs">
+        <li>frontend/src/components/EmailTemplateEditor.tsx:105,112</li>
+        <li>docs/backend_spec/contracts/components/schemas/email-templates.yaml</li>
+      </ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="B7">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--low">Low</span></div>
+      <p class="title"><span class="id">B7</span>ช่องรหัสผ่านตอนสร้าง user ไม่มี <code>maxLength={128}</code></p>
+      <div class="body"><p><code>CreateUserDto.password</code> คุม 8–128 และ <code>ChangeMyPasswordDto.newPassword</code> เหมือนกัน แต่ <code>UsersPage</code> ใส่แค่ <code>minLength={8}</code></p></div>
+      <div class="fix"><strong>แก้:</strong> เพิ่ม <code>maxLength={128}</code> ทั้งใน <code>UsersPage</code> และฟอร์มเปลี่ยนรหัสใน <code>AccountPage</code></div>
+      <ul class="refs"><li>frontend/src/pages/UsersPage.tsx:612</li><li>frontend/src/pages/AccountPage.tsx</li></ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="B8">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--medium">Medium</span></div>
+      <p class="title"><span class="id">B8</span><code>reservation:view</code> ไม่มีคำอธิบายและไอคอนในหน้า Access &amp; roles</p>
+      <div class="body">
+        <p><code>PERMISSION_CATALOG</code> ฝั่ง backend มี 13 key แต่ <code>PERMISSION_DETAILS</code> และ <code>permissionIcons</code> ฝั่ง frontend มี 12 — ขาด <code>reservation:view</code></p>
+        <p>มันจะ fallback ไปแสดงชื่อ raw (<code>view</code>) ไม่มีไอคอน ทั้งที่ <code>permissions-and-rbac.md §5</code> ยกให้ key นี้เป็นตัวคุม cross-user visibility ที่สำคัญที่สุด — admin ที่ตั้ง role จะไม่เข้าใจว่ามันทำอะไร</p>
+      </div>
+      <div class="fix"><strong>แก้:</strong> เพิ่ม entry <code>reservation:view</code> ลงทั้งสอง map โดยเขียน summary/impact ตาม §5 (เห็น reservation ของคนอื่นใน scope, แยกจาก permission เชิงปฏิบัติการ)</div>
+      <ul class="refs">
+        <li>frontend/src/constants/permission-details.ts</li>
+        <li>frontend/src/components/PermissionItem.tsx:27</li>
+        <li>docs/software_spec/permissions-and-rbac.md §5</li>
+      </ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="B9">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--low">Low</span></div>
+      <p class="title"><span class="id">B9</span><code>sendTestNotification</code> ประกาศ return เป็น <code>void</code> แต่ API ตอบ body</p>
+      <div class="body"><p><code>POST /notification-settings/test</code> ตอบ 200 พร้อม JSON ตาม contract แต่ <code>api.ts</code> ประกาศ <code>request&lt;void&gt;</code> — ข้อมูลผลการส่ง (เช่นปลายทาง) ถูกทิ้ง</p></div>
+      <div class="fix"><strong>แก้:</strong> ประกาศ type ให้ตรง response schema แล้วเอาไปแสดงใน success notice ของ <code>NotificationsPage</code></div>
+      <ul class="refs"><li>frontend/src/api.ts</li><li>docs/backend_spec/contracts/paths/notification-settings.yaml</li></ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="B10">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--low">Low</span></div>
+      <p class="title"><span class="id">B10</span>Endpoint decision รายตัวไม่มีคนเรียก (ตั้งใจหรือเปล่า?)</p>
+      <div class="body"><p>frontend ใช้ batch <code>POST /reservations/:id/items/decision</code> อย่างเดียว ส่วน <code>/items/:itemId/decision</code> ไม่มีคนเรียก — ไม่ใช่ bug (batch ขนาด 1 ทำงานเหมือนกัน) แต่ทำให้ §7.5 ที่เป็นหัวข้อหลักดูเหมือนเส้นตาย</p></div>
+      <div class="fix"><strong>แก้:</strong> เพิ่มหมายเหตุใน §7.5 ว่า frontend ปัจจุบันใช้ §7.6 batch เสมอ และ §7.5 คงไว้เป็น API surface</div>
+      <ul class="refs"><li>docs/backend_spec/algorithms-and-validation.md §7.5</li></ul>
+    </div>
+  </label>
+</section>
+
+<!-- ================= GROUP C ================= -->
+<section class="group">
+  <h2>C · frontend_spec ↔ frontend code</h2>
+  <p class="scope">กฎสถาปัตยกรรมใน frontend_spec ที่โค้ดจริงไม่ได้ทำตาม — กลุ่มนี้ต้องตัดสินใจระดับทีมก่อนแก้</p>
+
+  <label class="item" data-id="C1">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--blocker">Blocker</span><span class="tag tag--side">ต้องตัดสินใจ</span></div>
+      <p class="title"><span class="id">C1</span>Spec บังคับใช้ generated OpenAPI client แต่โค้ดเขียน client เอง</p>
+      <div class="body">
+        <p><code>data-fetching-architecture.md</code> เขียนไว้ตรงๆ ว่า “ใช้ generated OpenAPI client ห้ามเขียน client ด้วยมือ” และ acceptance criteria มีข้อ “OpenAPI-generated client typecheck ผ่าน”</p>
+        <p>ของจริง <code>frontend/src/api.ts</code> (379 บรรทัด) และ <code>types.ts</code> (509 บรรทัด) เขียนมือทั้งหมด ไม่มี generator ใน <code>package.json</code> เลย</p>
+        <p>นี่คือรากของ B5–B7 และ B9: ทุก drift ระหว่าง contract กับ frontend type ไม่มีอะไรจับได้</p>
+      </div>
+      <div class="fix"><strong>แก้:</strong> เลือกหนึ่งทาง — (ก) เพิ่ม generator (เช่น <code>openapi-typescript</code>) แล้ว migrate <code>types.ts</code> ให้ derive จาก bundle, หรือ (ข) แก้ spec ให้ยอมรับ hand-written client แต่เพิ่ม CI check เทียบกับ contract</div>
+      <ul class="refs">
+        <li>docs/frontend_spec/data-fetching-architecture.md</li>
+        <li>frontend/src/api.ts · types.ts</li>
+      </ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="C2">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--high">High</span><span class="tag tag--side">ต้องตัดสินใจ</span></div>
+      <p class="title"><span class="id">C2</span>ตาราง query-key และกฎ invalidate สมมติว่ามี query library แต่ไม่มี</p>
+      <div class="body">
+        <p>Spec กำหนด query-key prefix ต่อ domain (<code>session</code>, <code>calendar + range + area</code>, …) และกฎ “หลัง mutation สำเร็จให้ invalidate query ที่ได้รับผลกระทบ ไม่ clear ทั้ง application”</p>
+        <p><code>frontend/package.json</code> ไม่มี react-query / swr / เทียบเท่า — ทุกหน้าใช้ <code>useEffect</code> + <code>useState</code> เอง ไม่มี query key ให้ invalidate</p>
+      </div>
+      <div class="fix"><strong>แก้:</strong> ถ้าจะคง spec ต้องรับ query library เข้ามาจริง; ถ้าไม่ ให้เขียนตารางใหม่เป็น “refetch ownership ต่อหน้า” ที่สะท้อน pattern ปัจจุบัน</div>
+      <ul class="refs"><li>docs/frontend_spec/data-fetching-architecture.md</li><li>frontend/package.json</li></ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="C3">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--medium">Medium</span></div>
+      <p class="title"><span class="id">C3</span>ไม่มีการ cancel request เก่าเลย (ไม่มี <code>AbortController</code>)</p>
+      <div class="body">
+        <p>Spec: “Search/date changes ต้อง debounce และ cancel request เก่า” + acceptance “Request เก่าถูก cancel เมื่อ filter/date เปลี่ยนเร็ว”</p>
+        <p>debounce มีจริง (มี test ใน <code>AssetsPage.test.tsx</code>) แต่ค้นทั้ง <code>frontend/src</code> ไม่เจอ <code>AbortController</code> แม้แต่ที่เดียว — response ที่มาถึงช้ากว่าอาจทับผลลัพธ์ล่าสุดได้</p>
+      </div>
+      <div class="fix"><strong>แก้:</strong> ให้ <code>request()</code> รับ <code>signal</code> แล้วให้หน้าที่มี filter (Assets, Reservations, Calendar, Users) abort request ก่อนหน้าใน cleanup ของ effect</div>
+      <ul class="refs"><li>frontend/src/api.ts</li><li>docs/frontend_spec/data-fetching-architecture.md</li></ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="C4">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--low">Low</span></div>
+      <p class="title"><span class="id">C4</span>CSS ยังมี rule ของ status <code>PENDING</code> ที่ถูกยกเลิกไปแล้ว</p>
+      <div class="body"><p><code>status-color-mapping.md</code> ระบุชัดว่า <code>PENDING</code>, <code>ACTIVE</code>, <code>RETURN</code> ไม่อยู่ใน frontend type/filter อีกแล้ว และ DB constraint ใหม่ไม่รับ — แต่ <code>reservations.css:584</code> ยังมี <code>.res-status-badge--pending</code> อยู่คู่กับ <code>--pending_approval</code></p></div>
+      <div class="fix"><strong>แก้:</strong> ลบ selector <code>.res-status-badge--pending</code> ทิ้ง (dead CSS ที่ทำให้ค่าเก่าดูเหมือนยัง supported)</div>
+      <ul class="refs"><li>frontend/src/styles/reservations.css:583-587</li><li>docs/frontend_spec/status-color-mapping.md</li></ul>
+    </div>
+  </label>
+</section>
+
+<!-- ================= GROUP D ================= -->
+<section class="group">
+  <h2>D · status/implementation-status.md ↔ ของจริง</h2>
+  <p class="scope">เอกสารนี้เป็น as-built snapshot (ลงวันที่ 22 ส.ค. 2026) — ทุกข้อในกลุ่มนี้แก้ที่เอกสารเสมอ ไม่ใช่ที่โค้ด</p>
+
+  <label class="item" data-id="D1">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--medium">Medium</span></div>
+      <p class="title"><span class="id">D1</span>ตาราง route ยังบรรยาย asset flow แบบ quantity-based ที่ถูกแทนด้วย serial แล้ว</p>
+      <div class="body">
+        <p>สามแถวขัดกับโค้ดจริง และขัดกับหัวข้อ “Known gaps” ของเอกสารเดียวกันที่บอกว่า “ไม่มี quantity-based batch add/remove เหลืออยู่ในโค้ด”:</p>
+        <p>• <code>/assets</code> — เขียนว่า “batch stock add/remove” · ของจริงมีแค่ dialog “Register units” (รับ serial number ทีละบรรทัด) กับ batch disable<br>
+        • <code>/assets/new</code> — เขียนว่า “quantity/description” · ของจริงฟอร์มรับ serial number<br>
+        • <code>/assets/:assetId</code> — เขียนว่า “single stock add/remove” · ของจริงคือ register / retire units</p>
+      </div>
+      <div class="fix"><strong>แก้:</strong> เขียนสามแถวใหม่ให้ตรง <code>api.registerAssetUnits</code> / <code>api.retireAssetUnits</code> / <code>api.deactivateAssets</code></div>
+      <ul class="refs">
+        <li>docs/status/implementation-status.md</li>
+        <li>frontend/src/pages/AssetsPage.tsx:578,876</li>
+        <li>frontend/src/pages/AssetDetailPage.tsx:707,793</li>
+      </ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="D2">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--medium">Medium</span></div>
+      <p class="title"><span class="id">D2</span>อ้างว่า <code>/admin/users</code> สร้างบัญชีพร้อมรูปได้ — ไม่มีจริง</p>
+      <div class="body"><p>เอกสารเขียน “create account with optional uploaded/camera photo” แต่ <code>CreateUserDialog</code> มีแค่ username + password และ <code>CreateUserDto</code> ก็รับแค่สองอย่างนี้ ตัว dialog เองยังเขียนไว้ว่ารูป/ชื่อ/อีเมลมาจากตอน link Google/Microsoft</p></div>
+      <div class="fix"><strong>แก้:</strong> ตัดข้อความเรื่องรูปออกจากแถว <code>/admin/users</code> ให้ตรงกับ dialog</div>
+      <ul class="refs"><li>docs/status/implementation-status.md</li><li>frontend/src/pages/UsersPage.tsx:560-640</li></ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="D3">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--medium">Medium</span></div>
+      <p class="title"><span class="id">D3</span>Recognition frontend coverage “ยังไม่ได้สำรวจ” — ตอนนี้รู้แล้ว</p>
+      <div class="body"><p>เอกสารทิ้งไว้ว่ายังไม่สำรวจ ผล audit รอบนี้: <code>recognitionApi.ts</code> ครอบคลุม 7 จาก 11 route (จัดการ asset + รูป reference + image proxy) และ <strong>ไม่มี</strong> client ของ <code>recognize</code> / <code>recognize/multi</code> — ดู B2</p></div>
+      <div class="fix"><strong>แก้:</strong> แทนที่ประโยค “ยังไม่ได้สำรวจ” ด้วยผลสำรวจนี้ และลิงก์ไป B2 ในฐานะ gap ที่รู้แล้ว</div>
+      <ul class="refs"><li>docs/status/implementation-status.md</li></ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="D4">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--low">Low</span></div>
+      <p class="title"><span class="id">D4</span>ยังไม่มีรายการ gap สำหรับ <code>GET /returns</code> และ <code>PATCH /assets/units/:id/status</code></p>
+      <div class="body"><p>เอกสารระบุ gap ของ <code>/submit</code> และ unit status ไว้แล้ว แต่ตาราง “Endpoint status” ยังไม่มีแถวของ <code>/returns</code> list/detail ที่ไม่มีคนเรียก (B3)</p></div>
+      <div class="fix"><strong>แก้:</strong> เพิ่มแถว returns ลงตาราง endpoint status พร้อมสถานะ ⚠️ backend มี frontend ไม่เรียก</div>
+      <ul class="refs"><li>docs/status/implementation-status.md</li></ul>
+    </div>
+  </label>
+
+  <label class="item" data-id="D5">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--low">Low</span></div>
+      <p class="title"><span class="id">D5</span>อัปเดตวันที่ snapshot หลังแก้ D1–D4 เสร็จ</p>
+      <div class="body"><p>หัวเอกสารระบุ “ตรวจ ณ วันที่ 22 สิงหาคม 2026” — เมื่อแก้ตามข้างบนแล้วต้องเลื่อนวันที่ ไม่งั้นคนอ่านจะไม่รู้ว่ารอบไหนใหม่กว่า</p></div>
+      <div class="fix"><strong>แก้:</strong> อัปเดตวันที่ในบรรทัดเปิดของ <code>implementation-status.md</code> พร้อมกับ commit ที่แก้ D1–D4</div>
+      <ul class="refs"><li>docs/status/implementation-status.md</li></ul>
+    </div>
+  </label>
+</section>
+
+<!-- ================= GROUP E ================= -->
+<section class="group">
+  <h2>E · สุขภาพ test / build</h2>
+  <p class="scope">ผลรันจริงตอน audit</p>
+
+  <label class="item" data-id="E1">
+    <input type="checkbox" />
+    <div>
+      <div class="tags"><span class="tag tag--low">Low</span></div>
+      <p class="title"><span class="id">E1</span><code>ReservationCreatePage.test.tsx</code> flaky เมื่อรันทั้ง suite</p>
+      <div class="body">
+        <p><code>npx vitest run</code> ทั้งชุด: <strong>1 failed / 13 passed</strong> — เคส “adds a reservable asset to the event manifest” หา <code>findByRole("button", {name: /stage camera/i})</code> ไม่เจอจน timeout</p>
+        <p>รันไฟล์เดียวผ่านทั้ง 6 เคส (4.4 วิ) เทียบกับทั้ง suite ที่ใช้ 58 วิ → เป็นปัญหา timeout ภายใต้ parallel load ไม่ใช่ logic ผิด</p>
+        <p>ส่วน typecheck ผ่านหมด: <code>frontend tsc -b --force</code> และ <code>backend tsc --noEmit</code> ไม่มี error</p>
+      </div>
+      <div class="fix"><strong>แก้:</strong> ขยาย <code>testTimeout</code> ใน <code>vite.config.ts</code> หรือลด parallelism ของ vitest — ปล่อยไว้จะกลายเป็น red CI แบบสุ่ม</div>
+      <ul class="refs"><li>frontend/src/pages/ReservationCreatePage.test.tsx:69</li><li>frontend/vite.config.ts</li></ul>
+    </div>
+  </label>
+</section>
+
+<section class="group">
+  <h2>สิ่งที่ตรวจแล้วตรงกันดี</h2>
+  <p class="scope">บันทึกไว้กันตรวจซ้ำ</p>
+  <div class="note" style="margin-bottom:0">
+    <p style="margin:0 0 8px"><strong>Permission keys</strong> — 13 key ตรงกันทั้ง <code>permissions-and-rbac.md §3</code>, <code>backend/src/access-control/permissions.ts</code> และ <code>frontend/src/types.ts</code> (ยกเว้นเรื่องคำอธิบายใน B8)</p>
+    <p style="margin:0 0 8px"><strong>Status enums</strong> — Reservation 9 ค่า, ReservationItem 5 ค่า, ReservationItemUnit 5 ค่า, AssetUnit 7 ค่า ตรงกันครบทั้ง lifecycle doc, prisma models, backend DTO และ frontend types (ไม่มีค่า retired หลงเหลือในโค้ด ยกเว้น CSS ใน C4)</p>
+    <p style="margin:0 0 8px"><strong>Route inventory</strong> — backend controller 60 route แม็ปกับ contract path ครบ ไม่มีเส้นไหนที่ backend มีแต่ contract ไม่มี หรือกลับกัน; <code>npm run openapi:bundle</code> resolve ผ่าน</p>
+    <p style="margin:0 0 8px"><strong>Validation limits</strong> — asset name 40, part number 100, management area 150/1000, event name 200, description 10000, reason 2000, quantity 1–200 ตรงกันทั้ง doc / prisma / DTO / contract / ฟอร์ม frontend</p>
+    <p style="margin:0 0 8px"><strong>Approve+prepare merge และ unit-based handover</strong> — breaking change รอบล่าสุดลงครบทั้งสามฝั่ง (<code>assetUnitIds</code> ตอน approve, <code>items[].reservationItemUnitIds</code> ตอน delivery-confirm, per-unit condition ตอน return decision)</p>
+    <p style="margin:0"><strong>Navigation shell</strong> — sidebar/bottom nav 4 รายการ + admin 4 รายการ ตรงกับ <code>application-shell.md</code>; past-date grace 60 วินาที implement ตรง §7.12; ADMIN locked permissions บังคับทั้งสองฝั่ง</p>
+  </div>
+</section>
+
+</div>
+
+<script>
+(function () {
+  var KEY = "asset-reserve.conflict-checklist.v1";
+  var items = Array.prototype.slice.call(document.querySelectorAll(".item"));
+  var bar = document.getElementById("bar");
+  var ptext = document.getElementById("ptext");
+
+  function read() {
+    try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; }
+    catch (e) { return {}; }
+  }
+  function write(state) {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+  function paint() {
+    var done = 0;
+    items.forEach(function (item) {
+      var box = item.querySelector("input");
+      item.classList.toggle("done", box.checked);
+      if (box.checked) done++;
+    });
+    var pct = items.length ? Math.round((done / items.length) * 100) : 0;
+    bar.style.width = pct + "%";
+    ptext.textContent = done + " / " + items.length + " เสร็จแล้ว (" + pct + "%)";
+  }
+
+  var state = read();
+  items.forEach(function (item) {
+    var id = item.getAttribute("data-id");
+    var box = item.querySelector("input");
+    box.checked = !!state[id];
+    box.addEventListener("change", function () {
+      var next = read();
+      if (box.checked) next[id] = true; else delete next[id];
+      write(next);
+      paint();
+    });
+  });
+
+  document.getElementById("reset").addEventListener("click", function () {
+    write({});
+    items.forEach(function (item) { item.querySelector("input").checked = false; });
+    paint();
+  });
+
+  paint();
+})();
+</script>
+</body>
+</html>
