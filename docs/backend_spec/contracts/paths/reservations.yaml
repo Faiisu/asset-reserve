@@ -213,6 +213,11 @@
   post:
     tags: [Reservations]
     summary: Confirm equipment delivery (unit-based, partial handover allowed)
+    description: >-
+      Every ASSIGNED unit named in the request gets a disposition -- handed over via
+      reservationItemUnitIds, or withheld via cancelledReservationItemUnitIds (§7.8).
+      There is no lower time bound: equipment may be picked up before the reservation
+      starts. Handover after endAt is refused with HANDOVER_WINDOW_CLOSED.
     operationId: confirmDelivery
     requestBody:
       required: false
@@ -237,6 +242,9 @@
   post:
     tags: [Reservations]
     summary: Submit a return slip for equipment drop-off
+    description: >-
+      Returnable units are the CHECKED_OUT ones, with no time restriction -- an event
+      that finishes early can hand its equipment back before the reservation's endAt.
     operationId: createReturnSlip
     requestBody:
       required: true
