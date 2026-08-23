@@ -58,6 +58,7 @@ describe("ApprovalRequestsPage", () => {
     ).toBeInTheDocument();
     expect(listSpy).toHaveBeenCalledWith(
       expect.objectContaining({ view: "APPROVALS", limit: 20 }),
+      expect.any(AbortSignal),
     );
     expect(screen.getByLabelText("1 decision waiting")).toBeInTheDocument();
     expect(
@@ -71,6 +72,7 @@ describe("ApprovalRequestsPage", () => {
     await waitFor(() =>
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({ view: "APPROVAL_HISTORY", limit: 20 }),
+        expect.any(AbortSignal),
       ),
     );
     expect(

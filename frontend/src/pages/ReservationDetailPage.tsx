@@ -13,6 +13,7 @@ import {
   X,
   ClipboardCheck,
   Printer,
+  Send,
 } from "lucide-react";
 import { Fragment, useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -654,6 +655,29 @@ export function ReservationDetailPage() {
     }
   };
 
+  // Handle Submit -- the only way a DRAFT created from the compose page
+  // moves into the approval queue. Sends the reservation's own updatedAt as
+  // expectedUpdatedAt so a draft edited elsewhere fails the optimistic
+  // concurrency check instead of silently submitting a stale manifest.
+  const handleSubmitReservation = async () => {
+    if (!reservation) return;
+    setActionLoading(true);
+    setActionError(null);
+    setActionNotice(null);
+    try {
+      const updated = await api.submitReservation(
+        reservation.id,
+        reservation.updatedAt,
+      );
+      setReservation(updated);
+      setActionNotice("Reservation submitted for approval.");
+    } catch (err: any) {
+      setActionError(err.message ?? "Failed to submit reservation.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Handle Cancel
   const handleCancelReservation = async (reason?: string) => {
     if (!reservation) return;
@@ -691,6 +715,7 @@ export function ReservationDetailPage() {
   }
 
   const canCancel = reservation.capabilities?.canCancel;
+  const canSubmit = reservation.capabilities?.canSubmit;
   const statusClass = reservation.status.toLowerCase();
   const approvedItemCount = reservation.items.filter(
     (item) => item.approval?.status === "APPROVED",
@@ -759,6 +784,18 @@ export function ReservationDetailPage() {
               >
                 <Printer size={15} />
                 <span>Print / PDF</span>
+              </Button>
+            )}
+
+            {canSubmit && (
+              <Button
+                variant="primary"
+                onClick={() => void handleSubmitReservation()}
+                disabled={actionLoading}
+                loading={actionLoading}
+              >
+                <Send size={15} />
+                <span>Send for approval</span>
               </Button>
             )}
 

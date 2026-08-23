@@ -44,6 +44,16 @@ export class ApiClientError extends Error {
   }
 }
 
+/**
+ * True for the DOMException fetch() rejects with when its AbortSignal fires.
+ * Callers that cancel a superseded request use this to drop the rejection on
+ * the floor rather than rendering it as a load failure -- the request was
+ * replaced on purpose, nothing went wrong.
+ */
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 export function getAccessToken() {
   return sessionStorage.getItem(TOKEN_KEY);
 }
@@ -156,7 +166,10 @@ export const api = {
     areaId?: string;
     cursor?: string;
     limit?: number;
-  }) => request<ListResponse<UserListItem>>(`/users${queryString(filters)}`),
+  }, signal?: AbortSignal) =>
+    request<ListResponse<UserListItem>>(`/users${queryString(filters)}`, {
+      signal,
+    }),
   user: (userId: string) => request<UserDetail>(`/users/${userId}`),
   createUser: (input: { username: string; password: string }) =>
     request<UserDetail>("/users", { method: "POST", body: json(input) }),
@@ -181,9 +194,10 @@ export const api = {
       method: "DELETE",
     }),
 
-  areas: (search = "") =>
+  areas: (search = "", signal?: AbortSignal) =>
     request<ListResponse<ManagementArea>>(
       `/management-areas${queryString({ search, limit: 100 })}`,
+      { signal },
     ),
   createArea: (input: { name: string; description?: string }) =>
     request<ManagementArea>("/management-areas", {
@@ -229,15 +243,21 @@ export const api = {
       method: "POST",
       body: json(input),
     }),
-  assets: (filters: {
-    search?: string;
-    areaId?: string;
-    isActive?: boolean;
-    from?: string;
-    to?: string;
-    cursor?: string;
-    limit?: number;
-  }) => request<ListResponse<AssetSummary>>(`/assets${queryString(filters)}`),
+  assets: (
+    filters: {
+      search?: string;
+      areaId?: string;
+      isActive?: boolean;
+      from?: string;
+      to?: string;
+      cursor?: string;
+      limit?: number;
+    },
+    signal?: AbortSignal,
+  ) =>
+    request<ListResponse<AssetSummary>>(`/assets${queryString(filters)}`, {
+      signal,
+    }),
   asset: (assetId: string) => request<AssetDetail>(`/assets/${assetId}`),
   createAsset: (input: AssetInput) =>
     request<AssetSummary>("/assets", { method: "POST", body: json(input) }),
@@ -301,9 +321,11 @@ export const api = {
       cursor?: string;
       limit?: number;
     },
+    signal?: AbortSignal,
   ) =>
     request<ListResponse<AssetUnit>>(
       `/assets/${assetId}/units${queryString(filters)}`,
+      { signal },
     ),
   createReservation: (input: CreateReservationInput) =>
     request<ReservationDetail>("/reservations", {
@@ -319,12 +341,18 @@ export const api = {
     to?: string;
     cursor?: string;
     limit?: number;
-  }) =>
+  }, signal?: AbortSignal) =>
     request<ListResponse<ReservationSummary>>(
       `/reservations${queryString(filters)}`,
+      { signal },
     ),
   reservation: (reservationId: string) =>
     request<ReservationDetail>(`/reservations/${reservationId}`),
+  submitReservation: (reservationId: string, expectedUpdatedAt: string) =>
+    request<ReservationDetail>(`/reservations/${reservationId}/submit`, {
+      method: "POST",
+      body: json({ expectedUpdatedAt }),
+    }),
   decideReservationItems: (
     reservationId: string,
     items: Array<{ reservationItemId: string; assetUnitIds?: string[] }>,

@@ -130,6 +130,7 @@ describe("AssetsPage", () => {
       () => {
         expect(api.assets).toHaveBeenCalledWith(
           expect.objectContaining({ search: "Projector" }),
+          expect.any(AbortSignal),
         );
       },
       { timeout: 1000 },

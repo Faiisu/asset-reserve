@@ -18,7 +18,7 @@ import {
   type FormEvent,
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api } from "../api";
+import { api, isAbortError } from "../api";
 import { useAuth } from "../auth";
 import { AssetUnitStatusBreakdown } from "../components/AssetUnitStatus";
 import {
@@ -163,16 +163,20 @@ export function AssetsPage() {
   }, [assets, isAssetEditable, isMyAsset, view]);
 
   const load = useCallback(
-    async (cursor?: string, append = false) => {
+    async (cursor?: string, append = false, signal?: AbortSignal) => {
       append ? setLoadingMore(true) : setLoading(true);
       setError(null);
       try {
-        const response = await api.assets({
-          search: filters.search || undefined,
-          areaId: filters.areaIds.length === 1 ? filters.areaIds[0] : undefined,
-          cursor,
-          limit: 50,
-        });
+        const response = await api.assets(
+          {
+            search: filters.search || undefined,
+            areaId:
+              filters.areaIds.length === 1 ? filters.areaIds[0] : undefined,
+            cursor,
+            limit: 50,
+          },
+          signal,
+        );
         let list = response.data;
         if (filters.areaIds.length > 1) {
           list = list.filter((asset) =>
@@ -200,25 +204,34 @@ export function AssetsPage() {
           setSelected((current) => current.filter((id) => visibleIds.has(id)));
         }
       } catch (caught) {
+        // A superseded request is not a load failure -- leave the current
+        // list and error state alone, the newer request owns them now.
+        if (isAbortError(caught)) return;
         setError(caught);
       } finally {
-        setLoading(false);
-        setLoadingMore(false);
+        if (!signal?.aborted) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
       }
     },
     [filters],
   );
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(undefined, false, controller.signal);
+    return () => controller.abort();
   }, [load]);
   useEffect(() => {
+    const controller = new AbortController();
     void api
-      .areas()
+      .areas("", controller.signal)
       .then((areaResponse) => {
         setAreas(areaResponse.data);
       })
       .catch(() => undefined);
+    return () => controller.abort();
   }, []);
 
   const selectedAssets = useMemo(

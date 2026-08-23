@@ -15,7 +15,7 @@ import {
   type FormEvent,
 } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api";
+import { api, isAbortError } from "../api";
 import {
   Avatar,
   Button,
@@ -125,7 +125,7 @@ export function ApprovalRequestsPage() {
   }, []);
 
   const load = useCallback(
-    async (cursor?: string) => {
+    async (cursor?: string, signal?: AbortSignal) => {
       const requestId = ++requestSequence.current;
       cursor ? setLoadingMore(true) : setLoading(true);
       setError(null);
@@ -134,16 +134,21 @@ export function ApprovalRequestsPage() {
           (val) =>
             statusOptions.find((opt) => opt.value === val)?.statuses ?? [],
         );
-        const response = await api.reservations({
-          view: tab === "PENDING" ? "APPROVALS" : "APPROVAL_HISTORY",
-          status: allowedStatuses.length === 1 ? allowedStatuses[0] : undefined,
-          areaId: selectedAreaIds.length === 1 ? selectedAreaIds[0] : undefined,
-          search: search || undefined,
-          from: from ? localDayBoundary(from, false) : undefined,
-          to: to ? localDayBoundary(to, true) : undefined,
-          cursor,
-          limit: 20,
-        });
+        const response = await api.reservations(
+          {
+            view: tab === "PENDING" ? "APPROVALS" : "APPROVAL_HISTORY",
+            status:
+              allowedStatuses.length === 1 ? allowedStatuses[0] : undefined,
+            areaId:
+              selectedAreaIds.length === 1 ? selectedAreaIds[0] : undefined,
+            search: search || undefined,
+            from: from ? localDayBoundary(from, false) : undefined,
+            to: to ? localDayBoundary(to, true) : undefined,
+            cursor,
+            limit: 20,
+          },
+          signal,
+        );
         if (requestId !== requestSequence.current) return;
         let list = response.data;
         if (selectedAreaIds.length > 1) {
@@ -161,6 +166,7 @@ export function ApprovalRequestsPage() {
         setItems((current) => (cursor ? [...current, ...list] : list));
         setPageInfo(response.pageInfo);
       } catch (caught) {
+        if (isAbortError(caught)) return;
         if (requestId !== requestSequence.current) return;
         setError(caught);
       } finally {
@@ -174,7 +180,9 @@ export function ApprovalRequestsPage() {
   );
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(undefined, controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   function submitSearch(event: FormEvent) {

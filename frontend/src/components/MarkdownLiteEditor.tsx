@@ -20,14 +20,23 @@ export function MarkdownLiteEditor({
   onChange,
   placeholders,
   rows = 8,
+  maxLength,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholders: string[];
   rows?: number;
+  /** Same cap the API enforces. Applied to typing via the Textarea's own
+   * maxLength, and to toolbar insertions below -- those write through
+   * onChange directly, which the attribute never sees. */
+  maxLength?: number;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [placeholderMenuOpen, setPlaceholderMenuOpen] = useState(false);
+
+  function emit(next: string) {
+    onChange(maxLength === undefined ? next : next.slice(0, maxLength));
+  }
 
   function applyAtSelection(transform: (selected: string) => string) {
     const el = textareaRef.current;
@@ -36,7 +45,7 @@ export function MarkdownLiteEditor({
     const selected = value.slice(selectionStart, selectionEnd);
     const replacement = transform(selected);
     const next = value.slice(0, selectionStart) + replacement + value.slice(selectionEnd);
-    onChange(next);
+    emit(next);
     // Restore focus + a sensible selection after React re-renders the
     // controlled value -- without the timeout, the browser hasn't
     // committed the new value to the DOM yet and the range would be
@@ -59,7 +68,7 @@ export function MarkdownLiteEditor({
     const lineStart = value.lastIndexOf("\n", el.selectionStart - 1) + 1;
     const prefix = HEADING_PREFIX[kind];
     const next = value.slice(0, lineStart) + prefix + value.slice(lineStart);
-    onChange(next);
+    emit(next);
     requestAnimationFrame(() => {
       el.focus();
       const cursor = el.selectionStart + prefix.length;
@@ -116,6 +125,7 @@ export function MarkdownLiteEditor({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         rows={rows}
+        maxLength={maxLength}
         className="markdown-lite-editor__textarea"
       />
     </div>

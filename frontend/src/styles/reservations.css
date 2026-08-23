@@ -580,8 +580,7 @@
   border: 1px solid var(--line);
 }
 
-.res-status-badge--pending_approval,
-.res-status-badge--pending {
+.res-status-badge--pending_approval {
   background: var(--amber-soft);
   color: var(--amber);
 }

@@ -219,6 +219,7 @@ export function AccountPage() {
               autoComplete="current-password"
               value={currentPassword}
               onChange={(event) => setCurrentPassword(event.target.value)}
+              maxLength={1024}
               required
             />
           </Field>
@@ -229,6 +230,8 @@ export function AccountPage() {
                 autoComplete="new-password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
+                minLength={8}
+                maxLength={128}
                 required
               />
             </Field>
@@ -238,6 +241,8 @@ export function AccountPage() {
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
+                minLength={8}
+                maxLength={128}
                 required
               />
             </Field>

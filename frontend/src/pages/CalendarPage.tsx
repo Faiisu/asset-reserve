@@ -31,7 +31,7 @@ import {
   type RefObject,
 } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api";
+import { api, isAbortError } from "../api";
 import { useAuth } from "../auth";
 import { CancelReservationDialog } from "../components/CancelReservationDialog";
 import {
@@ -340,7 +340,7 @@ export function CalendarPage() {
     selectedStartAt,
   ]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     const requestId = ++requestSequence.current;
     setLoading(true);
     setError(null);
@@ -351,15 +351,20 @@ export function CalendarPage() {
         (val) => statusOptions.find((opt) => opt.value === val)?.statuses ?? [],
       );
       do {
-        const response = await api.reservations({
-          view: canViewOthers && !onlyMine ? "ALL" : "MINE",
-          status: allowedStatuses.length === 1 ? allowedStatuses[0] : undefined,
-          areaId: selectedAreaIds.length === 1 ? selectedAreaIds[0] : undefined,
-          from: gridStart.toISOString(),
-          to: gridEnd.toISOString(),
-          cursor,
-          limit: 100,
-        });
+        const response = await api.reservations(
+          {
+            view: canViewOthers && !onlyMine ? "ALL" : "MINE",
+            status:
+              allowedStatuses.length === 1 ? allowedStatuses[0] : undefined,
+            areaId:
+              selectedAreaIds.length === 1 ? selectedAreaIds[0] : undefined,
+            from: gridStart.toISOString(),
+            to: gridEnd.toISOString(),
+            cursor,
+            limit: 100,
+          },
+          signal,
+        );
         visible.push(...response.data);
         cursor = response.pageInfo.hasNextPage
           ? (response.pageInfo.nextCursor ?? undefined)
@@ -384,9 +389,14 @@ export function CalendarPage() {
         setReservations(filtered);
       }
     } catch (caught) {
+      // Panning to another month aborts the in-flight range fetch; that is a
+      // replacement, not a failure, so the older run stays silent.
+      if (isAbortError(caught)) return;
       if (requestId === requestSequence.current) setError(caught);
     } finally {
-      if (requestId === requestSequence.current) setLoading(false);
+      if (!signal?.aborted && requestId === requestSequence.current) {
+        setLoading(false);
+      }
     }
   }, [
     gridEnd,
@@ -398,7 +408,9 @@ export function CalendarPage() {
   ]);
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   useEffect(() => {

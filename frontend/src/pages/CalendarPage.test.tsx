@@ -184,6 +184,7 @@ describe("CalendarPage", () => {
         from: expect.any(String),
         to: expect.any(String),
       }),
+      expect.any(AbortSignal),
     );
   });
 
@@ -653,6 +654,7 @@ describe("CalendarPage", () => {
       expect.objectContaining({
         view: "MINE",
       }),
+      expect.any(AbortSignal),
     );
 
     // Click to toggle "Only mine" OFF
@@ -663,6 +665,7 @@ describe("CalendarPage", () => {
       expect.objectContaining({
         view: "ALL",
       }),
+      expect.any(AbortSignal),
     );
   });
 });

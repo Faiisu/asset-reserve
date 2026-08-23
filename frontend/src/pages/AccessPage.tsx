@@ -246,7 +246,7 @@ export function AccessPage() {
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                   rows={3}
-                  maxLength={500}
+                  maxLength={10000}
                 />
               </label>
             </div>
@@ -422,7 +422,7 @@ function CreateRoleDialog({
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               placeholder="Role responsibilities and access scope"
-              maxLength={500}
+              maxLength={10000}
             />
           </Field>
         </div>

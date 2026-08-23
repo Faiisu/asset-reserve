@@ -5,6 +5,13 @@ import type { EmailTemplate } from "../types";
 import { Button, Field, Input, cx } from "./ui";
 import { MarkdownLiteEditor } from "./MarkdownLiteEditor";
 
+// Mirrors UpdateEmailTemplateRequest in
+// docs/backend_spec/contracts/components/schemas/email-templates.yaml --
+// cap here so an over-long draft is prevented rather than rejected with a
+// 422 only once the admin hits Save.
+const SUBJECT_MAX_LENGTH = 255;
+const BODY_MAX_LENGTH = 10_000;
+
 /**
  * One situation's editor -- subject, markdown-lite body, an explicit
  * Preview (rather than auto-debounced on every keystroke, to keep this
@@ -102,7 +109,12 @@ export function EmailTemplateEditor({
           </div>
         )}
         <Field label="Subject" required>
-          <Input value={subject} onChange={(event) => setSubject(event.target.value)} required />
+          <Input
+            value={subject}
+            onChange={(event) => setSubject(event.target.value)}
+            maxLength={SUBJECT_MAX_LENGTH}
+            required
+          />
         </Field>
         <Field
           label="Body"
@@ -112,6 +124,7 @@ export function EmailTemplateEditor({
             value={bodyMarkdown}
             onChange={setBodyMarkdown}
             placeholders={template.placeholders}
+            maxLength={BODY_MAX_LENGTH}
           />
         </Field>
 
