@@ -126,6 +126,7 @@ CreateReservationRequest:
     - eventName
     - startAt
     - endAt
+    - items
   properties:
     eventName:
       type: string
@@ -150,8 +151,11 @@ CreateReservationRequest:
       default: DRAFT
     items:
       type: array
+      minItems: 1
       maxItems: 100
-      description: Optional. If empty or omitted, the reservation is automatically approved.
+      description: >-
+        At least one asset line is required -- a reservation always reserves
+        something, and every item goes through the normal approval workflow.
       items:
         $ref: "#/components/schemas/ReservationItemInput"
     participantIds:

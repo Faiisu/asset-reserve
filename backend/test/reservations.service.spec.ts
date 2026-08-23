@@ -1100,28 +1100,6 @@ describe("reservation lifecycle events", () => {
     );
   });
 
-  it("submit() does not emit when a zero-item reservation auto-approves", async () => {
-    const reservation = { ...detailRecord("DRAFT"), items: [] };
-    const findUnique = vi.fn().mockResolvedValue(reservation);
-    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
-    const userRoleFindMany = vi.fn();
-    const prisma = {
-      reservation: { findUnique, updateMany },
-      userRole: { findMany: userRoleFindMany },
-    } as unknown as PrismaService;
-    const events = new ReservationLifecycleEvents();
-    const submittedSpy = vi.fn();
-    events.onSubmitted(submittedSpy);
-    const service = new ReservationsService(prisma, events);
-    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
-
-    await service.submit(actor, reservationId, {
-      expectedUpdatedAt: reservation.updatedAt.toISOString(),
-    });
-
-    expect(submittedSpy).not.toHaveBeenCalled();
-    expect(userRoleFindMany).not.toHaveBeenCalled();
-  });
 
   it("cancel() emits cancelled with the requester id", async () => {
     const reservation = detailRecord("APPROVED");

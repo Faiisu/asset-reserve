@@ -90,12 +90,14 @@ export class CreateReservationDto {
   @IsIn(["DRAFT", "PENDING_APPROVAL"])
   status?: "DRAFT" | "PENDING_APPROVAL";
 
-  @IsOptional()
+  // A reservation always reserves something -- §7.1 requires at least one
+  // asset line, and there is no zero-item path that skips approval.
   @IsArray()
+  @ArrayMinSize(1)
   @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => ReservationItemInputDto)
-  items?: ReservationItemInputDto[];
+  items!: ReservationItemInputDto[];
 
   @IsOptional()
   @IsArray()

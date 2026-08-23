@@ -259,30 +259,22 @@ export class ReservationsService {
     const startAt = new Date(input.startAt);
     const endAt = new Date(input.endAt);
     this.assertDateRange(startAt, endAt);
-    const items = input.items ?? [];
+    // §7.1: items is required and non-empty, so every reservation has assets
+    // to scope permission and availability against.
+    const items = input.items;
     this.assertUniqueItems(items);
     const participantIds = this.normalizeParticipantIds(
       input.participantIds,
       actor.user.id,
     );
     await this.assertParticipants(participantIds);
-    const assets = items.length
-      ? await this.findAssets(items.map((item) => item.assetId))
-      : [];
-    if (assets.length) {
-      for (const asset of assets) {
-        this.assertArea(actor, "reservation:create", asset.managementAreaId);
-      }
-      await this.assertAvailability(this.prisma, items, assets, startAt, endAt);
-    } else {
-      this.assertAnyArea(actor, "reservation:create");
+    const assets = await this.findAssets(items.map((item) => item.assetId));
+    for (const asset of assets) {
+      this.assertArea(actor, "reservation:create", asset.managementAreaId);
     }
+    await this.assertAvailability(this.prisma, items, assets, startAt, endAt);
 
-    let status: "DRAFT" | "PENDING_APPROVAL" | "APPROVED" =
-      input.status ?? "DRAFT";
-    if (items.length === 0 && status === "PENDING_APPROVAL") {
-      status = "APPROVED";
-    }
+    const status: "DRAFT" | "PENDING_APPROVAL" = input.status ?? "DRAFT";
 
     const reservationId = randomUUID();
     await this.prisma.$transaction(async (tx) => {
@@ -381,15 +373,13 @@ export class ReservationsService {
         reservation.id,
       );
     }
-    const nextStatus =
-      reservation.items.length === 0 ? "APPROVED" : "PENDING_APPROVAL";
     const result = await this.prisma.reservation.updateMany({
       where: {
         id: reservationId,
         status: "DRAFT",
         updatedAt: new Date(input.expectedUpdatedAt),
       },
-      data: { status: nextStatus, updatedAt: new Date() },
+      data: { status: "PENDING_APPROVAL", updatedAt: new Date() },
     });
     if (!result.count) {
       throw new ApiException(
@@ -404,28 +394,26 @@ export class ReservationsService {
       action: "RESERVATION_SUBMITTED",
       entityType: "RESERVATION",
       entityId: reservationId,
-      details: { status: nextStatus },
+      details: { status: "PENDING_APPROVAL" },
     });
-    if (nextStatus === "PENDING_APPROVAL") {
-      const managementAreaIds = [
-        ...new Set(assets.map((a) => a.managementAreaId)),
-      ];
-      const approverRecipients =
-        await this.findApproverRecipients(managementAreaIds);
-      this.reservationEvents.emitSubmitted({
-        reservationId,
-        eventName: reservation.eventName,
-        startAt: reservation.startAt,
-        endAt: reservation.endAt,
-        requester: {
-          email: reservation.requester.email,
-          name:
-            reservation.requester.profile?.name ??
-            reservation.requester.username,
-        },
-        approverRecipients,
-      });
-    }
+    const managementAreaIds = [
+      ...new Set(assets.map((a) => a.managementAreaId)),
+    ];
+    const approverRecipients =
+      await this.findApproverRecipients(managementAreaIds);
+    this.reservationEvents.emitSubmitted({
+      reservationId,
+      eventName: reservation.eventName,
+      startAt: reservation.startAt,
+      endAt: reservation.endAt,
+      requester: {
+        email: reservation.requester.email,
+        name:
+          reservation.requester.profile?.name ??
+          reservation.requester.username,
+      },
+      approverRecipients,
+    });
     return this.get(actor, reservationId);
   }
 
@@ -2094,12 +2082,6 @@ export class ReservationsService {
     managementAreaId: string,
   ) {
     if (!hasAreaPermission(actor, permission, managementAreaId)) {
-      this.permissionDenied();
-    }
-  }
-
-  private assertAnyArea(actor: AuthenticatedActor, permission: PermissionKey) {
-    if (!hasAnyPermission(actor, permission)) {
       this.permissionDenied();
     }
   }

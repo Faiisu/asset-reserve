@@ -461,7 +461,7 @@ Status transitions และความหมายทางธุรกิจ�
 
 ### 7.1 `POST /reservations`
 
-สร้าง `DRAFT` หรือ `PENDING_APPROVAL` พร้อม event details, assets และ participants โดยแต่ละ item ขอได้ 1–200 units ตรวจ asset active, permission ทุก area, duplicate asset และ approved overlap ก่อนบันทึก เมื่อสร้างหรือ submit ด้วยรายการ items ว่างเปล่า สถานะจะถูกปรับเป็น `APPROVED` อัตโนมัติ โดยไม่ต้องผ่าน approval workflow
+สร้าง `DRAFT` หรือ `PENDING_APPROVAL` พร้อม event details, assets และ participants โดย `items[]` **ต้องมีอย่างน้อย 1 รายการ** (สูงสุด 100) และแต่ละ item ขอได้ 1–200 units ตรวจ asset active, permission ทุก area, duplicate asset และ approved overlap ก่อนบันทึก ส่ง `items` ว่างหรือไม่ส่งเลยตอบ `422 VALIDATION_ERROR` — ไม่มี shortcut auto-approve สำหรับ reservation ที่ไม่มีอุปกรณ์อีกต่อไป ทุก reservation ต้องผ่าน approval workflow ตามปกติ
 
 ### 7.2 `GET /reservations`
 

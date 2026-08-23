@@ -18,6 +18,7 @@
 ## 2. Reservation
 
 - หนึ่ง `Reservation` มีได้หลาย `ReservationItem` และกำหนด quantity ต่อ item ได้อิสระ
+- `Reservation` ต้องมี `ReservationItem` อย่างน้อย 1 รายการเสมอ (สูงสุด 100) — สร้างการจองที่ไม่มีอุปกรณ์ไม่ได้ และไม่มีเส้นทางที่ข้าม approval workflow
 - Asset เดิมซ้ำใน `Reservation` เดียวกันไม่ได้
 - Participant เดิมเพิ่มซ้ำใน `Reservation` เดียวกันไม่ได้
 - `endAt` ต้องมากกว่า `startAt` เสมอ
