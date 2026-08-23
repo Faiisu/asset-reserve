@@ -16,7 +16,8 @@ import { formatDate } from "@/components/ui";
 
 export interface StepLogItem {
   id: string;
-  stepKey: "draft" | "approval" | "delivery" | "pending_return" | "return_approve";
+  stepKey:
+    "draft" | "approval" | "delivery" | "pending_return" | "return_approve";
   title: string;
   shortLabel: string;
   status: "completed" | "current" | "upcoming" | "rejected" | "cancelled";
@@ -39,7 +40,9 @@ export interface StepLogItem {
   }[];
 }
 
-export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] {
+export function generateStepLogs(
+  reservation: ReservationDetail,
+): StepLogItem[] {
   const status = reservation.status;
   const createdAt = formatDate(reservation.createdAt, true);
   const updatedAt = formatDate(reservation.updatedAt, true);
@@ -56,11 +59,26 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
     icon: FileText,
     logs: [
       { label: "Event Name", value: reservation.eventName },
-      { label: "Requester", value: `${reservation.requester.name ?? "User"} (${reservation.requester.email})` },
+      {
+        label: "Requester",
+        value: `${reservation.requester.name ?? "User"} (${reservation.requester.email})`,
+      },
       { label: "Created Timestamp", value: createdAt },
-      { label: "Description", value: reservation.description || "No description provided." },
-      { label: "Initial Items Count", value: `${reservation.items.length} items (${reservation.items.reduce((s, i) => s + i.quantity, 0)} total units)` },
-      { label: "Participants", value: reservation.participants.length > 0 ? reservation.participants.map(p => p.name ?? p.email).join(", ") : "None specified" },
+      {
+        label: "Description",
+        value: reservation.description || "No description provided.",
+      },
+      {
+        label: "Initial Items Count",
+        value: `${reservation.items.length} items (${reservation.items.reduce((s, i) => s + i.quantity, 0)} total units)`,
+      },
+      {
+        label: "Participants",
+        value:
+          reservation.participants.length > 0
+            ? reservation.participants.map((p) => p.name ?? p.email).join(", ")
+            : "None specified",
+      },
     ],
   };
 
@@ -108,7 +126,10 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
           areaName: i.asset.managementArea.name,
           itemStatus: i.status,
           approvalStatus: i.approval?.status ?? "REJECTED",
-          approverName: i.approval?.approver.name ?? i.approval?.approver.email ?? "Area Manager",
+          approverName:
+            i.approval?.approver.name ??
+            i.approval?.approver.email ??
+            "Area Manager",
           comment: i.approval?.comment,
         })),
       },
@@ -116,23 +137,33 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
   }
 
   // 2. APPROVAL STEP
+  // PARTIALLY_APPROVED counts as decided: per lifecycle §2 its only forward
+  // transition is DELIVERY_CONFIRMED, so the approval step is done and
+  // handover is the current one -- same as APPROVED.
   const isApprovedOrBeyond = [
     "APPROVED",
+    "PARTIALLY_APPROVED",
     "DELIVERY_CONFIRMED",
     "RETURN_PENDING",
-    "RETURN_CONFIRMED",
     "COMPLETED",
   ].includes(status);
 
-  const approvalDecidedAt = reservation.items.find((i) => i.approval?.decidedAt)?.approval?.decidedAt;
-  const approvedItemCount = reservation.items.filter((i) => i.approval?.status === "APPROVED").length;
+  const approvalDecidedAt = reservation.items.find((i) => i.approval?.decidedAt)
+    ?.approval?.decidedAt;
+  const approvedItemCount = reservation.items.filter(
+    (i) => i.approval?.status === "APPROVED",
+  ).length;
   const totalItemCount = reservation.items.length;
 
   const approvalStep: StepLogItem = {
     id: "step-approval",
     stepKey: "approval",
-    title: status === "PARTIALLY_APPROVED" ? "2. Partially Approved" : "2. Area Approvals",
-    shortLabel: status === "PARTIALLY_APPROVED" ? "Partially Approved" : "Approved",
+    title:
+      status === "PARTIALLY_APPROVED"
+        ? "2. Partially Approved"
+        : "2. Area Approvals",
+    shortLabel:
+      status === "PARTIALLY_APPROVED" ? "Partially Approved" : "Approved",
     status: isApprovedOrBeyond
       ? "completed"
       : status === "PENDING_APPROVAL"
@@ -148,9 +179,25 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
       : "Area Managers reviewing requested equipment",
     icon: ShieldCheck,
     logs: [
-      { label: "Approval Status", value: status === "PARTIALLY_APPROVED" ? "Partially Approved" : isApprovedOrBeyond ? "Approved" : "Pending Area Review" },
-      { label: "Decision Timestamp", value: isApprovedOrBeyond ? formatDate(approvalDecidedAt ?? reservation.updatedAt, true) : "Pending" },
-      { label: "Approved Lines", value: `${approvedItemCount} of ${totalItemCount} lines approved` },
+      {
+        label: "Approval Status",
+        value:
+          status === "PARTIALLY_APPROVED"
+            ? "Partially Approved"
+            : isApprovedOrBeyond
+              ? "Approved"
+              : "Pending Area Review",
+      },
+      {
+        label: "Decision Timestamp",
+        value: isApprovedOrBeyond
+          ? formatDate(approvalDecidedAt ?? reservation.updatedAt, true)
+          : "Pending",
+      },
+      {
+        label: "Approved Lines",
+        value: `${approvedItemCount} of ${totalItemCount} lines approved`,
+      },
     ],
     itemsOverview: reservation.items.map((i) => ({
       assetName: i.asset.name,
@@ -158,7 +205,10 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
       areaName: i.asset.managementArea.name,
       itemStatus: i.status,
       approvalStatus: i.approval?.status ?? "PENDING",
-      approverName: i.approval?.approver.name ?? i.approval?.approver.email ?? "Pending Manager",
+      approverName:
+        i.approval?.approver.name ??
+        i.approval?.approver.email ??
+        "Pending Manager",
       comment: i.approval?.comment,
     })),
   };
@@ -167,7 +217,6 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
   const isDeliveredOrBeyond = [
     "DELIVERY_CONFIRMED",
     "RETURN_PENDING",
-    "RETURN_CONFIRMED",
     "COMPLETED",
   ].includes(status);
 
@@ -195,10 +244,26 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
         : "Pending area approval",
     icon: PackageCheck,
     logs: [
-      { label: "Handover Status", value: isDeliveredOrBeyond ? "Handed over / Confirmed" : "Pending pickup" },
-      { label: "Handover Timestamp", value: isDeliveredOrBeyond ? formatDate(deliveredAt, true) : "Not yet confirmed" },
-      { label: "Recipient / Borrower", value: `${reservation.requester.name ?? "User"} (${reservation.requester.email})` },
-      { label: "Delivered Items", value: `${reservation.items.filter(i => i.status === "DELIVERED" || i.status === "RETURNED").length} lines delivered` },
+      {
+        label: "Handover Status",
+        value: isDeliveredOrBeyond
+          ? "Handed over / Confirmed"
+          : "Pending pickup",
+      },
+      {
+        label: "Handover Timestamp",
+        value: isDeliveredOrBeyond
+          ? formatDate(deliveredAt, true)
+          : "Not yet confirmed",
+      },
+      {
+        label: "Recipient / Borrower",
+        value: `${reservation.requester.name ?? "User"} (${reservation.requester.email})`,
+      },
+      {
+        label: "Delivered Items",
+        value: `${reservation.items.filter((i) => i.status === "DELIVERED" || i.status === "RETURNED").length} lines delivered`,
+      },
     ],
   };
 
@@ -206,7 +271,7 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
   const latestReturn = reservation.returns[0];
   const hasSubmittedReturn =
     reservation.returns.length > 0 ||
-    ["RETURN_PENDING", "RETURN_CONFIRMED", "COMPLETED"].includes(status);
+    ["RETURN_PENDING", "COMPLETED"].includes(status);
   const isAwaitingReturnSubmission =
     ["DELIVERY_CONFIRMED"].includes(status) && reservation.returns.length === 0;
 
@@ -240,10 +305,16 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
             ? "Equipment with borrower (Pending Return)"
             : "Not yet handed over",
       },
-      { label: "Return Slips Filed", value: `${reservation.returns.length} return slip(s)` },
+      {
+        label: "Return Slips Filed",
+        value: `${reservation.returns.length} return slip(s)`,
+      },
       ...(latestReturn
         ? [
-            { label: "Latest Drop-off Date", value: formatDate(latestReturn.createdAt, true) },
+            {
+              label: "Latest Drop-off Date",
+              value: formatDate(latestReturn.createdAt, true),
+            },
             {
               label: "Returned By",
               value: `${latestReturn.returner?.name ?? latestReturn.returner?.email ?? "Borrower"}`,
@@ -254,7 +325,7 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
   };
 
   // 5. RETURN APPROVE & INSPECTION PHASE (Manager approval & Restock)
-  const isCompleted = ["RETURN_CONFIRMED", "COMPLETED"].includes(status);
+  const isCompleted = status === "COMPLETED";
   const isInspectionPending =
     ["RETURN_PENDING"].includes(status) ||
     (reservation.returns.length > 0 && !isCompleted);
@@ -262,7 +333,9 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
   const returnApproveStep: StepLogItem = {
     id: "step-return-approve",
     stepKey: "return_approve",
-    title: isCompleted ? "5. Return Approved & Restocked" : "5. Return Approval & Inspection",
+    title: isCompleted
+      ? "5. Return Approved & Restocked"
+      : "5. Return Approval & Inspection",
     shortLabel: isCompleted ? "Return Approved" : "Return Approval",
     status: isCompleted
       ? "completed"
@@ -270,7 +343,10 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
         ? "current"
         : "upcoming",
     timestamp: isCompleted
-      ? formatDate(latestReturn?.approval?.decidedAt ?? reservation.updatedAt, true)
+      ? formatDate(
+          latestReturn?.approval?.decidedAt ?? reservation.updatedAt,
+          true,
+        )
       : isInspectionPending
         ? "Pending Inspection"
         : "After return drop-off",
@@ -303,14 +379,21 @@ export function generateStepLogs(reservation: ReservationDetail): StepLogItem[] 
             },
             {
               label: "Inspection Remarks",
-              value: latestReturn.approval?.description || "No inspection remarks.",
+              value:
+                latestReturn.approval?.description || "No inspection remarks.",
             },
           ]
         : []),
     ],
   };
 
-  return [draftStep, approvalStep, deliveryStep, pendingReturnStep, returnApproveStep];
+  return [
+    draftStep,
+    approvalStep,
+    deliveryStep,
+    pendingReturnStep,
+    returnApproveStep,
+  ];
 }
 
 export function ReservationHorizontalTracker({
@@ -320,8 +403,13 @@ export function ReservationHorizontalTracker({
   reservation: ReservationDetail;
   className?: string;
 }) {
-  const steps = React.useMemo(() => generateStepLogs(reservation), [reservation]);
-  const [selectedStep, setSelectedStep] = React.useState<StepLogItem | null>(null);
+  const steps = React.useMemo(
+    () => generateStepLogs(reservation),
+    [reservation],
+  );
+  const [selectedStep, setSelectedStep] = React.useState<StepLogItem | null>(
+    null,
+  );
 
   return (
     <div className={`res-horizontal-tracker ${className ?? ""}`}>
@@ -340,7 +428,8 @@ export function ReservationHorizontalTracker({
         {steps.map((step) => {
           const isCompleted = step.status === "completed";
           const isCurrent = step.status === "current";
-          const isCancelled = step.status === "cancelled" || step.status === "rejected";
+          const isCancelled =
+            step.status === "cancelled" || step.status === "rejected";
           const isPendingApproval = isCurrent && step.stepKey === "approval";
 
           return (
@@ -354,11 +443,15 @@ export function ReservationHorizontalTracker({
               {/* Step Node Icon */}
               <div
                 className={`res-step-node ${
-                  isCompleted ? "res-step-node--completed" :
-                  isPendingApproval ? "res-step-node--pending-approval" :
-                  isCurrent ? "res-step-node--current" :
-                  isCancelled ? "res-step-node--cancelled" :
-                  "res-step-node--upcoming"
+                  isCompleted
+                    ? "res-step-node--completed"
+                    : isPendingApproval
+                      ? "res-step-node--pending-approval"
+                      : isCurrent
+                        ? "res-step-node--current"
+                        : isCancelled
+                          ? "res-step-node--cancelled"
+                          : "res-step-node--upcoming"
                 }`}
               >
                 {isCompleted ? (
@@ -374,12 +467,8 @@ export function ReservationHorizontalTracker({
 
               {/* Step Labels */}
               <div className="res-step-text">
-                <span className="res-step-title">
-                  {step.shortLabel}
-                </span>
-                <span className="res-step-time">
-                  {step.timestamp}
-                </span>
+                <span className="res-step-title">{step.shortLabel}</span>
+                <span className="res-step-time">{step.timestamp}</span>
               </div>
             </button>
           );
@@ -388,18 +477,26 @@ export function ReservationHorizontalTracker({
 
       {/* Interactive Step Audit Log Drawer / Modal */}
       {selectedStep && (
-        <div className="res-modal-backdrop" onClick={() => setSelectedStep(null)}>
+        <div
+          className="res-modal-backdrop"
+          onClick={() => setSelectedStep(null)}
+        >
           <div className="res-modal-card" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
             <div className="res-modal-header">
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div
                   className={`res-step-node ${
-                    selectedStep.status === "completed" ? "res-step-node--completed" :
-                    selectedStep.status === "current" && selectedStep.stepKey === "approval" ? "res-step-node--pending-approval" :
-                    selectedStep.status === "current" ? "res-step-node--current" :
-                    selectedStep.status === "upcoming" ? "res-step-node--upcoming" :
-                    "res-step-node--cancelled"
+                    selectedStep.status === "completed"
+                      ? "res-step-node--completed"
+                      : selectedStep.status === "current" &&
+                          selectedStep.stepKey === "approval"
+                        ? "res-step-node--pending-approval"
+                        : selectedStep.status === "current"
+                          ? "res-step-node--current"
+                          : selectedStep.status === "upcoming"
+                            ? "res-step-node--upcoming"
+                            : "res-step-node--cancelled"
                   }`}
                   style={{ width: 36, height: 36 }}
                 >
@@ -407,13 +504,26 @@ export function ReservationHorizontalTracker({
                 </div>
                 <div>
                   <h4>{selectedStep.title}</h4>
-                  <p style={{ margin: 0, fontSize: 12, color: "var(--ink-soft)" }}>{selectedStep.summary}</p>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 12,
+                      color: "var(--ink-soft)",
+                    }}
+                  >
+                    {selectedStep.summary}
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedStep(null)}
-                style={{ background: "transparent", border: 0, cursor: "pointer", color: "var(--ink-faint)" }}
+                style={{
+                  background: "transparent",
+                  border: 0,
+                  cursor: "pointer",
+                  color: "var(--ink-faint)",
+                }}
               >
                 <X size={18} />
               </button>
@@ -422,7 +532,15 @@ export function ReservationHorizontalTracker({
             {/* Modal Body: Audit Log Entries */}
             <div className="res-modal-body">
               <div style={{ marginBottom: 14 }}>
-                <h5 style={{ margin: "0 0 8px", fontSize: 11, textTransform: "uppercase", color: "var(--ink-faint)", letterSpacing: "0.05em" }}>
+                <h5
+                  style={{
+                    margin: "0 0 8px",
+                    fontSize: 11,
+                    textTransform: "uppercase",
+                    color: "var(--ink-faint)",
+                    letterSpacing: "0.05em",
+                  }}
+                >
                   Step Metadata & Timeline
                 </h5>
                 <div className="res-log-grid">
@@ -436,38 +554,94 @@ export function ReservationHorizontalTracker({
               </div>
 
               {/* Items Breakdown (If applicable to approvals/returns) */}
-              {selectedStep.itemsOverview && selectedStep.itemsOverview.length > 0 && (
-                <div>
-                  <h5 style={{ margin: "0 0 8px", fontSize: 11, textTransform: "uppercase", color: "var(--ink-faint)", letterSpacing: "0.05em" }}>
-                    Line Items & Decisions
-                  </h5>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {selectedStep.itemsOverview.map((item, idx) => (
-                      <div key={idx} style={{ padding: "10px 14px", background: "var(--surface-raised)", border: "1px solid var(--line)", borderRadius: 8, fontSize: 12 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: 700, color: "var(--ink)" }}>
-                          <span>{item.assetName} × {item.quantity}</span>
-                          <span className={`res-status-badge ${
-                            item.approvalStatus === "APPROVED" ? "res-status-badge--approved" :
-                            item.approvalStatus === "REJECTED" ? "res-status-badge--rejected" :
-                            "res-status-badge--pending_approval"
-                          }`}>
-                            {item.approvalStatus}
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", color: "var(--ink-faint)", fontSize: 11, marginTop: 4 }}>
-                          <span>Area: {item.areaName}</span>
-                          <span>Approver: {item.approverName}</span>
-                        </div>
-                        {item.comment && (
-                          <div style={{ marginTop: 6, fontSize: 11, color: "var(--ink-soft)", background: "var(--surface)", padding: "4px 8px", borderRadius: 4, border: "1px solid var(--line)" }}>
-                            💬 "{item.comment}"
+              {selectedStep.itemsOverview &&
+                selectedStep.itemsOverview.length > 0 && (
+                  <div>
+                    <h5
+                      style={{
+                        margin: "0 0 8px",
+                        fontSize: 11,
+                        textTransform: "uppercase",
+                        color: "var(--ink-faint)",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      Line Items & Decisions
+                    </h5>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      {selectedStep.itemsOverview.map((item, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            padding: "10px 14px",
+                            background: "var(--surface-raised)",
+                            border: "1px solid var(--line)",
+                            borderRadius: 8,
+                            fontSize: 12,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              fontWeight: 700,
+                              color: "var(--ink)",
+                            }}
+                          >
+                            <span>
+                              {item.assetName} × {item.quantity}
+                            </span>
+                            <span
+                              className={`res-status-badge ${
+                                item.approvalStatus === "APPROVED"
+                                  ? "res-status-badge--approved"
+                                  : item.approvalStatus === "REJECTED"
+                                    ? "res-status-badge--rejected"
+                                    : "res-status-badge--pending_approval"
+                              }`}
+                            >
+                              {item.approvalStatus}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    ))}
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              color: "var(--ink-faint)",
+                              fontSize: 11,
+                              marginTop: 4,
+                            }}
+                          >
+                            <span>Area: {item.areaName}</span>
+                            <span>Approver: {item.approverName}</span>
+                          </div>
+                          {item.comment && (
+                            <div
+                              style={{
+                                marginTop: 6,
+                                fontSize: 11,
+                                color: "var(--ink-soft)",
+                                background: "var(--surface)",
+                                padding: "4px 8px",
+                                borderRadius: 4,
+                                border: "1px solid var(--line)",
+                              }}
+                            >
+                              💬 "{item.comment}"
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
 
             {/* Modal Footer */}

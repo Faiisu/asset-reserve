@@ -10,6 +10,7 @@ import {
   PackageCheck,
   Power,
   Search,
+  SlidersHorizontal,
   UserRound,
 } from "lucide-react";
 import {
@@ -44,6 +45,7 @@ import {
   formatDate,
 } from "../components/ui";
 import type { AssetDetail, AssetUnit } from "../types";
+import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 
 export function AssetDetailPage() {
   const { hasAreaPermission } = useAuth();
@@ -60,6 +62,7 @@ export function AssetDetailPage() {
   const [mutating, setMutating] = useState(false);
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
   const [retireOpen, setRetireOpen] = useState(false);
+  const [statusUnit, setStatusUnit] = useState<AssetUnit | null>(null);
   const [unitSearch, setUnitSearch] = useState("");
   const [unitStatusFilter, setUnitStatusFilter] = useState<string[]>([]);
   const [unitFilterOpen, setUnitFilterOpen] = useState(false);
@@ -114,6 +117,9 @@ export function AssetDetailPage() {
     hasAreaPermission("reservation:create", asset.managementArea.id);
 
   const unitRetireBlocked = new Set(["RESERVED", "CHECKED_OUT", "INACTIVE"]);
+  // The backend refuses a manual change on these two -- they belong to the
+  // handover/return flow, not to an operator.
+  const statusChangeBlocked = new Set(["RESERVED", "CHECKED_OUT"]);
   const trimmedUnitSearch = unitSearch.trim().toLowerCase();
   const filteredUnits = asset.units.filter((unit) => {
     const matchesSearch =
@@ -124,7 +130,7 @@ export function AssetDetailPage() {
     return matchesSearch && matchesStatus;
   });
   const selectableUnits = filteredUnits.filter(
-    (unit) => !unitRetireBlocked.has(unit.status),
+    (unit) => !unitRetireBlocked.has(unit.status) && !unit.hasActiveAssignment,
   );
   const allUnitsSelected =
     selectableUnits.length > 0 &&
@@ -211,7 +217,9 @@ export function AssetDetailPage() {
             {asset.description || "No description for this asset."}
           </p>
           <div className="asset-hero__meta">
-            <span className="mono">P/N: {asset.partNumber || "No part number"}</span>
+            <span className="mono">
+              P/N: {asset.partNumber || "No part number"}
+            </span>
             <span>Updated {formatDate(asset.updatedAt, true)}</span>
           </div>
         </div>
@@ -250,8 +258,8 @@ export function AssetDetailPage() {
 
       <p className="asset-availability-note">
         <CalendarClock size={14} />
-        Reservation quantities are schedule-based — choose dates in Calendar
-        to see reservable units.
+        Reservation quantities are schedule-based — choose dates in Calendar to
+        see reservable units.
       </p>
 
       <section className="detail-card">
@@ -279,7 +287,10 @@ export function AssetDetailPage() {
         </header>
 
         {asset.units.length > 0 && (
-          <div className="toolbar toolbar--compact" aria-label="Serial unit filters">
+          <div
+            className="toolbar toolbar--compact"
+            aria-label="Serial unit filters"
+          >
             <div className="search-box">
               <Search size={16} />
               <input
@@ -426,11 +437,18 @@ export function AssetDetailPage() {
                   <th>Status</th>
                   <th>Note</th>
                   <th>Updated</th>
+                  {asset.capabilities.canManageUnits && (
+                    <th className="cell-actions">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {filteredUnits.map((unit) => {
-                  const isSelectable = !unitRetireBlocked.has(unit.status);
+                  const isSelectable =
+                    !unitRetireBlocked.has(unit.status) &&
+                    !unit.hasActiveAssignment;
                   const isSelected = selectedUnitIds.includes(unit.id);
                   return (
                     <tr
@@ -462,6 +480,11 @@ export function AssetDetailPage() {
                       <td className="mono">{unit.serialNumber}</td>
                       <td>
                         <AssetUnitStatusBadge status={unit.status} />
+                        {unit.hasActiveAssignment && (
+                          <div className="table-secondary">
+                            Current/future assignment
+                          </div>
+                        )}
                       </td>
                       <td>
                         <span className="table-secondary">
@@ -471,6 +494,24 @@ export function AssetDetailPage() {
                       <td className="mono table-date">
                         {formatDate(unit.updatedAt, true)}
                       </td>
+                      {asset.capabilities.canManageUnits && (
+                        <td className="cell-actions">
+                          <Button
+                            variant="quiet"
+                            size="sm"
+                            disabled={statusChangeBlocked.has(unit.status)}
+                            title={
+                              statusChangeBlocked.has(unit.status)
+                                ? "Reserved or checked-out units are managed by the handover and return flow"
+                                : undefined
+                            }
+                            onClick={() => setStatusUnit(unit)}
+                          >
+                            <SlidersHorizontal size={14} />
+                            Change status
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -602,7 +643,9 @@ export function AssetDetailPage() {
                     <td>
                       <span className="performer">
                         <UserRound size={15} />
-                        {item.performedBy.name ?? item.performedBy.email ?? "Unnamed user"}
+                        {item.performedBy.name ??
+                          item.performedBy.email ??
+                          "Unnamed user"}
                       </span>
                     </td>
                   </tr>
@@ -623,6 +666,17 @@ export function AssetDetailPage() {
           await load();
         }}
       />
+      <ChangeUnitStatusDialog
+        unit={statusUnit}
+        open={statusUnit !== null}
+        onClose={() => setStatusUnit(null)}
+        onDone={async (message) => {
+          setStatusUnit(null);
+          setNotice(message);
+          await load();
+        }}
+      />
+
       <RetireUnitsDialog
         units={selectedUnits}
         open={retireOpen}
@@ -690,7 +744,11 @@ function AdjustOneDialog({
     setSubmitting(true);
     setError("");
     try {
-      await api.registerAssetUnits(asset.id, parsedSerials, reason || undefined);
+      await api.registerAssetUnits(
+        asset.id,
+        parsedSerials,
+        reason || undefined,
+      );
       await onDone(
         `Registered ${parsedSerials.length} unit${parsedSerials.length === 1 ? "" : "s"}`,
       );
@@ -744,6 +802,127 @@ function AdjustOneDialog({
           >
             Register {parsedSerials.length || ""} unit
             {parsedSerials.length === 1 ? "" : "s"}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/** Statuses an operator may set by hand. CHECKED_OUT is owned by the
+ * handover/return flow and RESERVED is legacy-only, so the backend rejects
+ * both -- keep this list in step with MANUALLY_SETTABLE_UNIT_STATUSES. */
+const MANUAL_UNIT_STATUSES = [
+  { value: "ACTIVE", label: "Active", hint: "Back in the pool, reservable again" },
+  { value: "IN_REPAIR", label: "In repair", hint: "Out for maintenance, not reservable" },
+  { value: "BROKEN", label: "Broken", hint: "Damaged, awaiting a repair decision" },
+  { value: "LOST", label: "Lost", hint: "Missing, excluded from inventory" },
+  { value: "INACTIVE", label: "Inactive", hint: "Retired from service" },
+] as const;
+
+function ChangeUnitStatusDialog({
+  unit,
+  open,
+  onClose,
+  onDone,
+}: {
+  unit: AssetUnit | null;
+  open: boolean;
+  onClose: () => void;
+  onDone: (message: string) => void | Promise<void>;
+}) {
+  const [status, setStatus] = useState<string>("");
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  // Reset the draft whenever a different unit opens the dialog, so a status
+  // picked for the previous unit is never carried over.
+  useEffect(() => {
+    setStatus("");
+    setReason("");
+    setError("");
+  }, [unit?.id]);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!unit || !status) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await api.updateAssetUnitStatus(unit.id, {
+        status: status as (typeof MANUAL_UNIT_STATUSES)[number]["value"],
+        reason: reason.trim() || undefined,
+        expectedUpdatedAt: unit.updatedAt,
+      });
+      const label = MANUAL_UNIT_STATUSES.find((entry) => entry.value === status)
+        ?.label;
+      await onDone(`${unit.serialNumber} is now ${label ?? status}`);
+    } catch (caught) {
+      setError(
+        caught instanceof ApiClientError
+          ? caught.message
+          : "Unable to change unit status",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      title="Change unit status"
+      description="Records an adjustment against this unit's event ledger. Units that are reserved or checked out cannot be changed here."
+      onClose={onClose}
+    >
+      <form className="form-stack" onSubmit={submit}>
+        {error && (
+          <div className="form-alert" role="alert">
+            {error}
+          </div>
+        )}
+        {unit && (
+          <div className="confirm-list">
+            <span className="mono">{unit.serialNumber}</span>
+            <AssetUnitStatusBadge status={unit.status} />
+          </div>
+        )}
+        <Field label="New status" required>
+          <div className="radio-stack">
+            {MANUAL_UNIT_STATUSES.filter(
+              (entry) => entry.value !== unit?.status,
+            ).map((entry) => (
+              <label key={entry.value} className="radio-row">
+                <input
+                  type="radio"
+                  name="unit-status"
+                  value={entry.value}
+                  checked={status === entry.value}
+                  onChange={(event) => setStatus(event.target.value)}
+                />
+                <span>
+                  <span className="radio-row__label">{entry.label}</span>
+                  <span className="radio-row__hint">{entry.hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </Field>
+        <Field label="Reason" hint="Optional, shown in the unit event ledger">
+          <Input
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            maxLength={cap(CONTRACT_LIMITS.asset.unitStatusReasonMax)}
+            placeholder="For example, sent to the service centre"
+          />
+        </Field>
+        <div className="dialog__actions">
+          <Button type="button" variant="quiet" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={submitting} disabled={!status}>
+            Save status
           </Button>
         </div>
       </form>

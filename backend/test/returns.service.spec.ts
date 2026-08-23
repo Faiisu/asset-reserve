@@ -100,8 +100,8 @@ function sampleReservation(status = "APPROVED") {
     requesterId,
     eventName: "Product Demo",
     description: null,
-    startAt: new Date("2026-09-01T09:00:00.000Z"),
-    endAt: new Date("2026-09-01T11:00:00.000Z"),
+    startAt: new Date("2026-08-01T09:00:00.000Z"),
+    endAt: new Date("2026-08-01T11:00:00.000Z"),
     status,
     createdAt: new Date("2026-08-15T00:00:00.000Z"),
     updatedAt: new Date("2026-08-15T00:00:00.000Z"),
@@ -117,7 +117,7 @@ function sampleReservation(status = "APPROVED") {
           status === "DELIVERY_CONFIRMED"
             ? "DELIVERED"
             : status === "APPROVED"
-              ? "APPROVED"
+              ? "PREPARED"
               : "PENDING",
         asset: {
           id: assetId,
@@ -248,6 +248,68 @@ function sampleReturnRecordForDecide(
 }
 
 describe("ReturnsService", () => {
+  it("uses an opaque createdAt/id cursor for stable list pagination", async () => {
+    const first = sampleReturnDetailRecord();
+    const second = {
+      ...sampleReturnDetailRecord(),
+      id: "00000000-0000-4000-8000-000000000702",
+      createdAt: new Date("2026-08-31T12:00:00.000Z"),
+    };
+    const findMany = vi.fn().mockResolvedValue([first, second]);
+    const prismaMock = {
+      return: { findMany },
+    } as unknown as PrismaService;
+    const service = new ReturnsService(prismaMock, reservationEvents);
+
+    const result = await service.list(requesterActor, {
+      view: "MINE",
+      limit: 1,
+    });
+
+    expect(result.data).toHaveLength(1);
+    expect(result.pageInfo.hasNextPage).toBe(true);
+    expect(result.pageInfo.nextCursor).not.toBe(first.id);
+    expect(
+      JSON.parse(
+        Buffer.from(result.pageInfo.nextCursor!, "base64url").toString("utf8"),
+      ),
+    ).toEqual({ createdAt: first.createdAt.toISOString(), id: first.id });
+  });
+
+  it("applies both cursor fields to the next return page", async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const prismaMock = {
+      return: { findMany },
+    } as unknown as PrismaService;
+    const service = new ReturnsService(prismaMock, reservationEvents);
+    const cursor = Buffer.from(
+      JSON.stringify({
+        createdAt: "2026-09-01T12:00:00.000Z",
+        id: returnId,
+      }),
+    ).toString("base64url");
+
+    await service.list(requesterActor, { view: "MINE", limit: 20, cursor });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: expect.arrayContaining([
+            {
+              OR: [
+                { createdAt: { lt: new Date("2026-09-01T12:00:00.000Z") } },
+                {
+                  createdAt: new Date("2026-09-01T12:00:00.000Z"),
+                  id: { lt: returnId },
+                },
+              ],
+            },
+          ]),
+        },
+      }),
+    );
+  });
+
   it("creates a return record for a delivery confirmed reservation", async () => {
     const reservation = sampleReservation("DELIVERY_CONFIRMED");
     const returnDetail = sampleReturnDetailRecord("PENDING");
@@ -291,7 +353,9 @@ describe("ReturnsService", () => {
     );
     expect(result.items[0]?.units[0]?.condition).toBeNull();
     expect(typeof result.returnedBy).toBe("string");
-    expect(result.returner).toEqual(expect.objectContaining({ id: requesterId }));
+    expect(result.returner).toEqual(
+      expect.objectContaining({ id: requesterId }),
+    );
     expect(result.items[0]?.returnId).toBe(returnId);
     expect(result.items[0]?.createdAt).toBeTruthy();
     expect(result.items[0]?.units[0]?.returnItemId).toBe(returnItemId);
@@ -324,6 +388,51 @@ describe("ReturnsService", () => {
       }),
     ).rejects.toThrow(
       /Cannot create return for a reservation with status APPROVED/,
+    );
+  });
+
+  it("creates a return before the reservation end time (event finished early)", async () => {
+    const reservation = {
+      ...sampleReservation("DELIVERY_CONFIRMED"),
+      endAt: new Date("2999-08-01T11:00:00.000Z"),
+    };
+    const updateReservation = vi.fn().mockResolvedValue({});
+    const prismaMock = {
+      reservation: {
+        findUnique: vi.fn().mockResolvedValue(reservation),
+      },
+      reservationItemUnit: {
+        findMany: vi.fn().mockResolvedValue([sampleReservationItemUnit()]),
+      },
+      return: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue(sampleReturnDetailRecord("PENDING")),
+      },
+      $transaction: vi.fn().mockImplementation(async (callback) =>
+        callback({
+          return: { create: vi.fn().mockResolvedValue({}) },
+          reservation: { update: updateReservation },
+          activityLog: { create: vi.fn().mockResolvedValue({}) },
+        }),
+      ),
+    } as unknown as PrismaService;
+
+    const service = new ReturnsService(prismaMock, reservationEvents);
+    const result = await service.create(requesterActor, reservationId, {
+      items: [
+        {
+          reservationItemId: itemId,
+          reservationItemUnitIds: [reservationItemUnitId],
+        },
+      ],
+    });
+
+    expect(result.status).toBe("PENDING");
+    expect(updateReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "RETURN_PENDING" }),
+      }),
     );
   });
 
@@ -520,7 +629,9 @@ describe("ReturnsService", () => {
           returnItemUnit: { update: vi.fn().mockResolvedValue({}) },
           reservationItemUnit: {
             update: updateReservationItemUnit,
-            findMany: vi.fn().mockResolvedValue([{ status: "RETURNED_BROKEN" }]),
+            findMany: vi
+              .fn()
+              .mockResolvedValue([{ status: "RETURNED_BROKEN" }]),
           },
           assetUnit: { update: updateAssetUnit },
           assetUnitEventBatch: { create: vi.fn().mockResolvedValue({}) },
@@ -563,7 +674,10 @@ describe("ReturnsService", () => {
   });
 
   it("rejecting a return with no other pending returns reverts the reservation to DELIVERY_CONFIRMED", async () => {
-    const returnRecord = sampleReturnRecordForDecide("PENDING", "RETURN_PENDING");
+    const returnRecord = sampleReturnRecordForDecide(
+      "PENDING",
+      "RETURN_PENDING",
+    );
     const returnDetail = sampleReturnDetailRecord("REJECTED");
 
     const deleteManyReturnItemUnits = vi.fn().mockResolvedValue({ count: 1 });
@@ -578,7 +692,10 @@ describe("ReturnsService", () => {
       $transaction: vi.fn().mockImplementation(async (callback) => {
         return callback({
           returnItemUnit: { deleteMany: deleteManyReturnItemUnits },
-          return: { update: vi.fn().mockResolvedValue({}), count: countPendingReturns },
+          return: {
+            update: vi.fn().mockResolvedValue({}),
+            count: countPendingReturns,
+          },
           returnApproval: { upsert: vi.fn().mockResolvedValue({}) },
           reservation: { update: updateReservation },
           activityLog: { create: vi.fn().mockResolvedValue({}) },
@@ -618,7 +735,10 @@ describe("ReturnsService", () => {
   });
 
   it("rejecting a return leaves the reservation RETURN_PENDING when another return is still pending", async () => {
-    const returnRecord = sampleReturnRecordForDecide("PENDING", "RETURN_PENDING");
+    const returnRecord = sampleReturnRecordForDecide(
+      "PENDING",
+      "RETURN_PENDING",
+    );
     const returnDetail = sampleReturnDetailRecord("REJECTED");
 
     const countPendingReturns = vi.fn().mockResolvedValue(1);
@@ -631,8 +751,13 @@ describe("ReturnsService", () => {
       },
       $transaction: vi.fn().mockImplementation(async (callback) => {
         return callback({
-          returnItemUnit: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
-          return: { update: vi.fn().mockResolvedValue({}), count: countPendingReturns },
+          returnItemUnit: {
+            deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+          },
+          return: {
+            update: vi.fn().mockResolvedValue({}),
+            count: countPendingReturns,
+          },
           returnApproval: { upsert: vi.fn().mockResolvedValue({}) },
           reservation: { update: updateReservation },
           activityLog: { create: vi.fn().mockResolvedValue({}) },
@@ -649,7 +774,10 @@ describe("ReturnsService", () => {
   });
 
   it("approves return partially, keeping the reservation DELIVERY_CONFIRMED when items remain outstanding", async () => {
-    const returnRecord = sampleReturnRecordForDecide("PENDING", "RETURN_PENDING");
+    const returnRecord = sampleReturnRecordForDecide(
+      "PENDING",
+      "RETURN_PENDING",
+    );
     const returnDetail = sampleReturnDetailRecord("COMPLETED", "GOOD");
 
     const updateReservation = vi.fn().mockResolvedValue({});
@@ -675,7 +803,10 @@ describe("ReturnsService", () => {
             update: vi.fn().mockResolvedValue({}),
             findMany: vi.fn().mockResolvedValue([
               { id: itemId, status: "RETURNED" },
-              { id: "00000000-0000-4000-8000-000000000202", status: "DELIVERED" },
+              {
+                id: "00000000-0000-4000-8000-000000000202",
+                status: "DELIVERED",
+              },
             ]),
           },
           reservation: { update: updateReservation },

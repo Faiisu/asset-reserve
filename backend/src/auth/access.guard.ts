@@ -35,8 +35,13 @@ export class AccessGuard implements CanActivate {
         ? actor.roles.some(
             (role) => role.name === "ADMIN" && role.managementArea === null,
           )
-        : requirement.permissions.some((permission) =>
-            actor.effectivePermissions.global.includes(permission),
+        : requirement.permissions.some(
+            (permission) =>
+              actor.effectivePermissions.global.includes(permission) ||
+              (requirement.kind === "anyScopedPermission" &&
+                actor.effectivePermissions.byManagementArea.some((area) =>
+                  area.permissions.includes(permission),
+                )),
           );
 
     if (!permitted)

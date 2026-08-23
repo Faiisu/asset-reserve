@@ -170,3 +170,32 @@ describe("UsersService.changeMyPassword", () => {
     ).rejects.toMatchObject({ code: "INVALID_CURRENT_PASSWORD" });
   });
 });
+
+describe("UsersService.directory", () => {
+  it("lists active users only, with no username, roles, or timestamps", async () => {
+    const findMany = vi.fn().mockResolvedValue([
+      userRecord({
+        id: "00000000-0000-4000-8000-000000000010",
+        email: "sam@example.com",
+        profile: { name: "Sam Rivera", profilePictureUrl: null },
+      }),
+    ]);
+    const prisma = { user: { findMany } } as unknown as PrismaService;
+    const service = new UsersService(prisma);
+
+    const result = await service.directory({ search: "sam", limit: 20 });
+
+    const where = findMany.mock.calls[0]?.[0].where;
+    expect(where.AND[0]).toEqual({ isActive: true });
+    // Search must not cover username -- that is admin-directory data.
+    expect(JSON.stringify(where)).not.toContain("username");
+    expect(result.data).toEqual([
+      {
+        id: "00000000-0000-4000-8000-000000000010",
+        email: "sam@example.com",
+        name: "Sam Rivera",
+        profilePictureUrl: null,
+      },
+    ]);
+  });
+});

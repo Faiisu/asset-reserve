@@ -590,8 +590,9 @@ async function seedMockData(): Promise<void> {
     },
   });
 
-  // Pool of ACTIVE units per asset, consumed as reservation items assign
-  // specific serials below -- mirrors the real prepare/handover flow.
+  // Pool of ACTIVE units per asset used to choose deterministic serials for
+  // the sample reservations below. Scheduling is still represented only by
+  // ReservationItemUnit assignment windows.
   const assetUnitPool = new Map<
     string,
     { id: string; serialNumber: string }[]
@@ -629,25 +630,26 @@ async function seedMockData(): Promise<void> {
     assetUnitPool.set(asset.id, units);
   }
 
-  /** Assigns the next `quantity` ACTIVE units of an asset to a reservation
-   * item, mirroring prepare (ASSIGNED) and optionally handover (CHECKED_OUT). */
+  /** Assigns the next `quantity` units over the owning reservation window,
+   * mirroring approval (ASSIGNED) and optionally handover (CHECKED_OUT). */
   async function assignReservationItemUnits(input: {
     reservationItemId: string;
     assetId: string;
     quantity: number;
     assignedBy: string;
     assignedAt: Date;
+    assignmentStartAt: Date;
+    assignmentEndAt: Date;
     checkedOutAt: Date | null;
   }) {
     const pool = assetUnitPool.get(input.assetId)!;
     const chosen = pool.splice(0, input.quantity);
     const rows: { id: string; assetUnitId: string }[] = [];
     for (const unit of chosen) {
-      // ReservationItemUnit tracks ASSIGNED/CHECKED_OUT (§3a); AssetUnit's own
-      // status uses a different vocabulary (RESERVED/CHECKED_OUT, §7) for the
-      // same lifecycle point -- these must not be conflated.
+      // Assignment state reserves the schedule. AssetUnit.status changes only
+      // when the physical unit has actually been handed over.
       const itemUnitStatus = input.checkedOutAt ? "CHECKED_OUT" : "ASSIGNED";
-      const assetUnitStatus = input.checkedOutAt ? "CHECKED_OUT" : "RESERVED";
+      const assetUnitStatus = input.checkedOutAt ? "CHECKED_OUT" : "ACTIVE";
       const row = await prisma.reservationItemUnit.upsert({
         where: {
           reservationItemId_assetUnitId: {
@@ -655,7 +657,12 @@ async function seedMockData(): Promise<void> {
             assetUnitId: unit.id,
           },
         },
-        update: { status: itemUnitStatus, checkedOutAt: input.checkedOutAt },
+        update: {
+          status: itemUnitStatus,
+          assignmentStartAt: input.assignmentStartAt,
+          assignmentEndAt: input.assignmentEndAt,
+          checkedOutAt: input.checkedOutAt,
+        },
         create: {
           id: randomUUID(),
           reservationItemId: input.reservationItemId,
@@ -663,6 +670,8 @@ async function seedMockData(): Promise<void> {
           status: itemUnitStatus,
           assignedBy: input.assignedBy,
           assignedAt: input.assignedAt,
+          assignmentStartAt: input.assignmentStartAt,
+          assignmentEndAt: input.assignmentEndAt,
           checkedOutAt: input.checkedOutAt,
         },
       });
@@ -711,7 +720,7 @@ async function seedMockData(): Promise<void> {
     });
   }
 
-  // 7. Seed Reservations covering ALL 13 statuses
+  // 7. Seed reservations covering the current lifecycle statuses
   const reservations = [
     {
       id: ids.reservations.completed,
@@ -819,7 +828,7 @@ async function seedMockData(): Promise<void> {
         "Electric pallet jack used for reorganization; return inspected and confirmed.",
       startAt: new Date("2026-08-12T02:00:00.000Z"),
       endAt: new Date("2026-08-14T10:00:00.000Z"),
-      status: "RETURN_CONFIRMED",
+      status: "COMPLETED",
       requesterEmail: "user1@example.com",
     },
     {
@@ -843,6 +852,9 @@ async function seedMockData(): Promise<void> {
       requesterEmail: "user1@example.com",
     },
   ] as const;
+  const reservationById = new Map(
+    reservations.map((reservation) => [reservation.id, reservation] as const),
+  );
 
   for (const reservation of reservations) {
     const { requesterEmail, ...resData } = reservation;
@@ -1093,13 +1105,13 @@ async function seedMockData(): Promise<void> {
       checkedOutBy: userMap["hr@example.com"]!,
       checkedOutAt: new Date("2026-08-14T00:30:00.000Z"),
     },
-    // RETURN_CONFIRMED
+    // COMPLETED after return inspection
     {
       id: ids.items.returnConfirmedJack,
       reservationId: ids.reservations.returnConfirmed,
       assetId: ids.assets.palletJack,
       quantity: 1,
-      status: "DELIVERED",
+      status: "RETURNED",
       preparedBy: userMap["wh@example.com"]!,
       preparedAt: new Date("2026-08-12T01:00:00.000Z"),
       checkedOutBy: userMap["wh@example.com"]!,
@@ -1164,21 +1176,24 @@ async function seedMockData(): Promise<void> {
   //
   // Idempotent against re-running this script itself (fixed IDs, upsert
   // throughout), but assumes a clean DB (after db:push/migrate or db:reset)
-  // -- an asset unit already claimed by unrelated data (e.g. reservations
-  // created through the app) will collide with the one-active-assignment
-  // constraint on reservation_item_units; reset first if that happens.
+  // -- an asset unit already claimed by unrelated data over the same window
+  // will collide with the assignment exclusion constraint; reset first if
+  // that happens.
   const reservationItemUnitsById = new Map<
     string,
     { id: string; assetUnitId: string }[]
   >();
   for (const item of itemInputs) {
     if (item.status === "PENDING" || item.status === "REJECTED") continue;
+    const reservation = reservationById.get(item.reservationId)!;
     const rows = await assignReservationItemUnits({
       reservationItemId: item.id,
       assetId: item.assetId,
       quantity: item.quantity,
       assignedBy: item.preparedBy!,
       assignedAt: item.preparedAt!,
+      assignmentStartAt: reservation.startAt,
+      assignmentEndAt: reservation.endAt,
       checkedOutAt: item.checkedOutAt,
     });
     reservationItemUnitsById.set(item.id, rows);
@@ -1297,7 +1312,7 @@ async function seedMockData(): Promise<void> {
       "Approved.",
       new Date("2026-08-16T03:00:00.000Z"),
     ],
-    // ACTIVE
+    // DELIVERY_CONFIRMED
     [
       ids.approvals.activeCart,
       ids.items.activeCart,
@@ -1314,7 +1329,7 @@ async function seedMockData(): Promise<void> {
       "Approved for expo.",
       new Date("2026-08-15T02:00:00.000Z"),
     ],
-    // RETURN
+    // RETURN_PENDING
     [
       ids.approvals.returnPhaseCart,
       ids.items.returnPhaseCart,
@@ -1340,7 +1355,7 @@ async function seedMockData(): Promise<void> {
       "Approved trial unit.",
       new Date("2026-08-13T03:00:00.000Z"),
     ],
-    // RETURN_CONFIRMED
+    // COMPLETED after return inspection
     [
       ids.approvals.returnConfirmedJack,
       ids.items.returnConfirmedJack,
@@ -1524,7 +1539,9 @@ async function seedMockData(): Promise<void> {
       description: "Returned intact.",
     },
   });
-  for (const unit of reservationItemUnitsById.get(ids.items.returnPhaseTruck)!) {
+  for (const unit of reservationItemUnitsById.get(
+    ids.items.returnPhaseTruck,
+  )!) {
     await settleReturnItemUnit({
       id: fixedId(0xa00 + returnItemUnitOffset++),
       returnItemId: ids.returnItems.returnPhaseTruck,
@@ -1606,18 +1623,18 @@ async function seedMockData(): Promise<void> {
     },
   });
 
-  // 13.4 RETURN_CONFIRMED status (Return approved)
+  // 13.4 Completed return inspection
   await prisma.return.upsert({
     where: { id: ids.returns.returnConfirmed },
     update: {
-      status: "APPROVED",
+      status: "COMPLETED",
       returnedAt: new Date("2026-08-14T10:30:00.000Z"),
     },
     create: {
       id: ids.returns.returnConfirmed,
       reservationId: ids.reservations.returnConfirmed,
       returnedBy: userMap["user1@example.com"]!,
-      status: "APPROVED",
+      status: "COMPLETED",
       returnedAt: new Date("2026-08-14T10:30:00.000Z"),
     },
   });
@@ -1663,24 +1680,18 @@ async function seedMockData(): Promise<void> {
     },
   });
 
-  // 14. Diversify one P/N's leftover units across every AssetUnit status
-  // (RESERVED, BROKEN, LOST, IN_REPAIR, INACTIVE) so the registry's status
-  // breakdown/filter has full coverage to demo -- these statuses don't
-  // otherwise occur from the reservation/return scenarios above, which only
-  // exercise ACTIVE, CHECKED_OUT and returned-GOOD.
+  // 14. Diversify one P/N's leftover units across physical exception states
+  // so the registry's status breakdown/filter has useful demo coverage.
+  // RESERVED is intentionally omitted because future scheduling belongs to
+  // ReservationItemUnit, not AssetUnit.status.
   {
     const demoAssetId = ids.assets.onboardingKit;
     const demoPool = assetUnitPool.get(demoAssetId)!;
     const demoAdjustments: Array<{
-      status: "RESERVED" | "BROKEN" | "LOST" | "IN_REPAIR" | "INACTIVE";
-      eventType: "RESERVED" | "ADJUSTMENT" | "RETIRED";
+      status: "BROKEN" | "LOST" | "IN_REPAIR" | "INACTIVE";
+      eventType: "ADJUSTMENT" | "RETIRED";
       reason: string;
     }> = [
-      {
-        status: "RESERVED",
-        eventType: "RESERVED",
-        reason: "Held for an upcoming reservation (prepared, not yet delivered).",
-      },
       {
         status: "BROKEN",
         eventType: "ADJUSTMENT",
@@ -1743,7 +1754,7 @@ async function seedMockData(): Promise<void> {
   console.log("  2. Application Engineer");
   console.log("  3. Marketing");
   console.log("  4. Warehouse");
-  console.log("\nSeeded Reservations across all 13 statuses:");
+  console.log("\nSeeded representative reservations across current statuses:");
   for (const r of reservations) {
     console.log(`  - [${r.status.padEnd(20)}] ${r.eventName} (${r.id})`);
   }

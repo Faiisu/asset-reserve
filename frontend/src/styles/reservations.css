@@ -271,7 +271,6 @@
   white-space: nowrap;
 }
 .reservation-list-status--approved,
-.reservation-list-status--active,
 .reservation-list-status--completed {
   background: var(--teal-soft);
   color: var(--teal);
@@ -294,14 +293,9 @@
   background: var(--teal-soft);
   color: var(--teal);
 }
-.reservation-list-status--return,
 .reservation-list-status--return_pending {
   background: var(--orange-soft);
   color: var(--orange);
-}
-.reservation-list-status--return_confirmed {
-  background: var(--emerald-soft);
-  color: var(--emerald);
 }
 .reservation-list-participant-tag {
   display: inline-flex;
@@ -395,7 +389,6 @@
   font-size: 13px;
 }
 
-
 /* Selection Checkbox Utilities */
 .res-card-header__select-all-group {
   display: flex;
@@ -419,6 +412,19 @@
   margin: 0;
   accent-color: var(--blue);
   cursor: pointer;
+}
+/* "Hand over / Cancel all" shortcuts next to the handover toolbar. */
+.approval-select-all .link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.approval-select-all .link-button:hover {
+  color: var(--ink);
 }
 
 /* ==========================================================================
@@ -464,8 +470,11 @@
 .res-detail-hero {
   position: relative;
   overflow: hidden;
-  background:
-    linear-gradient(120deg, color-mix(in srgb, var(--blue-soft) 48%, var(--surface)) 0%, var(--surface) 48%);
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--blue-soft) 48%, var(--surface)) 0%,
+    var(--surface) 48%
+  );
   border: 1px solid var(--line);
   border-radius: var(--card-radius-hero);
   padding: 24px 28px 24px 140px;
@@ -502,7 +511,7 @@
   color: var(--blue);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
 }
 
 .res-detail-date-stamp strong {
@@ -510,8 +519,8 @@
   color: var(--ink);
   font-family: "Instrument Sans Variable", sans-serif;
   font-size: 36px;
-  line-height: .95;
-  letter-spacing: -.05em;
+  line-height: 0.95;
+  letter-spacing: -0.05em;
 }
 
 .res-detail-kicker {
@@ -519,7 +528,7 @@
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -586,8 +595,7 @@
   border: 1px solid var(--line);
 }
 
-.res-status-badge--pending_approval,
-.res-status-badge--pending {
+.res-status-badge--pending_approval {
   background: var(--amber-soft);
   color: var(--amber);
 }
@@ -602,21 +610,14 @@
   color: var(--green);
 }
 
-.res-status-badge--delivery_confirmed,
-.res-status-badge--active {
+.res-status-badge--delivery_confirmed {
   background: var(--teal-soft);
   color: var(--teal);
 }
 
-.res-status-badge--return,
 .res-status-badge--return_pending {
   background: var(--blue-soft);
   color: var(--blue);
-}
-
-.res-status-badge--return_confirmed {
-  background: var(--teal-soft);
-  color: var(--teal-dark);
 }
 
 .res-status-badge--completed {
@@ -632,6 +633,30 @@
 .res-status-badge--cancelled {
   background: var(--amber-soft);
   color: var(--amber-dark);
+}
+
+/* ReservationItem statuses. Each takes the token family of the same phase at
+   reservation level, so the two badge tiers on the detail page read as one
+   system -- see docs/frontend_spec/status-color-mapping.md. REJECTED and
+   CANCELLED share the reservation rules above; these are the rest. */
+.res-status-badge--pending {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.res-status-badge--prepared {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.res-status-badge--delivered {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+
+.res-status-badge--returned {
+  background: var(--green-soft);
+  color: var(--green-dark);
 }
 
 /* Meta Strip */
@@ -884,42 +909,6 @@
   border-bottom: 1px solid var(--line);
   background: var(--surface);
   transition: background 140ms ease;
-}
-
-.res-manifest-item[data-status="approved"] {
-  padding-block: 18px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--blue-soft) 48%, var(--surface)) 0 5px,
-    var(--surface) 5px 100%
-  );
-}
-
-.res-manifest-item[data-status="approved"]:hover {
-  background: linear-gradient(
-    90deg,
-    var(--blue) 0 5px,
-    color-mix(in srgb, var(--blue-soft) 22%, var(--surface)) 5px 100%
-  );
-}
-
-.res-manifest-item[data-status="delivered"],
-.res-manifest-item[data-status="returned"] {
-  padding-block: 18px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--green-soft) 48%, var(--surface)) 0 5px,
-    var(--surface) 5px 100%
-  );
-}
-
-.res-manifest-item[data-status="delivered"]:hover,
-.res-manifest-item[data-status="returned"]:hover {
-  background: linear-gradient(
-    90deg,
-    var(--green) 0 5px,
-    color-mix(in srgb, var(--green-soft) 22%, var(--surface)) 5px 100%
-  );
 }
 
 .res-manifest-item:last-child {
@@ -1207,7 +1196,7 @@
   font-family: var(--mono);
   font-size: 9px;
   font-weight: 600;
-  letter-spacing: .02em;
+  letter-spacing: 0.02em;
 }
 
 .res-item-sub {
@@ -1296,14 +1285,14 @@
   font-family: var(--mono);
   font-size: 8px;
   font-weight: 600;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .res-item-qty-ticket strong {
   font-size: 24px;
   line-height: 1;
-  letter-spacing: -.04em;
+  letter-spacing: -0.04em;
 }
 
 .res-item-qty-ticket small {
@@ -1390,12 +1379,9 @@
   justify-self: end;
 }
 
-/* Asset sub-header above a flattened one-row-per-serial-unit list. Scoped
-   with [data-status] to outweigh the .res-manifest-item[data-status=...]
-   status-color rules above (which have higher specificity than the plain
-   class alone) -- the group header should always read as a neutral
-   section title, regardless of the underlying item's status. */
-.res-manifest-item.res-manifest-group-header[data-status] {
+/* Asset sub-header above a flattened one-row-per-serial-unit list. Reads as
+   a neutral section title; the item's own status is carried by its badge. */
+.res-manifest-item.res-manifest-group-header {
   padding-block: 12px;
   background: var(--surface-raised);
 }
@@ -1499,12 +1485,18 @@
 }
 
 .res-condition-toggle__option--good.is-active {
-  background: var(--green-soft, color-mix(in srgb, var(--green) 18%, transparent));
+  background: var(
+    --green-soft,
+    color-mix(in srgb, var(--green) 18%, transparent)
+  );
   color: var(--green, #168a4a);
 }
 
 .res-condition-toggle__option--broken.is-active {
-  background: var(--amber-soft, color-mix(in srgb, var(--amber) 18%, transparent));
+  background: var(
+    --amber-soft,
+    color-mix(in srgb, var(--amber) 18%, transparent)
+  );
   color: var(--amber, #d97706);
 }
 

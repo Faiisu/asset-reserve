@@ -600,11 +600,6 @@
   --event-color: var(--amber-dark);
   --event-soft: var(--amber-soft);
 }
-.calendar-event--pending,
-.calendar-event-menu--pending {
-  --event-color: var(--cyan);
-  --event-soft: var(--cyan-soft);
-}
 .calendar-event--pending_approval,
 .calendar-event-menu--pending_approval {
   --event-color: var(--amber);
@@ -630,22 +625,10 @@
   --event-color: var(--red);
   --event-soft: var(--red-soft);
 }
-.calendar-event--active,
-.calendar-event-menu--active {
-  --event-color: var(--blue);
-  --event-soft: var(--blue-soft);
-}
-.calendar-event--return,
 .calendar-event--return_pending,
-.calendar-event-menu--return,
 .calendar-event-menu--return_pending {
   --event-color: var(--orange);
   --event-soft: var(--orange-soft);
-}
-.calendar-event--return_confirmed,
-.calendar-event-menu--return_confirmed {
-  --event-color: var(--emerald);
-  --event-soft: var(--emerald-soft);
 }
 .calendar-event--completed,
 .calendar-event-menu--completed {
@@ -868,9 +851,6 @@
 }
 .calendar-legend__return_pending {
   --legend-color: var(--blue);
-}
-.calendar-legend__return_confirmed {
-  --legend-color: var(--teal-dark);
 }
 .calendar-legend__completed {
   --legend-color: var(--green-dark);

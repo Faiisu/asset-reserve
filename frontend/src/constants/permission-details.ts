@@ -106,6 +106,25 @@ export const PERMISSION_DETAILS: Record<string, PermissionDetail> = {
     impact:
       "Places temporary holds on inventory capacity pending manager review and approval.",
   },
+  "reservation:view": {
+    key: "reservation:view",
+    name: "View Others' Reservations",
+    category: "Reservations",
+    scopeType: "area",
+    scopeLabel: "Area Scoped / Global",
+    summary:
+      "See reservations belonging to other people, not just the holder's own.",
+    details:
+      "Without this permission a user only ever sees reservations they requested or were added to as a participant -- the operational permissions (approve, reject, manage) deliberately do not grant cross-user visibility on their own. Granted globally it exposes every reservation in the system; granted on a management area it exposes reservations that include at least one item from that area.",
+    capabilities: [
+      "Browse reservations requested by other users within scope",
+      "Open reservation detail, manifest, and audit timeline for those bookings",
+    ],
+    example:
+      "A Media Lab manager reviews next week's bookings across the whole lab to plan staffing, including reservations they were never part of.",
+    impact:
+      "Widens reservation visibility beyond the user's own bookings -- grant it separately from approve/reject rather than assuming those imply it.",
+  },
   "reservation:update": {
     key: "reservation:update",
     name: "Manage Reservations",

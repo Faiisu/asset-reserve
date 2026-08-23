@@ -7,6 +7,7 @@ import {
   hasGlobalPermission,
 } from "../assets/asset-access.js";
 import { ApiException } from "../common/api-exception.js";
+import { decodeCursor, pageInfo } from "../common/pagination.js";
 import { ReservationLifecycleEvents } from "../common/reservation-lifecycle.events.js";
 import { PrismaService } from "../database/prisma.service.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
@@ -16,12 +17,11 @@ import {
   ReturnListQueryDto,
 } from "./returns.dto.js";
 
-const assetUnitStatusByCondition: Record<"GOOD" | "BROKEN" | "LOST", string> =
-  {
-    GOOD: "ACTIVE",
-    BROKEN: "BROKEN",
-    LOST: "LOST",
-  };
+const assetUnitStatusByCondition: Record<"GOOD" | "BROKEN" | "LOST", string> = {
+  GOOD: "ACTIVE",
+  BROKEN: "BROKEN",
+  LOST: "LOST",
+};
 
 const returnDetailInclude = {
   returner: { include: { profile: true } },
@@ -69,6 +69,7 @@ export class ReturnsService {
 
   async list(actor: AuthenticatedActor, query: ReturnListQueryDto) {
     const limit = Math.min(query.limit ?? 20, 100);
+    const cursor = decodeCursor(query.cursor);
     const conditions: Prisma.ReturnWhereInput[] = [];
 
     if (query.view === "APPROVALS") {
@@ -179,6 +180,15 @@ export class ReturnsService {
       });
     }
 
+    if (cursor) {
+      conditions.push({
+        OR: [
+          { createdAt: { lt: new Date(cursor.createdAt) } },
+          { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } },
+        ],
+      });
+    }
+
     const where: Prisma.ReturnWhereInput = conditions.length
       ? { AND: conditions }
       : {};
@@ -188,21 +198,13 @@ export class ReturnsService {
       include: returnDetailInclude,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit + 1,
-      ...(query.cursor
-        ? {
-            cursor: { id: query.cursor },
-            skip: 1,
-          }
-        : {}),
     });
 
-    const hasNextPage = rows.length > limit;
-    const data = hasNextPage ? rows.slice(0, limit) : rows;
-    const nextCursor = hasNextPage ? (data[data.length - 1]?.id ?? null) : null;
+    const page = pageInfo(rows, limit);
 
     return {
-      data: data.map((record) => this.returnDto(actor, record)),
-      pageInfo: { nextCursor, hasNextPage },
+      data: page.data.map((record) => this.returnDto(actor, record)),
+      pageInfo: page.pageInfo,
     };
   }
 
@@ -243,25 +245,20 @@ export class ReturnsService {
       );
     }
 
-    const allowedReservationStatuses = [
+    const canEnterReturnFlow = [
       "DELIVERY_CONFIRMED",
-      "ACTIVE",
-      "RETURN",
       "RETURN_PENDING",
-      "RETURN_CONFIRMED",
-      "COMPLETED",
-    ];
-    const isPastEndAt = new Date() >= new Date(reservation.endAt);
-    if (
-      !allowedReservationStatuses.includes(reservation.status) &&
-      !isPastEndAt
-    ) {
+    ].includes(reservation.status);
+    if (!canEnterReturnFlow) {
       throw new ApiException(
         409,
         "INVALID_STATUS",
         `Cannot create return for a reservation with status ${reservation.status}.`,
       );
     }
+    // No lower time bound: an event that wraps up early hands its equipment
+    // back early. What is returnable is decided per unit below -- a unit has
+    // to be CHECKED_OUT, which already means it physically went out.
 
     const isRequester = reservation.requesterId === actor.user.id;
     const isParticipant = reservation.participants.some(
@@ -294,7 +291,7 @@ export class ReturnsService {
           },
         );
       }
-      if (["REJECTED", "PENDING", "APPROVED"].includes(item.status)) {
+      if (["REJECTED", "PENDING"].includes(item.status)) {
         throw new ApiException(
           409,
           "INVALID_ITEM_STATUS",
@@ -304,7 +301,9 @@ export class ReturnsService {
       }
     }
 
-    const allUnitIds = input.items.flatMap((line) => line.reservationItemUnitIds);
+    const allUnitIds = input.items.flatMap(
+      (line) => line.reservationItemUnitIds,
+    );
     if (new Set(allUnitIds).size !== allUnitIds.length) {
       throw new ApiException(
         422,
@@ -337,7 +336,10 @@ export class ReturnsService {
             400,
             "INVALID_UNIT_SELECTION",
             `Unit ${unitId} does not belong to reservation item ${line.reservationItemId}.`,
-            { [`items.${i}.reservationItemUnitIds`]: "Unit belongs to a different item." },
+            {
+              [`items.${i}.reservationItemUnitIds`]:
+                "Unit belongs to a different item.",
+            },
           );
         }
         if (unit.status !== "CHECKED_OUT") {
@@ -345,7 +347,9 @@ export class ReturnsService {
             409,
             "INVALID_UNIT_STATUS",
             `Unit ${unitId} is not checked out (status: ${unit.status}).`,
-            { [`items.${i}.reservationItemUnitIds`]: "Unit is not checked out." },
+            {
+              [`items.${i}.reservationItemUnitIds`]: "Unit is not checked out.",
+            },
           );
         }
         if (unit.returnItemUnit) {
@@ -353,7 +357,10 @@ export class ReturnsService {
             409,
             "UNIT_ALREADY_CLAIMED",
             `Unit ${unitId} is already part of another return.`,
-            { [`items.${i}.reservationItemUnitIds`]: "Unit already submitted for return." },
+            {
+              [`items.${i}.reservationItemUnitIds`]:
+                "Unit already submitted for return.",
+            },
           );
         }
       }
@@ -483,7 +490,9 @@ export class ReturnsService {
     >();
     if (input.decision === "APPROVE") {
       const allUnitIds = new Set(
-        returnRecord.items.flatMap((item) => item.units.map((u) => u.reservationItemUnitId)),
+        returnRecord.items.flatMap((item) =>
+          item.units.map((u) => u.reservationItemUnitId),
+        ),
       );
       for (const line of input.items ?? []) {
         for (const unit of line.units ?? []) {
@@ -558,7 +567,8 @@ export class ReturnsService {
             const decision = conditionByUnitId.get(
               unit.reservationItemUnitId,
             ) ?? { condition: "GOOD" as const };
-            const assetUnitStatus = assetUnitStatusByCondition[decision.condition];
+            const assetUnitStatus =
+              assetUnitStatusByCondition[decision.condition];
 
             await tx.returnItemUnit.update({
               where: { id: unit.id },
@@ -643,7 +653,9 @@ export class ReturnsService {
         // later return -- they were never mutated at submission time, so
         // there's nothing else to undo.
         await tx.returnItemUnit.deleteMany({
-          where: { returnItemId: { in: returnRecord.items.map((item) => item.id) } },
+          where: {
+            returnItemId: { in: returnRecord.items.map((item) => item.id) },
+          },
         });
         await tx.return.update({
           where: { id: returnId },

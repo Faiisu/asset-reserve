@@ -56,12 +56,14 @@ describe("ReservationsPage", () => {
     expect(await screen.findByText("Quarterly town hall")).toBeInTheDocument();
     expect(listSpy).toHaveBeenCalledWith(
       expect.objectContaining({ view: "MINE", limit: 20 }),
+      expect.any(AbortSignal),
     );
 
     fireEvent.click(screen.getByRole("tab", { name: /participate/i }));
     await waitFor(() =>
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({ view: "PARTICIPATING", limit: 20 }),
+        expect.any(AbortSignal),
       ),
     );
   });

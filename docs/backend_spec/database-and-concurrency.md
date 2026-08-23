@@ -38,8 +38,9 @@ export const prisma = new PrismaClient({ adapter });
 
 - ตรวจ availability แล้ว submit ReservationItem (quantity-based, ก่อนเลือก unit จริง)
 - Register/retire `AssetUnit` และเขียน `AssetUnitEvent`
-- Approve item: ตรวจ quantity, lock และ assign `AssetUnit` ที่ ACTIVE ให้เป็น `ReservationItemUnit` ในคำขอเดียวกัน (ไม่มีขั้น "prepare" แยกแล้ว), เปลี่ยน unit เป็น RESERVED — behavior เต็มของ endpoint นี้: [algorithms-and-validation.md §7.5](algorithms-and-validation.md#75-post-reservationsreservationiditemsitemiddecision)
+- Approve item: ตรวจ quantity, lock unit และสร้าง `ReservationItemUnit` พร้อมช่วงเวลาในคำขอเดียวกัน (ไม่มีขั้น "prepare" แยก) โดยไม่เปลี่ยน physical `AssetUnit.status` — behavior เต็ม: [algorithms-and-validation.md §7.5](algorithms-and-validation.md#75-post-reservationsreservationiditemsitemiddecision)
 - Check out หลาย item: เปลี่ยน `ReservationItemUnit`/`AssetUnit` เป็น CHECKED_OUT
+- Cancel reservation: lock reservation แล้วตรวจสถานะซ้ำก่อนเปลี่ยนเป็น CANCELLED และคืน assignment
 - Return approval: เขียน `ReturnItemUnit` (condition ต่อ serial) และปรับ `AssetUnit.status` ตาม condition, บันทึก lifecycle completion
 - Aggregate Reservation status หลังตัดสิน item
 
@@ -65,15 +66,16 @@ sequenceDiagram
 
 ### Retry policy
 
-- Retry Prisma `P2034` write conflict/deadlock สูงสุด 3 attempts (tunable ผ่าน `DB_TRANSACTION_RETRIES`, ดู [deployment-and-operations.md](deployment-and-operations.md))
+- Retry Prisma `P2034` write conflict/deadlock สูงสุด 3 attempts (ค่าคงที่ใน implementation ปัจจุบัน)
 - ใช้ exponential backoff พร้อม jitter ระยะสั้น
 - ทุก retry ต้องอ่าน availability/state ใหม่
-- ถ้าหลัง retry quantity (ระดับ ReservationItem) ไม่พอ ให้ตอบ `409 INSUFFICIENT_QUANTITY`; ถ้า unit ที่จะ assign ที่ prepare time ไม่ ACTIVE/ถูกจองไปแล้ว ให้ตอบ `409` เช่นกัน (กันซ้ำด้วย partial unique index บน `reservation_item_units`)
+- ถ้าหลัง retry quantity ไม่พอ ให้ตอบ `409 INSUFFICIENT_QUANTITY`; ถ้า unit ไม่อยู่ใน physical schedulable pool หรือมี active assignment ที่ overlap ให้ตอบ `409` (ฐานข้อมูลกัน race ด้วย exclusion constraint)
 - ห้าม retry validation, permission หรือ unique-constraint error แบบไม่จำแนก
 
 ### Transaction rules
 
 - Transaction ต้องสั้นและ deterministic
+- Approval, handover และ cancellation ต้อง lock แถว `reservations` ก่อน แล้วอ่าน status/time window ซ้ำภายใน transaction เพื่อ serialize lifecycle transition ที่แข่งกัน
 - Lock/order `asset_units` (ไม่ใช่ `assets`) ตาม UUID ที่ sort แล้วเมื่อ mutation แตะหลายหน่วยเพื่อลด deadlock
 - ห้าม upload file, call HTTP service หรือส่ง notification ภายใน transaction
 - Aggregate parent status และ child status ต้อง commit พร้อมกัน
@@ -88,7 +90,7 @@ CHECK (end_at > start_at)
 CHECK (quantity > 0)                              -- reservation_items.quantity
 ```
 
-Partial unique indexes (ไม่สามารถเขียนใน Prisma schema language ได้ ต้องเพิ่มใน raw migration SQL):
+Partial indexes/constraints ที่ Prisma schema language เขียนไม่ได้ต้องเพิ่มใน raw migration SQL:
 
 ```sql
 -- assets: part_number ไม่ซ้ำภายใน management area เดียวกัน เมื่อมีค่า
@@ -96,11 +98,15 @@ CREATE UNIQUE INDEX assets_area_part_number_key
   ON assets (management_area_id, part_number)
   WHERE part_number IS NOT NULL;
 
--- reservation_item_units: unit หนึ่งชิ้นถูก assign ค้างอยู่ (ยังไม่คืน) ได้ครั้งเดียว
--- ณ เวลาใดเวลาหนึ่ง -- กันไม่ให้ serial เดียวกันถูกจองซ้อนสองการจอง
-CREATE UNIQUE INDEX reservation_item_units_active_unit_key
-  ON reservation_item_units (asset_unit_id)
-  WHERE status IN ('ASSIGNED', 'CHECKED_OUT');
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+-- อนุญาต serial เดียวมีหลาย future assignment แต่ห้ามช่วง active ทับกัน
+ALTER TABLE reservation_item_units
+  ADD CONSTRAINT reservation_item_units_no_overlapping_assignments
+  EXCLUDE USING GIST (
+    asset_unit_id WITH =,
+    tstzrange(assignment_start_at, assignment_end_at, '[)') WITH &&
+  ) WHERE (status IN ('ASSIGNED', 'CHECKED_OUT'));
 ```
 
 `asset_units.serial_number` และ `return_item_units.reservation_item_unit_id` เป็น UNIQUE ปกติ (ประกาศใน Prisma schema ได้ตรงๆ) — ตัวหลังคือสิ่งที่ทำให้ unit ที่ checked out หนึ่งชิ้นถูกปิดยอดคืนได้เพียงครั้งเดียวเท่านั้น แทนที่ business validation แบบข้ามหลายแถวที่ระบบเดิมต้องตรวจเองใน transaction

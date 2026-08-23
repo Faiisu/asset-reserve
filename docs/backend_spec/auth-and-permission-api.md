@@ -70,7 +70,7 @@ Endpoint behavior, algorithm และ validation แต่ละเส้นอ
 | `POST /auth/logout` | [`contracts/paths/authentication.yaml`](contracts/paths/authentication.yaml) | [§2.4](algorithms-and-validation.md#24-post-authlogout) |
 | `GET /permissions` | [`contracts/paths/access-control.yaml`](contracts/paths/access-control.yaml) | [§3.1](algorithms-and-validation.md#31-get-permissions) |
 | `GET /roles`, `POST /roles`, `PATCH /roles/{roleId}` | [`contracts/paths/access-control.yaml`](contracts/paths/access-control.yaml) | [§3.2–3.4](algorithms-and-validation.md#32-get-roles) |
-| `GET /users`, `POST /users`, `GET /users/{userId}`, `PATCH /users/{userId}/status`, `PATCH /users/me`, `POST /users/me/password` | [`contracts/paths/users.yaml`](contracts/paths/users.yaml) | [§4.1–4.4](algorithms-and-validation.md#41-get-users) |
+| `GET /users`, `GET /users/directory`, `POST /users`, `GET /users/{userId}`, `PATCH /users/{userId}/status`, `PATCH /users/me`, `POST /users/me/password` | [`contracts/paths/users.yaml`](contracts/paths/users.yaml) | [§4.1–4.4](algorithms-and-validation.md#41-get-users) |
 | `POST /users/{userId}/role-assignments`, `DELETE /users/{userId}/role-assignments/{assignmentId}` | [`contracts/paths/users.yaml`](contracts/paths/users.yaml) | [§4.5–4.6](algorithms-and-validation.md#45-post-usersuseridrole-assignments) |
 | `GET /management-areas`, `POST /management-areas`, `PATCH /management-areas/{id}`, `DELETE /management-areas/{id}` | [`contracts/paths/management-areas.yaml`](contracts/paths/management-areas.yaml) | [§5](algorithms-and-validation.md#5-management-area-api) |
 

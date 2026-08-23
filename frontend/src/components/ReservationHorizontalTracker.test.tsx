@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { generateStepLogs, ReservationHorizontalTracker } from "./ReservationHorizontalTracker";
+import {
+  generateStepLogs,
+  ReservationHorizontalTracker,
+} from "./ReservationHorizontalTracker";
 import type { ReservationDetail } from "../types";
 
 const baseReservation: ReservationDetail = {
@@ -117,6 +120,24 @@ describe("ReservationHorizontalTracker & generateStepLogs", () => {
     expect(steps[4].status).toBe("upcoming");
   });
 
+  it("treats PARTIALLY_APPROVED as a decided approval with handover current", () => {
+    // Lifecycle §2: PARTIALLY_APPROVED's only forward transition is
+    // DELIVERY_CONFIRMED, so the approval step is done, not pending.
+    const partial: ReservationDetail = {
+      ...baseReservation,
+      status: "PARTIALLY_APPROVED",
+    };
+    const steps = generateStepLogs(partial);
+    expect(steps[1].stepKey).toBe("approval");
+    expect(steps[1].status).toBe("completed");
+    expect(steps[1].shortLabel).toBe("Partially Approved");
+    expect(
+      steps[1].logs.find((log) => log.label === "Decision Timestamp")?.value,
+    ).not.toBe("Pending");
+    expect(steps[2].stepKey).toBe("delivery");
+    expect(steps[2].status).toBe("current");
+  });
+
   it("sets step 4 as completed and step 5 'Return Approval' as current when return is submitted", () => {
     const returnPendingReservation: ReservationDetail = {
       ...baseReservation,
@@ -152,7 +173,7 @@ describe("ReservationHorizontalTracker & generateStepLogs", () => {
     expect(steps[4].shortLabel).toBe("Return Approval");
   });
 
-  it("sets both step 4 and step 5 as completed when status is COMPLETED or RETURN_CONFIRMED", () => {
+  it("sets both step 4 and step 5 as completed when status is COMPLETED", () => {
     const completedReservation: ReservationDetail = {
       ...baseReservation,
       status: "COMPLETED",
@@ -202,8 +223,12 @@ describe("ReservationHorizontalTracker & generateStepLogs", () => {
     expect(screen.getByLabelText("Inspect step Drafted")).toBeInTheDocument();
     expect(screen.getByLabelText("Inspect step Approved")).toBeInTheDocument();
     expect(screen.getByLabelText("Inspect step Handover")).toBeInTheDocument();
-    expect(screen.getByLabelText("Inspect step Pending Return")).toBeInTheDocument();
-    expect(screen.getByLabelText("Inspect step Return Approval")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Inspect step Pending Return"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Inspect step Return Approval"),
+    ).toBeInTheDocument();
 
     // Click Pending Return step
     fireEvent.click(screen.getByLabelText("Inspect step Pending Return"));

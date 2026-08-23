@@ -7,7 +7,6 @@ ReservationStatus:
     - APPROVED
     - DELIVERY_CONFIRMED
     - RETURN_PENDING
-    - RETURN_CONFIRMED
     - COMPLETED
     - REJECTED
     - CANCELLED
@@ -15,13 +14,16 @@ ReservationItemStatus:
   type: string
   description: >-
     APPROVE decisions assign serial units in the same request (§7.5) and go straight to
-    PREPARED -- there is no separate APPROVED resting state.
+    PREPARED -- there is no separate APPROVED resting state. CANCELLED means every
+    assigned serial was cancelled at handover time (§7.8), so nothing left the store
+    room and there is nothing to return.
   enum:
     - PENDING
     - REJECTED
     - PREPARED
     - DELIVERED
     - RETURNED
+    - CANCELLED
 ReservationItemInput:
   type: object
   additionalProperties: false
@@ -35,7 +37,7 @@ ReservationItemInput:
     quantity:
       type: integer
       minimum: 1
-      maximum: 2147483647
+      maximum: 200
 ReservationSummary:
   type: object
   required:
@@ -127,6 +129,7 @@ CreateReservationRequest:
     - eventName
     - startAt
     - endAt
+    - items
   properties:
     eventName:
       type: string
@@ -151,8 +154,11 @@ CreateReservationRequest:
       default: DRAFT
     items:
       type: array
+      minItems: 1
       maxItems: 100
-      description: Optional. If empty or omitted, the reservation is automatically approved.
+      description: >-
+        At least one asset line is required -- a reservation always reserves
+        something, and every item goes through the normal approval workflow.
       items:
         $ref: "#/components/schemas/ReservationItemInput"
     participantIds:
@@ -387,10 +393,21 @@ ReservationDetailItem:
         $ref: "#/components/schemas/ReservationWarning"
     units:
       type: array
-      description: Serial-numbered units assigned to this item once it reaches PREPARED (assigned during item approval, §7.5).
+      description: >-
+        Serial-numbered units assigned to this item once it reaches PREPARED
+        (assigned during item approval, §7.5). Includes units CANCELLED at
+        handover; only CHECKED_OUT ones are ever returnable.
       items:
         type: object
-        required: [id, assetUnitId, serialNumber, status]
+        required:
+          [
+            id,
+            assetUnitId,
+            serialNumber,
+            status,
+            assignmentStartAt,
+            assignmentEndAt,
+          ]
         properties:
           id:
             type: string
@@ -402,6 +419,14 @@ ReservationDetailItem:
             type: string
           status:
             type: string
+          assignmentStartAt:
+            type: string
+            format: date-time
+            description: Inclusive start of this serial assignment window.
+          assignmentEndAt:
+            type: string
+            format: date-time
+            description: Exclusive end of this serial assignment window.
     returnSummary:
       type: object
       description: Per-item return progress, present once at least one unit has been checked out.
@@ -500,7 +525,7 @@ ReservationDetail:
           type: boolean
           description: >-
             True when actor is warehouse staff/Area Manager and the reservation is APPROVED
-            or PARTIALLY_APPROVED with at least one item in PREPARED status (§7.11 preconditions).
+            or PARTIALLY_APPROVED with at least one item in PREPARED status (§7.8 preconditions).
         canReturn:
           type: boolean
           description: >-
@@ -515,7 +540,7 @@ ReservationDetail:
           type: boolean
           description: >-
             True when actor manages the reservation and its status has not yet reached
-            a delivery-confirmed or later stage (§7.10 preconditions).
+            a delivery-confirmed or later stage (§7.7 preconditions).
     activityLogs:
       type: array
       description: Audit trail of actions taken on this reservation, newest first.
@@ -560,9 +585,24 @@ ConfirmDeliveryItem:
       type: array
       description: >-
         ASSIGNED ReservationItemUnit ids of this item to hand over now (unit-based,
-        partial handover allowed -- omit to hand over every remaining ASSIGNED unit
-        of this item, i.e. full handover). The item stays PREPARED until every
-        assigned unit has been handed over across one or more calls.
+        partial handover allowed -- omit both this and cancelledReservationItemUnitIds
+        to hand over every remaining ASSIGNED unit of this item, i.e. full handover).
+        The item stays PREPARED until every assigned unit has been handed over or
+        cancelled across one or more calls.
+      minItems: 1
+      maxItems: 200
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
+    cancelledReservationItemUnitIds:
+      type: array
+      description: >-
+        ASSIGNED ReservationItemUnit ids of this item that will NOT be handed over
+        (§7.8). They move to CANCELLED, freeing the serial's assignment window
+        immediately, without touching AssetUnit.status -- the unit never left the
+        store room, so it is never returnable. Must be ASSIGNED units of this same
+        item and must not also appear in reservationItemUnitIds.
       minItems: 1
       maxItems: 200
       uniqueItems: true
@@ -756,18 +796,12 @@ ReturnApprovalDetail:
   type: object
   required:
     - id
-    - returnId
-    - approverId
     - status
-    - createdAt
+    - description
+    - decidedAt
+    - approver
   properties:
     id:
-      type: string
-      format: uuid
-    returnId:
-      type: string
-      format: uuid
-    approverId:
       type: string
       format: uuid
     status:
@@ -780,9 +814,6 @@ ReturnApprovalDetail:
       type: string
       format: date-time
       nullable: true
-    createdAt:
-      type: string
-      format: date-time
     approver:
       $ref: "#/components/schemas/ReservationUser"
 ReturnDetail:
@@ -807,7 +838,8 @@ ReturnDetail:
       format: uuid
     status:
       type: string
-      enum: [PENDING, APPROVED, REJECTED, COMPLETED]
+      description: APPROVED is recorded on ReturnApproval; Return itself transitions directly from PENDING to COMPLETED.
+      enum: [PENDING, REJECTED, COMPLETED]
     returnedAt:
       type: string
       format: date-time
@@ -852,4 +884,3 @@ ReturnListResponse:
         $ref: "#/components/schemas/ReturnDetail"
     pageInfo:
       $ref: "#/components/schemas/PageInfo"
-

@@ -103,6 +103,14 @@ export type UserListItem = {
   updatedAt: string;
 };
 
+/** Minimal identity for picking reservation participants (GET /users/directory). */
+export type UserDirectoryEntry = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  profilePictureUrl: string | null;
+};
+
 export type RoleAssignment = {
   id: string;
   userId: string;
@@ -113,9 +121,7 @@ export type RoleAssignment = {
 };
 
 export type EmailTemplateSituation =
-  | "reservation_submitted"
-  | "reservation_decided"
-  | "return_decided";
+  "reservation_submitted" | "reservation_decided" | "return_decided";
 
 export type EmailTemplate = {
   situation: EmailTemplateSituation;
@@ -204,7 +210,7 @@ export type AssetDetail = AssetSummary & {
   activeReservationItems: Array<{
     id: string;
     quantity: number;
-    status: "APPROVED" | "PREPARED" | "CHECKED_OUT";
+    status: "PREPARED" | "DELIVERED";
     reservation: {
       id: string;
       eventName: string;
@@ -238,6 +244,8 @@ export type AssetUnit = {
   id: string;
   serialNumber: string;
   status: string;
+  /** Present on schedule-aware backend responses; absent during rolling deploys. */
+  hasActiveAssignment?: boolean;
   note: string | null;
   createdAt: string;
   updatedAt: string;
@@ -263,7 +271,6 @@ export type ReservationStatus =
   | "APPROVED"
   | "DELIVERY_CONFIRMED"
   | "RETURN_PENDING"
-  | "RETURN_CONFIRMED"
   | "COMPLETED"
   | "REJECTED"
   | "CANCELLED";
@@ -271,12 +278,10 @@ export type ReservationStatus =
 // Per docs §3: approval now assigns serial units in the same step, so items
 // go PENDING -> PREPARED directly (no APPROVED resting state); CHECKED_OUT
 // is a ReservationItemUnit status, not a ReservationItem one.
+// CANCELLED = every assigned serial was cancelled at handover (§7.8), so
+// nothing left the store room and there is nothing to return.
 export type ReservationItemStatus =
-  | "PENDING"
-  | "PREPARED"
-  | "REJECTED"
-  | "DELIVERED"
-  | "RETURNED";
+  "PENDING" | "PREPARED" | "REJECTED" | "DELIVERED" | "RETURNED" | "CANCELLED";
 
 export type ReservationUser = {
   id: string;
@@ -294,6 +299,7 @@ export type ConfirmDeliveryInput = {
   items: Array<{
     reservationItemId: string;
     reservationItemUnitIds?: string[];
+    cancelledReservationItemUnitIds?: string[];
   }>;
 };
 
@@ -323,6 +329,8 @@ export type ReservationDetail = {
       assetUnitId: string;
       serialNumber: string;
       status: string;
+      assignmentStartAt?: string;
+      assignmentEndAt?: string;
     }>;
     returnSummary?: {
       totalUnits: number;
@@ -413,7 +421,7 @@ export type ReturnItemDetail = {
 export type ReturnDetail = {
   id: string;
   reservationId: string;
-  status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
+  status: "PENDING" | "REJECTED" | "COMPLETED";
   note: string | null;
   returnedAt: string | null;
   returnedBy: string;

@@ -102,8 +102,8 @@ export class ReturnListQueryDto extends SearchPaginationQueryDto {
   view: "MINE" | "APPROVALS" | "ALL" = "MINE";
 
   @IsOptional()
-  @IsIn(["PENDING", "APPROVED", "REJECTED", "COMPLETED"])
-  status?: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
+  @IsIn(["PENDING", "REJECTED", "COMPLETED"])
+  status?: "PENDING" | "REJECTED" | "COMPLETED";
 
   @IsOptional()
   @IsUUID()

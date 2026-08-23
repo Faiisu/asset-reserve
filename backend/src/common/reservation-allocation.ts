@@ -11,5 +11,19 @@ export const HARD_ALLOCATION_RESERVATION_STATUSES = [
   "APPROVED",
   "DELIVERY_CONFIRMED",
   "RETURN_PENDING",
-  "RETURN_CONFIRMED",
+];
+
+/** Assignment rows that still reserve a serial number's schedule window. */
+export const ACTIVE_ASSIGNMENT_STATUSES = ["ASSIGNED", "CHECKED_OUT"];
+
+/**
+ * Physical states that may be considered for a future assignment. CHECKED_OUT
+ * is intentionally included: its existing assignment window decides whether
+ * the unit is free for the requested future range.
+ * RESERVED is accepted only for compatibility with pre-window deployments.
+ */
+export const SCHEDULABLE_ASSET_UNIT_STATUSES = [
+  "ACTIVE",
+  "RESERVED",
+  "CHECKED_OUT",
 ];

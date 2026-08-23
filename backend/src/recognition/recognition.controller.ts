@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -68,6 +70,7 @@ export class RecognitionController {
   ) {}
 
   @Post("assets")
+  @HttpCode(HttpStatus.OK)
   async registerAsset(
     @CurrentActor() actor: AuthenticatedActor,
     @Req() req: FastifyRequest,
@@ -84,6 +87,7 @@ export class RecognitionController {
   }
 
   @Post("assets/:assetId/photos")
+  @HttpCode(HttpStatus.OK)
   async addPhoto(
     @CurrentActor() actor: AuthenticatedActor,
     @Param("assetId", new ParseUUIDPipe()) assetId: string,
@@ -181,6 +185,7 @@ export class RecognitionController {
   }
 
   @Post("recognize")
+  @HttpCode(HttpStatus.OK)
   async recognize(
     @CurrentActor() _actor: AuthenticatedActor,
     @Req() req: FastifyRequest,
@@ -193,6 +198,7 @@ export class RecognitionController {
   }
 
   @Post("recognize/multi")
+  @HttpCode(HttpStatus.OK)
   async recognizeMulti(
     @CurrentActor() _actor: AuthenticatedActor,
     @Req() req: FastifyRequest,

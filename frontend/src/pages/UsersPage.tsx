@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { api, ApiClientError } from "../api";
+import { api, ApiClientError, isAbortError } from "../api";
 import { useAuth } from "../auth";
 import {
   Avatar,
@@ -38,6 +38,7 @@ import type {
   UserDetail,
   UserListItem,
 } from "../types";
+import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 
 export function UsersPage() {
   const { hasGlobalPermission, session } = useAuth();
@@ -67,20 +68,24 @@ export function UsersPage() {
   const canAssign = hasGlobalPermission("role:assign");
 
   const load = useCallback(
-    async (cursor?: string, append = false) => {
+    async (cursor?: string, append = false, signal?: AbortSignal) => {
       setLoading(!append);
       setError(null);
       try {
-        const response = await api.users({
-          search: search || undefined,
-          isActive:
-            selectedStatuses.length === 1
-              ? selectedStatuses[0] === "active"
-              : undefined,
-          roleId: selectedRoleIds.length === 1 ? selectedRoleIds[0] : undefined,
-          cursor,
-          limit: 30,
-        });
+        const response = await api.users(
+          {
+            search: search || undefined,
+            isActive:
+              selectedStatuses.length === 1
+                ? selectedStatuses[0] === "active"
+                : undefined,
+            roleId:
+              selectedRoleIds.length === 1 ? selectedRoleIds[0] : undefined,
+            cursor,
+            limit: 30,
+          },
+          signal,
+        );
         let list = response.data;
         if (selectedStatuses.length > 1) {
           list = list.filter((user) =>
@@ -97,25 +102,31 @@ export function UsersPage() {
         );
         setNextCursor(response.pageInfo.nextCursor);
       } catch (caught) {
+        if (isAbortError(caught)) return;
         setError(caught);
       } finally {
-        setLoading(false);
+        if (!signal?.aborted) setLoading(false);
       }
     },
     [search, selectedRoleIds, selectedStatuses],
   );
 
   useEffect(() => {
-    if (canView) void load();
+    if (!canView) return;
+    const controller = new AbortController();
+    void load(undefined, false, controller.signal);
+    return () => controller.abort();
   }, [canView, load]);
   useEffect(() => {
-    if (canView)
-      void Promise.all([api.roles(), api.areas()])
-        .then(([roleResponse, areaResponse]) => {
-          setRoles(roleResponse.data);
-          setAreas(areaResponse.data);
-        })
-        .catch(() => undefined);
+    if (!canView) return;
+    const controller = new AbortController();
+    void Promise.all([api.roles(), api.areas("", controller.signal)])
+      .then(([roleResponse, areaResponse]) => {
+        setRoles(roleResponse.data);
+        setAreas(areaResponse.data);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
   }, [canView]);
 
   async function openUser(userId: string) {
@@ -608,8 +619,8 @@ function CreateUserDialog({
               onChange={(event) =>
                 setForm({ ...form, username: event.target.value })
               }
-              minLength={3}
-              maxLength={50}
+              minLength={cap(CONTRACT_LIMITS.user.usernameMin)}
+              maxLength={cap(CONTRACT_LIMITS.user.usernameMax)}
               required
               autoFocus
             />
@@ -621,7 +632,8 @@ function CreateUserDialog({
               onChange={(event) =>
                 setForm({ ...form, password: event.target.value })
               }
-              minLength={8}
+              minLength={cap(CONTRACT_LIMITS.user.passwordMin)}
+              maxLength={cap(CONTRACT_LIMITS.user.passwordMax)}
               required
             />
           </Field>

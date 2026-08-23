@@ -13,8 +13,10 @@ import {
 import {
   CurrentActor,
   RequireAnyGlobalPermission,
+  RequireAnyScopedPermission,
 } from "../auth/auth.decorators.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
+import { SearchPaginationQueryDto } from "../common/dto.js";
 import {
   AssignRoleDto,
   ChangeMyPasswordDto,
@@ -39,6 +41,16 @@ export class UsersController {
   @Get()
   list(@Query() query: UserListQueryDto) {
     return this.users.list(query);
+  }
+
+  // Participant lookup, declared ahead of the ":userId" routes so
+  // "directory" is not captured by ParseUUIDPipe's param route. Open to
+  // anyone who can create a reservation in any area -- picking a colleague
+  // to add is part of composing one -- and returns far less than list().
+  @RequireAnyScopedPermission("reservation:create")
+  @Get("directory")
+  directory(@Query() query: SearchPaginationQueryDto) {
+    return this.users.directory(query);
   }
 
   @RequireAnyGlobalPermission("user:create")

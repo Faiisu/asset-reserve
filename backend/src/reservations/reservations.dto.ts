@@ -29,7 +29,6 @@ const reservationStatuses = [
   "APPROVED",
   "DELIVERY_CONFIRMED",
   "RETURN_PENDING",
-  "RETURN_CONFIRMED",
   "COMPLETED",
   "REJECTED",
   "CANCELLED",
@@ -64,7 +63,7 @@ export class ReservationItemInputDto {
 
   @IsInt()
   @Min(1)
-  @Max(2_147_483_647)
+  @Max(200)
   quantity!: number;
 }
 
@@ -91,12 +90,14 @@ export class CreateReservationDto {
   @IsIn(["DRAFT", "PENDING_APPROVAL"])
   status?: "DRAFT" | "PENDING_APPROVAL";
 
-  @IsOptional()
+  // A reservation always reserves something -- §7.1 requires at least one
+  // asset line, and there is no zero-item path that skips approval.
   @IsArray()
+  @ArrayMinSize(1)
   @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => ReservationItemInputDto)
-  items?: ReservationItemInputDto[];
+  items!: ReservationItemInputDto[];
 
   @IsOptional()
   @IsArray()
@@ -176,6 +177,16 @@ export class ConfirmDeliveryItemDto {
   @ArrayUnique()
   @IsUUID(undefined, { each: true })
   reservationItemUnitIds?: string[];
+
+  // Assigned units that will not be handed over (§7.8). Every assigned unit
+  // needs a disposition before the item can leave PREPARED.
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  cancelledReservationItemUnitIds?: string[];
 }
 
 export class ConfirmDeliveryDto {

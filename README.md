@@ -117,8 +117,8 @@ All individual run scripts are located in [`scripts/`](file:///C:/projects/asset
 ## 🗄️ Database Management & Seeding
 
 ```bash
-# Push schema changes to database
-npm run db:push
+# Apply pending migrations (same command the Docker deployment runs)
+npm run db:migrate
 
 # Seed database with demonstration data (users, assets, reservations)
 npm run db:seed

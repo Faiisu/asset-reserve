@@ -1,11 +1,4 @@
-import type { ReservationDetail, ReservationItemStatus, ReservationStatus } from "./types";
-
-const RECENT_KEY = "asset-rail.recent-reservations";
-
-export type RecentReservation = Pick<
-  ReservationDetail,
-  "id" | "eventName" | "startAt" | "status" | "updatedAt"
->;
+import type { ReservationItemStatus, ReservationStatus } from "./types";
 
 export const reservationStatusLabel: Record<ReservationStatus, string> = {
   DRAFT: "Draft",
@@ -14,19 +7,20 @@ export const reservationStatusLabel: Record<ReservationStatus, string> = {
   APPROVED: "Approved",
   DELIVERY_CONFIRMED: "Delivery Confirmed",
   RETURN_PENDING: "Return Pending",
-  RETURN_CONFIRMED: "Return Confirmed",
   COMPLETED: "Return Completed",
   REJECTED: "Rejected",
   CANCELLED: "Cancelled",
 };
 
-export const reservationItemStatusLabel: Record<ReservationItemStatus, string> = {
-  PENDING: "Pending",
-  REJECTED: "Rejected",
-  PREPARED: "Prepared",
-  DELIVERED: "Delivered",
-  RETURNED: "Returned",
-};
+export const reservationItemStatusLabel: Record<ReservationItemStatus, string> =
+  {
+    PENDING: "Pending",
+    REJECTED: "Rejected",
+    PREPARED: "Prepared",
+    DELIVERED: "Delivered",
+    RETURNED: "Returned",
+    CANCELLED: "Cancelled",
+  };
 
 export function toLocalDateTime(value: string) {
   const date = new Date(value);
@@ -56,41 +50,4 @@ export function reservationDuration(startAt: string, endAt: string) {
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
   return remainder ? `${hours} hr ${remainder} min` : `${hours} hr`;
-}
-
-export function rememberReservation(detail: ReservationDetail) {
-  const item: RecentReservation = {
-    id: detail.id,
-    eventName: detail.eventName,
-    startAt: detail.startAt,
-    status: detail.status,
-    updatedAt: detail.updatedAt,
-  };
-  const recent = readRecentReservations().filter(
-    (value) => value.id !== item.id,
-  );
-  localStorage.setItem(
-    RECENT_KEY,
-    JSON.stringify([item, ...recent].slice(0, 6)),
-  );
-}
-
-export function readRecentReservations(): RecentReservation[] {
-  try {
-    const value = JSON.parse(
-      localStorage.getItem(RECENT_KEY) ?? "[]",
-    ) as unknown;
-    if (!Array.isArray(value)) return [];
-    return value.filter(
-      (item): item is RecentReservation =>
-        typeof item === "object" &&
-        item !== null &&
-        "id" in item &&
-        typeof item.id === "string" &&
-        "eventName" in item &&
-        typeof item.eventName === "string",
-    );
-  } catch {
-    return [];
-  }
 }

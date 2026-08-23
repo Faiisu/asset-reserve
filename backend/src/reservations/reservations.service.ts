@@ -8,8 +8,10 @@ import { ApiException } from "../common/api-exception.js";
 import { decodeCursor, pageInfo } from "../common/pagination.js";
 import { ReservationLifecycleEvents } from "../common/reservation-lifecycle.events.js";
 import {
+  ACTIVE_ASSIGNMENT_STATUSES,
   HARD_ALLOCATION_ITEM_STATUSES,
   HARD_ALLOCATION_RESERVATION_STATUSES,
+  SCHEDULABLE_ASSET_UNIT_STATUSES,
 } from "../common/reservation-allocation.js";
 import { PrismaService } from "../database/prisma.service.js";
 import {
@@ -126,11 +128,6 @@ export class ReservationsService {
       "reservation:approve",
     ]);
     const rejectAreaIds = this.permissionAreaIds(actor, ["reservation:reject"]);
-    const operationalAreaIds = this.permissionAreaIds(actor, [
-      "reservation:update",
-      "reservation:approve",
-      "reservation:reject",
-    ]);
     const conditions: Prisma.ReservationWhereInput[] = [];
 
     if (query.view === "MINE") {
@@ -155,6 +152,7 @@ export class ReservationsService {
       conditions.push({ OR: approvalConditions });
     } else if (query.view === "APPROVAL_HISTORY") {
       const historyConditions = this.approvalHistoryConditions(
+        actor.user.id,
         approveAreaIds,
         rejectAreaIds,
       );
@@ -175,11 +173,12 @@ export class ReservationsService {
 
       const viewAreaIds = this.permissionAreaIds(actor, ["reservation:view"]);
 
-      if (viewAreaIds === null || operationalAreaIds === null) {
-        // Global reservation:view OR global operational access — can see all reservations (no filter)
+      if (viewAreaIds === null) {
+        // Global reservation:view can browse every reservation.
       } else {
-        // Build area conditions from both reservation:view scope and operational permissions
-        // (approve/reject/update) so area managers can still see their managed areas.
+        // ALL is the cross-user browse surface, so only reservation:view may
+        // widen it. Operational permissions have their own scoped queues
+        // (APPROVALS / APPROVAL_HISTORY) and must not silently grant browse.
         const viewConditions: Prisma.ReservationWhereInput[] = [
           ownReservationCondition,
         ];
@@ -193,49 +192,19 @@ export class ReservationsService {
           });
         }
 
-        // Operational area permissions (approve/reject/update): managers can always see
-        // reservations in their managed areas regardless of reservation:view
-        if (operationalAreaIds.length) {
-          viewConditions.push({
-            items: {
-              some: {
-                asset: { managementAreaId: { in: operationalAreaIds } },
-              },
-            },
-          });
-        }
-
         if (viewConditions.length > 1) {
           conditions.push({ OR: viewConditions });
         } else {
-          // Only own reservations — no view or operational area access
+          // Only own reservations — no reservation:view access.
           conditions.push(ownReservationCondition);
         }
       }
 
-      // Private-status guard (applies to non-global-admin users):
-      // DRAFT, PENDING_APPROVAL, REJECTED, CANCELLED are only visible to the
-      // reservation owner, its participants, or area managers of the assets involved.
-      if (operationalAreaIds !== null) {
-        const privateStatuses = [
-          "DRAFT",
-          "PENDING_APPROVAL",
-          "REJECTED",
-          "CANCELLED",
-        ];
-        const privateStatusGuardClauses: Prisma.ReservationWhereInput[] = [
-          { status: { notIn: privateStatuses } },
-          ownReservationCondition,
-        ];
-        if (operationalAreaIds.length) {
-          privateStatusGuardClauses.push({
-            items: {
-              some: { asset: { managementAreaId: { in: operationalAreaIds } } },
-            },
-          });
-        }
-        conditions.push({ OR: privateStatusGuardClauses });
-      }
+      // DRAFT remains private to the event team even when reservation:view is
+      // scoped to the same area. Submitted/final records follow view scope.
+      conditions.push({
+        OR: [{ status: { not: "DRAFT" } }, ownReservationCondition],
+      });
     }
 
     if (query.status) conditions.push({ status: query.status });
@@ -290,30 +259,22 @@ export class ReservationsService {
     const startAt = new Date(input.startAt);
     const endAt = new Date(input.endAt);
     this.assertDateRange(startAt, endAt);
-    const items = input.items ?? [];
+    // §7.1: items is required and non-empty, so every reservation has assets
+    // to scope permission and availability against.
+    const items = input.items;
     this.assertUniqueItems(items);
     const participantIds = this.normalizeParticipantIds(
       input.participantIds,
       actor.user.id,
     );
     await this.assertParticipants(participantIds);
-    const assets = items.length
-      ? await this.findAssets(items.map((item) => item.assetId))
-      : [];
-    if (assets.length) {
-      for (const asset of assets) {
-        this.assertArea(actor, "reservation:create", asset.managementAreaId);
-      }
-      await this.assertAvailability(this.prisma, items, assets, startAt, endAt);
-    } else {
-      this.assertAnyArea(actor, "reservation:create");
+    const assets = await this.findAssets(items.map((item) => item.assetId));
+    for (const asset of assets) {
+      this.assertArea(actor, "reservation:create", asset.managementAreaId);
     }
+    await this.assertAvailability(this.prisma, items, assets, startAt, endAt);
 
-    let status: "DRAFT" | "PENDING_APPROVAL" | "APPROVED" =
-      input.status ?? "DRAFT";
-    if (items.length === 0 && status === "PENDING_APPROVAL") {
-      status = "APPROVED";
-    }
+    const status: "DRAFT" | "PENDING_APPROVAL" = input.status ?? "DRAFT";
 
     const reservationId = randomUUID();
     await this.prisma.$transaction(async (tx) => {
@@ -365,8 +326,11 @@ export class ReservationsService {
     // approvers at all (caught via live testing: an admin who should
     // receive every submission got no email when a user reserved an asset).
     if (status === "PENDING_APPROVAL") {
-      const managementAreaIds = [...new Set(assets.map((a) => a.managementAreaId))];
-      const approverRecipients = await this.findApproverRecipients(managementAreaIds);
+      const managementAreaIds = [
+        ...new Set(assets.map((a) => a.managementAreaId)),
+      ];
+      const approverRecipients =
+        await this.findApproverRecipients(managementAreaIds);
       this.reservationEvents.emitSubmitted({
         reservationId,
         eventName: input.eventName,
@@ -409,15 +373,13 @@ export class ReservationsService {
         reservation.id,
       );
     }
-    const nextStatus =
-      reservation.items.length === 0 ? "APPROVED" : "PENDING_APPROVAL";
     const result = await this.prisma.reservation.updateMany({
       where: {
         id: reservationId,
         status: "DRAFT",
         updatedAt: new Date(input.expectedUpdatedAt),
       },
-      data: { status: nextStatus, updatedAt: new Date() },
+      data: { status: "PENDING_APPROVAL", updatedAt: new Date() },
     });
     if (!result.count) {
       throw new ApiException(
@@ -432,28 +394,25 @@ export class ReservationsService {
       action: "RESERVATION_SUBMITTED",
       entityType: "RESERVATION",
       entityId: reservationId,
-      details: { status: nextStatus },
+      details: { status: "PENDING_APPROVAL" },
     });
-    if (nextStatus === "PENDING_APPROVAL") {
-      const managementAreaIds = [
-        ...new Set(assets.map((a) => a.managementAreaId)),
-      ];
-      const approverRecipients =
-        await this.findApproverRecipients(managementAreaIds);
-      this.reservationEvents.emitSubmitted({
-        reservationId,
-        eventName: reservation.eventName,
-        startAt: reservation.startAt,
-        endAt: reservation.endAt,
-        requester: {
-          email: reservation.requester.email,
-          name:
-            reservation.requester.profile?.name ??
-            reservation.requester.username,
-        },
-        approverRecipients,
-      });
-    }
+    const managementAreaIds = [
+      ...new Set(assets.map((a) => a.managementAreaId)),
+    ];
+    const approverRecipients =
+      await this.findApproverRecipients(managementAreaIds);
+    this.reservationEvents.emitSubmitted({
+      reservationId,
+      eventName: reservation.eventName,
+      startAt: reservation.startAt,
+      endAt: reservation.endAt,
+      requester: {
+        email: reservation.requester.email,
+        name:
+          reservation.requester.profile?.name ?? reservation.requester.username,
+      },
+      approverRecipients,
+    });
     return this.get(actor, reservationId);
   }
 
@@ -560,18 +519,25 @@ export class ReservationsService {
       }
     }
 
-    const allUnitIds = [
-      ...new Set(
-        input.decision === "APPROVE"
-          ? input.items.flatMap((entry) => entry.assetUnitIds ?? [])
-          : [],
-      ),
-    ];
+    const selectedUnitIds =
+      input.decision === "APPROVE"
+        ? input.items.flatMap((entry) => entry.assetUnitIds ?? [])
+        : [];
+    const allUnitIds = [...new Set(selectedUnitIds)];
+    if (allUnitIds.length !== selectedUnitIds.length) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        "The same asset unit cannot be assigned to multiple items in one decision.",
+        { items: "Select each serial-numbered unit at most once." },
+      );
+    }
 
     const decidedAt = new Date();
     let newStatus!: string;
     try {
       newStatus = await this.runSerializable(async (tx) => {
+        await this.lockReservation(tx, reservationId);
         await this.assertActiveActor(tx, actor.user.id);
         const items = await tx.reservationItem.findMany({
           where: { id: { in: itemIds }, reservationId },
@@ -608,14 +574,6 @@ export class ReservationsService {
             tx,
             items.map((item) => item.assetId),
           );
-          await this.assertAvailability(
-            tx,
-            items,
-            items.map((item) => item.asset),
-            reservation.startAt,
-            reservation.endAt,
-            reservationId,
-          );
 
           await this.lockAssetUnits(tx, allUnitIds);
           const units = await tx.assetUnit.findMany({
@@ -633,25 +591,33 @@ export class ReservationsService {
             const entry = entries.get(item.id)!;
             for (const unitId of entry.assetUnitIds ?? []) {
               const unit = unitById.get(unitId)!;
-              if (unit.assetId !== item.assetId || unit.status !== "ACTIVE") {
+              if (
+                unit.assetId !== item.assetId ||
+                !SCHEDULABLE_ASSET_UNIT_STATUSES.includes(unit.status)
+              ) {
                 throw new ApiException(
                   409,
                   "ASSET_UNIT_UNAVAILABLE",
-                  "One or more selected units are not available for this asset.",
+                  "One or more selected units are not physically serviceable for this asset.",
                 );
               }
             }
           }
 
-          const updatedUnits = await tx.assetUnit.updateMany({
-            where: { id: { in: allUnitIds }, status: "ACTIVE" },
-            data: { status: "RESERVED", updatedAt: decidedAt },
+          const scheduleConflicts = await tx.reservationItemUnit.findMany({
+            where: {
+              assetUnitId: { in: allUnitIds },
+              status: { in: ACTIVE_ASSIGNMENT_STATUSES },
+              assignmentStartAt: { lt: reservation.endAt },
+              assignmentEndAt: { gt: reservation.startAt },
+            },
+            select: { assetUnitId: true },
           });
-          if (updatedUnits.count !== allUnitIds.length) {
+          if (scheduleConflicts.length > 0) {
             throw new ApiException(
               409,
-              "ASSET_UNIT_UNAVAILABLE",
-              "One or more selected units are no longer available.",
+              "ASSET_UNIT_SCHEDULE_CONFLICT",
+              "One or more selected units are already assigned during this reservation window.",
             );
           }
 
@@ -665,33 +631,9 @@ export class ReservationsService {
                 status: "ASSIGNED",
                 assignedBy: actor.user.id,
                 assignedAt: decidedAt,
+                assignmentStartAt: reservation.startAt,
+                assignmentEndAt: reservation.endAt,
               })),
-            });
-          }
-
-          if (allUnitIds.length > 0) {
-            const batchId = randomUUID();
-            await tx.assetUnitEventBatch.create({
-              data: {
-                id: batchId,
-                description: "Approved and assigned for reservation",
-                performedBy: actor.user.id,
-              },
-            });
-            await tx.assetUnitEvent.createMany({
-              data: items.flatMap((item) =>
-                (entries.get(item.id)!.assetUnitIds ?? []).map(
-                  (assetUnitId) => ({
-                    id: randomUUID(),
-                    batchId,
-                    assetUnitId,
-                    eventType: "RESERVED",
-                    fromStatus: "ACTIVE",
-                    toStatus: "RESERVED",
-                    reservationItemId: item.id,
-                  }),
-                ),
-              ),
             });
           }
         }
@@ -788,11 +730,14 @@ export class ReservationsService {
         return nextStatus;
       });
     } catch (error) {
-      if (this.prismaCode(error) === "P2002") {
+      if (
+        this.prismaCode(error) === "P2002" ||
+        this.isAssignmentOverlapError(error)
+      ) {
         throw new ApiException(
           409,
-          "ASSET_UNIT_UNAVAILABLE",
-          "One or more selected units are already assigned to another reservation.",
+          "ASSET_UNIT_SCHEDULE_CONFLICT",
+          "One or more selected units are already assigned during this reservation window.",
         );
       }
       throw error;
@@ -831,6 +776,7 @@ export class ReservationsService {
     input?: ConfirmDeliveryDto,
   ) {
     const reservation = await this.findDetail(reservationId);
+    const deliveredAt = new Date();
     if (
       !["APPROVED", "PARTIALLY_APPROVED", "DELIVERY_CONFIRMED"].includes(
         reservation.status,
@@ -840,17 +786,27 @@ export class ReservationsService {
         `Cannot confirm delivery for reservation in state "${reservation.status}". Reservation must be approved.`,
       );
     }
+    if (deliveredAt >= reservation.endAt) {
+      throw new ApiException(
+        409,
+        "HANDOVER_WINDOW_CLOSED",
+        "Equipment cannot be handed over after the reservation end time.",
+      );
+    }
 
     const deliverableItemStatuses = ["PREPARED"];
     const deliverableItems = reservation.items.filter((item) =>
       deliverableItemStatuses.includes(item.status),
     );
 
-    // entries: which item to confirm, and which of its ASSIGNED units --
-    // unitIds === null means "every remaining ASSIGNED unit" (full handover).
+    // entries: which item to confirm, which of its ASSIGNED units to hand
+    // over, and which to cancel (§7.8 -- every assigned unit needs a
+    // disposition). unitIds === null means "every remaining ASSIGNED unit"
+    // (full handover); cancelledUnitIds is always an explicit list.
     type Entry = {
       item: (typeof reservation.items)[number];
       unitIds: string[] | null;
+      cancelledUnitIds: string[];
     };
     let entries: Entry[];
 
@@ -874,7 +830,27 @@ export class ReservationsService {
             "One or more selected items do not belong to this reservation.",
           );
         }
-        return { item, unitIds: entry.reservationItemUnitIds ?? null };
+        const cancelledUnitIds = entry.cancelledReservationItemUnitIds ?? [];
+        const handedOverUnitIds = entry.reservationItemUnitIds ?? null;
+        if (
+          handedOverUnitIds &&
+          cancelledUnitIds.some((id) => handedOverUnitIds.includes(id))
+        ) {
+          throw new ApiException(
+            400,
+            "INVALID_ITEM_SELECTION",
+            "A serial unit cannot be both handed over and cancelled in the same request.",
+          );
+        }
+        // Only the "nothing specified at all" case means full handover --
+        // cancelling some units without naming any to hand over must not be
+        // read as "hand over everything".
+        return {
+          item,
+          unitIds:
+            handedOverUnitIds ?? (cancelledUnitIds.length > 0 ? [] : null),
+          cancelledUnitIds,
+        };
       });
 
       const invalidStateItems = entries.filter(
@@ -895,14 +871,14 @@ export class ReservationsService {
         this.permissionDenied();
       }
 
-      for (const { item, unitIds } of entries) {
-        if (!unitIds) continue;
+      for (const { item, unitIds, cancelledUnitIds } of entries) {
         const assignedIds = new Set(
           item.unitAssignments
             .filter((unit) => unit.status === "ASSIGNED")
             .map((unit) => unit.id),
         );
-        if (unitIds.some((id) => !assignedIds.has(id))) {
+        const selected = [...(unitIds ?? []), ...cancelledUnitIds];
+        if (selected.some((id) => !assignedIds.has(id))) {
           throw new ApiException(
             409,
             "RESERVATION_ITEM_UNIT_UNAVAILABLE",
@@ -913,7 +889,7 @@ export class ReservationsService {
     } else {
       entries = deliverableItems
         .filter((item) => this.canConfirmDeliveryItem(actor, reservation, item))
-        .map((item) => ({ item, unitIds: null }));
+        .map((item) => ({ item, unitIds: null, cancelledUnitIds: [] }));
     }
 
     if (entries.length === 0) {
@@ -925,18 +901,50 @@ export class ReservationsService {
       );
     }
 
-    const deliveredAt = new Date();
+    await this.runSerializable(async (tx) => {
+      await this.lockReservation(tx, reservationId);
+      const currentReservation = await tx.reservation.findUnique({
+        where: { id: reservationId },
+        select: { status: true, endAt: true },
+      });
+      if (!currentReservation) {
+        throw new ApiException(
+          404,
+          "RESERVATION_NOT_FOUND",
+          "The reservation was not found.",
+        );
+      }
+      if (
+        !["APPROVED", "PARTIALLY_APPROVED", "DELIVERY_CONFIRMED"].includes(
+          currentReservation.status,
+        )
+      ) {
+        throw this.invalidStatus(
+          `Cannot confirm delivery for reservation in state "${currentReservation.status}". Reservation must be approved.`,
+        );
+      }
+      if (deliveredAt >= currentReservation.endAt) {
+        throw new ApiException(
+          409,
+          "HANDOVER_WINDOW_CLOSED",
+          "Equipment cannot be handed over after the reservation end time.",
+        );
+      }
 
-    await this.prisma.$transaction(async (tx) => {
       // 1. Check out exactly the targeted units per item (ASSIGNED ->
       // CHECKED_OUT) -- partial handover leaves the rest ASSIGNED and the
       // item itself PREPARED until every unit has been handed over.
       const eventBatchId = randomUUID();
       let batchCreated = false;
       let fullyDeliveredCount = 0;
-      const deliveredUnitsByItem: { reservationItemId: string; reservationItemUnitIds: string[] }[] = [];
+      let cancelledUnitCount = 0;
+      const deliveredUnitsByItem: {
+        reservationItemId: string;
+        reservationItemUnitIds: string[];
+        cancelledReservationItemUnitIds: string[];
+      }[] = [];
 
-      for (const { item, unitIds } of entries) {
+      for (const { item, unitIds, cancelledUnitIds } of entries) {
         const assignedUnits = item.unitAssignments.filter(
           (unit) => unit.status === "ASSIGNED",
         );
@@ -946,19 +954,59 @@ export class ReservationsService {
         deliveredUnitsByItem.push({
           reservationItemId: item.id,
           reservationItemUnitIds: targetUnits.map((unit) => unit.id),
+          cancelledReservationItemUnitIds: cancelledUnitIds,
         });
 
         if (targetUnits.length > 0) {
           const targetUnitIds = targetUnits.map((unit) => unit.id);
-          const targetAssetUnitIds = targetUnits.map((unit) => unit.assetUnitId);
-          await tx.reservationItemUnit.updateMany({
+          const targetAssetUnitIds = targetUnits.map(
+            (unit) => unit.assetUnitId,
+          );
+          await this.lockAssetUnits(tx, targetAssetUnitIds);
+          const physicalUnits = await tx.assetUnit.findMany({
+            where: { id: { in: targetAssetUnitIds } },
+            select: { id: true, status: true },
+          });
+          if (
+            physicalUnits.length !== targetAssetUnitIds.length ||
+            physicalUnits.some(
+              (unit) => !["ACTIVE", "RESERVED"].includes(unit.status),
+            )
+          ) {
+            throw new ApiException(
+              409,
+              "ASSET_UNIT_PHYSICALLY_UNAVAILABLE",
+              "One or more assigned units are not physically available for handover.",
+            );
+          }
+          const physicalStatusById = new Map(
+            physicalUnits.map((unit) => [unit.id, unit.status] as const),
+          );
+          const updatedPhysicalUnits = await tx.assetUnit.updateMany({
+            where: {
+              id: { in: targetAssetUnitIds },
+              status: { in: ["ACTIVE", "RESERVED"] },
+            },
+            data: { status: "CHECKED_OUT", updatedAt: deliveredAt },
+          });
+          if (updatedPhysicalUnits.count !== targetAssetUnitIds.length) {
+            throw new ApiException(
+              409,
+              "ASSET_UNIT_PHYSICALLY_UNAVAILABLE",
+              "One or more assigned units changed before handover completed.",
+            );
+          }
+          const updatedAssignments = await tx.reservationItemUnit.updateMany({
             where: { id: { in: targetUnitIds }, status: "ASSIGNED" },
             data: { status: "CHECKED_OUT", checkedOutAt: deliveredAt },
           });
-          await tx.assetUnit.updateMany({
-            where: { id: { in: targetAssetUnitIds }, status: "RESERVED" },
-            data: { status: "CHECKED_OUT", updatedAt: deliveredAt },
-          });
+          if (updatedAssignments.count !== targetUnitIds.length) {
+            throw new ApiException(
+              409,
+              "RESERVATION_ITEM_UNIT_UNAVAILABLE",
+              "One or more selected assignments changed before handover completed.",
+            );
+          }
           if (!batchCreated) {
             await tx.assetUnitEventBatch.create({
               data: {
@@ -975,25 +1023,69 @@ export class ReservationsService {
               batchId: eventBatchId,
               assetUnitId,
               eventType: "CHECKED_OUT",
-              fromStatus: "RESERVED",
+              fromStatus: physicalStatusById.get(assetUnitId) ?? "ACTIVE",
               toStatus: "CHECKED_OUT",
               reservationItemId: item.id,
             })),
           });
         }
 
-        const remainingAssigned = assignedUnits.length - targetUnits.length;
+        // Units the actor is explicitly not handing over. The physical
+        // AssetUnit is untouched -- it never left the store room -- and the
+        // CANCELLED row falls outside the assignment-window exclusion
+        // constraint, so the serial is immediately schedulable again.
+        if (cancelledUnitIds.length > 0) {
+          const cancelled = await tx.reservationItemUnit.updateMany({
+            where: { id: { in: cancelledUnitIds }, status: "ASSIGNED" },
+            data: { status: "CANCELLED", updatedAt: deliveredAt },
+          });
+          if (cancelled.count !== cancelledUnitIds.length) {
+            throw new ApiException(
+              409,
+              "RESERVATION_ITEM_UNIT_UNAVAILABLE",
+              "One or more selected assignments changed before handover completed.",
+            );
+          }
+          cancelledUnitCount += cancelled.count;
+        }
+
+        const remainingAssigned = await tx.reservationItemUnit.count({
+          where: { reservationItemId: item.id, status: "ASSIGNED" },
+        });
         if (remainingAssigned === 0) {
-          await tx.reservationItem.update({
-            where: { id: item.id },
-            data: {
-              status: "DELIVERED",
-              checkedOutAt: deliveredAt,
-              checkedOutBy: actor.user.id,
-              updatedAt: deliveredAt,
+          // Every assigned unit now has a disposition. Cut quantity to what
+          // actually left the store room (mirroring the cut approval makes in
+          // §7.5); an item where nothing was handed over is CANCELLED, not
+          // DELIVERED, so nothing downstream treats it as returnable -- its
+          // quantity stays at the approved count, which is what CANCELLED is
+          // saying was not delivered.
+          const handedOver = await tx.reservationItemUnit.count({
+            where: {
+              reservationItemId: item.id,
+              status: {
+                in: [
+                  "CHECKED_OUT",
+                  "RETURNED_GOOD",
+                  "RETURNED_BROKEN",
+                  "RETURNED_LOST",
+                ],
+              },
             },
           });
-          fullyDeliveredCount += 1;
+          await tx.reservationItem.update({
+            where: { id: item.id },
+            data:
+              handedOver > 0
+                ? {
+                    status: "DELIVERED",
+                    quantity: handedOver,
+                    checkedOutAt: deliveredAt,
+                    checkedOutBy: actor.user.id,
+                    updatedAt: deliveredAt,
+                  }
+                : { status: "CANCELLED", updatedAt: deliveredAt },
+          });
+          if (handedOver > 0) fullyDeliveredCount += 1;
         } else {
           await tx.reservationItem.update({
             where: { id: item.id },
@@ -1009,7 +1101,10 @@ export class ReservationsService {
       });
 
       const approvedOrActiveItems = allItems.filter(
-        (item) => item.status !== "REJECTED" && item.status !== "PENDING",
+        (item) =>
+          item.status !== "REJECTED" &&
+          item.status !== "PENDING" &&
+          item.status !== "CANCELLED",
       );
 
       const allDelivered =
@@ -1017,8 +1112,18 @@ export class ReservationsService {
         approvedOrActiveItems.every(
           (item) => item.status === "DELIVERED" || item.status === "RETURNED",
         );
+      // Nothing left to hand over and nothing was: every line was rejected at
+      // approval or cancelled at handover, so the booking itself is off.
+      const nothingHandedOver =
+        approvedOrActiveItems.length === 0 &&
+        allItems.some((item) => item.status === "CANCELLED");
 
-      if (allDelivered) {
+      if (nothingHandedOver) {
+        await tx.reservation.update({
+          where: { id: reservationId },
+          data: { status: "CANCELLED", updatedAt: deliveredAt },
+        });
+      } else if (allDelivered) {
         await tx.reservation.update({
           where: { id: reservationId },
           data: {
@@ -1045,6 +1150,7 @@ export class ReservationsService {
           confirmedBy: actor.user.id,
           itemCount: entries.length,
           fullyDeliveredCount,
+          cancelledUnitCount,
           units: deliveredUnitsByItem,
         },
       });
@@ -1072,7 +1178,20 @@ export class ReservationsService {
       );
     }
     const cancelledAt = new Date();
-    await this.prisma.$transaction(async (tx) => {
+    await this.runSerializable(async (tx) => {
+      await this.lockReservation(tx, reservationId);
+      const currentReservation = await tx.reservation.findUnique({
+        where: { id: reservationId },
+        select: { status: true },
+      });
+      if (
+        !currentReservation ||
+        !cancellableStatuses.includes(currentReservation.status)
+      ) {
+        throw this.invalidStatus(
+          "Only draft, pending, or approved reservations before check-out can be cancelled.",
+        );
+      }
       await tx.reservation.update({
         where: { id: reservationId },
         data: {
@@ -1081,40 +1200,48 @@ export class ReservationsService {
         },
       });
 
-      // PREPARED items already hold locked-in serial units (assigned at
-      // approval time, §7.5) -- release them back to ACTIVE before rejecting
-      // the item, otherwise they'd stay orphaned as RESERVED forever.
+      // A cancellation releases future schedule rows. AssetUnit.status is a
+      // physical state and therefore remains unchanged. Only normalize rows
+      // left as RESERVED by a pre-migration backend during the compatibility
+      // window.
       const preparedUnits = await tx.reservationItemUnit.findMany({
         where: {
           reservationItem: { reservationId, status: "PREPARED" },
         },
+        include: { assetUnit: { select: { status: true } } },
       });
       if (preparedUnits.length > 0) {
-        const unitIds = preparedUnits.map((unit) => unit.assetUnitId);
-        await tx.assetUnit.updateMany({
-          where: { id: { in: unitIds } },
-          data: { status: "ACTIVE", updatedAt: cancelledAt },
-        });
-        const batchId = randomUUID();
-        await tx.assetUnitEventBatch.create({
-          data: {
-            id: batchId,
-            description: "Released by reservation cancellation",
-            performedBy: actor.user.id,
-          },
-        });
-        await tx.assetUnitEvent.createMany({
-          data: preparedUnits.map((unit) => ({
-            id: randomUUID(),
-            batchId,
-            assetUnitId: unit.assetUnitId,
-            eventType: "ADJUSTMENT",
-            fromStatus: "RESERVED",
-            toStatus: "ACTIVE",
-            reservationItemId: unit.reservationItemId,
-            reason: "Reservation cancelled",
-          })),
-        });
+        const legacyReservedUnits = preparedUnits.filter(
+          (unit) => unit.assetUnit.status === "RESERVED",
+        );
+        if (legacyReservedUnits.length > 0) {
+          const unitIds = legacyReservedUnits.map((unit) => unit.assetUnitId);
+          await this.lockAssetUnits(tx, unitIds);
+          await tx.assetUnit.updateMany({
+            where: { id: { in: unitIds }, status: "RESERVED" },
+            data: { status: "ACTIVE", updatedAt: cancelledAt },
+          });
+          const batchId = randomUUID();
+          await tx.assetUnitEventBatch.create({
+            data: {
+              id: batchId,
+              description: "Normalized legacy reservation state",
+              performedBy: actor.user.id,
+            },
+          });
+          await tx.assetUnitEvent.createMany({
+            data: legacyReservedUnits.map((unit) => ({
+              id: randomUUID(),
+              batchId,
+              assetUnitId: unit.assetUnitId,
+              eventType: "ADJUSTMENT",
+              fromStatus: "RESERVED",
+              toStatus: "ACTIVE",
+              reservationItemId: unit.reservationItemId,
+              reason: "Reservation cancelled during status migration",
+            })),
+          });
+        }
         await tx.reservationItemUnit.deleteMany({
           where: { id: { in: preparedUnits.map((unit) => unit.id) } },
         });
@@ -1232,9 +1359,7 @@ export class ReservationsService {
       ),
       pendingItemCount: statusCounts.PENDING ?? 0,
       approvedItemCount:
-        (statusCounts.APPROVED ?? 0) +
         (statusCounts.PREPARED ?? 0) +
-        (statusCounts.CHECKED_OUT ?? 0) +
         (statusCounts.DELIVERED ?? 0) +
         (statusCounts.RETURNED ?? 0),
       rejectedItemCount: statusCounts.REJECTED ?? 0,
@@ -1297,6 +1422,7 @@ export class ReservationsService {
   }
 
   private approvalHistoryConditions(
+    actorId: string,
     approveAreaIds: string[] | null,
     rejectAreaIds: string[] | null,
   ): Prisma.ReservationWhereInput[] {
@@ -1313,14 +1439,13 @@ export class ReservationsService {
             "PARTIALLY_APPROVED",
             "DELIVERY_CONFIRMED",
             "RETURN_PENDING",
-            "RETURN_CONFIRMED",
             "COMPLETED",
             "REJECTED",
           ],
         },
         items: {
           some: {
-            approval: { isNot: null },
+            approval: { is: { approverId: actorId } },
             ...(decisionAreaIds === null
               ? {}
               : {
@@ -1524,6 +1649,8 @@ export class ReservationsService {
             assetUnitId: unit.assetUnitId,
             serialNumber: unit.assetUnit.serialNumber,
             status: unit.status,
+            assignmentStartAt: unit.assignmentStartAt.toISOString(),
+            assignmentEndAt: unit.assignmentEndAt.toISOString(),
           })),
           returnSummary: {
             totalUnits: units.length,
@@ -1583,14 +1710,13 @@ export class ReservationsService {
               item.status === "PREPARED" &&
               this.canConfirmDeliveryItem(actor, reservation, item),
             canReturn:
-              [
-                "DELIVERY_CONFIRMED",
-                "RETURN_PENDING",
-                "RETURN_CONFIRMED",
-                "COMPLETED",
-              ].includes(reservation.status) &&
+              ["DELIVERY_CONFIRMED", "RETURN_PENDING"].includes(
+                reservation.status,
+              ) &&
               item.status !== "REJECTED" &&
               item.status !== "PENDING" &&
+              // Cancelled at handover -- nothing left the store room (§7.8).
+              item.status !== "CANCELLED" &&
               remainingReturnQuantity > 0,
           },
         };
@@ -1616,28 +1742,26 @@ export class ReservationsService {
             "APPROVED",
           ].includes(reservation.status),
         canReturn:
-          [
-            "DELIVERY_CONFIRMED",
-            "RETURN_PENDING",
-            "RETURN_CONFIRMED",
-            "COMPLETED",
-          ].includes(reservation.status) &&
+          ["DELIVERY_CONFIRMED", "RETURN_PENDING"].includes(
+            reservation.status,
+          ) &&
           reservation.items.some(
-            (item) => item.status !== "REJECTED" && item.status !== "PENDING",
+            (item) =>
+              item.status !== "REJECTED" &&
+              item.status !== "PENDING" &&
+              item.status !== "CANCELLED",
           ),
         canDecideReturn,
       },
-      activityLogs: (reservation.activityLogs ?? []).map(
-        (log: any) => ({
-          id: log.id,
-          action: log.action,
-          entityType: log.entityType,
-          entityId: log.entityId,
-          details: log.details,
-          actor: this.userDto(log.actor),
-          createdAt: log.createdAt.toISOString(),
-        }),
-      ),
+      activityLogs: (reservation.activityLogs ?? []).map((log: any) => ({
+        id: log.id,
+        action: log.action,
+        entityType: log.entityType,
+        entityId: log.entityId,
+        details: log.details,
+        actor: this.userDto(log.actor),
+        createdAt: log.createdAt.toISOString(),
+      })),
       createdAt: reservation.createdAt.toISOString(),
       updatedAt: reservation.updatedAt.toISOString(),
     };
@@ -1673,6 +1797,15 @@ export class ReservationsService {
         status: true,
         reservationId: true,
         reservation: { select: { status: true } },
+        unitAssignments: {
+          where: {
+            status: { in: ACTIVE_ASSIGNMENT_STATUSES },
+            assignmentStartAt: { lt: endAt },
+            assignmentEndAt: { gt: startAt },
+            assetUnit: { status: { in: SCHEDULABLE_ASSET_UNIT_STATUSES } },
+          },
+          select: { assetUnitId: true },
+        },
       },
     });
     const result = new Map<string, Availability>();
@@ -1692,10 +1825,11 @@ export class ReservationsService {
             item.reservation.status,
           ),
       );
-      const approvedQuantity = approved.reduce(
-        (sum, item) => sum + item.quantity,
-        0,
-      );
+      const approvedQuantity = new Set(
+        approved.flatMap((item) =>
+          item.unitAssignments.map((unit) => unit.assetUnitId),
+        ),
+      ).size;
       const pendingQuantity = pending.reduce(
         (sum, item) => sum + item.quantity,
         0,
@@ -1719,7 +1853,13 @@ export class ReservationsService {
     if (!assetIds.length) return result;
     const rows = await db.assetUnit.groupBy({
       by: ["assetId"],
-      where: { assetId: { in: assetIds }, status: { not: "INACTIVE" } },
+      // Broken, lost, in-repair, and inactive units are never reservable
+      // capacity. RESERVED/CHECKED_OUT units remain part of the schedulable
+      // pool because their overlapping reservation is deducted separately.
+      where: {
+        assetId: { in: assetIds },
+        status: { in: ["ACTIVE", "RESERVED", "CHECKED_OUT"] },
+      },
       _count: { _all: true },
     });
     for (const row of rows) result.set(row.assetId, row._count._all);
@@ -1886,37 +2026,68 @@ export class ReservationsService {
       );
     if (involved) return;
 
-    const operationalAccess =
+    const hasScopedView =
       reservation.items.length === 0
-        ? (
-            [
-              "reservation:update",
-              "reservation:approve",
-              "reservation:reject",
-            ] as PermissionKey[]
-          ).some((permission) => hasGlobalPermission(actor, permission))
+        ? hasGlobalPermission(actor, "reservation:view")
         : reservation.items.some((item) =>
-            (
-              [
-                "reservation:update",
-                "reservation:approve",
-                "reservation:reject",
-              ] as PermissionKey[]
-            ).some((permission) =>
-              hasAreaPermission(actor, permission, item.asset.managementAreaId),
+            hasAreaPermission(
+              actor,
+              "reservation:view",
+              item.asset.managementAreaId,
             ),
           );
+    if (hasScopedView && reservation.status !== "DRAFT") return;
 
+    // Operational permissions do not grant general cross-user visibility.
+    // They only open a detail that is currently actionable in the actor's
+    // scoped queue, which the frontend needs in order to make the decision.
+    const canDecidePendingItem =
+      ["PENDING_APPROVAL", "PARTIALLY_APPROVED"].includes(reservation.status) &&
+      reservation.items.some(
+        (item) =>
+          item.status === "PENDING" &&
+          (hasAreaPermission(
+            actor,
+            "reservation:approve",
+            item.asset.managementAreaId,
+          ) ||
+            hasAreaPermission(
+              actor,
+              "reservation:reject",
+              item.asset.managementAreaId,
+            )),
+      );
+    const canDecidePendingReturn = reservation.returns.some(
+      (returnRecord) =>
+        returnRecord.status === "PENDING" &&
+        returnRecord.items.some((returnItem) =>
+          hasAreaPermission(
+            actor,
+            "return:approve",
+            returnItem.reservationItem.asset.managementAreaId,
+          ),
+        ),
+    );
+    const canViewOwnDecisionHistory = reservation.items.some(
+      (item) =>
+        item.approval?.approverId === actor.user.id &&
+        (hasAreaPermission(
+          actor,
+          "reservation:approve",
+          item.asset.managementAreaId,
+        ) ||
+          hasAreaPermission(
+            actor,
+            "reservation:reject",
+            item.asset.managementAreaId,
+          )),
+    );
     if (
-      ["DRAFT", "PENDING_APPROVAL", "REJECTED", "CANCELLED"].includes(
-        reservation.status,
-      )
+      !canDecidePendingItem &&
+      !canDecidePendingReturn &&
+      !canViewOwnDecisionHistory
     ) {
-      if (!operationalAccess) this.permissionDenied();
-    } else {
-      const canViewGeneral =
-        hasAnyPermission(actor, "reservation:view") || operationalAccess;
-      if (!canViewGeneral) this.permissionDenied();
+      this.permissionDenied();
     }
   }
 
@@ -1984,12 +2155,6 @@ export class ReservationsService {
     }
   }
 
-  private assertAnyArea(actor: AuthenticatedActor, permission: PermissionKey) {
-    if (!hasAnyPermission(actor, permission)) {
-      this.permissionDenied();
-    }
-  }
-
   private permissionDenied(): never {
     throw new ApiException(
       403,
@@ -2030,6 +2195,18 @@ export class ReservationsService {
     }
   }
 
+  private async lockReservation(
+    tx: Prisma.TransactionClient,
+    reservationId: string,
+  ) {
+    await tx.$queryRaw`
+      SELECT "id"
+      FROM "reservations"
+      WHERE "id" = ${reservationId}::uuid
+      FOR UPDATE
+    `;
+  }
+
   private async lockAssetUnits(
     tx: Prisma.TransactionClient,
     assetUnitIds: string[],
@@ -2067,6 +2244,18 @@ export class ReservationsService {
       return undefined;
     }
     return typeof error.code === "string" ? error.code : undefined;
+  }
+
+  private isAssignmentOverlapError(error: unknown): boolean {
+    if (this.prismaCode(error) !== "P2004") return false;
+    if (typeof error !== "object" || error === null || !("meta" in error)) {
+      return false;
+    }
+    const metadata = JSON.stringify(error.meta);
+    return (
+      metadata.includes("23P01") ||
+      metadata.includes("reservation_item_units_no_overlapping_assignments")
+    );
   }
 
   private userDto(user: {

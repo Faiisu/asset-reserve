@@ -8,7 +8,7 @@
 
 - ชื่อ (`Asset.name`) ต้อง unique ภายใน management area เดียวกัน ความยาวไม่เกิน 40 ตัวอักษร
 - `Asset` เป็น catalog/part-number entry (เช่น "Projector") ไม่ใช่ตัวเครื่องจริง — ตัวเครื่องจริงแต่ละชิ้นคือ `AssetUnit` แยกตาม serial number
-- `totalQuantity` ไม่ใช่ field ที่แก้ไขตรงได้ — เป็นค่าที่ derive จากการนับ `AssetUnit` ที่ยัง active เท่านั้น การเพิ่มจำนวนทำได้ทางเดียวคือ register หน่วยใหม่ (serial number)
+- `totalQuantity` ไม่ใช่ field ที่แก้ไขตรงได้ — เป็นค่าที่ derive จากการนับ `AssetUnit` ทุกสถานะยกเว้น `INACTIVE` การเพิ่มจำนวนทำได้ทางเดียวคือ register หน่วยใหม่ (serial number)
 - Serial number ของ `AssetUnit` ต้อง unique **ทั้งระบบ** ไม่ใช่แค่ต่อ asset — สร้างซ้ำถูกปฏิเสธ
 - Deactivate asset ใช้ `Asset.isActive = false` ไม่ hard delete เพื่อรักษา relation และ ledger ที่มีอยู่
 - Asset ที่ deactivate แล้วไม่สามารถถูกเพิ่มใน reservation ใหม่ได้
@@ -18,23 +18,28 @@
 ## 2. Reservation
 
 - หนึ่ง `Reservation` มีได้หลาย `ReservationItem` และกำหนด quantity ต่อ item ได้อิสระ
+- `Reservation` ต้องมี `ReservationItem` อย่างน้อย 1 รายการเสมอ (สูงสุด 100) — สร้างการจองที่ไม่มีอุปกรณ์ไม่ได้ และไม่มีเส้นทางที่ข้าม approval workflow
 - Asset เดิมซ้ำใน `Reservation` เดียวกันไม่ได้
 - Participant เดิมเพิ่มซ้ำใน `Reservation` เดียวกันไม่ได้
 - `endAt` ต้องมากกว่า `startAt` เสมอ
 - **Past-date protection**: `startAt` ต้องอยู่ในอนาคตเทียบกับเวลาปัจจุบัน (`startAt >= now`, อนุญาต grace window 60 วินาทีสำหรับ clock skew) ทั้งตอนสร้างและตอนแก้ไขกำหนดการ
-- **Conflict detection**: เมื่อ submit, update หรือ approve reservation ระบบต้องตรวจ overlap ของช่วงเวลาต่อ asset — จำนวนที่ขอต้องไม่เกิน headroom ที่เหลือ โดย headroom คำนวณจาก total unit ที่ active ลบด้วยจำนวนที่ถูกจองแล้วในช่วงเวลาที่ทับซ้อนกัน (นับเฉพาะ item/reservation ที่อยู่ใน status ที่ยัง "กันสิทธิ์" อยู่ เช่น approved ขึ้นไป จนถึงก่อน completed) เกินสิทธิ์ให้ปฏิเสธ — รายละเอียด query/algorithm อยู่ใน [backend_spec/algorithms-and-validation.md](../backend_spec/algorithms-and-validation.md)
+- **Conflict detection**: เมื่อ submit, update หรือ approve reservation ระบบต้องตรวจ overlap ของช่วงเวลาต่อ asset — จำนวนที่ขอต้องไม่เกิน headroom ที่เหลือ โดย pool ที่นำมาจองได้มีเฉพาะ unit สถานะ `ACTIVE`, `RESERVED`, `CHECKED_OUT` (ไม่รวม `BROKEN`, `LOST`, `IN_REPAIR`, `INACTIVE`) แล้วลบจำนวนที่ถูกจองในช่วงเวลาที่ทับซ้อนกัน เกินสิทธิ์ให้ปฏิเสธ — รายละเอียด query/algorithm อยู่ใน [backend_spec/algorithms-and-validation.md](../backend_spec/algorithms-and-validation.md)
 - Submit ต้องตรวจ available quantity ซ้ำที่ backend เสมอ (แม้ frontend แสดงเลขมาก่อนแล้ว)
 - อนุมัติราย item แล้ว aggregate status ของ reservation ต้องถูกคำนวณใหม่ตาม [lifecycle-and-state-machines.md#reservation-status](lifecycle-and-state-machines.md#reservation-status)
 - **Approve เป็น unit-based, reject เป็น item-based**: อนุมัติเลือกได้ 1 ถึง `quantity` ที่ขอ (partial approval ได้จริง) แล้ว `quantity` ของ item จะถูกตัดลงให้เท่ากับจำนวนที่ approve ทันที ไม่มีส่วนที่เหลือค้าง `PENDING` รออนุมัติรอบถัดไป — ส่วนปฏิเสธ (reject) เป็น all-or-nothing ทั้ง item เสมอ ไม่มี concept ปฏิเสธเฉพาะบาง unit ภายใน item เดียวกัน
+- **Serial assignment เป็นช่วงเวลา**: `ReservationItemUnit` เก็บ `assignmentStartAt`/`assignmentEndAt`; serial เดียวกันถูก assign ให้หลาย reservation ได้เมื่อช่วง `[start, end)` ไม่ทับกัน แต่ assignment สถานะ `ASSIGNED`/`CHECKED_OUT` ที่ overlap กันต้องถูกปฏิเสธทั้งใน application และ database
+- `AssetUnit.status` เป็นสถานะทางกายภาพปัจจุบัน การ approve/cancel future assignment ไม่เปลี่ยนสถานะนี้; `CHECKED_OUT` เกิดเมื่อ handover จริงภายในช่วง reservation เท่านั้น
 - การแก้ไข reservation **หลัง submit แล้ว** ไม่รองรับ — `ReservationChangeRequest` ถูกยกเลิก (ดู [scope-and-roadmap.md](scope-and-roadmap.md#feature-ที่ถูกยกเลิก-decommissioned)) ต้องยกเลิก reservation เดิมแล้วสร้างใหม่แทนถ้าต้องการเปลี่ยนกำหนดการ/รายการ
-- **Handover เป็น unit-based**: ยืนยัน handover เลือกเฉพาะบาง `ReservationItemUnit` ของ item ได้ ไม่ต้องส่งมอบทั้ง item พร้อมกัน — item ยังอยู่ `PREPARED` ต่อไปจนกว่า unit ที่ผูกไว้ทั้งหมดจะถูกยืนยัน handover ครบ (ยืนยันได้หลายรอบ) `checkedOutBy`/`checkedOutAt` ระดับ item บันทึกเมื่อ item เพิ่งข้ามไป `DELIVERED` (ครบทุก unit แล้ว) เท่านั้น ส่วน `ReservationItemUnit.checkedOutAt` บันทึกต่อหน่วยทุกครั้งที่ยืนยัน
+- **Handover เป็น unit-based และทุก unit ต้องมีข้อสรุป**: ยืนยัน handover เลือกเฉพาะบาง `ReservationItemUnit` ของ item ได้ ไม่ต้องส่งมอบทั้ง item พร้อมกัน — unit ที่จะไม่ส่งมอบจริงต้องถูก cancel ในคำขอเดียวกัน ไม่ปล่อยค้าง `ASSIGNED`; item ยังอยู่ `PREPARED` ต่อไปจนกว่า unit ที่ผูกไว้ทั้งหมดจะถูก handover หรือ cancel ครบ (ยืนยันได้หลายรอบ) แล้วจึงไป `DELIVERED` (มีของส่งมอบจริง พร้อมตัด `quantity` ให้เท่าที่ส่งมอบจริง) หรือ `CANCELLED` (ถูก cancel ทั้งหมด) `checkedOutBy`/`checkedOutAt` ระดับ item บันทึกเมื่อ item เพิ่งข้ามไป `DELIVERED` (ครบทุก unit แล้ว) เท่านั้น ส่วน `ReservationItemUnit.checkedOutAt` บันทึกต่อหน่วยทุกครั้งที่ยืนยัน
+- **Handover ก่อนถึง `startAt` ทำได้**: ผู้ยืมมารับของล่วงหน้าเป็นเรื่องปกติหน้างาน จึงไม่มีขอบล่างเรื่องเวลา — มีแค่ขอบบนคือห้าม handover หลัง `endAt` (`409 HANDOVER_WINDOW_CLOSED`) ส่วนการกันไม่ให้หยิบเครื่องที่คนอื่นถืออยู่จริงใช้เงื่อนไข `AssetUnit.status = ACTIVE` ตอน checkout ไม่ใช่เงื่อนไขเวลา
 - Prepare/checkout ต้องบันทึก actor และเวลาที่ดำเนินการ
 
 ## 3. Return
 
-- สร้าง Return ได้เฉพาะจาก item ที่ถูก checked-out แล้ว (unit status `CHECKED_OUT`) และยังคืนไม่ครบ
+- สร้าง Return ได้เฉพาะจาก item ที่ถูก checked-out แล้ว (unit status `CHECKED_OUT`) และยังคืนไม่ครบ — unit ที่ถูก cancel ตอน handover ไม่เคยออกจากคลัง จึงไม่อยู่ในขอบเขตการคืน
 - การคืนอ้างอิงเป็นรายหน่วย (`reservationItemUnitIds`) ไม่มี field แบบ quantity — จำนวนคืนนับจากความยาว array
 - ต้องเลือกอย่างน้อยหนึ่ง unit ต่อการ submit
+- **คืนได้ทุกเมื่อหลัง handover ไม่ต้องรอ `endAt`**: กิจกรรมที่จบก่อนกำหนดส่งคืนก่อนสิ้นสุดช่วงจองได้ ความพร้อมในการคืนตัดสินจากสถานะจริงของหน่วย (`CHECKED_OUT`) ไม่ใช่จากนาฬิกา — ดู [lifecycle-and-state-machines.md#return-eligibility-rule](lifecycle-and-state-machines.md#return-eligibility-rule)
 - Unit ทุกตัวที่เลือกต้องอยู่ใน item ของ reservation เดียวกับ Return และยังไม่เคยถูกคืนมาก่อน
 - `reservationItemId` เดียวกันซ้ำไม่ได้ภายใน Return เดียวกัน
 - Reservation หนึ่งรายการมีได้หลาย Return เพื่อรองรับการคืนบางส่วน
@@ -53,7 +58,7 @@
 - ทุกหน้าที่ทำ mutation ต้องป้องกัน double submit (idempotency) — double click หรือ network retry ต้องไม่สร้าง reservation, approval, ledger หรือ return ซ้ำ — รายละเอียด implementation อยู่ใน [backend_spec/algorithms-and-validation.md](../backend_spec/algorithms-and-validation.md)
 - Adjustment/registration หลาย line บันทึกเป็น batch เดียว และต้องไม่ทำให้ `totalQuantity` ติดลบ
 - จำนวน returned/broken/lost ต้องไม่ติดลบและไม่เกินยอดค้างคืน
-- ผู้ใช้สองคน approve (assign) หรือ checkout asset unit (serial) เดียวกันพร้อมกัน ต้องมีเพียงฝ่ายเดียว lock unit นั้นได้สำเร็จ อีกฝ่าย fail ด้วย `409`
+- ผู้ใช้สองคน approve assignment ที่ช่วงเวลาทับกัน หรือ checkout asset unit (serial) เดียวกันพร้อมกัน ต้องมีเพียงฝ่ายเดียวสำเร็จ อีกฝ่าย fail ด้วย `409`; assignment คนละช่วงที่ไม่ทับกันต้องอยู่ร่วมกันได้
 - Transaction conflict ต้อง retry ตาม policy ที่กำหนด และตอบ structured `409` เมื่อไม่สามารถดำเนินการได้หลัง retry หมด
 - ทุก list endpoint ต้องบังคับ page-size limit
 - Backup และ restore procedure ต้องถูกทดสอบอย่างน้อยหนึ่งครั้งก่อน pilot deployment

@@ -35,6 +35,116 @@ Conflict:
     application/json:
       schema:
         $ref: "#/components/schemas/ErrorResponse"
+ReservationDecisionConflict:
+  description: Reservation item state, physical-unit, or assignment-window conflict.
+  content:
+    application/json:
+      schema:
+        allOf:
+          - $ref: "#/components/schemas/ErrorResponse"
+          - type: object
+            properties:
+              error:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorDetail"
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        enum:
+                          - INVALID_RESERVATION_STATUS
+                          - ASSET_UNIT_UNAVAILABLE
+                          - ASSET_UNIT_SCHEDULE_CONFLICT
+      examples:
+        assignmentWindowConflict:
+          summary: A selected serial unit overlaps another active assignment.
+          value:
+            error:
+              code: ASSET_UNIT_SCHEDULE_CONFLICT
+              message: One or more selected units are already assigned during this reservation window.
+              requestId: req_01
+DeliveryBadRequest:
+  description: Delivery selection is invalid or contains no deliverable items.
+  content:
+    application/json:
+      schema:
+        allOf:
+          - $ref: "#/components/schemas/ErrorResponse"
+          - type: object
+            properties:
+              error:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorDetail"
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        enum:
+                          - INVALID_ITEM_SELECTION
+                          - NO_ITEMS_TO_DELIVER
+      examples:
+        invalidItemSelection:
+          summary: An item is duplicated or does not belong to the reservation.
+          value:
+            error:
+              code: INVALID_ITEM_SELECTION
+              message: One or more selected items do not belong to this reservation.
+              requestId: req_01
+DeliveryConflict:
+  description: Reservation lifecycle, handover-window, assignment, or physical-unit conflict.
+  content:
+    application/json:
+      schema:
+        allOf:
+          - $ref: "#/components/schemas/ErrorResponse"
+          - type: object
+            properties:
+              error:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorDetail"
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        enum:
+                          - INVALID_RESERVATION_STATUS
+                          - HANDOVER_WINDOW_CLOSED
+                          - INVALID_ITEM_STATUS
+                          - RESERVATION_ITEM_UNIT_UNAVAILABLE
+                          - ASSET_UNIT_PHYSICALLY_UNAVAILABLE
+      examples:
+        physicallyUnavailable:
+          summary: An assigned unit cannot be handed over in its current physical state.
+          value:
+            error:
+              code: ASSET_UNIT_PHYSICALLY_UNAVAILABLE
+              message: One or more assigned units are not physically available for handover.
+              requestId: req_01
+CancellationConflict:
+  description: Reservation state changed and is no longer cancellable.
+  content:
+    application/json:
+      schema:
+        allOf:
+          - $ref: "#/components/schemas/ErrorResponse"
+          - type: object
+            properties:
+              error:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorDetail"
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        const: INVALID_RESERVATION_STATUS
+      examples:
+        invalidReservationStatus:
+          summary: Handover completed before cancellation acquired the reservation lock.
+          value:
+            error:
+              code: INVALID_RESERVATION_STATUS
+              message: Only draft, pending, or approved reservations before check-out can be cancelled.
+              requestId: req_01
 ValidationError:
   description: Request validation failed.
   content:

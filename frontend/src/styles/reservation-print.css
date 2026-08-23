@@ -191,14 +191,11 @@
   color: #1d4ed8 !important;
 }
 
-.res-print-status-tag--delivery_confirmed,
-.res-print-status-tag--active {
+.res-print-status-tag--delivery_confirmed {
   color: #0369a1 !important;
 }
 
-.res-print-status-tag--return,
-.res-print-status-tag--return_pending,
-.res-print-status-tag--return_confirmed {
+.res-print-status-tag--return_pending {
   color: #b45309 !important;
 }
 

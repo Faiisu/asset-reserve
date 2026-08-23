@@ -337,21 +337,24 @@ Table reservation_item_units {
 
   assigned_by uuid [not null]
   assigned_at timestamptz [not null, default: `now()`]
+  assignment_start_at timestamptz [not null, note: 'Inclusive start of the reservation assignment window']
+  assignment_end_at timestamptz [not null, note: 'Exclusive end of the reservation assignment window; must be later than assignment_start_at']
   checked_out_at timestamptz
   returned_at timestamptz
 
   indexes {
     (reservation_item_id, asset_unit_id) [unique]
     (asset_unit_id)
+    (asset_unit_id, status, assignment_start_at, assignment_end_at)
     (reservation_item_id, status)
   }
 }
 
 
-// UNIQUE (partial, added in raw migration SQL, not expressible in this ERD tool):
-// one active (status IN ('ASSIGNED','CHECKED_OUT')) assignment per asset_unit_id
-// -- this is what stops the same physical serial being handed out to two
-// reservations at once.
+// EXCLUDE USING GIST (partial, added in raw migration SQL with btree_gist):
+// the same asset_unit_id cannot have overlapping [assignment_start_at,
+// assignment_end_at) ranges while status IN ('ASSIGNED','CHECKED_OUT').
+// Non-overlapping future assignments for one physical serial are allowed.
 
 
 // =====================================================

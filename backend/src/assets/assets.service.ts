@@ -7,8 +7,10 @@ import { ApiException } from "../common/api-exception.js";
 import { decodeCursor, pageInfo } from "../common/pagination.js";
 import { PrismaService } from "../database/prisma.service.js";
 import {
+  ACTIVE_ASSIGNMENT_STATUSES,
   HARD_ALLOCATION_ITEM_STATUSES,
   HARD_ALLOCATION_RESERVATION_STATUSES,
+  SCHEDULABLE_ASSET_UNIT_STATUSES,
 } from "../common/reservation-allocation.js";
 import {
   assertAreaPermission,
@@ -125,6 +127,7 @@ export class AssetsService {
           asset,
           unitCountsById.get(asset.id) ?? emptyUnitCounts(),
           allocated.get(asset.id) ?? 0,
+          Boolean(availabilityRange),
         ),
       ),
       pageInfo: page.pageInfo,
@@ -139,6 +142,13 @@ export class AssetsService {
         units: {
           orderBy: [{ serialNumber: "asc" }],
           take: 500,
+          include: {
+            reservationItemUnits: {
+              where: { status: { in: ACTIVE_ASSIGNMENT_STATUSES } },
+              select: { id: true },
+              take: 1,
+            },
+          },
         },
         reservationItems: {
           where: {
@@ -158,21 +168,27 @@ export class AssetsService {
       );
     assertAreaPermission(actor, "asset:view", asset.managementAreaId);
 
-    const events = await this.prisma.assetUnitEvent.findMany({
-      where: { assetUnit: { assetId } },
-      take: 50,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      include: {
-        assetUnit: { select: { id: true, serialNumber: true } },
-        batch: { include: { performer: { include: { profile: true } } } },
-      },
-    });
-
-    const allocatedQuantity = asset.reservationItems.reduce(
-      (sum, item) => sum + item.quantity,
-      0,
-    );
-    const editableByRoles = await this.editableRoleNames();
+    const [events, allocatedQuantity, editableByRoles] = await Promise.all([
+      this.prisma.assetUnitEvent.findMany({
+        where: { assetUnit: { assetId } },
+        take: 50,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        include: {
+          assetUnit: { select: { id: true, serialNumber: true } },
+          batch: { include: { performer: { include: { profile: true } } } },
+        },
+      }),
+      this.prisma.assetUnit.count({
+        where: {
+          assetId,
+          status: { in: SCHEDULABLE_ASSET_UNIT_STATUSES },
+          reservationItemUnits: {
+            some: { status: { in: ACTIVE_ASSIGNMENT_STATUSES } },
+          },
+        },
+      }),
+      this.editableRoleNames(),
+    ]);
     return {
       ...this.assetDto(
         actor,
@@ -188,6 +204,7 @@ export class AssetsService {
         id: unit.id,
         serialNumber: unit.serialNumber,
         status: unit.status,
+        hasActiveAssignment: unit.reservationItemUnits.length > 0,
         note: unit.note,
         createdAt: unit.createdAt.toISOString(),
         updatedAt: unit.updatedAt.toISOString(),
@@ -389,9 +406,7 @@ export class AssetsService {
     return { data: ids.map((id) => ({ id, status: "INACTIVE" as const })) };
   }
 
-  private countUnits(
-    units: ReadonlyArray<{ status: string }>,
-  ): UnitCounts {
+  private countUnits(units: ReadonlyArray<{ status: string }>): UnitCounts {
     const counts = emptyUnitCounts();
     for (const unit of units) {
       switch (unit.status) {
@@ -467,22 +482,22 @@ export class AssetsService {
     range?: { startAt: Date; endAt: Date },
   ) {
     if (!assetIds.length || !range) return new Map<string, number>();
-    const rows = await this.prisma.reservationItem.groupBy({
+    const rows = await this.prisma.assetUnit.groupBy({
       by: ["assetId"],
       where: {
         assetId: { in: assetIds },
-        status: { in: allocatedItemStatuses },
-        reservation: {
-          status: { in: allocatedReservationStatuses },
-          startAt: { lt: range.endAt },
-          endAt: { gt: range.startAt },
+        status: { in: SCHEDULABLE_ASSET_UNIT_STATUSES },
+        reservationItemUnits: {
+          some: {
+            status: { in: ACTIVE_ASSIGNMENT_STATUSES },
+            assignmentStartAt: { lt: range.endAt },
+            assignmentEndAt: { gt: range.startAt },
+          },
         },
       },
-      _sum: { quantity: true },
+      _count: { _all: true },
     });
-    return new Map(
-      rows.map((row) => [row.assetId, row._sum.quantity ?? 0] as const),
-    );
+    return new Map(rows.map((row) => [row.assetId, row._count._all] as const));
   }
 
   private availabilityRange(from?: string, to?: string) {
@@ -619,11 +634,14 @@ export class AssetsService {
     asset: Prisma.AssetGetPayload<{ include: typeof assetInclude }>,
     unitCounts: UnitCounts,
     allocatedQuantity: number,
+    timeBasedAvailability = false,
   ) {
-    const availableQuantity = Math.max(
-      unitCounts.active - allocatedQuantity,
-      0,
-    );
+    const schedulableQuantity = timeBasedAvailability
+      ? unitCounts.active + unitCounts.reserved + unitCounts.checkedOut
+      : unitCounts.active;
+    const availableQuantity = timeBasedAvailability
+      ? Math.max(schedulableQuantity - allocatedQuantity, 0)
+      : unitCounts.active;
     return {
       id: asset.id,
       name: asset.name,
