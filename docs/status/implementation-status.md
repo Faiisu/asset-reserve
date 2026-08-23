@@ -49,7 +49,7 @@ flowchart TB
 | `/assets/:assetId` | `AssetDetailPage` | metadata/owner/edit policy, allocations, ledger, activate/deactivate, register/retire units, เปลี่ยนสถานะ unit รายหน่วย | visibility และ capabilities จาก API |
 | `/assets/:assetId/edit` | `AssetFormPage` | edit name, area, description และ picture; จำนวนแก้ผ่าน register/retire unit เท่านั้น | permission-gated |
 | `/reservations` | `ReservationsPage` | My reservations/Approval queue tabs, search, grouped status/management-area/date filters, cursor load-more | permission-gated |
-| `/reservations/new` | `ReservationCreatePage` | event schedule, optional asset manifest, quantity, URL-prefilled dates/assets, recent reservations, reference lookup, create draft หรือ submit | permission-gated |
+| `/reservations/new` | `ReservationCreatePage` | event schedule, optional asset manifest, quantity, URL-prefilled dates/assets, reference lookup, create draft หรือ submit | permission-gated |
 | `/reservations/:reservationId` | `ReservationDetailPage` | schedule/requester/participants/items, availability warnings, item batch **approve (with inline serial-unit assignment)**/reject, cancel, delivery confirm, submit/decide return (per-item return slip, Good/Broken/Lost decision) | capabilities จาก reservation detail |
 | `/approvals` | `ApprovalRequestsPage` | รวม pending item approvals ที่ actor ตัดสินใจได้ ข้ามหลาย reservation ในหน้าเดียว | permission-gated |
 | `/admin/areas` | `ManagementAreasPage` | search/list, create, edit, delete confirmation | Global ADMIN |
@@ -67,6 +67,8 @@ Permission key ที่ควบคุมแต่ละ action ดู [softwar
 - Bearer token เก็บใน `sessionStorage` key `asset-rail.access-token`; HTTP 401 ล้าง session ผ่าน event กลาง
 - Loading, empty, error, notice, dialog, pagination, filter และ field primitives ใช้ร่วมกันจาก `components/ui.tsx`
 - Frontend เรียก API ผ่าน `/api/v1`; dev server proxy ทั้ง `/api` และ `/uploads` ไป backend
+- Input limit ที่ UI บังคับอยู่รวมที่ `frontend/src/constants/contract-limits.ts` ที่เดียว และ `npm run check:contract` เทียบกับ OpenAPI contract ทุกครั้งที่รัน `test:all`
+- Client-side storage มีแค่ 2 key: `asset-rail.theme` (`localStorage`) และ `asset-rail.access-token` (`sessionStorage`) — ไม่มีข้อมูลจาก API ค้างใน `localStorage`
 - Upload รองรับ file picker และกล้องผ่าน `CameraCaptureModal`; backend จำกัดหนึ่งไฟล์ต่อ request และขนาด 10 MiB
 - Layout มี responsive breakpoints สำหรับ navigation, tables/cards, forms, calendar และ dialogs
 

@@ -3,6 +3,7 @@ import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
 import { Button, Field, Input, Notice } from "../components/ui";
 import { GoogleIcon, MicrosoftIcon } from "../components/OAuthIcons";
+import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 
 type Provider = "google" | "microsoft";
 
@@ -219,7 +220,7 @@ export function AccountPage() {
               autoComplete="current-password"
               value={currentPassword}
               onChange={(event) => setCurrentPassword(event.target.value)}
-              maxLength={1024}
+              maxLength={cap(CONTRACT_LIMITS.user.currentPasswordMax)}
               required
             />
           </Field>
@@ -230,8 +231,8 @@ export function AccountPage() {
                 autoComplete="new-password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
-                minLength={8}
-                maxLength={128}
+                minLength={cap(CONTRACT_LIMITS.user.passwordMin)}
+                maxLength={cap(CONTRACT_LIMITS.user.passwordMax)}
                 required
               />
             </Field>
@@ -241,8 +242,8 @@ export function AccountPage() {
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
-                minLength={8}
-                maxLength={128}
+                minLength={cap(CONTRACT_LIMITS.user.passwordMin)}
+                maxLength={cap(CONTRACT_LIMITS.user.passwordMax)}
                 required
               />
             </Field>

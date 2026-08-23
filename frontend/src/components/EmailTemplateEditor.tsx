@@ -4,13 +4,12 @@ import { api, ApiClientError } from "../api";
 import type { EmailTemplate } from "../types";
 import { Button, Field, Input, cx } from "./ui";
 import { MarkdownLiteEditor } from "./MarkdownLiteEditor";
+import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 
-// Mirrors UpdateEmailTemplateRequest in
-// docs/backend_spec/contracts/components/schemas/email-templates.yaml --
-// cap here so an over-long draft is prevented rather than rejected with a
-// 422 only once the admin hits Save.
-const SUBJECT_MAX_LENGTH = 255;
-const BODY_MAX_LENGTH = 10_000;
+// Capped here so an over-long draft is prevented rather than rejected with
+// a 422 only once the admin hits Save.
+const SUBJECT_MAX_LENGTH = cap(CONTRACT_LIMITS.emailTemplate.subjectMax);
+const BODY_MAX_LENGTH = cap(CONTRACT_LIMITS.emailTemplate.bodyMax);
 
 /**
  * One situation's editor -- subject, markdown-lite body, an explicit

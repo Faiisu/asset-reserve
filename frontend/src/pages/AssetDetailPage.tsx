@@ -45,6 +45,7 @@ import {
   formatDate,
 } from "../components/ui";
 import type { AssetDetail, AssetUnit } from "../types";
+import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 
 export function AssetDetailPage() {
   const { hasAreaPermission } = useAuth();
@@ -912,7 +913,7 @@ function ChangeUnitStatusDialog({
           <Input
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            maxLength={2000}
+            maxLength={cap(CONTRACT_LIMITS.asset.unitStatusReasonMax)}
             placeholder="For example, sent to the service centre"
           />
         </Field>

@@ -15,6 +15,7 @@ import {
   formatDate,
 } from "../components/ui";
 import type { ManagementArea } from "../types";
+import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 
 export function ManagementAreasPage() {
   const { isGlobalAdmin, hasPermission } = useAuth();
@@ -231,7 +232,7 @@ function AreaDialog({
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="For example, Production Lab, Main Stage, Audio Studio"
-            maxLength={150}
+            maxLength={cap(CONTRACT_LIMITS.managementArea.nameMax)}
             required
             autoFocus
           />
@@ -242,7 +243,7 @@ function AreaDialog({
             onChange={(event) => setDescription(event.target.value)}
             placeholder="Optional description or location details"
             rows={4}
-            maxLength={1000}
+            maxLength={cap(CONTRACT_LIMITS.managementArea.descriptionMax)}
           />
         </Field>
         <div className="dialog__actions">

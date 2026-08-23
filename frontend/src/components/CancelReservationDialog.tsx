@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { XCircle } from "lucide-react";
 import { Button, Dialog, ErrorState, Field, Textarea } from "./ui";
+import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 
 export function CancelReservationDialog({
   open,
@@ -47,7 +48,7 @@ export function CancelReservationDialog({
           <Textarea
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            maxLength={2000}
+            maxLength={cap(CONTRACT_LIMITS.reservation.cancelReasonMax)}
             rows={3}
             placeholder="e.g. Event cancelled, date changed, or assets no longer needed"
           />

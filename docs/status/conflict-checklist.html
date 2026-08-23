@@ -124,10 +124,11 @@
 <header class="page">
   <h1>Conflict Checklist — docs/ ↔ backend/ ↔ frontend/</h1>
   <p class="sub">รายการจุดที่เอกสาร, backend และ frontend ทำงานไม่ตรงกัน จัดกลุ่มตามส่วนที่ต้องแก้ ไล่ทีละข้อได้ (ติ๊กแล้วจำไว้ใน browser)</p>
-  <p class="meta">Audit 2026-08-23 · branch audit/backend · 23 findings · 21 closed, 2 waiting on a call</p>
+  <p class="meta">Audit 2026-08-23 · branch audit/backend · 23 findings · 23 closed</p>
   <div class="note" style="margin:16px 0 0">
     <strong>สถานะรอบนี้:</strong> แก้ไปแล้ว 18 ข้อ · <code>B9</code> ตรวจซ้ำแล้วไม่ใช่ข้อผิดพลาดจริง · <code>B2</code> ตัดสินใจแล้วว่า deferred
-    <code>B4</code> สร้าง UI แล้ว เหลือ <strong>2 ข้อ</strong> — <code>C1</code> และ <code>C2</code> ซึ่งกระทบสถาปัตยกรรม frontend ทั้งก้อน
+    <strong>ปิดครบทั้ง 23 ข้อแล้ว</strong> — 21 ข้อแก้โค้ด/เอกสาร, <code>B9</code> ตรวจซ้ำแล้วไม่ใช่ข้อผิดพลาดจริง, <code>B2</code> ตัดสินใจเป็น deferred by design
+    <code>C1</code> และ <code>C2</code> ตัดสินด้วยหลัก security และระหว่างทางเจอช่องโหว่จริงหนึ่งจุด (ข้อมูล reservation ค้างใน <code>localStorage</code> ข้าม logout) แก้แล้ว
   </div>
 </header>
 
@@ -376,35 +377,42 @@
   <h2>C · frontend_spec ↔ frontend code</h2>
   <p class="scope">กฎสถาปัตยกรรมใน frontend_spec ที่โค้ดจริงไม่ได้ทำตาม — กลุ่มนี้ต้องตัดสินใจระดับทีมก่อนแก้</p>
 
-  <label class="item" data-id="C1">
-    <input type="checkbox" />
+  <label class="item done" data-id="C1">
+    <input type="checkbox" checked />
     <div>
-      <div class="tags"><span class="tag tag--blocker">Blocker</span><span class="tag tag--side">ต้องตัดสินใจ</span></div>
-      <p class="title"><span class="id">C1</span>Spec บังคับใช้ generated OpenAPI client แต่โค้ดเขียน client เอง</p>
+      <div class="tags"><span class="tag tag--blocker">Blocker</span><span class="tag tag--side">แก้ตามหลัก security</span></div>
+      <p class="title"><span class="id">C1</span>Contract drift ถูกจับตั้งแต่ build แล้ว</p>
       <div class="body">
-        <p><code>data-fetching-architecture.md</code> เขียนไว้ตรงๆ ว่า “ใช้ generated OpenAPI client ห้ามเขียน client ด้วยมือ” และ acceptance criteria มีข้อ “OpenAPI-generated client typecheck ผ่าน”</p>
-        <p>ของจริง <code>frontend/src/api.ts</code> (379 บรรทัด) และ <code>types.ts</code> (509 บรรทัด) เขียนมือทั้งหมด ไม่มี generator ใน <code>package.json</code> เลย</p>
-        <p>นี่คือรากของ B5–B7 และ B9: ทุก drift ระหว่าง contract กับ frontend type ไม่มีอะไรจับได้</p>
+        <p>Spec บังคับ “ใช้ generated OpenAPI client ห้ามเขียนด้วยมือ” แต่ <code>api.ts</code> + <code>types.ts</code> เขียนมือทั้งหมด ไม่มีอะไรจับ drift ระหว่าง contract กับ client เลย — นี่คือรากของ B5/B6/B7</p>
+        <p><strong>ไม่รับ generator:</strong> <code>openapi-typescript</code> ประกาศ peer <code>typescript@^5.x</code> แต่โปรเจกต์อยู่ TS 7 การฝืน <code>--force</code> เพื่อให้ safety check ทำงาน คือแลกความเสี่ยงหนึ่งกับ supply-chain risk ที่แย่กว่า</p>
+        <p><strong>ทำแทน:</strong> รวม constraint ทุกตัวที่ UI บังคับไว้ใน <code>frontend/src/constants/contract-limits.ts</code> ที่เดียว โดยแต่ละตัวระบุว่า mirror field ไหนใน contract แล้วเพิ่ม <code>scripts/check-contract-drift.mjs</code> ที่เทียบกับ <code>openapi.bundle.yaml</code> จริง และ <strong>fail build</strong> เมื่อไม่ตรง พร้อมเช็คว่า path ทุกเส้นที่ client เรียกมีอยู่ใน contract</p>
+        <p>ไม่มีเลข <code>maxLength={40}</code> ลอยๆ เหลือในฟอร์มแล้ว ผ่าน <code>npm run check:contract</code> ซึ่งอยู่ใน <code>test:all</code> — ทดสอบด้วยการจงใจทำให้ผิดแล้ว มัน fail ทั้ง limit drift และ route ที่ไม่มีใน contract</p>
       </div>
-      <div class="fix"><strong>แก้:</strong> เลือกหนึ่งทาง — (ก) เพิ่ม generator (เช่น <code>openapi-typescript</code>) แล้ว migrate <code>types.ts</code> ให้ derive จาก bundle, หรือ (ข) แก้ spec ให้ยอมรับ hand-written client แต่เพิ่ม CI check เทียบกับ contract</div>
+      <div class="fix"><strong>ผล:</strong> 20 input limits + 42 client routes ถูกตรวจทุกครั้งที่รัน test · เมื่อ generator รองรับ TS 7 ค่อยย้าย <code>types.ts</code> ไป derive จาก contract ตรงๆ ซึ่งจะแทน checker นี้ได้</div>
       <ul class="refs">
-        <li>docs/frontend_spec/data-fetching-architecture.md</li>
-        <li>frontend/src/api.ts · types.ts</li>
+        <li>scripts/check-contract-drift.mjs</li>
+        <li>frontend/src/constants/contract-limits.ts</li>
+        <li>docs/frontend_spec/data-fetching-architecture.md §Contract drift</li>
       </ul>
     </div>
   </label>
 
-  <label class="item" data-id="C2">
-    <input type="checkbox" />
+  <label class="item done" data-id="C2">
+    <input type="checkbox" checked />
     <div>
-      <div class="tags"><span class="tag tag--high">High</span><span class="tag tag--side">ต้องตัดสินใจ</span></div>
-      <p class="title"><span class="id">C2</span>ตาราง query-key และกฎ invalidate สมมติว่ามี query library แต่ไม่มี</p>
+      <div class="tags"><span class="tag tag--high">High</span><span class="tag tag--side">พบช่องโหว่จริง</span></div>
+      <p class="title"><span class="id">C2</span>ข้อมูล reservation ค้างใน localStorage ข้าม logout — ลบแล้ว</p>
       <div class="body">
-        <p>Spec กำหนด query-key prefix ต่อ domain (<code>session</code>, <code>calendar + range + area</code>, …) และกฎ “หลัง mutation สำเร็จให้ invalidate query ที่ได้รับผลกระทบ ไม่ clear ทั้ง application”</p>
-        <p><code>frontend/package.json</code> ไม่มี react-query / swr / เทียบเท่า — ทุกหน้าใช้ <code>useEffect</code> + <code>useState</code> เอง ไม่มี query key ให้ invalidate</p>
+        <p>พอมองด้วยแว่น security เจอของจริง: <code>asset-rail.recent-reservations</code> เขียน id / ชื่องาน / เวลา / สถานะของ reservation ลง <strong><code>localStorage</code></strong> ทุกครั้งที่สร้าง</p>
+        <p><code>clearSession()</code> ล้างแค่ token กับ session state <strong>ไม่เคยแตะ key นี้</strong> และเพราะเป็น <code>localStorage</code> (ไม่ใช่ <code>sessionStorage</code> แบบ token) มันจึงอยู่ข้ามการปิดเบราว์เซอร์ด้วย — <strong>ข้อมูลอายุยืนกว่าสิทธิ์ที่ใช้ดึงมันมา</strong> คนถัดไปบนเครื่องเดียวกันอ่านชื่องานได้โดยไม่ต้องมี <code>reservation:view</code></p>
+        <p>ที่แย่กว่านั้น: <code>readRecentReservations()</code> <strong>ไม่มีใครเรียกเลย</strong> UI “Recent reservations” ถูกลบไปตอน redesign (<code>5d293f7</code>, 17 ส.ค.) แต่ฝั่ง<em>เขียน</em>ถูกทิ้งไว้ — เก็บข้อมูลไว้โดยไม่มีใครได้ประโยชน์</p>
+        <p><strong>แก้:</strong> ลบทั้ง writer, reader, type และ call site ตอนนี้เหลือ storage แค่ 2 key คือ theme (<code>localStorage</code>) กับ token (<code>sessionStorage</code>) และเขียนกฎ <strong>Cache lifetime</strong> ลง spec ว่าข้อมูลที่ต้อง authenticate ห้ามอยู่นานกว่า session และห้ามลง <code>localStorage</code></p>
       </div>
-      <div class="fix"><strong>แก้:</strong> ถ้าจะคง spec ต้องรับ query library เข้ามาจริง; ถ้าไม่ ให้เขียนตารางใหม่เป็น “refetch ownership ต่อหน้า” ที่สะท้อน pattern ปัจจุบัน</div>
-      <ul class="refs"><li>docs/frontend_spec/data-fetching-architecture.md</li><li>frontend/package.json</li></ul>
+      <div class="fix"><strong>เรื่อง query library แยกออกจาก security:</strong> react-query ไม่ได้ทำให้ปลอดภัยขึ้นหรือแย่ลง — cache ของมันก็ต้องอยู่ใต้กฎเดียวกัน และ component-local state ที่ตายตอน unmount เป็น default ที่ปลอดภัยกว่าโดยธรรมชาติ จึงเขียนตาราง query-key ให้ชัดว่าเป็น <em>design target ไม่ใช่ as-built</em> การจะรับ library หรือไม่เป็นเรื่อง architecture/UX ที่ security ตัดสินให้ไม่ได้</div>
+      <ul class="refs">
+        <li>frontend/src/reservations.ts</li>
+        <li>docs/frontend_spec/data-fetching-architecture.md §Cache lifetime</li>
+      </ul>
     </div>
   </label>
 
@@ -542,7 +550,7 @@
 
 <script>
 (function () {
-  var KEY = "asset-reserve.conflict-checklist.v4";
+  var KEY = "asset-reserve.conflict-checklist.v5";
   var items = Array.prototype.slice.call(document.querySelectorAll(".item"));
   var bar = document.getElementById("bar");
   var ptext = document.getElementById("ptext");

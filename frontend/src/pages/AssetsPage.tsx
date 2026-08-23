@@ -37,6 +37,7 @@ import {
   formatDate,
 } from "../components/ui";
 import type { AssetSummary, ManagementArea } from "../types";
+import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 
 type AssetView = "ALL" | "MINE";
 
@@ -944,7 +945,7 @@ function InventoryDialog({
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               placeholder="For example, new stock received"
-              maxLength={2000}
+              maxLength={cap(CONTRACT_LIMITS.asset.unitReasonMax)}
             />
           </Field>
         </div>

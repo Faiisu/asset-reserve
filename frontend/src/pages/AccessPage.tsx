@@ -34,6 +34,7 @@ import {
   formatDate,
 } from "../components/ui";
 import type { PermissionDefinition, PermissionKey, Role } from "../types";
+import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 
 const resourceLabels: Record<string, string> = {
   asset: "Assets",
@@ -246,7 +247,7 @@ export function AccessPage() {
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                   rows={3}
-                  maxLength={10000}
+                  maxLength={cap(CONTRACT_LIMITS.role.descriptionMax)}
                 />
               </label>
             </div>
@@ -412,7 +413,7 @@ function CreateRoleDialog({
                 setName(event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_"))
               }
               placeholder="For example, EQUIPMENT_OFFICER"
-              maxLength={50}
+              maxLength={cap(CONTRACT_LIMITS.role.nameMax)}
               required
               autoFocus
             />
@@ -422,7 +423,7 @@ function CreateRoleDialog({
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               placeholder="Role responsibilities and access scope"
-              maxLength={10000}
+              maxLength={cap(CONTRACT_LIMITS.role.descriptionMax)}
             />
           </Field>
         </div>

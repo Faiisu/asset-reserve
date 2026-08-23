@@ -38,6 +38,7 @@ import type {
   UserDetail,
   UserListItem,
 } from "../types";
+import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 
 export function UsersPage() {
   const { hasGlobalPermission, session } = useAuth();
@@ -618,8 +619,8 @@ function CreateUserDialog({
               onChange={(event) =>
                 setForm({ ...form, username: event.target.value })
               }
-              minLength={3}
-              maxLength={50}
+              minLength={cap(CONTRACT_LIMITS.user.usernameMin)}
+              maxLength={cap(CONTRACT_LIMITS.user.usernameMax)}
               required
               autoFocus
             />
@@ -631,8 +632,8 @@ function CreateUserDialog({
               onChange={(event) =>
                 setForm({ ...form, password: event.target.value })
               }
-              minLength={8}
-              maxLength={128}
+              minLength={cap(CONTRACT_LIMITS.user.passwordMin)}
+              maxLength={cap(CONTRACT_LIMITS.user.passwordMax)}
               required
             />
           </Field>

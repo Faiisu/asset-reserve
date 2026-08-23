@@ -24,13 +24,15 @@ import {
 } from "../components/ui";
 import {
   defaultReservationWindow,
-  rememberReservation,
   toLocalDateTime,
 } from "../reservations";
 import type { AssetSummary } from "../types";
+import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 
 type SelectedAsset = { asset: AssetSummary; quantity: number };
-const MAX_RESERVATION_ITEM_QUANTITY = 200;
+const MAX_RESERVATION_ITEM_QUANTITY = cap(
+  CONTRACT_LIMITS.reservation.itemQuantityMax,
+);
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -278,7 +280,6 @@ export function ReservationCreatePage() {
           quantity: item.quantity,
         })),
       });
-      rememberReservation(result);
       navigate(`/reservations/${result.id}`, {
         replace: true,
         state: {
@@ -371,7 +372,7 @@ export function ReservationCreatePage() {
                 value={eventName}
                 onChange={(event) => setEventName(event.target.value)}
                 placeholder="Quarterly town hall"
-                maxLength={200}
+                maxLength={cap(CONTRACT_LIMITS.reservation.eventNameMax)}
                 autoFocus
                 required
               />
@@ -401,7 +402,7 @@ export function ReservationCreatePage() {
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
                 placeholder="Venue, setup notes, and anything approvers need to know"
-                maxLength={10000}
+                maxLength={cap(CONTRACT_LIMITS.reservation.descriptionMax)}
                 rows={4}
               />
             </Field>

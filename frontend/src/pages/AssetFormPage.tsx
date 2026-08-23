@@ -28,6 +28,7 @@ import {
 } from "../components/ui";
 import { recognitionApi, type RecognitionPhoto } from "../recognitionApi";
 import type { AssetDetail, ManagementArea } from "../types";
+import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 
 type FormValue = {
   name: string;
@@ -556,7 +557,7 @@ export function AssetFormPage() {
                     setForm({ ...form, name: event.target.value })
                   }
                   placeholder="For example, Sony FX3 Cinema Camera"
-                  maxLength={40}
+                  maxLength={cap(CONTRACT_LIMITS.asset.nameMax)}
                   required
                 />
               </Field>
@@ -571,7 +572,7 @@ export function AssetFormPage() {
                       setForm({ ...form, partNumber: event.target.value })
                     }
                     placeholder="For example, EPS-PRJ-100"
-                    maxLength={100}
+                    maxLength={cap(CONTRACT_LIMITS.asset.partNumberMax)}
                   />
                 </Field>
                 <Field
@@ -988,7 +989,7 @@ function BatchAssetForm({
                             update(row.key, { name: event.target.value })
                           }
                           placeholder="Asset name"
-                          maxLength={40}
+                          maxLength={cap(CONTRACT_LIMITS.asset.nameMax)}
                           required
                         />
                       </Field>
@@ -999,7 +1000,7 @@ function BatchAssetForm({
                             update(row.key, { partNumber: event.target.value })
                           }
                           placeholder="Part number"
-                          maxLength={100}
+                          maxLength={cap(CONTRACT_LIMITS.asset.partNumberMax)}
                         />
                       </Field>
                     </div>
