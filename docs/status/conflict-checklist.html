@@ -124,7 +124,13 @@
 <header class="page">
   <h1>Conflict Checklist — docs/ ↔ backend/ ↔ frontend/</h1>
   <p class="sub">รายการจุดที่เอกสาร, backend และ frontend ทำงานไม่ตรงกัน จัดกลุ่มตามส่วนที่ต้องแก้ ไล่ทีละข้อได้ (ติ๊กแล้วจำไว้ใน browser)</p>
-  <p class="meta">Audit 2026-08-23 · branch audit/backend · 23 findings</p>
+  <p class="meta">Audit 2026-08-23 · branch audit/backend · 23 findings · 19 closed, 4 waiting on a call</p>
+  <div class="note" style="margin:16px 0 0">
+    <strong>สถานะรอบนี้:</strong> แก้ไปแล้ว 18 ข้อ + 1 ข้อ (B9) ตรวจซ้ำแล้วพบว่าไม่ใช่ข้อผิดพลาดจริง
+    เหลือ <strong>4 ข้อที่ต้องตัดสินใจก่อน</strong> ว่าจะเดินทางไหน — <code>B2</code> (recognition UI อยู่ใน scope ไหม),
+    <code>B4</code> (สร้าง UI ปรับสถานะ unit หรือประกาศว่าตั้งใจไม่มี), <code>C1</code> (รับ OpenAPI generator หรือแก้ spec),
+    <code>C2</code> (รับ query library หรือเขียนตาราง query-key ใหม่) — ทั้งสี่ข้อยังไม่ติ๊ก
+  </div>
 </header>
 
 <div class="toolbar">
@@ -158,8 +164,8 @@
   <h2>A · Contract ↔ Backend</h2>
   <p class="scope">OpenAPI contract เป็น sole source ของ request/response shape — backend ต้องตรงกับมัน</p>
 
-  <label class="item" data-id="A1">
-    <input type="checkbox" />
+  <label class="item done" data-id="A1">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--high">High</span><span class="tag tag--side">แก้ค้างอยู่แล้ว</span></div>
       <p class="title"><span class="id">A1</span>HTTP status ของ POST 5 เส้นเป็น 201 แต่ contract ระบุ 200</p>
@@ -179,8 +185,8 @@
     </div>
   </label>
 
-  <label class="item" data-id="A2">
-    <input type="checkbox" />
+  <label class="item done" data-id="A2">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--low">Low</span></div>
       <p class="title"><span class="id">A2</span>เลขหัวข้อ algorithms doc ข้ามจาก §7.6 ไป §7.10</p>
@@ -190,8 +196,8 @@
     </div>
   </label>
 
-  <label class="item" data-id="A3">
-    <input type="checkbox" />
+  <label class="item done" data-id="A3">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--low">Low</span></div>
       <p class="title"><span class="id">A3</span><code>OPENAPI_CONTRACT_PATH</code> ไม่อยู่ใน <code>.env.example</code></p>
@@ -207,8 +213,8 @@
   <h2>B · Frontend ↔ Contract / Backend</h2>
   <p class="scope">Endpoint ที่ backend มีแต่ frontend ไม่เรียก และ validation limit ที่สองฝั่งไม่ตรงกัน</p>
 
-  <label class="item" data-id="B1">
-    <input type="checkbox" />
+  <label class="item done" data-id="B1">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--blocker">Blocker</span></div>
       <p class="title"><span class="id">B1</span>Draft reservation ที่สร้างแล้ว submit ไม่ได้เลย</p>
@@ -243,8 +249,8 @@
     </div>
   </label>
 
-  <label class="item" data-id="B3">
-    <input type="checkbox" />
+  <label class="item done" data-id="B3">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--high">High</span></div>
       <p class="title"><span class="id">B3</span><code>GET /returns</code> · <code>GET /returns/:returnId</code> ไม่มีคนเรียก แต่ frontend_spec บอกว่ามี</p>
@@ -274,8 +280,8 @@
     </div>
   </label>
 
-  <label class="item" data-id="B5">
-    <input type="checkbox" />
+  <label class="item done" data-id="B5">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--high">High</span></div>
       <p class="title"><span class="id">B5</span>Role description: frontend ตัดที่ 500 แต่ contract/backend ให้ 10,000</p>
@@ -292,8 +298,8 @@
     </div>
   </label>
 
-  <label class="item" data-id="B6">
-    <input type="checkbox" />
+  <label class="item done" data-id="B6">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--medium">Medium</span></div>
       <p class="title"><span class="id">B6</span>Email template editor ไม่มี client-side cap</p>
@@ -306,8 +312,8 @@
     </div>
   </label>
 
-  <label class="item" data-id="B7">
-    <input type="checkbox" />
+  <label class="item done" data-id="B7">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--low">Low</span></div>
       <p class="title"><span class="id">B7</span>ช่องรหัสผ่านตอนสร้าง user ไม่มี <code>maxLength={128}</code></p>
@@ -317,8 +323,8 @@
     </div>
   </label>
 
-  <label class="item" data-id="B8">
-    <input type="checkbox" />
+  <label class="item done" data-id="B8">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--medium">Medium</span></div>
       <p class="title"><span class="id">B8</span><code>reservation:view</code> ไม่มีคำอธิบายและไอคอนในหน้า Access &amp; roles</p>
@@ -335,19 +341,22 @@
     </div>
   </label>
 
-  <label class="item" data-id="B9">
-    <input type="checkbox" />
+  <label class="item done" data-id="B9">
+    <input type="checkbox" checked />
     <div>
-      <div class="tags"><span class="tag tag--low">Low</span></div>
-      <p class="title"><span class="id">B9</span><code>sendTestNotification</code> ประกาศ return เป็น <code>void</code> แต่ API ตอบ body</p>
-      <div class="body"><p><code>POST /notification-settings/test</code> ตอบ 200 พร้อม JSON ตาม contract แต่ <code>api.ts</code> ประกาศ <code>request&lt;void&gt;</code> — ข้อมูลผลการส่ง (เช่นปลายทาง) ถูกทิ้ง</p></div>
-      <div class="fix"><strong>แก้:</strong> ประกาศ type ให้ตรง response schema แล้วเอาไปแสดงใน success notice ของ <code>NotificationsPage</code></div>
-      <ul class="refs"><li>frontend/src/api.ts</li><li>docs/backend_spec/contracts/paths/notification-settings.yaml</li></ul>
+      <div class="tags"><span class="tag tag--low">Low</span><span class="tag tag--side">ไม่ใช่ข้อผิดพลาด</span></div>
+      <p class="title"><span class="id">B9</span><s>sendTestNotification</s> — ตรวจแล้วถูกต้องอยู่แล้ว</p>
+      <div class="body">
+        <p>รอบ audit แรกบันทึกว่า <code>api.ts</code> ประกาศ <code>request&lt;void&gt;</code> ทั้งที่ API ตอบ body — <strong>ผิดเอง</strong></p>
+        <p>ตรวจซ้ำแล้ว: contract ระบุ <code>"200"</code> โดย<em>ไม่มี</em> <code>content:</code> และ <code>NotificationSettingsService.sendTest()</code> ก็คืน <code>Promise&lt;void&gt;</code> จริง endpoint นี้จึงไม่มี body ให้อ่าน <code>request&lt;void&gt;</code> ตรงกับ contract แล้ว ไม่ต้องแก้อะไร</p>
+      </div>
+      <div class="fix"><strong>ผล:</strong> ไม่มีการเปลี่ยนโค้ด — บันทึกไว้กันตรวจซ้ำรอบหน้า</div>
+      <ul class="refs"><li>backend/src/notification-settings/notification-settings.service.ts:100</li><li>docs/backend_spec/contracts/paths/notification-settings.yaml:59</li></ul>
     </div>
   </label>
 
-  <label class="item" data-id="B10">
-    <input type="checkbox" />
+  <label class="item done" data-id="B10">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--low">Low</span></div>
       <p class="title"><span class="id">B10</span>Endpoint decision รายตัวไม่มีคนเรียก (ตั้งใจหรือเปล่า?)</p>
@@ -395,8 +404,8 @@
     </div>
   </label>
 
-  <label class="item" data-id="C3">
-    <input type="checkbox" />
+  <label class="item done" data-id="C3">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--medium">Medium</span></div>
       <p class="title"><span class="id">C3</span>ไม่มีการ cancel request เก่าเลย (ไม่มี <code>AbortController</code>)</p>
@@ -409,8 +418,8 @@
     </div>
   </label>
 
-  <label class="item" data-id="C4">
-    <input type="checkbox" />
+  <label class="item done" data-id="C4">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--low">Low</span></div>
       <p class="title"><span class="id">C4</span>CSS ยังมี rule ของ status <code>PENDING</code> ที่ถูกยกเลิกไปแล้ว</p>
@@ -426,8 +435,8 @@
   <h2>D · status/implementation-status.md ↔ ของจริง</h2>
   <p class="scope">เอกสารนี้เป็น as-built snapshot (ลงวันที่ 22 ส.ค. 2026) — ทุกข้อในกลุ่มนี้แก้ที่เอกสารเสมอ ไม่ใช่ที่โค้ด</p>
 
-  <label class="item" data-id="D1">
-    <input type="checkbox" />
+  <label class="item done" data-id="D1">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--medium">Medium</span></div>
       <p class="title"><span class="id">D1</span>ตาราง route ยังบรรยาย asset flow แบบ quantity-based ที่ถูกแทนด้วย serial แล้ว</p>
@@ -446,8 +455,8 @@
     </div>
   </label>
 
-  <label class="item" data-id="D2">
-    <input type="checkbox" />
+  <label class="item done" data-id="D2">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--medium">Medium</span></div>
       <p class="title"><span class="id">D2</span>อ้างว่า <code>/admin/users</code> สร้างบัญชีพร้อมรูปได้ — ไม่มีจริง</p>
@@ -457,8 +466,8 @@
     </div>
   </label>
 
-  <label class="item" data-id="D3">
-    <input type="checkbox" />
+  <label class="item done" data-id="D3">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--medium">Medium</span></div>
       <p class="title"><span class="id">D3</span>Recognition frontend coverage “ยังไม่ได้สำรวจ” — ตอนนี้รู้แล้ว</p>
@@ -468,8 +477,8 @@
     </div>
   </label>
 
-  <label class="item" data-id="D4">
-    <input type="checkbox" />
+  <label class="item done" data-id="D4">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--low">Low</span></div>
       <p class="title"><span class="id">D4</span>ยังไม่มีรายการ gap สำหรับ <code>GET /returns</code> และ <code>PATCH /assets/units/:id/status</code></p>
@@ -479,8 +488,8 @@
     </div>
   </label>
 
-  <label class="item" data-id="D5">
-    <input type="checkbox" />
+  <label class="item done" data-id="D5">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--low">Low</span></div>
       <p class="title"><span class="id">D5</span>อัปเดตวันที่ snapshot หลังแก้ D1–D4 เสร็จ</p>
@@ -496,8 +505,8 @@
   <h2>E · สุขภาพ test / build</h2>
   <p class="scope">ผลรันจริงตอน audit</p>
 
-  <label class="item" data-id="E1">
-    <input type="checkbox" />
+  <label class="item done" data-id="E1">
+    <input type="checkbox" checked />
     <div>
       <div class="tags"><span class="tag tag--low">Low</span></div>
       <p class="title"><span class="id">E1</span><code>ReservationCreatePage.test.tsx</code> flaky เมื่อรันทั้ง suite</p>
@@ -529,7 +538,7 @@
 
 <script>
 (function () {
-  var KEY = "asset-reserve.conflict-checklist.v1";
+  var KEY = "asset-reserve.conflict-checklist.v2";
   var items = Array.prototype.slice.call(document.querySelectorAll(".item"));
   var bar = document.getElementById("bar");
   var ptext = document.getElementById("ptext");
@@ -553,11 +562,13 @@
     ptext.textContent = done + " / " + items.length + " เสร็จแล้ว (" + pct + "%)";
   }
 
-  var state = read();
+  var stored = localStorage.getItem(KEY);
+  var state = stored === null ? null : read();
   items.forEach(function (item) {
     var id = item.getAttribute("data-id");
     var box = item.querySelector("input");
-    box.checked = !!state[id];
+    // No saved state yet: keep whatever the markup shipped with.
+    if (state) box.checked = !!state[id];
     box.addEventListener("change", function () {
       var next = read();
       if (box.checked) next[id] = true; else delete next[id];

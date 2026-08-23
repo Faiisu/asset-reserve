@@ -486,7 +486,7 @@ Status transitions และความหมายทางธุรกิจ�
 | Flag                 | True เมื่อ                                                                                                                                                                                                                    |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `canSubmit`          | actor เป็น requester, reservation เป็น `DRAFT` (ตรงกับ precondition ของ §7.4)                                                                                                                                                 |
-| `canConfirmDelivery` | actor เป็นเจ้าหน้าที่คลัง/Area Manager, reservation เป็น `APPROVED` หรือ `PARTIALLY_APPROVED` ที่มี item อยู่สถานะ `PREPARED` (ผูก serial unit ตอนอนุมัติแล้ว — ดู §7.5) อย่างน้อยหนึ่งรายการ (ตรงกับ precondition ของ §7.11) |
+| `canConfirmDelivery` | actor เป็นเจ้าหน้าที่คลัง/Area Manager, reservation เป็น `APPROVED` หรือ `PARTIALLY_APPROVED` ที่มี item อยู่สถานะ `PREPARED` (ผูก serial unit ตอนอนุมัติแล้ว — ดู §7.5) อย่างน้อยหนึ่งรายการ (ตรงกับ precondition ของ §7.8) |
 | `canReturn`          | actor เป็นผู้ยืม/participant, มี `ReservationItemUnit` อย่างน้อยหนึ่งหน่วยของ reservation นี้อยู่สถานะ `CHECKED_OUT` (ตรงกับ precondition ของ §8.2)                                                                           |
 | `canDecideReturn`    | actor เป็น Area Manager ของ management area ที่ reservation นี้อยู่, มี `Return` อย่างน้อยหนึ่งใบของ reservation นี้อยู่สถานะ `PENDING` (ตรงกับ precondition ของ §8.3)                                                        |
 
@@ -508,13 +508,15 @@ Approve/reject เป็นราย item ตาม area permission เมื่
 
 ### 7.6 `POST /reservations/:reservationId/items/decision`
 
+> Frontend ปัจจุบันเรียก endpoint นี้เสมอ แม้ตัดสินใจ item เดียว (batch ขนาด 1) — §7.5 คงไว้เป็น API surface สำหรับ client อื่น ไม่ใช่เส้นตาย
+
 รับ `items[]` สูงสุด 100 รายการ แต่ละรายการระบุ `reservationItemId` และ (เมื่อ `decision = APPROVE`) `assetUnitIds[]` ของตัวเอง ตัดสินทั้งหมดใน transaction เดียว ล็อก `asset_units` ของทุก item ตาม UUID ที่ sort รวมกันทั้ง batch (กันสอง item แย่ง asset เดียวกันแล้ว deadlock) และ rollback ทั้งชุดเมื่อ item ใดไม่ผ่าน permission/state/availability/unit — เงื่อนไขต่อ item เหมือน §7.5 ทุกข้อ
 
-### 7.10 `POST /reservations/:reservationId/cancel`
+### 7.7 `POST /reservations/:reservationId/cancel`
 
 Requester หรือ actor ที่ manage reservation ได้ยกเลิกสถานะที่ยังไม่ถึง delivery พร้อม reason optional ภายใน serializable transaction ระบบ lock reservation และตรวจสถานะซ้ำก่อนเปลี่ยน reservation/item/approval ที่เกี่ยวข้องเป็น cancelled/rejected และลบ `ReservationItemUnit` ของ item ที่ `PREPARED` เพื่อคืนช่วงเวลา โดยไม่เปลี่ยน physical `AssetUnit.status` (ยกเว้น normalize legacy `RESERVED` เป็น `ACTIVE` ระหว่าง compatibility window) จึงไม่สามารถ commit CANCELLED ตามหลัง handover ที่ commit แล้วได้
 
-### 7.11 `POST /reservations/:reservationId/delivery-confirm`
+### 7.8 `POST /reservations/:reservationId/delivery-confirm`
 
 เจ้าหน้าที่คลังหรือ Area Manager ยืนยันการส่งมอบอุปกรณ์ **แบบ unit-based**: รับ `items[]` แต่ละรายการระบุ `reservationItemId` และ `reservationItemUnitIds[]` (optional) ของตัวเอง — ไม่ต้องส่งมอบทั้ง item พร้อมกัน (breaking change จากรุ่นก่อนหน้าที่รับแค่ `itemIds[]` และส่งมอบทั้ง item เสมอ — ดู [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status))
 
@@ -526,7 +528,7 @@ Requester หรือ actor ที่ manage reservation ได้ยกเล�
 6. หลังอัปเดต ถ้า item นั้น**ไม่เหลือ unit สถานะ `ASSIGNED` อีกแล้ว** ให้เปลี่ยน `reservation_items.status` เป็น `DELIVERED` พร้อมบันทึก `checkedOutBy = actor.id`, `checkedOutAt = now` **ที่ระดับ item** — ถ้ายังมี unit ค้าง `ASSIGNED` อยู่ item ยังคง `PREPARED`
 7. เปลี่ยนสถานะภาพรวมของ `reservations` เป็น `DELIVERY_CONFIRMED` เมื่อทุก item ที่ approved/active เป็น `DELIVERED` หรือ `RETURNED` ครบ
 
-### 7.12 Past date/time validation (creation and reschedule)
+### 7.9 Past date/time validation (creation and reschedule)
 
 `startAt` ต้องอยู่ในอนาคตเทียบกับเวลาปัจจุบัน (`startAt >= now`, อนุญาต clock skew/network grace 60 วินาที) ถ้า `startAt < now - 60s` backend ตอบ `422 VALIDATION_ERROR` พร้อมข้อความ `"The reservation start time cannot be in the past."` และ `endAt` ต้องมากกว่า `startAt` เสมอ (`endAt > startAt`) กฎนี้ครอบคลุมทั้งตอนสร้างและตอนแก้ไขกำหนดการ
 

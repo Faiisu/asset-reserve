@@ -73,15 +73,15 @@ Asset สามารถถูกคืนได้ **ตลอดเวลา�
 
 > **Breaking change จากรุ่นก่อนหน้า**: เดิม `PENDING` อนุมัติเป็น `APPROVED` ก่อน แล้วค่อยผูก serial unit เป็นอีกขั้นตอนแยก (`PREPARED`, คนละ endpoint/actor ได้) ตอนนี้ **รวมเป็นการตัดสินใจเดียว** — Area Manager ที่อนุมัติต้องเลือก serial-numbered unit (`assetUnitIds[]`) มาพร้อมกันในคำขอเดียว item จึงข้ามจาก `PENDING` ไป `PREPARED` ตรงๆ ไม่มีสถานะ `APPROVED` เป็นจุดพักอีกต่อไป **Approve เป็น unit-based**: เลือก S/N น้อยกว่าจำนวนที่ขอได้ (`quantity` จะถูกตัดลงให้ตรงกับจำนวนที่ approve จริงทันที ไม่มีส่วนที่เหลือค้าง `PENDING` รออนุมัติรอบถัดไป) — ส่วน **reject ยังเป็น all-or-nothing ทั้ง item เหมือนเดิม** ไม่มี unit-level reject รายละเอียด transaction: [backend_spec/algorithms-and-validation.md §7.5](../backend_spec/algorithms-and-validation.md#75-post-reservationsreservationiditemsitemiddecision)
 
-> **Handover เป็น unit-based เช่นกัน**: ยืนยัน handover เลือกเฉพาะบาง `ReservationItemUnit` (`reservationItemUnitIds[]`) ของ item ได้ ไม่ต้องส่งมอบทั้ง item พร้อมกัน — item ยังอยู่ status `PREPARED` ต่อไปตราบใดที่ยังมี unit ที่ผูกไว้ (`ASSIGNED`) เหลืออยู่ และข้ามไป `DELIVERED` ก็ต่อเมื่อ unit ที่ผูกไว้ทั้งหมดถูกยืนยัน handover ครบ (ยืนยันได้หลายรอบ) รายละเอียด transaction: [backend_spec/algorithms-and-validation.md §7.11](../backend_spec/algorithms-and-validation.md#711-post-reservationsreservationiddelivery-confirm)
+> **Handover เป็น unit-based เช่นกัน**: ยืนยัน handover เลือกเฉพาะบาง `ReservationItemUnit` (`reservationItemUnitIds[]`) ของ item ได้ ไม่ต้องส่งมอบทั้ง item พร้อมกัน — item ยังอยู่ status `PREPARED` ต่อไปตราบใดที่ยังมี unit ที่ผูกไว้ (`ASSIGNED`) เหลืออยู่ และข้ามไป `DELIVERED` ก็ต่อเมื่อ unit ที่ผูกไว้ทั้งหมดถูกยืนยัน handover ครบ (ยืนยันได้หลายรอบ) รายละเอียด transaction: [backend_spec/algorithms-and-validation.md §7.8](../backend_spec/algorithms-and-validation.md#78-post-reservationsreservationiddelivery-confirm)
 
 ```mermaid
 stateDiagram-v2
     [*] --> PENDING: สร้างพร้อม Reservation
     PENDING --> PREPARED: Area Manager อนุมัติ เลือก S/N 1 ถึง quantity ที่ขอ (§7.5)
     PENDING --> REJECTED: Area Manager ปฏิเสธทั้ง item
-    PREPARED --> PREPARED: ยืนยัน handover บางส่วน (unit-based, ยังมี unit ค้าง) (§7.11)
-    PREPARED --> DELIVERED: ยืนยัน handover ครบทุก unit ที่ผูกไว้แล้ว (§7.11)
+    PREPARED --> PREPARED: ยืนยัน handover บางส่วน (unit-based, ยังมี unit ค้าง) (§7.8)
+    PREPARED --> DELIVERED: ยืนยัน handover ครบทุก unit ที่ผูกไว้แล้ว (§7.8)
     DELIVERED --> RETURNED: ตรวจรับคืนและอนุมัติแล้ว
     RETURNED --> [*]
     REJECTED --> [*]

@@ -515,7 +515,7 @@ ReservationDetail:
           type: boolean
           description: >-
             True when actor is warehouse staff/Area Manager and the reservation is APPROVED
-            or PARTIALLY_APPROVED with at least one item in PREPARED status (§7.11 preconditions).
+            or PARTIALLY_APPROVED with at least one item in PREPARED status (§7.8 preconditions).
         canReturn:
           type: boolean
           description: >-
@@ -530,7 +530,7 @@ ReservationDetail:
           type: boolean
           description: >-
             True when actor manages the reservation and its status has not yet reached
-            a delivery-confirmed or later stage (§7.10 preconditions).
+            a delivery-confirmed or later stage (§7.7 preconditions).
     activityLogs:
       type: array
       description: Audit trail of actions taken on this reservation, newest first.

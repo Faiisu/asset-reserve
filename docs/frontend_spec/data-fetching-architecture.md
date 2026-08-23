@@ -24,7 +24,7 @@ Frontend ใช้ backend แบบ Hybrid BFF โดยแยก page query �
 | Assets              | assets + filters                | Domain ตรง (`/assets`) |
 | Reservation detail  | reservation + id                | Domain ตรง (`/reservations/:id`) |
 | Approval queue      | approval-queue + tab + filters  | Domain ตรง |
-| Return detail       | return + id                     | Domain ตรง (`/returns/:id`) |
+| Return detail       | return + id                     | ฝังมากับ reservation detail (`/reservations/:id` → `returns[]`) — `/returns` และ `/returns/:id` มีใน backend/contract แต่ frontend ยังไม่เรียก |
 | Administration      | admin + resource + filters      | Domain ตรง |
 
 คอลัมน์สถานะคือ as-built snapshot (อาจเปลี่ยนเมื่อมีการ implement BFF endpoint เพิ่ม) — รายละเอียดและแผน BFF endpoint ที่ยังไม่ implement ดู [status/implementation-status.md](../status/implementation-status.md) ส่วน query key เองเป็น design rule ใช้ได้แม้ query จะยิงไปที่ domain endpoint ตรงในปัจจุบัน

@@ -4,7 +4,7 @@
 
 > **นี่คือ dated build/QA snapshot ไม่ใช่ spec** — ห้ามอ้างอิงเอกสารนี้เป็นแหล่งของ requirement หรือ business rule ใดๆ สำหรับ requirement ให้ดู [`../software_spec/`](../software_spec/README.md), สำหรับ API contract ดู [`../backend_spec/contracts/`](../backend_spec/contracts/README.md), สำหรับ UI design ดู [`../frontend_spec/`](../frontend_spec/README.md)
 
-เอกสารนี้เป็น snapshot ของ frontend ที่ตรวจจาก `frontend/src/app.tsx`, `frontend/src/pages`, `frontend/src/components`, `frontend/src/api.ts` และ tests ณ วันที่ 22 สิงหาคม 2026 ใช้แยกสิ่งที่ใช้งานได้จริงออกจากเอกสาร product specification ที่อาจรวม roadmap ในอนาคต
+เอกสารนี้เป็น snapshot ของ frontend ที่ตรวจจาก `frontend/src/app.tsx`, `frontend/src/pages`, `frontend/src/components`, `frontend/src/api.ts` และ tests ณ วันที่ 23 สิงหาคม 2026 ใช้แยกสิ่งที่ใช้งานได้จริงออกจากเอกสาร product specification ที่อาจรวม roadmap ในอนาคต
 
 ## User flow ที่ implement แล้ว
 
@@ -43,18 +43,18 @@ flowchart TB
 | `/connect-account/callback` | `ConnectAccountCallbackPage` | callback ของ mandatory-link flow | Login |
 | `/account` | `AccountPage` | self-service แก้ name/email, เปลี่ยน password, link/unlink Google/Microsoft แบบ optional | Login |
 | `/calendar` | `CalendarPage` | continuous month calendar, Today/date picker, status/management-area filters, event minibox, asset picker search/list/grid, date-range drag/keyboard selection, prefill reservation, approve/reject pending items, cancel reservation | Login; permission-gated ตาม capability ที่ API ส่งมา |
-| `/assets` | `AssetsPage` | search, management-area/status filters, list/card responsive views, cursor load-more, multi-select, batch stock add/remove, batch disable | permission-gated |
-| `/assets/new` | `AssetFormPage` | single/batch create, management-area selection, quantity/description, preview, upload file, camera capture, remove/replace photo | permission-gated |
+| `/assets` | `AssetsPage` | search, management-area/status filters, list/card responsive views, cursor load-more, multi-select, register units (serial number ทีละบรรทัด), batch disable | permission-gated |
+| `/assets/new` | `AssetFormPage` | single/batch create, management-area selection, serial number/description, preview, upload file, camera capture, remove/replace photo | permission-gated |
 | `/asset/new` | Redirect | compatibility redirect ไป `/assets/new` | Login |
-| `/assets/:assetId` | `AssetDetailPage` | metadata/owner/edit policy, allocations, ledger, activate/deactivate, single stock add/remove | visibility และ capabilities จาก API |
-| `/assets/:assetId/edit` | `AssetFormPage` | edit name, area, description และ picture; quantity แก้ผ่าน inventory action | permission-gated |
+| `/assets/:assetId` | `AssetDetailPage` | metadata/owner/edit policy, allocations, ledger, activate/deactivate, register/retire units | visibility และ capabilities จาก API |
+| `/assets/:assetId/edit` | `AssetFormPage` | edit name, area, description และ picture; จำนวนแก้ผ่าน register/retire unit เท่านั้น | permission-gated |
 | `/reservations` | `ReservationsPage` | My reservations/Approval queue tabs, search, grouped status/management-area/date filters, cursor load-more | permission-gated |
 | `/reservations/new` | `ReservationCreatePage` | event schedule, optional asset manifest, quantity, URL-prefilled dates/assets, recent reservations, reference lookup, create draft หรือ submit | permission-gated |
 | `/reservations/:reservationId` | `ReservationDetailPage` | schedule/requester/participants/items, availability warnings, item batch **approve (with inline serial-unit assignment)**/reject, cancel, delivery confirm, submit/decide return (per-item return slip, Good/Broken/Lost decision) | capabilities จาก reservation detail |
 | `/approvals` | `ApprovalRequestsPage` | รวม pending item approvals ที่ actor ตัดสินใจได้ ข้ามหลาย reservation ในหน้าเดียว | permission-gated |
 | `/admin/areas` | `ManagementAreasPage` | search/list, create, edit, delete confirmation | Global ADMIN |
 | `/admin/access` | `AccessPage` | permission catalog grouped by resource, role selection, create role, edit description/permissions, dirty-state save | Global ADMIN |
-| `/admin/users` | `UsersPage` | search/status/role/area filters, detail drawer, create account with optional uploaded/camera photo, enable/disable, assign/remove scoped roles | permission-gated |
+| `/admin/users` | `UsersPage` | search/status/role/area filters, detail drawer, create account (username + password เท่านั้น — ชื่อ/อีเมล/รูปมาตอน link Google/Microsoft), enable/disable, assign/remove scoped roles | permission-gated |
 | `/admin/notifications` | `NotificationsPage` | SMTP delivery settings tab และ email-template editor tab (per-situation subject/body) | Global ADMIN |
 | `/admin/templates` | Redirect | compatibility redirect ไป `/admin/areas` | Global ADMIN |
 
@@ -74,9 +74,9 @@ Permission key ที่ควบคุมแต่ละ action ดู [softwar
 
 - Approve + prepare (serial-unit assignment) merged into one request, matching [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status) และ [backend_spec/algorithms-and-validation.md §7.5](../backend_spec/algorithms-and-validation.md#75-post-reservationsreservationiditemsitemiddecision): `POST .../items/:itemId/decision` (และ batch `.../items/decision`) รับ `assetUnitIds` ตอน `APPROVE`, item ข้าม `APPROVED` ไป `PREPARED` ตรง, endpoint `/prepare` แยกถูกตัดออกแล้วทั้ง backend และ frontend — ไม่ใช่ gap อีกต่อไป (เดิมเคยมีทั้งสองขั้นตอนแยก ตามด้วยการรวมเป็นขั้นตอนเดียวในรอบนี้)
 - `CHECKED_OUT`/`RETURNED` มี frontend command แล้ว (`confirmDelivery`, `createReturn`, `decideReturn` ใน `ReservationDetailPage`) — ไม่ใช่ gap อีกต่อไป
-- Handover เป็น unit-based แล้ว ตรงกับ [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status) และ [backend_spec/algorithms-and-validation.md §7.11](../backend_spec/algorithms-and-validation.md#711-post-reservationsreservationiddelivery-confirm): `POST .../delivery-confirm` รับ `items[].reservationItemUnitIds` เลือกส่งมอบบางหน่วยของ item เดียวกันได้ (partial handover) item ค้าง `PREPARED` จนกว่าจะส่งมอบครบทุก unit — ไม่ใช่ gap อีกต่อไป (breaking change จาก `itemIds[]` เดิมที่ส่งมอบทั้ง item เสมอ)
+- Handover เป็น unit-based แล้ว ตรงกับ [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status) และ [backend_spec/algorithms-and-validation.md §7.8](../backend_spec/algorithms-and-validation.md#78-post-reservationsreservationiddelivery-confirm): `POST .../delivery-confirm` รับ `items[].reservationItemUnitIds` เลือกส่งมอบบางหน่วยของ item เดียวกันได้ (partial handover) item ค้าง `PREPARED` จนกว่าจะส่งมอบครบทุก unit — ไม่ใช่ gap อีกต่อไป (breaking change จาก `itemIds[]` เดิมที่ส่งมอบทั้ง item เสมอ)
 - ไม่มี standalone inventory-adjustment route; การปรับยอดทำจาก asset list/detail
-- Backend และ contract มี `POST /reservations/:id/submit` สำหรับ draft แต่ frontend ไม่มี action เรียก endpoint นี้; draft ที่สร้างจากหน้า create จึงยัง submit ภายหลังจาก detail page ไม่ได้
+- `POST /reservations/:id/submit` มี frontend action แล้ว (`api.submitReservation` + ปุ่ม "Send for approval" ใน `ReservationDetailPage` gate ด้วย `capabilities.canSubmit`) — ไม่ใช่ gap อีกต่อไป
 - Return payload shape (`reservationItemUnitIds` ตอน drop-off, per-unit `{reservationItemUnitId, condition}` จัดกลุ่มตาม `reservationItemId` ตอน decision) — frontend (`ReservationDetailPage`) แก้ให้ตรง backend DTO แล้ว ไม่ใช่ gap อีกต่อไป
 - `POST /assets/units/batch-retire` มี frontend UI แล้ว (Retire Units dialog ใน `AssetDetailPage` เรียก `api.retireAssetUnits`) — ไม่ใช่ gap อีกต่อไป ส่วน `PATCH /assets/units/:assetUnitId/status` (แก้ status รายหน่วยตรงๆ นอกเหนือ retire) ยังไม่มี UI เรียก ต้องแก้ผ่าน API/DB ตรงๆ
 - Frontend เป็น serial-numbered `AssetUnit` เต็มรูปแบบแล้ว ตรงกับ backend: `AssetsPage` ("Register units" dialog รับ serial number ทีละบรรทัด) และ `AssetDetailPage` เรียก `api.registerAssetUnits`/`api.retireAssetUnits` โดยตรง ไม่มี quantity-based batch add/remove เหลืออยู่ในโค้ด — `asset.totalQuantity` ที่เหลืออยู่เป็นแค่ read-only display label ไม่ใช่ gap อีกต่อไป
@@ -92,11 +92,14 @@ Permission key ที่ควบคุมแต่ละ action ดู [softwar
 | โหลด Asset/Reservation/Return detail view | BFF read API                              | ❌ เรียก domain endpoint ตรง |
 | โหลด approval queue                       | BFF read API                              | ❌ เรียก domain endpoint ตรง |
 | Create/cancel Reservation                 | Domain command API                        | ✅ Implemented |
-| Submit existing draft Reservation         | Domain command API                        | ⚠️ Backend มี endpoint แต่ frontend ไม่มี action |
+| Submit existing draft Reservation         | Domain command API                        | ✅ Implemented (`api.submitReservation` + ปุ่มใน `ReservationDetailPage`) |
 | Approve/reject item                       | Domain command API                        | ✅ Implemented |
 | Register/retire asset unit                | Domain command API                        | ✅ Implemented ทั้ง register และ retire |
 | Prepare (serial-unit assignment) / check out | Domain command API                     | ✅ Implemented — รวมเข้ากับ approve เป็นคำขอเดียวแล้ว (`items/:itemId/decision` รับ `assetUnitIds`), check out แยกเป็น `delivery-confirm` ตามเดิม และเป็น unit-based (`items[].reservationItemUnitIds`, partial handover ได้) |
 | Create/decide Return                      | Domain command API                        | ✅ Implemented — payload shape ตรงกับ backend DTO แล้ว (ดู gap ด้านบน) |
+| โหลด Return list/detail แยกหน้า            | Domain read API (`/returns`, `/returns/:id`) | ⚠️ Backend และ contract มีครบ (view `MINE`/`APPROVALS`/`ALL`) แต่ frontend ไม่เรียก — อ่าน return จาก `reservations/:id` → `returns[]` แทน |
+| ปรับสถานะ asset unit รายหน่วยด้วยมือ        | Domain command API (`PATCH /assets/units/:id/status`) | ⚠️ Backend และ contract มี แต่ frontend มีแค่ retire — `IN_REPAIR`/กู้คืน `LOST` ต้องแก้ผ่าน API/DB ตรง |
+| จำแนก asset จากภาพ (recognize)             | Domain command API (`/recognition/recognize*`) | ⚠️ Backend proxy และ contract มีครบ แต่ `recognitionApi.ts` ไม่มี client — ดูหัวข้อ Recognition ด้านล่าง |
 
 Recommended BFF read endpoint (ยังไม่ implement — เป้าหมายสถาปัตยกรรม ไม่ blocked การใช้งานปัจจุบันเพราะ frontend เรียก domain endpoint ตรงได้เต็มรูปแบบอยู่แล้ว):
 
@@ -112,7 +115,9 @@ Recommended BFF read endpoint (ยังไม่ implement — เป้าห�
 
 ## Recognition / Email Templates / Notification Settings modules
 
-Route inventory ของ 3 module นี้ (Recognition 11 routes, EmailTemplates 5 routes, NotificationSettings 3 routes) — ดู [backend_spec/modules/](../backend_spec/modules/) frontend `/admin/notifications` ครอบคลุม email-template editor และ SMTP settings tab (ดูตาราง route ด้านบน) ส่วน as-built coverage เต็มของ Recognition module ฝั่ง frontend ยังไม่ได้สำรวจในรอบนี้
+Route inventory ของ 3 module นี้ (Recognition 11 routes, EmailTemplates 5 routes, NotificationSettings 3 routes) — ดู [backend_spec/modules/](../backend_spec/modules/) frontend `/admin/notifications` ครอบคลุม email-template editor และ SMTP settings tab (ดูตาราง route ด้านบน)
+
+Recognition module ฝั่ง frontend (`frontend/src/recognitionApi.ts`) ครอบคลุม 7 จาก 11 route: จัดการ recognition asset (`getAsset`, `updateAsset`, `deleteAsset`), รูป reference (`registerAsset`, `addPhoto`, `listPhotos`, `deletePhoto`) และ image proxy ผ่าน `imageSrc()` — **ไม่มี client สำหรับ `POST /recognition/recognize` และ `/recognize/multi`** ซึ่งเป็นตัวจำแนกของจริง แปลว่าตอนนี้อัปโหลดรูป reference เก็บไว้ได้ แต่ยังไม่มี UI ที่ใช้จำแนก asset จากภาพ
 
 ## Data flow
 
