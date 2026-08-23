@@ -312,6 +312,21 @@ export const api = {
       method: "POST",
       body: json({ items, reason }),
     }),
+  // CHECKED_OUT is driven by handover/return and RESERVED is legacy-only, so
+  // neither is settable here -- see MANUALLY_SETTABLE_UNIT_STATUSES on the
+  // backend and the endpoint description in the contract.
+  updateAssetUnitStatus: (
+    assetUnitId: string,
+    input: {
+      status: "ACTIVE" | "BROKEN" | "LOST" | "IN_REPAIR" | "INACTIVE";
+      reason?: string;
+      expectedUpdatedAt: string;
+    },
+  ) =>
+    request<AssetUnit>(`/assets/units/${assetUnitId}/status`, {
+      method: "PATCH",
+      body: json(input),
+    }),
   assetUnits: (
     assetId: string,
     filters: {

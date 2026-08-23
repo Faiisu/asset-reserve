@@ -124,12 +124,10 @@
 <header class="page">
   <h1>Conflict Checklist — docs/ ↔ backend/ ↔ frontend/</h1>
   <p class="sub">รายการจุดที่เอกสาร, backend และ frontend ทำงานไม่ตรงกัน จัดกลุ่มตามส่วนที่ต้องแก้ ไล่ทีละข้อได้ (ติ๊กแล้วจำไว้ใน browser)</p>
-  <p class="meta">Audit 2026-08-23 · branch audit/backend · 23 findings · 20 closed, 3 waiting on a call</p>
+  <p class="meta">Audit 2026-08-23 · branch audit/backend · 23 findings · 21 closed, 2 waiting on a call</p>
   <div class="note" style="margin:16px 0 0">
     <strong>สถานะรอบนี้:</strong> แก้ไปแล้ว 18 ข้อ · <code>B9</code> ตรวจซ้ำแล้วไม่ใช่ข้อผิดพลาดจริง · <code>B2</code> ตัดสินใจแล้วว่า deferred
-    เหลือ <strong>3 ข้อที่ต้องตัดสินใจก่อน</strong> ว่าจะเดินทางไหน —
-    <code>B4</code> (สร้าง UI ปรับสถานะ unit หรือประกาศว่าตั้งใจไม่มี), <code>C1</code> (รับ OpenAPI generator หรือแก้ spec),
-    <code>C2</code> (รับ query library หรือเขียนตาราง query-key ใหม่) — ทั้งสามข้อยังไม่ติ๊ก
+    <code>B4</code> สร้าง UI แล้ว เหลือ <strong>2 ข้อ</strong> — <code>C1</code> และ <code>C2</code> ซึ่งกระทบสถาปัตยกรรม frontend ทั้งก้อน
   </div>
 </header>
 
@@ -267,15 +265,20 @@
     </div>
   </label>
 
-  <label class="item" data-id="B4">
-    <input type="checkbox" />
+  <label class="item done" data-id="B4">
+    <input type="checkbox" checked />
     <div>
-      <div class="tags"><span class="tag tag--medium">Medium</span></div>
-      <p class="title"><span class="id">B4</span><code>PATCH /assets/units/:assetUnitId/status</code> ไม่มี UI</p>
-      <div class="body"><p>backend รองรับปรับสถานะรายหน่วยด้วยมือ (<code>ACTIVE</code>/<code>BROKEN</code>/<code>LOST</code>/<code>IN_REPAIR</code>/<code>INACTIVE</code>) และ algorithms §6.9 อธิบายไว้ แต่ frontend มีแค่ retire — งานซ่อม (<code>IN_REPAIR</code>) กับการกู้ของที่หายเจอ ต้องแก้ผ่าน API/DB ตรง</p></div>
-      <div class="fix"><strong>แก้:</strong> เพิ่ม dialog เปลี่ยนสถานะ unit ใน <code>AssetDetailPage</code> (มี <code>expectedUpdatedAt</code> อยู่ในมืออยู่แล้ว) — ให้ครบวงจร BROKEN → IN_REPAIR → ACTIVE</div>
+      <div class="tags"><span class="tag tag--medium">Medium</span><span class="tag tag--side">สร้าง UI แล้ว</span></div>
+      <p class="title"><span class="id">B4</span><code>PATCH /assets/units/:assetUnitId/status</code> มี UI แล้ว</p>
+      <div class="body">
+        <p>เดิม backend รองรับปรับสถานะรายหน่วยด้วยมือ (<code>ACTIVE</code>/<code>IN_REPAIR</code>/<code>BROKEN</code>/<code>LOST</code>/<code>INACTIVE</code>) และ algorithms §6.9 อธิบายไว้ แต่ frontend มีแค่ retire — วงจรงานซ่อมและการกู้ของที่หายเจอต้องแก้ผ่าน API/DB ตรง</p>
+        <p><strong>ทำแล้ว:</strong> ปุ่ม "Change status" ต่อแถว unit ใน <code>AssetDetailPage</code> เปิด dialog ที่แสดงสถานะปัจจุบัน ให้เลือกสถานะใหม่พร้อมคำอธิบายว่าแต่ละอันหมายถึงอะไร และช่อง reason (optional, cap 2000 ตรง DTO) ที่ลงบันทึกใน unit event ledger ส่ง <code>expectedUpdatedAt</code> ไปด้วยเพื่อกัน stale write</p>
+        <p>ตัวเลือกที่เป็นสถานะปัจจุบันอยู่แล้วถูกซ่อน และปุ่มถูก disable สำหรับ unit ที่ <code>RESERVED</code>/<code>CHECKED_OUT</code> พร้อม tooltip อธิบาย — ตรงกับที่ backend ปฏิเสธด้วย <code>409 ASSET_UNIT_IN_USE</code> อยู่แล้ว (frontend เป็นแค่การบอกล่วงหน้า ไม่ใช่ด่านตรวจ)</p>
+      </div>
+      <div class="fix"><strong>ผล:</strong> <code>api.updateAssetUnitStatus</code> + <code>ChangeUnitStatusDialog</code> · typecheck ผ่าน · test 63/63 ผ่าน</div>
       <ul class="refs">
         <li>frontend/src/pages/AssetDetailPage.tsx</li>
+        <li>frontend/src/api.ts</li>
         <li>docs/backend_spec/algorithms-and-validation.md §6.9</li>
       </ul>
     </div>
@@ -539,7 +542,7 @@
 
 <script>
 (function () {
-  var KEY = "asset-reserve.conflict-checklist.v3";
+  var KEY = "asset-reserve.conflict-checklist.v4";
   var items = Array.prototype.slice.call(document.querySelectorAll(".item"));
   var bar = document.getElementById("bar");
   var ptext = document.getElementById("ptext");

@@ -46,7 +46,7 @@ flowchart TB
 | `/assets` | `AssetsPage` | search, management-area/status filters, list/card responsive views, cursor load-more, multi-select, register units (serial number ทีละบรรทัด), batch disable | permission-gated |
 | `/assets/new` | `AssetFormPage` | single/batch create, management-area selection, serial number/description, preview, upload file, camera capture, remove/replace photo | permission-gated |
 | `/asset/new` | Redirect | compatibility redirect ไป `/assets/new` | Login |
-| `/assets/:assetId` | `AssetDetailPage` | metadata/owner/edit policy, allocations, ledger, activate/deactivate, register/retire units | visibility และ capabilities จาก API |
+| `/assets/:assetId` | `AssetDetailPage` | metadata/owner/edit policy, allocations, ledger, activate/deactivate, register/retire units, เปลี่ยนสถานะ unit รายหน่วย | visibility และ capabilities จาก API |
 | `/assets/:assetId/edit` | `AssetFormPage` | edit name, area, description และ picture; จำนวนแก้ผ่าน register/retire unit เท่านั้น | permission-gated |
 | `/reservations` | `ReservationsPage` | My reservations/Approval queue tabs, search, grouped status/management-area/date filters, cursor load-more | permission-gated |
 | `/reservations/new` | `ReservationCreatePage` | event schedule, optional asset manifest, quantity, URL-prefilled dates/assets, recent reservations, reference lookup, create draft หรือ submit | permission-gated |
@@ -78,7 +78,7 @@ Permission key ที่ควบคุมแต่ละ action ดู [softwar
 - ไม่มี standalone inventory-adjustment route; การปรับยอดทำจาก asset list/detail
 - `POST /reservations/:id/submit` มี frontend action แล้ว (`api.submitReservation` + ปุ่ม "Send for approval" ใน `ReservationDetailPage` gate ด้วย `capabilities.canSubmit`) — ไม่ใช่ gap อีกต่อไป
 - Return payload shape (`reservationItemUnitIds` ตอน drop-off, per-unit `{reservationItemUnitId, condition}` จัดกลุ่มตาม `reservationItemId` ตอน decision) — frontend (`ReservationDetailPage`) แก้ให้ตรง backend DTO แล้ว ไม่ใช่ gap อีกต่อไป
-- `POST /assets/units/batch-retire` มี frontend UI แล้ว (Retire Units dialog ใน `AssetDetailPage` เรียก `api.retireAssetUnits`) — ไม่ใช่ gap อีกต่อไป ส่วน `PATCH /assets/units/:assetUnitId/status` (แก้ status รายหน่วยตรงๆ นอกเหนือ retire) ยังไม่มี UI เรียก ต้องแก้ผ่าน API/DB ตรงๆ
+- `POST /assets/units/batch-retire` มี frontend UI แล้ว (Retire Units dialog ใน `AssetDetailPage` เรียก `api.retireAssetUnits`) และ `PATCH /assets/units/:assetUnitId/status` มี UI แล้วเช่นกัน (ปุ่ม "Change status" ต่อแถว unit เรียก `api.updateAssetUnitStatus`) — ไม่ใช่ gap อีกต่อไปทั้งคู่ ปุ่มถูก disable สำหรับ unit สถานะ `RESERVED`/`CHECKED_OUT` ซึ่ง backend ปฏิเสธอยู่แล้ว (`409 ASSET_UNIT_IN_USE`)
 - Frontend เป็น serial-numbered `AssetUnit` เต็มรูปแบบแล้ว ตรงกับ backend: `AssetsPage` ("Register units" dialog รับ serial number ทีละบรรทัด) และ `AssetDetailPage` เรียก `api.registerAssetUnits`/`api.retireAssetUnits` โดยตรง ไม่มี quantity-based batch add/remove เหลืออยู่ในโค้ด — `asset.totalQuantity` ที่เหลืออยู่เป็นแค่ read-only display label ไม่ใช่ gap อีกต่อไป
 
 ## Endpoint status: BFF vs domain call (as-built)
@@ -98,7 +98,7 @@ Permission key ที่ควบคุมแต่ละ action ดู [softwar
 | Prepare (serial-unit assignment) / check out | Domain command API                     | ✅ Implemented — รวมเข้ากับ approve เป็นคำขอเดียวแล้ว (`items/:itemId/decision` รับ `assetUnitIds`), check out แยกเป็น `delivery-confirm` ตามเดิม และเป็น unit-based (`items[].reservationItemUnitIds`, partial handover ได้) |
 | Create/decide Return                      | Domain command API                        | ✅ Implemented — payload shape ตรงกับ backend DTO แล้ว (ดู gap ด้านบน) |
 | โหลด Return list/detail แยกหน้า            | Domain read API (`/returns`, `/returns/:id`) | ⚠️ Backend และ contract มีครบ (view `MINE`/`APPROVALS`/`ALL`) แต่ frontend ไม่เรียก — อ่าน return จาก `reservations/:id` → `returns[]` แทน |
-| ปรับสถานะ asset unit รายหน่วยด้วยมือ        | Domain command API (`PATCH /assets/units/:id/status`) | ⚠️ Backend และ contract มี แต่ frontend มีแค่ retire — `IN_REPAIR`/กู้คืน `LOST` ต้องแก้ผ่าน API/DB ตรง |
+| ปรับสถานะ asset unit รายหน่วยด้วยมือ        | Domain command API (`PATCH /assets/units/:id/status`) | ✅ Implemented — ปุ่ม "Change status" ต่อแถว unit ใน `AssetDetailPage` (`ACTIVE`/`IN_REPAIR`/`BROKEN`/`LOST`/`INACTIVE`) |
 | จำแนก asset จากภาพ (recognize)             | Domain command API (`/recognition/recognize*`) | ⏸️ Deferred by design — backend proxy และ contract มีครบ ยังไม่ทำ UI ในรอบนี้ ([scope-and-roadmap.md](../software_spec/scope-and-roadmap.md#asset-recognition--การจำแนก-asset-จากภาพ)) |
 
 Recommended BFF read endpoint (ยังไม่ implement — เป้าหมายสถาปัตยกรรม ไม่ blocked การใช้งานปัจจุบันเพราะ frontend เรียก domain endpoint ตรงได้เต็มรูปแบบอยู่แล้ว):
