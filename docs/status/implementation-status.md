@@ -99,7 +99,7 @@ Permission key ที่ควบคุมแต่ละ action ดู [softwar
 | Create/decide Return                      | Domain command API                        | ✅ Implemented — payload shape ตรงกับ backend DTO แล้ว (ดู gap ด้านบน) |
 | โหลด Return list/detail แยกหน้า            | Domain read API (`/returns`, `/returns/:id`) | ⚠️ Backend และ contract มีครบ (view `MINE`/`APPROVALS`/`ALL`) แต่ frontend ไม่เรียก — อ่าน return จาก `reservations/:id` → `returns[]` แทน |
 | ปรับสถานะ asset unit รายหน่วยด้วยมือ        | Domain command API (`PATCH /assets/units/:id/status`) | ⚠️ Backend และ contract มี แต่ frontend มีแค่ retire — `IN_REPAIR`/กู้คืน `LOST` ต้องแก้ผ่าน API/DB ตรง |
-| จำแนก asset จากภาพ (recognize)             | Domain command API (`/recognition/recognize*`) | ⚠️ Backend proxy และ contract มีครบ แต่ `recognitionApi.ts` ไม่มี client — ดูหัวข้อ Recognition ด้านล่าง |
+| จำแนก asset จากภาพ (recognize)             | Domain command API (`/recognition/recognize*`) | ⏸️ Deferred by design — backend proxy และ contract มีครบ ยังไม่ทำ UI ในรอบนี้ ([scope-and-roadmap.md](../software_spec/scope-and-roadmap.md#asset-recognition--การจำแนก-asset-จากภาพ)) |
 
 Recommended BFF read endpoint (ยังไม่ implement — เป้าหมายสถาปัตยกรรม ไม่ blocked การใช้งานปัจจุบันเพราะ frontend เรียก domain endpoint ตรงได้เต็มรูปแบบอยู่แล้ว):
 
@@ -117,7 +117,9 @@ Recommended BFF read endpoint (ยังไม่ implement — เป้าห�
 
 Route inventory ของ 3 module นี้ (Recognition 11 routes, EmailTemplates 5 routes, NotificationSettings 3 routes) — ดู [backend_spec/modules/](../backend_spec/modules/) frontend `/admin/notifications` ครอบคลุม email-template editor และ SMTP settings tab (ดูตาราง route ด้านบน)
 
-Recognition module ฝั่ง frontend (`frontend/src/recognitionApi.ts`) ครอบคลุม 7 จาก 11 route: จัดการ recognition asset (`getAsset`, `updateAsset`, `deleteAsset`), รูป reference (`registerAsset`, `addPhoto`, `listPhotos`, `deletePhoto`) และ image proxy ผ่าน `imageSrc()` — **ไม่มี client สำหรับ `POST /recognition/recognize` และ `/recognize/multi`** ซึ่งเป็นตัวจำแนกของจริง แปลว่าตอนนี้อัปโหลดรูป reference เก็บไว้ได้ แต่ยังไม่มี UI ที่ใช้จำแนก asset จากภาพ
+Recognition module ฝั่ง frontend (`frontend/src/recognitionApi.ts`) ครอบคลุม 7 จาก 11 route: จัดการ recognition asset (`getAsset`, `updateAsset`, `deleteAsset`), รูป reference (`registerAsset`, `addPhoto`, `listPhotos`, `deletePhoto`) และ image proxy ผ่าน `imageSrc()` — ไม่มี client สำหรับ `POST /recognition/recognize` และ `/recognize/multi` ซึ่งเป็นตัวจำแนกของจริง
+
+**ไม่ใช่ gap** — เป็น scope decision: รอบนี้ตั้งใจทำเฉพาะขาเก็บ reference photo ยังไม่ทำ UI จำแนก ดู [software_spec/scope-and-roadmap.md](../software_spec/scope-and-roadmap.md#asset-recognition--การจำแนก-asset-จากภาพ)
 
 ## Data flow
 

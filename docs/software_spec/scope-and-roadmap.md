@@ -6,6 +6,27 @@
 
 - **ReservationChangeRequest (ระบบขอแก้ไข reservation หลัง submit)** — ยกเลิกและลบ endpoint, frontend flow, Prisma model และ table แล้วผ่าน migration `20260820164846_drop_reservation_change_requests`
 
+## Feature ที่ backend พร้อมแล้วแต่ยังไม่ทำ UI (deferred by design)
+
+ต่างจากสองหัวข้อข้างล่าง: ของในหัวข้อนี้มี persistence, endpoint และ contract ครบแล้ว แต่**ตั้งใจยังไม่ทำ UI ในรอบนี้** — ไม่ใช่ gap ที่ลืม และไม่ใช่ของที่ถูกยกเลิก
+
+### Asset recognition — การจำแนก asset จากภาพ
+
+**สถานะ: เก็บ reference photo แล้ว แต่ยังไม่ทำ UI จำแนก**
+
+ส่วนที่ทำงานอยู่จริงตอนนี้คือ**ขาเก็บข้อมูล**: ทุกรูปที่แนบกับ asset ตอนสร้าง/แก้ไข ถูกส่งไปเก็บที่ `recognition-service` เป็น reference photo และคำนวณ embedding ไว้ ฐานข้อมูล vector จึงสะสมขึ้นเรื่อยๆ ตามการใช้งานปกติ
+
+ส่วนที่**ยังไม่ทำ**คือขาใช้งาน: `POST /recognition/recognize` และ `POST /recognition/recognize/multi` มีครบทั้งใน `recognition-service`, backend proxy และ contract แต่ยังไม่มีหน้าจอไหนเรียก — `frontend/src/recognitionApi.ts` ครอบคลุมเฉพาะ route ที่จัดการ asset/photo ไม่มี client ของสองเส้นนี้ รายละเอียด endpoint: [backend_spec/modules/recognition.md](../backend_spec/modules/recognition.md)
+
+เจตนาเดิมของฟีเจอร์คือใช้ตอน**ตรวจรับคืน** (เจ้าหน้าที่ถ่ายรูปของที่ถูกคืน ระบบบอกว่าเป็น asset ตัวไหน แทนการไล่หา serial number ด้วยตา) การเก็บ reference photo ต่อไปเรื่อยๆ ตั้งแต่ตอนนี้จึงมีประโยชน์: เมื่อถึงคิวทำ UI ฐานข้อมูลจะมีข้อมูลพร้อมใช้แล้ว ไม่ต้องย้อนกลับมาถ่ายรูป asset ทั้งระบบใหม่
+
+เมื่อถึงคิวทำ ต้องตัดสินใจเรื่องต่อไปนี้ก่อน (ยังไม่มีข้อสรุปในรอบนี้):
+
+- จุดเข้าใช้งานอยู่หน้าไหน — หน้าตรวจรับคืน, asset search หรือทั้งคู่
+- ใช้ `recognize` (ของชิ้นเดียวต่อรูป) หรือ `recognize/multi` (ตรวจจับหลายชิ้นในรูปเดียว)
+- แสดง `best_match` อย่างเดียว หรือให้ผู้ใช้เลือกจาก `top_matches`
+- เมื่อ `similarity` ต่ำกว่า threshold ให้ถือว่าไม่พบ หรือให้เลือกเองต่อได้อยู่ดี
+
 ## สิ่งที่ไม่อยู่ใน MVP ปัจจุบัน
 
 รายการต่อไปนี้ไม่มี persistence ใน Prisma ปัจจุบัน จึงห้ามระบุว่า backend รองรับแล้ว:

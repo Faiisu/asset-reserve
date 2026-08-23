@@ -124,12 +124,12 @@
 <header class="page">
   <h1>Conflict Checklist — docs/ ↔ backend/ ↔ frontend/</h1>
   <p class="sub">รายการจุดที่เอกสาร, backend และ frontend ทำงานไม่ตรงกัน จัดกลุ่มตามส่วนที่ต้องแก้ ไล่ทีละข้อได้ (ติ๊กแล้วจำไว้ใน browser)</p>
-  <p class="meta">Audit 2026-08-23 · branch audit/backend · 23 findings · 19 closed, 4 waiting on a call</p>
+  <p class="meta">Audit 2026-08-23 · branch audit/backend · 23 findings · 20 closed, 3 waiting on a call</p>
   <div class="note" style="margin:16px 0 0">
-    <strong>สถานะรอบนี้:</strong> แก้ไปแล้ว 18 ข้อ + 1 ข้อ (B9) ตรวจซ้ำแล้วพบว่าไม่ใช่ข้อผิดพลาดจริง
-    เหลือ <strong>4 ข้อที่ต้องตัดสินใจก่อน</strong> ว่าจะเดินทางไหน — <code>B2</code> (recognition UI อยู่ใน scope ไหม),
+    <strong>สถานะรอบนี้:</strong> แก้ไปแล้ว 18 ข้อ · <code>B9</code> ตรวจซ้ำแล้วไม่ใช่ข้อผิดพลาดจริง · <code>B2</code> ตัดสินใจแล้วว่า deferred
+    เหลือ <strong>3 ข้อที่ต้องตัดสินใจก่อน</strong> ว่าจะเดินทางไหน —
     <code>B4</code> (สร้าง UI ปรับสถานะ unit หรือประกาศว่าตั้งใจไม่มี), <code>C1</code> (รับ OpenAPI generator หรือแก้ spec),
-    <code>C2</code> (รับ query library หรือเขียนตาราง query-key ใหม่) — ทั้งสี่ข้อยังไม่ติ๊ก
+    <code>C2</code> (รับ query library หรือเขียนตาราง query-key ใหม่) — ทั้งสามข้อยังไม่ติ๊ก
   </div>
 </header>
 
@@ -232,19 +232,20 @@
     </div>
   </label>
 
-  <label class="item" data-id="B2">
-    <input type="checkbox" />
+  <label class="item done" data-id="B2">
+    <input type="checkbox" checked />
     <div>
-      <div class="tags"><span class="tag tag--high">High</span></div>
-      <p class="title"><span class="id">B2</span>Recognition มี backend proxy ครบ แต่ไม่มี UI ที่ “จดจำของ” ได้</p>
+      <div class="tags"><span class="tag tag--high">High</span><span class="tag tag--side">ตัดสินใจแล้ว · deferred</span></div>
+      <p class="title"><span class="id">B2</span>Recognition — ประกาศเป็น deferred by design แล้ว</p>
       <div class="body">
-        <p><code>POST /recognition/recognize</code> และ <code>/recognize/multi</code> มีครบทั้ง backend, contract และ module doc — แต่ <code>frontend/src/recognitionApi.ts</code> มีแค่ method จัดการรูป reference (register / addPhoto / listPhotos / delete) <strong>ไม่มี method เรียก recognize เลย</strong></p>
-        <p>แปลว่าฟีเจอร์ recognition ทั้งฟีเจอร์อัปโหลดรูปเข้าไปเก็บได้อย่างเดียว ใช้จำแนกของจริงไม่ได้</p>
+        <p><code>POST /recognition/recognize</code> และ <code>/recognize/multi</code> มีครบทั้ง backend, contract และ module doc แต่ <code>recognitionApi.ts</code> ไม่มี client เรียก — ฟีเจอร์จึงเก็บรูป reference ได้อย่างเดียว ยังใช้จำแนกของจริงไม่ได้</p>
+        <p><strong>ตัดสินใจ:</strong> ระบบนี้ยังไม่ทำในรอบนี้ ไม่ใช่ gap ที่ลืม บันทึกเป็น scope decision แล้วใน <code>scope-and-roadmap.md</code> หัวข้อใหม่ “Feature ที่ backend พร้อมแล้วแต่ยังไม่ทำ UI (deferred by design)” พร้อมเหตุผลว่าทำไมการเก็บ reference photo ต่อไปยังคุ้ม (ฐาน embedding สะสมไว้ก่อน พอถึงคิวทำ UI ไม่ต้องย้อนถ่ายรูป asset ใหม่ทั้งระบบ) และคำถามออกแบบ 4 ข้อที่ต้องตอบเมื่อถึงคิว</p>
       </div>
-      <div class="fix"><strong>แก้:</strong> ตัดสินใจก่อนว่าฟีเจอร์นี้อยู่ใน scope รอบนี้ไหม — ถ้าใช่ เพิ่ม <code>recognitionApi.recognize()</code> + entry point ใน UI; ถ้ายัง ให้บันทึกใน <code>scope-and-roadmap.md</code> ว่า backend-only ตั้งใจ</div>
+      <div class="fix"><strong>ผล:</strong> ไม่มีการเปลี่ยนโค้ด — <code>status/implementation-status.md</code> เปลี่ยนจาก ⚠️ gap เป็น ⏸️ deferred และลิงก์ไปที่ scope decision</div>
       <ul class="refs">
+        <li>docs/software_spec/scope-and-roadmap.md</li>
+        <li>docs/status/implementation-status.md</li>
         <li>frontend/src/recognitionApi.ts</li>
-        <li>docs/backend_spec/modules/recognition.md</li>
       </ul>
     </div>
   </label>
@@ -538,7 +539,7 @@
 
 <script>
 (function () {
-  var KEY = "asset-reserve.conflict-checklist.v2";
+  var KEY = "asset-reserve.conflict-checklist.v3";
   var items = Array.prototype.slice.call(document.querySelectorAll(".item"));
   var bar = document.getElementById("bar");
   var ptext = document.getElementById("ptext");
