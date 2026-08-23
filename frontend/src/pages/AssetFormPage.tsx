@@ -3,13 +3,14 @@ import {
   ArrowLeft,
   Camera,
   CopyPlus,
+  FileUp,
   Plus,
   Save,
   Star,
   Trash2,
   Upload,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiClientError } from "../api";
 import { useAuth } from "../auth";
@@ -26,6 +27,7 @@ import {
   Select,
   Textarea,
 } from "../components/ui";
+import { parseAssetImportCsv } from "../lib/csv";
 import { recognitionApi, type RecognitionPhoto } from "../recognitionApi";
 import type { AssetDetail, ManagementArea } from "../types";
 
@@ -726,6 +728,8 @@ function BatchAssetForm({
   const [submitting, setSubmitting] = useState(false);
   const [cameraRowKey, setCameraRowKey] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [importNotice, setImportNotice] = useState("");
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!areaId && areas.length > 0) {
@@ -784,6 +788,42 @@ function BatchAssetForm({
         return { ...row, photos, thumbnailId };
       }),
     );
+  }
+
+  // Reads a CSV (fixed column order: S/N, P/N, description; header row
+  // skipped) and replaces the manifest wholesale with the grouped result --
+  // see parseAssetImportCsv for the S/N-per-P/N grouping rule. Only file
+  // reading needs to be async; the input's value is cleared afterward so
+  // re-selecting the same file (e.g. after fixing it) still fires onChange.
+  async function importFromCsv(file: File) {
+    setError("");
+    setImportNotice("");
+    try {
+      const text = await file.text();
+      const { rows: imported, skippedRows } = parseAssetImportCsv(text);
+      if (imported.length === 0) {
+        setError(
+          "No valid rows found in that CSV -- check it has a header row and a P/N in each data row.",
+        );
+        return;
+      }
+      setRows(
+        imported.map((row, i) => ({
+          ...newBatchRow(Date.now() + i),
+          name: row.name,
+          partNumber: row.partNumber,
+          description: row.description,
+          serialNumbers: row.serialNumbers,
+        })),
+      );
+      setImportNotice(
+        skippedRows > 0
+          ? `Imported ${imported.length} asset(s) from CSV. Skipped ${skippedRows} row(s) with no P/N.`
+          : `Imported ${imported.length} asset(s) from CSV.`,
+      );
+    } catch {
+      setError("Could not read that CSV file.");
+    }
   }
 
   async function submit(event: FormEvent) {
@@ -919,6 +959,11 @@ function BatchAssetForm({
           {error}
         </div>
       )}
+      {importNotice && (
+        <div className="form-alert form-alert--info" role="status">
+          {importNotice}
+        </div>
+      )}
       <div className="record-form">
         <div className="record-form__main">
           <section className="form-section">
@@ -960,20 +1005,44 @@ function BatchAssetForm({
                 <h2>Manifest</h2>
                 <p>
                   One row per asset -- add its name, part number, photos, and
-                  any serial units to register right away.
+                  any serial units to register right away. Or import a CSV
+                  (S/N, P/N, description) to fill this out automatically --
+                  rows sharing a P/N become one asset with multiple S/Ns.
                 </p>
               </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() =>
-                  setRows((current) => [...current, newBatchRow(Date.now())])
-                }
-              >
-                <Plus size={15} />
-                Add another asset
-              </Button>
+              <div className="batch-manifest-actions">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => csvInputRef.current?.click()}
+                >
+                  <FileUp size={15} />
+                  Import CSV
+                </Button>
+                <input
+                  ref={csvInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  style={{ display: "none" }}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    event.target.value = "";
+                    if (file) void importFromCsv(file);
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    setRows((current) => [...current, newBatchRow(Date.now())])
+                  }
+                >
+                  <Plus size={15} />
+                  Add another asset
+                </Button>
+              </div>
             </div>
             <div className="batch-rows">
               {rows.map((row, index) => (

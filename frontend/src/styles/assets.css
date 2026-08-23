@@ -45,6 +45,11 @@
 .form-section__heading--action > div {
   flex: 1;
 }
+.batch-manifest-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .form-submit {
   display: flex;
   justify-content: flex-end;
