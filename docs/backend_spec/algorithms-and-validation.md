@@ -61,14 +61,14 @@ Permission key ที่มีอยู่ในระบบและควา�
 ### 1.3 Validation และชนิดข้อมูล
 
 | รายการ             | กติกา                                            |
-| ------------------- | -------------------------------------------------- |
-| ID                  | UUID และ path parameter ตรวจด้วย `ParseUUIDPipe`  |
-| Date/time           | ISO 8601 พร้อม timezone                            |
-| JSON field          | camelCase                                          |
-| Unknown body field  | ปฏิเสธด้วย `422 VALIDATION_ERROR`                  |
-| Pagination limit    | ค่าเริ่มต้น 20, ต่ำสุด 1, สูงสุด 100               |
-| Search              | trim ช่องว่างและยาวไม่เกิน 100 ตัวอักษร            |
-| Picture              | รับ URL ไม่ได้รับ binary upload โดยตรง             |
+| ------------------ | ------------------------------------------------ |
+| ID                 | UUID และ path parameter ตรวจด้วย `ParseUUIDPipe` |
+| Date/time          | ISO 8601 พร้อม timezone                          |
+| JSON field         | camelCase                                        |
+| Unknown body field | ปฏิเสธด้วย `422 VALIDATION_ERROR`                |
+| Pagination limit   | ค่าเริ่มต้น 20, ต่ำสุด 1, สูงสุด 100             |
+| Search             | trim ช่องว่างและยาวไม่เกิน 100 ตัวอักษร          |
+| Picture            | รับ URL ไม่ได้รับ binary upload โดยตรง           |
 
 ### 1.4 Cursor pagination algorithm
 
@@ -109,16 +109,16 @@ UPDATE ... WHERE id = :id AND updated_at = :expectedUpdatedAt
 Error กลางที่พบบ่อย:
 
 | HTTP | Code                      | ความหมาย                                        |
-| ---- | ------------------------- | ------------------------------------------------- |
-| 400  | `INVALID_REQUEST`         | Path/query/cursor ไม่ถูกต้อง                      |
-| 401  | `AUTHENTICATION_REQUIRED` | ไม่มี token, token หมดอายุ หรือตรวจสอบไม่ได้      |
-| 403  | `ACCOUNT_INACTIVE`        | Account ถูกปิดใช้งาน                              |
-| 403  | `PERMISSION_DENIED`       | ไม่มี global หรือ scoped permission ที่ต้องใช้    |
-| 409  | `STALE_WRITE`             | `expectedUpdatedAt` ไม่ตรงข้อมูลล่าสุด            |
-| 409  | `CONCURRENT_MODIFICATION` | Database transaction ชนกับ request อื่น           |
-| 422  | `VALIDATION_ERROR`        | Body หรือ query ไม่ผ่าน DTO/business validation   |
-| 429  | `RATE_LIMITED`            | เรียก API เกิน rate limit                         |
-| 500  | `INTERNAL_ERROR`          | Error ที่ไม่ได้ map เป็น domain error             |
+| ---- | ------------------------- | ----------------------------------------------- |
+| 400  | `INVALID_REQUEST`         | Path/query/cursor ไม่ถูกต้อง                    |
+| 401  | `AUTHENTICATION_REQUIRED` | ไม่มี token, token หมดอายุ หรือตรวจสอบไม่ได้    |
+| 403  | `ACCOUNT_INACTIVE`        | Account ถูกปิดใช้งาน                            |
+| 403  | `PERMISSION_DENIED`       | ไม่มี global หรือ scoped permission ที่ต้องใช้  |
+| 409  | `STALE_WRITE`             | `expectedUpdatedAt` ไม่ตรงข้อมูลล่าสุด          |
+| 409  | `CONCURRENT_MODIFICATION` | Database transaction ชนกับ request อื่น         |
+| 422  | `VALIDATION_ERROR`        | Body หรือ query ไม่ผ่าน DTO/business validation |
+| 429  | `RATE_LIMITED`            | เรียก API เกิน rate limit                       |
+| 500  | `INTERNAL_ERROR`          | Error ที่ไม่ได้ map เป็น domain error           |
 
 Endpoint-specific error code (เช่น `USERNAME_ALREADY_EXISTS`, `LAST_GLOBAL_ADMIN`) ระบุไว้ในหัวข้อ algorithm ของ endpoint นั้น และต้องตรงกับ `contracts/components/schemas/` — ห้ามเพิ่ม error code ใหม่ในเอกสารนี้โดยไม่เพิ่มใน OpenAPI contract ด้วย
 
@@ -308,8 +308,8 @@ Global ADMIN เท่านั้น ปฏิเสธเมื่อ area ย
 
 1. `unitCounts` คำนวณจากการนับแถว `AssetUnit` ของ asset นั้น แยกตาม status (`ACTIVE`, `RESERVED`, `CHECKED_OUT`, `BROKEN`, `LOST`, `IN_REPAIR`, `INACTIVE`) ด้วย `groupBy` — ไม่มี quantity column เก็บไว้ที่ `Asset`
 2. `totalQuantity = unitCounts.total` (นับทุก unit ยกเว้น `INACTIVE`)
-3. `allocatedQuantity` คือผลรวม `ReservationItem.quantity` ที่ item status เป็น `PREPARED` หรือ `DELIVERED` และ reservation status เป็น `PARTIALLY_APPROVED`, `APPROVED`, `DELIVERY_CONFIRMED` หรือ `RETURN_PENDING`
-4. เมื่อไม่ส่ง date range: `availableQuantity = unitCounts.active`; เมื่อส่ง date range: `availableQuantity = max(unitCounts.active + unitCounts.reserved + unitCounts.checkedOut - allocatedQuantity, 0)` เพื่อคง unit ที่ถูกกันสิทธิ์อยู่ใน schedulable pool ก่อนหักเฉพาะ allocation ที่ overlap และไม่เคยนับ `BROKEN`/`LOST`/`IN_REPAIR`/`INACTIVE` เป็น capacity
+3. `allocatedQuantity` คือจำนวน `AssetUnit` คนละตัวที่มี assignment สถานะ active (`ASSIGNED` หรือ `CHECKED_OUT`) overlap ช่วงเวลาที่ถาม โดยนับ serial เดิมเพียงครั้งเดียวแม้มีหลาย assignment
+4. เมื่อไม่ส่ง date range: `availableQuantity = unitCounts.active`; เมื่อส่ง date range: `availableQuantity = max(unitCounts.active + unitCounts.reserved + unitCounts.checkedOut - allocatedQuantity, 0)` เพื่อคง unit ที่ถูกกันสิทธิ์อยู่ใน schedulable pool ก่อนหักเฉพาะ serial ที่ไม่ว่างจริง และไม่เคยนับ `BROKEN`/`LOST`/`IN_REPAIR`/`INACTIVE` เป็น capacity
 5. `isActive` เป็น boolean ตรงๆ บน `Asset`; status ระดับ asset ไม่มีแล้ว — status ย้ายไปอยู่ระดับ `AssetUnit` แต่ละชิ้น
 6. `owner` มาจาก `Asset.createdBy`; asset เก่าก่อนมี creator tracking อาจเป็น `null`
 7. `capabilities` คำนวณเฉพาะ actor ปัจจุบันจาก permission ใน management area ของ asset
@@ -376,7 +376,7 @@ Authorization: Scoped `asset:update` · Input: `serialNumbers` 1–200 ราย
 
 ### 6.7 `GET /assets/:assetId/units` — ดูรายการ unit ของ asset
 
-Authorization: Scoped `asset:view` · Query: `status?`, `search?`, `cursor?`, `limit?` — คืนแบบ paginated เหมือน list endpoint อื่นๆ
+Authorization: Scoped `asset:view` · Query: `status?`, `from?`, `to?`, `search?`, `cursor?`, `limit?` — คืนแบบ paginated เหมือน list endpoint อื่นๆ ถ้าส่งช่วงเวลาต้องส่งทั้ง `from` และ `to` และ `to > from`; ระบบคืนเฉพาะ unit ที่สถานะทางกายภาพอยู่ใน schedulable pool และไม่มี `ASSIGNED`/`CHECKED_OUT` assignment ที่ overlap ด้วยเงื่อนไข `assignmentStartAt < to AND assignmentEndAt > from`
 
 ### 6.8 `POST /assets/units/batch-retire` — ปลดระวางหน่วย
 
@@ -384,18 +384,18 @@ Authorization: Scoped `asset:update` ตาม area ของแต่ละ uni
 
 1. โหลด unit ทั้งหมดตาม ID พร้อม asset/area และเรียงตาม UUID เพื่อลด deadlock
 2. ตรวจ `asset:update` ตาม area ของทุก unit
-3. ปฏิเสธ (`409`) unit ที่สถานะปัจจุบันเป็น `RESERVED` หรือ `CHECKED_OUT` — ต้องคืน/ยกเลิกการจองก่อนปลดระวาง
+3. ภายใน serializable transaction ให้ lock unit แล้วปฏิเสธ (`409`) เมื่อสถานะทางกายภาพเป็น legacy `RESERVED`/`CHECKED_OUT` หรือมี `ReservationItemUnit` สถานะ `ASSIGNED`/`CHECKED_OUT` อยู่ในปัจจุบันหรืออนาคต
 4. เปลี่ยน `status = INACTIVE` ทีละ unit ด้วย optimistic concurrency (`expectedUpdatedAt`); stale ตอบ `409 STALE_WRITE`
 5. เขียน `AssetUnitEvent` (`eventType = RETIRED`) หนึ่งรายการต่อ unit ใน `AssetUnitEventBatch` เดียวกัน
 6. คืนรายการ unit ที่ปลดระวางแล้ว
 
 ### 6.9 `PATCH /assets/units/:assetUnitId/status` — ปรับสถานะ unit ด้วยมือ
 
-Authorization: Scoped `asset:update` ใน area ของ unit · Input: `status` (จำกัดเฉพาะ `ACTIVE`, `BROKEN`, `LOST`, `IN_REPAIR`, `INACTIVE` — `RESERVED`/`CHECKED_OUT` ระบบจัดการเองผ่าน reservation flow เท่านั้น), `reason?`, `expectedUpdatedAt`
+Authorization: Scoped `asset:update` ใน area ของ unit · Input: `status` (จำกัดเฉพาะ `ACTIVE`, `BROKEN`, `LOST`, `IN_REPAIR`, `INACTIVE` — `CHECKED_OUT` ระบบจัดการผ่าน handover/return และ `RESERVED` เป็น legacy compatibility เท่านั้น), `reason?`, `expectedUpdatedAt`
 
 1. โหลด unit; ถ้าไม่พบตอบ `404`
 2. ตรวจ `asset:update` ใน area ของ asset ที่ unit สังกัด
-3. Update `status` ด้วย optimistic concurrency; stale ตอบ `409 STALE_WRITE`
+3. ถ้าเปลี่ยนเป็น `INACTIVE` ให้ปฏิเสธเมื่อมี current/future assignment ที่ยัง active จากนั้น update `status` ด้วย optimistic concurrency; stale ตอบ `409 STALE_WRITE`
 4. เขียน `AssetUnitEvent` (`eventType = ADJUSTMENT`, `fromStatus`/`toStatus` ตามการเปลี่ยน) ใน batch ใหม่หนึ่งรายการ
 5. คืน unit ล่าสุด
 
@@ -452,16 +452,16 @@ Authorization: Scoped `asset:delete`
 Availability ใช้ช่วงเวลาแบบ half-open: overlap เมื่อ `existing.startAt < requested.endAt` และ `existing.endAt > requested.startAt` ดังนั้นรายการที่จบตรงเวลาเริ่มของอีกรายการไม่ชนกัน
 
 - Schedulable pool นับ unit สถานะ `ACTIVE`, `RESERVED`, `CHECKED_OUT`; ไม่รวม `BROKEN`, `LOST`, `IN_REPAIR`, `INACTIVE` แล้วจึงหัก hard allocation ที่ overlap
-- Hard allocation นับเฉพาะ item สถานะ `PREPARED`, `DELIVERED` ใน reservation สถานะ `PARTIALLY_APPROVED`, `APPROVED`, `DELIVERY_CONFIRMED`, `RETURN_PENDING`
+- Hard allocation นับจำนวน `AssetUnit` คนละตัวที่มี assignment สถานะ `ASSIGNED`/`CHECKED_OUT` overlap ช่วงที่ถาม; serial เดิมนับครั้งเดียวแม้มีหลาย assignment
 - Soft warning นับ item สถานะ `PENDING` ใน reservation สถานะ `PENDING_APPROVAL`
-- Approval lock asset row ตาม UUID, ตรวจ availability ซ้ำใน `SERIALIZABLE` transaction และ retry `P2034` สูงสุด 3 ครั้ง (รายละเอียด retry policy: [database-and-concurrency.md](database-and-concurrency.md))
+- Approval lock reservation แล้ว lock asset/unit ตาม UUID ใน `SERIALIZABLE` transaction ตรวจ serial ที่เลือกและช่วง assignment ซ้ำ และ retry `P2034` สูงสุด 3 ครั้ง (รายละเอียด retry policy: [database-and-concurrency.md](database-and-concurrency.md))
 - Pending request ไม่กัน quantity แต่ detail จะคืน `PENDING_RESERVATION_OVERLAP`, `pendingQuantity` และ `pendingReservationCount`
 
 Status transitions และความหมายทางธุรกิจของแต่ละ status: [software_spec/lifecycle-and-state-machines.md](../software_spec/lifecycle-and-state-machines.md)
 
 ### 7.1 `POST /reservations`
 
-สร้าง `DRAFT` หรือ `PENDING_APPROVAL` พร้อม event details, assets และ participants ตรวจ asset active, permission ทุก area, duplicate asset และ approved overlap ก่อนบันทึก เมื่อสร้างหรือ submit ด้วยรายการ items ว่างเปล่า สถานะจะถูกปรับเป็น `APPROVED` อัตโนมัติ โดยไม่ต้องผ่าน approval workflow
+สร้าง `DRAFT` หรือ `PENDING_APPROVAL` พร้อม event details, assets และ participants โดยแต่ละ item ขอได้ 1–200 units ตรวจ asset active, permission ทุก area, duplicate asset และ approved overlap ก่อนบันทึก เมื่อสร้างหรือ submit ด้วยรายการ items ว่างเปล่า สถานะจะถูกปรับเป็น `APPROVED` อัตโนมัติ โดยไม่ต้องผ่าน approval workflow
 
 ### 7.2 `GET /reservations`
 
@@ -469,13 +469,13 @@ Status transitions และความหมายทางธุรกิจ�
 
 `view` (default `MINE`) มี 5 ค่า:
 
-| ค่า | ความหมาย |
-| --- | --- |
-| `MINE` | Reservation ที่ actor เป็น requester |
-| `PARTICIPATING` | Reservation ที่ actor เป็น participant |
-| `APPROVALS` | Reservation ที่กำลังรอ decision ของ actor อยู่ (มี `reservation:approve`/`reject` scope ครอบคลุมและยังไม่ตัดสิน) |
-| `APPROVAL_HISTORY` | Reservation ที่ actor เคยตัดสินไปแล้ว (approve/reject ในอดีต) |
-| `ALL` | ทุก reservation ที่อยู่ใน `reservation:view` scope ของ actor (global หรือเฉพาะ area ที่มี permission) ไม่จำกัดบทบาท |
+| ค่า                | ความหมาย                                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `MINE`             | Reservation ที่ actor เป็น requester                                                                                |
+| `PARTICIPATING`    | Reservation ที่ actor เป็น participant                                                                              |
+| `APPROVALS`        | Reservation ที่กำลังรอ decision ของ actor อยู่ (มี `reservation:approve`/`reject` scope ครอบคลุมและยังไม่ตัดสิน)    |
+| `APPROVAL_HISTORY` | Reservation ที่ actor เคยตัดสินไปแล้ว (approve/reject ในอดีต)                                                       |
+| `ALL`              | ทุก reservation ที่อยู่ใน `reservation:view` scope ของ actor (global หรือเฉพาะ area ที่มี permission) ไม่จำกัดบทบาท |
 
 ### 7.3 `GET /reservations/:reservationId`
 
@@ -483,12 +483,12 @@ Status transitions และความหมายทางธุรกิจ�
 
 `capabilities` มี 4 flag คำนวณสดต่อ request ตาม actor:
 
-| Flag | True เมื่อ |
-| --- | --- |
-| `canSubmit` | actor เป็น requester, reservation เป็น `DRAFT` (ตรงกับ precondition ของ §7.4) |
+| Flag                 | True เมื่อ                                                                                                                                                                                                                    |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `canSubmit`          | actor เป็น requester, reservation เป็น `DRAFT` (ตรงกับ precondition ของ §7.4)                                                                                                                                                 |
 | `canConfirmDelivery` | actor เป็นเจ้าหน้าที่คลัง/Area Manager, reservation เป็น `APPROVED` หรือ `PARTIALLY_APPROVED` ที่มี item อยู่สถานะ `PREPARED` (ผูก serial unit ตอนอนุมัติแล้ว — ดู §7.5) อย่างน้อยหนึ่งรายการ (ตรงกับ precondition ของ §7.11) |
-| `canReturn` | actor เป็นผู้ยืม/participant, มี `ReservationItemUnit` อย่างน้อยหนึ่งหน่วยของ reservation นี้อยู่สถานะ `CHECKED_OUT` (ตรงกับ precondition ของ §8.2) |
-| `canDecideReturn` | actor เป็น Area Manager ของ management area ที่ reservation นี้อยู่, มี `Return` อย่างน้อยหนึ่งใบของ reservation นี้อยู่สถานะ `PENDING` (ตรงกับ precondition ของ §8.3) |
+| `canReturn`          | actor เป็นผู้ยืม/participant, มี `ReservationItemUnit` อย่างน้อยหนึ่งหน่วยของ reservation นี้อยู่สถานะ `CHECKED_OUT` (ตรงกับ precondition ของ §8.2)                                                                           |
+| `canDecideReturn`    | actor เป็น Area Manager ของ management area ที่ reservation นี้อยู่, มี `Return` อย่างน้อยหนึ่งใบของ reservation นี้อยู่สถานะ `PENDING` (ตรงกับ precondition ของ §8.3)                                                        |
 
 ### 7.4 `POST /reservations/:reservationId/submit`
 
@@ -500,12 +500,11 @@ Approve/reject เป็นราย item ตาม area permission เมื่
 
 **Approve เป็น unit-based**: เลือก S/N ได้น้อยกว่าจำนวนที่ขอ (partial approval) แต่ reject ยังเป็น all-or-nothing ทั้ง item เหมือนเดิม ไม่มี concept "reject บาง unit ภายใน item เดียวกัน":
 
-1. ตรวจ quantity พอหลังหัก approved overlap อื่น (เหมือนเดิม, ตรวจกับ quantity ที่ขอเดิม) — ถ้าไม่พอตอบ `409`
-2. `assetUnitIds[]` ต้องมีจำนวนตั้งแต่ 1 ถึง quantity ที่ขอ (**อนุญาตน้อยกว่าได้ — ไม่บังคับเท่ากันอีกต่อไป**) ทุก unit ต้องเป็นของ `asset_id` เดียวกับ item และ unique กันเอง มิฉะนั้นตอบ `422`
-3. รัน**ใน `SERIALIZABLE` transaction** — lock แถว `asset_units` ที่เลือกตาม UUID ที่ sort แล้ว (ลด deadlock เมื่อสอง request แย่ง asset เดียวกัน), ตรวจซ้ำว่าทุก unit ยังมีสถานะ `ACTIVE` ณ เวลา lock ถ้ามี unit ใดไม่ `ACTIVE` แล้ว ตอบ `409` ทั้งชุดและไม่ commit บางส่วน — retry ตาม policy เดียวกับ allocation อื่น (สูงสุด 3 ครั้งสำหรับ Prisma `P2034`, ดู [database-and-concurrency.md](database-and-concurrency.md))
-4. เมื่อผ่าน: สร้าง `ReservationItemUnit` หนึ่งแถวต่อ unit (ผูก `reservation_item_id` + `asset_unit_id`), เปลี่ยน `AssetUnit.status` จาก `ACTIVE` เป็น `RESERVED` ทีละแถวพร้อม `AssetUnitEvent`, และอัปเดต `reservation_items.status` เป็น `PREPARED` โดยตรง (ข้าม `APPROVED`) พร้อม **`reservation_items.quantity` ถูกตัดลงให้เท่ากับจำนวน unit ที่ approve จริง** (เช่น ขอ 3 แต่เลือก approve 2 หน่วย → `quantity` กลายเป็น 2 ทันที ไม่มีส่วนที่เหลือค้าง `PENDING` รออนุมัติรอบถัดไป) และ `prepared_by = actor.id`, `prepared_at = now` — ทั้งหมด commit พร้อมกันใน transaction เดียวกับ decision
-5. `decision = REJECT` ไม่ต้องส่ง `assetUnitIds` — item ทั้งใบไปเป็น `REJECTED` เหมือนเดิม (reject เป็นระดับ item เท่านั้น ไม่ใช่ unit-based)
-6. คำนวณ reservation status ใหม่จากผลรวม item status (`APPROVED`/`PARTIALLY_APPROVED`/`REJECTED`) เหมือนเดิม — ชื่อ reservation-level status ยังคงเดิม แม้ item-level จะข้ามไป `PREPARED` ตรงแล้วก็ตาม
+1. `assetUnitIds[]` ต้องมีจำนวนตั้งแต่ 1 ถึง quantity ที่ขอ (**อนุญาตน้อยกว่าได้ — ไม่บังคับเท่ากันอีกต่อไป**) ทุก unit ต้องเป็นของ `asset_id` เดียวกับ item และ unique กันเอง มิฉะนั้นตอบ `422`
+2. รัน**ใน `SERIALIZABLE` transaction** — lock reservation ก่อนและตรวจ lifecycle state/time window ซ้ำ จากนั้น lock แถว `asset_units` ที่เลือกตาม UUID ที่ sort แล้ว ตรวจว่าทุก unit เป็นของ asset ที่ถูกต้องและสถานะทางกายภาพอยู่ใน schedulable pool (`ACTIVE`, `CHECKED_OUT`; รองรับ legacy `RESERVED` ชั่วคราว) และไม่มี assignment สถานะ `ASSIGNED`/`CHECKED_OUT` ที่ overlap ช่วง reservation ถ้ามีให้ตอบ `409 ASSET_UNIT_SCHEDULE_CONFLICT` ทั้งชุด — การตัดสินใช้ serial ที่เลือกจริงเป็น authoritative check ไม่ปฏิเสธจากผลรวม quantity ที่อาจนับ serial เดิมซ้ำ และ retry Prisma `P2034` สูงสุด 3 ครั้งตาม [database-and-concurrency.md](database-and-concurrency.md)
+3. เมื่อผ่าน: สร้าง `ReservationItemUnit` หนึ่งแถวต่อ unit พร้อม `assignmentStartAt = Reservation.startAt`, `assignmentEndAt = Reservation.endAt` โดย **ไม่เปลี่ยน `AssetUnit.status` และไม่เขียน physical-status event** แล้วอัปเดต `reservation_items.status` เป็น `PREPARED` โดยตรง พร้อมตัด `quantity` ให้เท่ากับจำนวน unit ที่ approve จริงและบันทึก `prepared_by`/`prepared_at` — ทั้งหมด commit พร้อมกัน ฐานข้อมูลมี exclusion constraint เป็น safety net สำหรับ race ที่ application-level check ไม่ทัน
+4. `decision = REJECT` ไม่ต้องส่ง `assetUnitIds` — item ทั้งใบไปเป็น `REJECTED` เหมือนเดิม (reject เป็นระดับ item เท่านั้น ไม่ใช่ unit-based)
+5. คำนวณ reservation status ใหม่จากผลรวม item status (`APPROVED`/`PARTIALLY_APPROVED`/`REJECTED`) เหมือนเดิม — ชื่อ reservation-level status ยังคงเดิม แม้ item-level จะข้ามไป `PREPARED` ตรงแล้วก็ตาม
 
 ### 7.6 `POST /reservations/:reservationId/items/decision`
 
@@ -513,18 +512,19 @@ Approve/reject เป็นราย item ตาม area permission เมื่
 
 ### 7.10 `POST /reservations/:reservationId/cancel`
 
-Requester หรือ actor ที่ manage reservation ได้ยกเลิกสถานะที่ยังไม่ถึง delivery พร้อม reason optional แล้วเปลี่ยน reservation/item/approval ที่เกี่ยวข้องเป็น cancelled/rejected ตาม domain rule เพื่อคืน allocation
+Requester หรือ actor ที่ manage reservation ได้ยกเลิกสถานะที่ยังไม่ถึง delivery พร้อม reason optional ภายใน serializable transaction ระบบ lock reservation และตรวจสถานะซ้ำก่อนเปลี่ยน reservation/item/approval ที่เกี่ยวข้องเป็น cancelled/rejected และลบ `ReservationItemUnit` ของ item ที่ `PREPARED` เพื่อคืนช่วงเวลา โดยไม่เปลี่ยน physical `AssetUnit.status` (ยกเว้น normalize legacy `RESERVED` เป็น `ACTIVE` ระหว่าง compatibility window) จึงไม่สามารถ commit CANCELLED ตามหลัง handover ที่ commit แล้วได้
 
 ### 7.11 `POST /reservations/:reservationId/delivery-confirm`
 
 เจ้าหน้าที่คลังหรือ Area Manager ยืนยันการส่งมอบอุปกรณ์ **แบบ unit-based**: รับ `items[]` แต่ละรายการระบุ `reservationItemId` และ `reservationItemUnitIds[]` (optional) ของตัวเอง — ไม่ต้องส่งมอบทั้ง item พร้อมกัน (breaking change จากรุ่นก่อนหน้าที่รับแค่ `itemIds[]` และส่งมอบทั้ง item เสมอ — ดู [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status))
 
-1. ตรวจสอบสถานะการจองต้องเป็น `APPROVED` หรือ `PARTIALLY_APPROVED`/`DELIVERY_CONFIRMED` (รองรับยืนยัน handover เพิ่มเติมหลังบางรายการส่งมอบไปแล้ว)
+1. ภายใน serializable transaction ให้ lock reservation แล้วอ่านสถานะและช่วงเวลาใหม่; สถานะต้องเป็น `APPROVED` หรือ `PARTIALLY_APPROVED`/`DELIVERY_CONFIRMED` (รองรับยืนยัน handover เพิ่มเติมหลังบางรายการส่งมอบไปแล้ว) เพื่อไม่ให้ handover แข่งกับ cancellation
 2. แต่ละ item ที่ระบุต้องอยู่สถานะ `PREPARED` และ actor ต้องผ่าน `canConfirmDelivery` ของ item นั้น — มิฉะนั้นตอบ `409`/`403`
 3. ถ้าไม่ส่ง `reservationItemUnitIds` มาสำหรับ item ใด ให้ถือว่าส่งมอบ**ทุก unit ที่ยังเป็น `ASSIGNED`** ของ item นั้น (พฤติกรรมเดิม เท่ากับ full handover) ถ้าส่งมา ต้องเป็น `ReservationItemUnit.id` ของ item นั้นเองและอยู่สถานะ `ASSIGNED` เท่านั้น มิฉะนั้นตอบ `409`
-4. อัปเดตเฉพาะ unit ที่เลือก: `ReservationItemUnit.status` และ `AssetUnit.status` จาก `ASSIGNED`/`RESERVED` เป็น `CHECKED_OUT` พร้อม `AssetUnitEvent` (`eventType: CHECKED_OUT`) และ `ReservationItemUnit.checkedOutAt = now` ต่อหน่วย
-5. หลังอัปเดต ถ้า item นั้น**ไม่เหลือ unit สถานะ `ASSIGNED` อีกแล้ว** ให้เปลี่ยน `reservation_items.status` เป็น `DELIVERED` พร้อมบันทึก `checkedOutBy = actor.id`, `checkedOutAt = now` **ที่ระดับ item** (หมายถึงเวลา/actor ที่ทำให้ item ส่งมอบครบ) — ถ้ายังมี unit ค้าง `ASSIGNED` อยู่ item ยังคง `PREPARED` ต่อไป (ยืนยัน handover ส่วนที่เหลือได้อีกในคำขอถัดไป)
-6. เปลี่ยนสถานะภาพรวมของ `reservations` เป็น `DELIVERY_CONFIRMED` เมื่อทุก item ที่ approved/active เป็น `DELIVERED` หรือ `RETURNED` ครบ (เหมือนเดิม — ไม่นับ item ที่ยัง `PREPARED` บางส่วน)
+4. `now` ต้องอยู่ในช่วง `[Reservation.startAt, Reservation.endAt)`; ก่อนเริ่มช่วงตอบ `409 HANDOVER_TOO_EARLY` และเมื่อหมดช่วงตอบ `409 HANDOVER_WINDOW_CLOSED`
+5. Lock physical unit แล้วตรวจว่า `AssetUnit.status = ACTIVE` (รองรับ legacy `RESERVED` ชั่วคราว) จากนั้นอัปเดตเฉพาะ unit ที่เลือก: `ReservationItemUnit.status` จาก `ASSIGNED` เป็น `CHECKED_OUT`, `AssetUnit.status` เป็น `CHECKED_OUT`, เขียน `AssetUnitEvent` และ `ReservationItemUnit.checkedOutAt = now` ต่อหน่วย ถ้า physical unit ถูก checkout/เสีย/สูญหายอยู่ให้ตอบ `409 ASSET_UNIT_PHYSICALLY_UNAVAILABLE`
+6. หลังอัปเดต ถ้า item นั้น**ไม่เหลือ unit สถานะ `ASSIGNED` อีกแล้ว** ให้เปลี่ยน `reservation_items.status` เป็น `DELIVERED` พร้อมบันทึก `checkedOutBy = actor.id`, `checkedOutAt = now` **ที่ระดับ item** — ถ้ายังมี unit ค้าง `ASSIGNED` อยู่ item ยังคง `PREPARED`
+7. เปลี่ยนสถานะภาพรวมของ `reservations` เป็น `DELIVERY_CONFIRMED` เมื่อทุก item ที่ approved/active เป็น `DELIVERED` หรือ `RETURNED` ครบ
 
 ### 7.12 Past date/time validation (creation and reschedule)
 

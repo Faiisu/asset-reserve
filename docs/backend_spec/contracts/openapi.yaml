@@ -188,6 +188,14 @@ components:
       $ref: ./components/responses.yaml#/NotFound
     Conflict:
       $ref: ./components/responses.yaml#/Conflict
+    ReservationDecisionConflict:
+      $ref: ./components/responses.yaml#/ReservationDecisionConflict
+    DeliveryBadRequest:
+      $ref: ./components/responses.yaml#/DeliveryBadRequest
+    DeliveryConflict:
+      $ref: ./components/responses.yaml#/DeliveryConflict
+    CancellationConflict:
+      $ref: ./components/responses.yaml#/CancellationConflict
     ValidationError:
       $ref: ./components/responses.yaml#/ValidationError
     RateLimited:

@@ -63,7 +63,7 @@ export class ReservationItemInputDto {
 
   @IsInt()
   @Min(1)
-  @Max(2_147_483_647)
+  @Max(200)
   quantity!: number;
 }
 

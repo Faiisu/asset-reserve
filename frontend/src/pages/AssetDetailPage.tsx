@@ -124,7 +124,7 @@ export function AssetDetailPage() {
     return matchesSearch && matchesStatus;
   });
   const selectableUnits = filteredUnits.filter(
-    (unit) => !unitRetireBlocked.has(unit.status),
+    (unit) => !unitRetireBlocked.has(unit.status) && !unit.hasActiveAssignment,
   );
   const allUnitsSelected =
     selectableUnits.length > 0 &&
@@ -211,7 +211,9 @@ export function AssetDetailPage() {
             {asset.description || "No description for this asset."}
           </p>
           <div className="asset-hero__meta">
-            <span className="mono">P/N: {asset.partNumber || "No part number"}</span>
+            <span className="mono">
+              P/N: {asset.partNumber || "No part number"}
+            </span>
             <span>Updated {formatDate(asset.updatedAt, true)}</span>
           </div>
         </div>
@@ -250,8 +252,8 @@ export function AssetDetailPage() {
 
       <p className="asset-availability-note">
         <CalendarClock size={14} />
-        Reservation quantities are schedule-based — choose dates in Calendar
-        to see reservable units.
+        Reservation quantities are schedule-based — choose dates in Calendar to
+        see reservable units.
       </p>
 
       <section className="detail-card">
@@ -279,7 +281,10 @@ export function AssetDetailPage() {
         </header>
 
         {asset.units.length > 0 && (
-          <div className="toolbar toolbar--compact" aria-label="Serial unit filters">
+          <div
+            className="toolbar toolbar--compact"
+            aria-label="Serial unit filters"
+          >
             <div className="search-box">
               <Search size={16} />
               <input
@@ -430,7 +435,9 @@ export function AssetDetailPage() {
               </thead>
               <tbody>
                 {filteredUnits.map((unit) => {
-                  const isSelectable = !unitRetireBlocked.has(unit.status);
+                  const isSelectable =
+                    !unitRetireBlocked.has(unit.status) &&
+                    !unit.hasActiveAssignment;
                   const isSelected = selectedUnitIds.includes(unit.id);
                   return (
                     <tr
@@ -462,6 +469,11 @@ export function AssetDetailPage() {
                       <td className="mono">{unit.serialNumber}</td>
                       <td>
                         <AssetUnitStatusBadge status={unit.status} />
+                        {unit.hasActiveAssignment && (
+                          <div className="table-secondary">
+                            Current/future assignment
+                          </div>
+                        )}
                       </td>
                       <td>
                         <span className="table-secondary">
@@ -602,7 +614,9 @@ export function AssetDetailPage() {
                     <td>
                       <span className="performer">
                         <UserRound size={15} />
-                        {item.performedBy.name ?? item.performedBy.email ?? "Unnamed user"}
+                        {item.performedBy.name ??
+                          item.performedBy.email ??
+                          "Unnamed user"}
                       </span>
                     </td>
                   </tr>
@@ -690,7 +704,11 @@ function AdjustOneDialog({
     setSubmitting(true);
     setError("");
     try {
-      await api.registerAssetUnits(asset.id, parsedSerials, reason || undefined);
+      await api.registerAssetUnits(
+        asset.id,
+        parsedSerials,
+        reason || undefined,
+      );
       await onDone(
         `Registered ${parsedSerials.length} unit${parsedSerials.length === 1 ? "" : "s"}`,
       );

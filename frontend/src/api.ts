@@ -292,7 +292,16 @@ export const api = {
       method: "POST",
       body: json({ items, reason }),
     }),
-  assetUnits: (assetId: string, filters: { status?: string; limit?: number }) =>
+  assetUnits: (
+    assetId: string,
+    filters: {
+      status?: string;
+      from?: string;
+      to?: string;
+      cursor?: string;
+      limit?: number;
+    },
+  ) =>
     request<ListResponse<AssetUnit>>(
       `/assets/${assetId}/units${queryString(filters)}`,
     ),

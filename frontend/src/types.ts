@@ -236,6 +236,8 @@ export type AssetUnit = {
   id: string;
   serialNumber: string;
   status: string;
+  /** Present on schedule-aware backend responses; absent during rolling deploys. */
+  hasActiveAssignment?: boolean;
   note: string | null;
   createdAt: string;
   updatedAt: string;
@@ -316,6 +318,8 @@ export type ReservationDetail = {
       assetUnitId: string;
       serialNumber: string;
       status: string;
+      assignmentStartAt?: string;
+      assignmentEndAt?: string;
     }>;
     returnSummary?: {
       totalUnits: number;

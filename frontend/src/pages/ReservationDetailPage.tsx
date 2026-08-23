@@ -81,12 +81,17 @@ export function ReservationDetailPage() {
     Record<string, boolean>
   >({});
 
-  // Approval: ACTIVE serial units available per asset, and the units
-  // currently checked per reservation item, keyed by item.id -- approving an
-  // item assigns these units in the same request (§7.5), there is no
-  // separate "prepare" step.
+  // Approval: serial units available for this reservation window, and the
+  // units currently checked per item. A unit may be physically CHECKED_OUT
+  // now and still be schedulable for a later, non-overlapping window.
   const [decisionUnitOptions, setDecisionUnitOptions] = useState<
     Record<string, AssetUnit[]>
+  >({});
+  const [decisionUnitNextCursors, setDecisionUnitNextCursors] = useState<
+    Record<string, string | null>
+  >({});
+  const [loadingMoreDecisionUnits, setLoadingMoreDecisionUnits] = useState<
+    Record<string, boolean>
   >({});
   const [decisionUnitSelections, setDecisionUnitSelections] = useState<
     Record<string, string[]>
@@ -178,8 +183,9 @@ export function ReservationDetailPage() {
       setReservation(data);
       seedDefaultSelections(data);
 
-      // Fetch ACTIVE serial units for every asset with an item awaiting
-      // approval -- approving assigns units in the same request (§7.5).
+      // Fetch units that are physically schedulable and have no assignment
+      // overlapping this reservation. Their current physical status is kept
+      // separate from their future schedule.
       const pendingItems = data.items.filter(
         (item) => item.status === "PENDING" && item.capabilities?.canApprove,
       );
@@ -190,14 +196,32 @@ export function ReservationDetailPage() {
         const results = await Promise.all(
           distinctAssetIds.map((assetId) =>
             api
-              .assetUnits(assetId, { status: "ACTIVE", limit: 100 })
-              .then((res) => [assetId, res.data] as const),
+              .assetUnits(assetId, {
+                from: data.startAt,
+                to: data.endAt,
+                limit: 100,
+              })
+              .then((res) => [assetId, res] as const),
           ),
         );
-        setDecisionUnitOptions(Object.fromEntries(results));
+        setDecisionUnitOptions(
+          Object.fromEntries(
+            results.map(([assetId, response]) => [assetId, response.data]),
+          ),
+        );
+        setDecisionUnitNextCursors(
+          Object.fromEntries(
+            results.map(([assetId, response]) => [
+              assetId,
+              response.pageInfo.nextCursor,
+            ]),
+          ),
+        );
       } else {
         setDecisionUnitOptions({});
+        setDecisionUnitNextCursors({});
       }
+      setLoadingMoreDecisionUnits({});
       setDecisionUnitSelections({});
       setApprovalComments({});
     } catch (err: any) {
@@ -206,6 +230,46 @@ export function ReservationDetailPage() {
       setLoading(false);
     }
   }, [reservationId]);
+
+  const loadMoreDecisionUnits = useCallback(
+    async (assetId: string) => {
+      const cursor = decisionUnitNextCursors[assetId];
+      if (!reservation || !cursor || loadingMoreDecisionUnits[assetId]) return;
+
+      setLoadingMoreDecisionUnits((current) => ({
+        ...current,
+        [assetId]: true,
+      }));
+      setActionError(null);
+      try {
+        const response = await api.assetUnits(assetId, {
+          from: reservation.startAt,
+          to: reservation.endAt,
+          cursor,
+          limit: 100,
+        });
+        setDecisionUnitOptions((current) => {
+          const byId = new Map(
+            (current[assetId] ?? []).map((unit) => [unit.id, unit] as const),
+          );
+          response.data.forEach((unit) => byId.set(unit.id, unit));
+          return { ...current, [assetId]: [...byId.values()] };
+        });
+        setDecisionUnitNextCursors((current) => ({
+          ...current,
+          [assetId]: response.pageInfo.nextCursor,
+        }));
+      } catch (err: any) {
+        setActionError(err.message ?? "Failed to load more serial units.");
+      } finally {
+        setLoadingMoreDecisionUnits((current) => ({
+          ...current,
+          [assetId]: false,
+        }));
+      }
+    },
+    [decisionUnitNextCursors, loadingMoreDecisionUnits, reservation],
+  );
 
   useEffect(() => {
     loadReservation();
@@ -1135,9 +1199,27 @@ export function ReservationDetailPage() {
                                 <span className="mono res-manifest-unit-row__serial">
                                   {unit.serialNumber}
                                 </span>
+                                <span className="res-manifest-unit-row__status">
+                                  {unit.status}
+                                </span>
                               </label>
                             );
                           },
+                        )}
+                        {decisionUnitNextCursors[item.asset.id] && (
+                          <div className="load-more">
+                            <Button
+                              variant="secondary"
+                              loading={
+                                loadingMoreDecisionUnits[item.asset.id] === true
+                              }
+                              onClick={() =>
+                                void loadMoreDecisionUnits(item.asset.id)
+                              }
+                            >
+                              Load more serial units
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </Fragment>

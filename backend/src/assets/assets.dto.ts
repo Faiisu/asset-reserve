@@ -35,7 +35,7 @@ export const ASSET_UNIT_STATUSES = [
 ] as const;
 export type AssetUnitStatus = (typeof ASSET_UNIT_STATUSES)[number];
 
-/** Statuses a staff member may set directly; RESERVED/CHECKED_OUT are system-managed by the reservation flow. */
+/** CHECKED_OUT is flow-managed; RESERVED remains read-only legacy compatibility. */
 const MANUALLY_SETTABLE_UNIT_STATUSES = [
   "ACTIVE",
   "BROKEN",
@@ -175,6 +175,14 @@ export class AssetUnitListQueryDto extends SearchPaginationQueryDto {
   @IsOptional()
   @IsIn(ASSET_UNIT_STATUSES)
   status?: AssetUnitStatus;
+
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  from?: string;
+
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  to?: string;
 }
 
 export class RegisterAssetUnitsDto {

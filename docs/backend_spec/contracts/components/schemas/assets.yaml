@@ -6,7 +6,10 @@ AssetStatus:
     - INACTIVE
 AssetUnitStatus:
   type: string
-  description: Status of one physical, serial-numbered unit.
+  description: >-
+    Current physical status of one serial-numbered unit; future reservations live on
+    ReservationItemUnit assignment windows. RESERVED is retained only for rolling-deploy and
+    historical-data compatibility and is not written by the schedule-aware reservation flow.
   enum:
     - ACTIVE
     - RESERVED
@@ -72,7 +75,7 @@ AssetUnitCounts:
     active:
       type: integer
       minimum: 0
-      description: Units currently useable/available to reserve -- excludes reserved, checked-out, broken, lost, and in-repair units.
+      description: Physically ACTIVE units. Date-range availability must additionally exclude overlapping assignment windows.
     reserved:
       type: integer
       minimum: 0
@@ -237,6 +240,9 @@ AssetUnit:
       maxLength: 100
     status:
       $ref: "#/components/schemas/AssetUnitStatus"
+    hasActiveAssignment:
+      type: boolean
+      description: Whether this serial has any ASSIGNED/CHECKED_OUT current or future assignment.
     note:
       type:
         - string
@@ -452,7 +458,7 @@ UpdateAssetUnitStatusRequest:
   properties:
     status:
       type: string
-      description: RESERVED/CHECKED_OUT are system-managed by the reservation flow and cannot be set directly here.
+      description: CHECKED_OUT is managed by handover/return; RESERVED is legacy-only. Neither can be set directly here.
       enum:
         - ACTIVE
         - BROKEN

@@ -26,6 +26,8 @@
 - Submit ต้องตรวจ available quantity ซ้ำที่ backend เสมอ (แม้ frontend แสดงเลขมาก่อนแล้ว)
 - อนุมัติราย item แล้ว aggregate status ของ reservation ต้องถูกคำนวณใหม่ตาม [lifecycle-and-state-machines.md#reservation-status](lifecycle-and-state-machines.md#reservation-status)
 - **Approve เป็น unit-based, reject เป็น item-based**: อนุมัติเลือกได้ 1 ถึง `quantity` ที่ขอ (partial approval ได้จริง) แล้ว `quantity` ของ item จะถูกตัดลงให้เท่ากับจำนวนที่ approve ทันที ไม่มีส่วนที่เหลือค้าง `PENDING` รออนุมัติรอบถัดไป — ส่วนปฏิเสธ (reject) เป็น all-or-nothing ทั้ง item เสมอ ไม่มี concept ปฏิเสธเฉพาะบาง unit ภายใน item เดียวกัน
+- **Serial assignment เป็นช่วงเวลา**: `ReservationItemUnit` เก็บ `assignmentStartAt`/`assignmentEndAt`; serial เดียวกันถูก assign ให้หลาย reservation ได้เมื่อช่วง `[start, end)` ไม่ทับกัน แต่ assignment สถานะ `ASSIGNED`/`CHECKED_OUT` ที่ overlap กันต้องถูกปฏิเสธทั้งใน application และ database
+- `AssetUnit.status` เป็นสถานะทางกายภาพปัจจุบัน การ approve/cancel future assignment ไม่เปลี่ยนสถานะนี้; `CHECKED_OUT` เกิดเมื่อ handover จริงภายในช่วง reservation เท่านั้น
 - การแก้ไข reservation **หลัง submit แล้ว** ไม่รองรับ — `ReservationChangeRequest` ถูกยกเลิก (ดู [scope-and-roadmap.md](scope-and-roadmap.md#feature-ที่ถูกยกเลิก-decommissioned)) ต้องยกเลิก reservation เดิมแล้วสร้างใหม่แทนถ้าต้องการเปลี่ยนกำหนดการ/รายการ
 - **Handover เป็น unit-based**: ยืนยัน handover เลือกเฉพาะบาง `ReservationItemUnit` ของ item ได้ ไม่ต้องส่งมอบทั้ง item พร้อมกัน — item ยังอยู่ `PREPARED` ต่อไปจนกว่า unit ที่ผูกไว้ทั้งหมดจะถูกยืนยัน handover ครบ (ยืนยันได้หลายรอบ) `checkedOutBy`/`checkedOutAt` ระดับ item บันทึกเมื่อ item เพิ่งข้ามไป `DELIVERED` (ครบทุก unit แล้ว) เท่านั้น ส่วน `ReservationItemUnit.checkedOutAt` บันทึกต่อหน่วยทุกครั้งที่ยืนยัน
 - Prepare/checkout ต้องบันทึก actor และเวลาที่ดำเนินการ
@@ -53,7 +55,7 @@
 - ทุกหน้าที่ทำ mutation ต้องป้องกัน double submit (idempotency) — double click หรือ network retry ต้องไม่สร้าง reservation, approval, ledger หรือ return ซ้ำ — รายละเอียด implementation อยู่ใน [backend_spec/algorithms-and-validation.md](../backend_spec/algorithms-and-validation.md)
 - Adjustment/registration หลาย line บันทึกเป็น batch เดียว และต้องไม่ทำให้ `totalQuantity` ติดลบ
 - จำนวน returned/broken/lost ต้องไม่ติดลบและไม่เกินยอดค้างคืน
-- ผู้ใช้สองคน approve (assign) หรือ checkout asset unit (serial) เดียวกันพร้อมกัน ต้องมีเพียงฝ่ายเดียว lock unit นั้นได้สำเร็จ อีกฝ่าย fail ด้วย `409`
+- ผู้ใช้สองคน approve assignment ที่ช่วงเวลาทับกัน หรือ checkout asset unit (serial) เดียวกันพร้อมกัน ต้องมีเพียงฝ่ายเดียวสำเร็จ อีกฝ่าย fail ด้วย `409`; assignment คนละช่วงที่ไม่ทับกันต้องอยู่ร่วมกันได้
 - Transaction conflict ต้อง retry ตาม policy ที่กำหนด และตอบ structured `409` เมื่อไม่สามารถดำเนินการได้หลัง retry หมด
 - ทุก list endpoint ต้องบังคับ page-size limit
 - Backup และ restore procedure ต้องถูกทดสอบอย่างน้อยหนึ่งครั้งก่อน pilot deployment

@@ -4,6 +4,10 @@ import { Prisma } from "../../generated/prisma/client.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import { ApiException } from "../common/api-exception.js";
 import { decodeCursor, pageInfo } from "../common/pagination.js";
+import {
+  ACTIVE_ASSIGNMENT_STATUSES,
+  SCHEDULABLE_ASSET_UNIT_STATUSES,
+} from "../common/reservation-allocation.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { assertAreaPermission } from "./asset-access.js";
 import type {
@@ -26,8 +30,23 @@ export class AssetUnitsService {
     assertAreaPermission(actor, "asset:view", asset.managementAreaId);
 
     const cursor = decodeCursor(query.cursor);
+    const range = this.assignmentRange(query.from, query.to);
     const conditions: Prisma.AssetUnitWhereInput[] = [{ assetId }];
     if (query.status) conditions.push({ status: query.status });
+    if (range) {
+      conditions.push(
+        { status: { in: SCHEDULABLE_ASSET_UNIT_STATUSES } },
+        {
+          reservationItemUnits: {
+            none: {
+              status: { in: ACTIVE_ASSIGNMENT_STATUSES },
+              assignmentStartAt: { lt: range.endAt },
+              assignmentEndAt: { gt: range.startAt },
+            },
+          },
+        },
+      );
+    }
     if (query.search) {
       conditions.push({
         serialNumber: { contains: query.search, mode: "insensitive" },
@@ -44,6 +63,13 @@ export class AssetUnitsService {
 
     const rows = await this.prisma.assetUnit.findMany({
       where: { AND: conditions },
+      include: {
+        reservationItemUnits: {
+          where: { status: { in: ACTIVE_ASSIGNMENT_STATUSES } },
+          select: { id: true },
+          take: 1,
+        },
+      },
       take: query.limit + 1,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
@@ -131,6 +157,24 @@ export class AssetUnitsService {
 
     const sorted = [...units].sort((a, b) => a.id.localeCompare(b.id));
     await this.runSerializable(async (tx) => {
+      await this.lockAssetUnits(
+        tx,
+        sorted.map((unit) => unit.id),
+      );
+      const scheduledUnit = await tx.reservationItemUnit.findFirst({
+        where: {
+          assetUnitId: { in: ids },
+          status: { in: ACTIVE_ASSIGNMENT_STATUSES },
+        },
+        select: { assetUnitId: true },
+      });
+      if (scheduledUnit) {
+        throw new ApiException(
+          409,
+          "ASSET_UNIT_IN_USE",
+          "Cannot retire a unit that has an active current or future assignment.",
+        );
+      }
       const batchId = randomUUID();
       await tx.assetUnitEventBatch.create({
         data: {
@@ -209,6 +253,23 @@ export class AssetUnitsService {
     }
 
     await this.runSerializable(async (tx) => {
+      await this.lockAssetUnits(tx, [assetUnitId]);
+      if (input.status === "INACTIVE") {
+        const scheduledUnit = await tx.reservationItemUnit.findFirst({
+          where: {
+            assetUnitId,
+            status: { in: ACTIVE_ASSIGNMENT_STATUSES },
+          },
+          select: { id: true },
+        });
+        if (scheduledUnit) {
+          throw new ApiException(
+            409,
+            "ASSET_UNIT_IN_USE",
+            "Cannot deactivate a unit that has an active current or future assignment.",
+          );
+        }
+      }
       const result = await tx.assetUnit.updateMany({
         where: {
           id: assetUnitId,
@@ -243,6 +304,13 @@ export class AssetUnitsService {
     });
     const updated = await this.prisma.assetUnit.findUniqueOrThrow({
       where: { id: assetUnitId },
+      include: {
+        reservationItemUnits: {
+          where: { status: { in: ACTIVE_ASSIGNMENT_STATUSES } },
+          select: { id: true },
+          take: 1,
+        },
+      },
     });
     return this.unitDto(updated);
   }
@@ -259,6 +327,32 @@ export class AssetUnitsService {
         "The asset was not found.",
       );
     return asset;
+  }
+
+  private assignmentRange(from?: string, to?: string) {
+    if (Boolean(from) !== Boolean(to)) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        "Both from and to are required for schedule-aware unit availability.",
+        {
+          from: "Set both ends of the assignment range.",
+          to: "Set both ends of the assignment range.",
+        },
+      );
+    }
+    if (!from || !to) return undefined;
+    const startAt = new Date(from);
+    const endAt = new Date(to);
+    if (endAt <= startAt) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        "The assignment end time must be later than the start time.",
+        { to: "Choose a time later than from." },
+      );
+    }
+    return { startAt, endAt };
   }
 
   private assertUniqueIds(ids: string[]) {
@@ -280,12 +374,14 @@ export class AssetUnitsService {
     note: string | null;
     createdAt: Date;
     updatedAt: Date;
+    reservationItemUnits?: Array<{ id: string }>;
   }) {
     return {
       id: unit.id,
       assetId: unit.assetId,
       serialNumber: unit.serialNumber,
       status: unit.status,
+      hasActiveAssignment: Boolean(unit.reservationItemUnits?.length),
       note: unit.note,
       createdAt: unit.createdAt.toISOString(),
       updatedAt: unit.updatedAt.toISOString(),
@@ -314,6 +410,21 @@ export class AssetUnitsService {
       );
     }
     throw error;
+  }
+
+  private async lockAssetUnits(
+    tx: Prisma.TransactionClient,
+    assetUnitIds: string[],
+  ) {
+    const sortedIds = [...new Set(assetUnitIds)].sort();
+    if (sortedIds.length === 0) return;
+    await tx.$queryRaw`
+      SELECT "id"
+      FROM "asset_units"
+      WHERE "id" IN (${Prisma.join(sortedIds.map((id) => Prisma.sql`${id}::uuid`))})
+      ORDER BY "id"
+      FOR UPDATE
+    `;
   }
 
   private async runSerializable<T>(

@@ -141,10 +141,11 @@
       - Reservations
     summary: Approve or reject one reservation item
     description: >-
-      Approval requires assetUnitIds (exact serial units matching the approved quantity) in the
-      same request -- assigns them and moves the item straight to PREPARED, locking the asset
-      and rechecking approved overlapping quantities in a serializable transaction. There is no
-      separate "prepare" step.
+      Approval requires assetUnitIds in the same request -- assigns each serial over the
+      reservation's half-open time window and moves the item straight to PREPARED without
+      changing its current physical AssetUnit.status. The serializable transaction locks units,
+      rechecks capacity, and rejects overlapping active assignments. There is no separate
+      "prepare" step.
     operationId: decideReservationItem
     requestBody:
       required: true
@@ -166,7 +167,7 @@
       "404":
         $ref: "#/components/responses/NotFound"
       "409":
-        $ref: "#/components/responses/Conflict"
+        $ref: "#/components/responses/ReservationDecisionConflict"
       "422":
         $ref: "#/components/responses/ValidationError"
 /reservations/{reservationId}/items/decision:
@@ -179,8 +180,9 @@
     description: >-
       The batch is atomic. Approval requires assetUnitIds per item in the same request (see
       ReservationItemDecisionEntry) -- assigns them and moves each item straight to PREPARED,
-      locking assets in stable order across the whole batch and rechecking approved overlapping
-      quantities before recording any decision. There is no separate "prepare" step.
+      locking units in stable order across the whole batch and rechecking capacity and serial
+      assignment-window overlap before recording any decision. Non-overlapping future
+      assignments for one serial are allowed. There is no separate "prepare" step.
     operationId: decideReservationItems
     requestBody:
       required: true
@@ -202,7 +204,7 @@
       "404":
         $ref: "#/components/responses/NotFound"
       "409":
-        $ref: "#/components/responses/Conflict"
+        $ref: "#/components/responses/ReservationDecisionConflict"
       "422":
         $ref: "#/components/responses/ValidationError"
 /reservations/{reservationId}/delivery-confirm:
@@ -226,7 +228,8 @@
       "401": { $ref: "#/components/responses/Unauthorized" }
       "403": { $ref: "#/components/responses/Forbidden" }
       "404": { $ref: "#/components/responses/NotFound" }
-      "409": { $ref: "#/components/responses/Conflict" }
+      "400": { $ref: "#/components/responses/DeliveryBadRequest" }
+      "409": { $ref: "#/components/responses/DeliveryConflict" }
       "422": { $ref: "#/components/responses/ValidationError" }
 /reservations/{reservationId}/returns:
   parameters:
@@ -296,5 +299,5 @@
       "401": { $ref: "#/components/responses/Unauthorized" }
       "403": { $ref: "#/components/responses/Forbidden" }
       "404": { $ref: "#/components/responses/NotFound" }
-      "409": { $ref: "#/components/responses/Conflict" }
+      "409": { $ref: "#/components/responses/CancellationConflict" }
       "422": { $ref: "#/components/responses/ValidationError" }

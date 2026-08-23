@@ -47,11 +47,13 @@ describe("time-based asset availability", () => {
   it("deducts approved allocations that overlap the requested range", async () => {
     const groupBy = vi
       .fn()
-      .mockResolvedValue([{ assetId, _sum: { quantity: 4 } }]);
+      .mockResolvedValueOnce([
+        { assetId, status: "ACTIVE", _count: { _all: 4 } },
+      ])
+      .mockResolvedValueOnce([{ assetId, _count: { _all: 4 } }]);
     const service = new AssetsService({
       asset: { findMany: vi.fn().mockResolvedValue([asset]) },
-      assetUnit: { groupBy: fourActiveUnits },
-      reservationItem: { groupBy },
+      assetUnit: { groupBy },
     } as unknown as PrismaService);
 
     const result = await service.list(actor, {
@@ -65,14 +67,20 @@ describe("time-based asset availability", () => {
       allocatedQuantity: 4,
       availableQuantity: 0,
     });
-    expect(groupBy).toHaveBeenCalledWith(
+    expect(groupBy).toHaveBeenLastCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           assetId: { in: [assetId] },
-          reservation: expect.objectContaining({
-            startAt: { lt: new Date("2026-08-18T10:00:00.000Z") },
-            endAt: { gt: new Date("2026-08-18T02:00:00.000Z") },
-          }),
+          reservationItemUnits: {
+            some: expect.objectContaining({
+              assignmentStartAt: {
+                lt: new Date("2026-08-18T10:00:00.000Z"),
+              },
+              assignmentEndAt: {
+                gt: new Date("2026-08-18T02:00:00.000Z"),
+              },
+            }),
+          },
         }),
       }),
     );
@@ -100,19 +108,18 @@ describe("time-based asset availability", () => {
   });
 
   it("excludes damaged units but keeps allocated units in the date-based pool", async () => {
-    const unitRows = vi.fn().mockResolvedValue([
-      { assetId, status: "ACTIVE", _count: { _all: 2 } },
-      { assetId, status: "RESERVED", _count: { _all: 1 } },
-      { assetId, status: "CHECKED_OUT", _count: { _all: 1 } },
-      { assetId, status: "BROKEN", _count: { _all: 3 } },
-    ]);
-    const allocations = vi
+    const unitRows = vi
       .fn()
-      .mockResolvedValue([{ assetId, _sum: { quantity: 2 } }]);
+      .mockResolvedValueOnce([
+        { assetId, status: "ACTIVE", _count: { _all: 2 } },
+        { assetId, status: "RESERVED", _count: { _all: 1 } },
+        { assetId, status: "CHECKED_OUT", _count: { _all: 1 } },
+        { assetId, status: "BROKEN", _count: { _all: 3 } },
+      ])
+      .mockResolvedValueOnce([{ assetId, _count: { _all: 2 } }]);
     const service = new AssetsService({
       asset: { findMany: vi.fn().mockResolvedValue([asset]) },
       assetUnit: { groupBy: unitRows },
-      reservationItem: { groupBy: allocations },
     } as unknown as PrismaService);
 
     const result = await service.list(actor, {

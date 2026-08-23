@@ -69,6 +69,8 @@ model ReservationItemUnit {
   status            String    @default("ASSIGNED") @db.VarChar(20)
   assignedBy        String    @map("assigned_by") @db.Uuid
   assignedAt        DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  assignmentStartAt DateTime  @map("assignment_start_at") @db.Timestamptz(6)
+  assignmentEndAt   DateTime  @map("assignment_end_at") @db.Timestamptz(6)
   checkedOutAt      DateTime? @map("checked_out_at") @db.Timestamptz(6)
   returnedAt        DateTime? @map("returned_at") @db.Timestamptz(6)
 
@@ -77,10 +79,11 @@ model ReservationItemUnit {
   assigner        User            @relation(fields: [assignedBy], references: [id])
   returnItemUnit  ReturnItemUnit?
 
-  // Database UNIQUE required by the source specification: one active (ASSIGNED/CHECKED_OUT)
-  // assignment per asset_unit_id, enforced via a partial unique index (added in raw migration SQL).
+  // Database EXCLUDE constraint prevents overlapping active assignment ranges
+  // for one asset_unit_id (added in raw migration SQL with btree_gist).
   @@unique([reservationItemId, assetUnitId])
   @@index([assetUnitId])
+  @@index([assetUnitId, status, assignmentStartAt, assignmentEndAt], map: "reservation_item_units_asset_unit_status_window_idx")
   @@index([reservationItemId, status])
   @@map("reservation_item_units")
 }

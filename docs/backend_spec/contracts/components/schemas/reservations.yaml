@@ -34,7 +34,7 @@ ReservationItemInput:
     quantity:
       type: integer
       minimum: 1
-      maximum: 2147483647
+      maximum: 200
 ReservationSummary:
   type: object
   required:
@@ -389,7 +389,15 @@ ReservationDetailItem:
       description: Serial-numbered units assigned to this item once it reaches PREPARED (assigned during item approval, §7.5).
       items:
         type: object
-        required: [id, assetUnitId, serialNumber, status]
+        required:
+          [
+            id,
+            assetUnitId,
+            serialNumber,
+            status,
+            assignmentStartAt,
+            assignmentEndAt,
+          ]
         properties:
           id:
             type: string
@@ -401,6 +409,14 @@ ReservationDetailItem:
             type: string
           status:
             type: string
+          assignmentStartAt:
+            type: string
+            format: date-time
+            description: Inclusive start of this serial assignment window.
+          assignmentEndAt:
+            type: string
+            format: date-time
+            description: Exclusive end of this serial assignment window.
     returnSummary:
       type: object
       description: Per-item return progress, present once at least one unit has been checked out.

@@ -30,6 +30,7 @@ import {
 import type { AssetSummary } from "../types";
 
 type SelectedAsset = { asset: AssetSummary; quantity: number };
+const MAX_RESERVATION_ITEM_QUANTITY = 200;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -130,7 +131,11 @@ export function ReservationCreatePage() {
         return [
           {
             asset: updated,
-            quantity: Math.min(item.quantity, updated.availableQuantity),
+            quantity: Math.min(
+              item.quantity,
+              updated.availableQuantity,
+              MAX_RESERVATION_ITEM_QUANTITY,
+            ),
           },
         ];
       }),
@@ -232,6 +237,7 @@ export function ReservationCreatePage() {
         (item) =>
           !Number.isInteger(item.quantity) ||
           item.quantity < 1 ||
+          item.quantity > MAX_RESERVATION_ITEM_QUANTITY ||
           item.quantity > item.asset.availableQuantity,
       )
     ) {
@@ -295,8 +301,8 @@ export function ReservationCreatePage() {
       <div className="page-stack page-stack--form reservation-page">
         <div className="reservation-review-landing">
           <Notice tone="warning">
-            Your account doesn't have permission to create new reservations.
-            You can still open an existing one below if you have its ID.
+            Your account doesn't have permission to create new reservations. You
+            can still open an existing one below if you have its ID.
           </Notice>
           <section className="reservation-panel">
             <div className="reservation-panel__heading">
@@ -422,56 +428,62 @@ export function ReservationCreatePage() {
             {selected.length > 0 && (
               <div className="reservation-manifest">
                 {selected.map(({ asset, quantity }, index) => {
+                  const maximumQuantity = Math.min(
+                    asset.availableQuantity,
+                    MAX_RESERVATION_ITEM_QUANTITY,
+                  );
                   const quantityInvalid =
                     !Number.isInteger(quantity) ||
                     quantity < 1 ||
-                    quantity > asset.availableQuantity;
+                    quantity > maximumQuantity;
                   return (
-                  <div className="manifest-row" key={asset.id}>
-                    <span className="manifest-row__number">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <AssetPicture src={asset.pictureUrl} name={asset.name} />
-                    <div className="manifest-row__asset">
-                      <strong>{asset.name}</strong>
-                      <span>
-                        {asset.managementArea.name} · {asset.availableQuantity}{" "}
-                        available for this time
+                    <div className="manifest-row" key={asset.id}>
+                      <span className="manifest-row__number">
+                        {String(index + 1).padStart(2, "0")}
                       </span>
-                    </div>
-                    <Field
-                      label="Quantity"
-                      error={
-                        quantityInvalid
-                          ? `Enter a whole number from 1 to ${asset.availableQuantity}`
-                          : undefined
-                      }
-                    >
-                      <Input
-                        className="manifest-row__quantity"
-                        type="number"
-                        min={1}
-                        max={asset.availableQuantity}
-                        value={quantity}
-                        onChange={(event) =>
-                          updateQuantity(asset.id, Number(event.target.value))
+                      <AssetPicture src={asset.pictureUrl} name={asset.name} />
+                      <div className="manifest-row__asset">
+                        <strong>{asset.name}</strong>
+                        <span>
+                          {asset.managementArea.name} ·{" "}
+                          {asset.availableQuantity} available for this time
+                        </span>
+                      </div>
+                      <Field
+                        label="Quantity"
+                        error={
+                          quantityInvalid
+                            ? `Enter a whole number from 1 to ${maximumQuantity}`
+                            : undefined
                         }
-                        required
-                      />
-                    </Field>
-                    <button
-                      className="icon-button icon-button--danger"
-                      type="button"
-                      aria-label={`Remove ${asset.name}`}
-                      onClick={() =>
-                        setSelected((current) =>
-                          current.filter((item) => item.asset.id !== asset.id),
-                        )
-                      }
-                    >
-                      <Trash2 size={17} />
-                    </button>
-                  </div>
+                      >
+                        <Input
+                          className="manifest-row__quantity"
+                          type="number"
+                          min={1}
+                          max={maximumQuantity}
+                          value={quantity}
+                          onChange={(event) =>
+                            updateQuantity(asset.id, Number(event.target.value))
+                          }
+                          required
+                        />
+                      </Field>
+                      <button
+                        className="icon-button icon-button--danger"
+                        type="button"
+                        aria-label={`Remove ${asset.name}`}
+                        onClick={() =>
+                          setSelected((current) =>
+                            current.filter(
+                              (item) => item.asset.id !== asset.id,
+                            ),
+                          )
+                        }
+                      >
+                        <Trash2 size={17} />
+                      </button>
+                    </div>
                   );
                 })}
               </div>

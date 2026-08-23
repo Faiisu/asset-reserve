@@ -285,7 +285,8 @@ describe("ReservationDetailPage", () => {
     // 1. Wait for reservation to load and the serial-unit picker to fetch
     await waitFor(() => {
       expect(assetUnitsSpy).toHaveBeenCalledWith("asset-pending-1", {
-        status: "ACTIVE",
+        from: mockPendingReservation.startAt,
+        to: mockPendingReservation.endAt,
         limit: 100,
       });
     });
@@ -401,6 +402,68 @@ describe("ReservationDetailPage", () => {
         undefined,
       );
     });
+  });
+
+  it("loads later serial-unit pages before approval", async () => {
+    vi.spyOn(api, "reservation").mockResolvedValue(mockPendingReservation);
+    const assetUnitsSpy = vi
+      .spyOn(api, "assetUnits")
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: "unit-100",
+            serialNumber: "SN-MIC-100",
+            status: "ACTIVE",
+            note: null,
+            createdAt: "2026-08-15T00:00:00.000Z",
+            updatedAt: "2026-08-15T00:00:00.000Z",
+          },
+        ],
+        pageInfo: { nextCursor: "unit-100", hasNextPage: true },
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: "unit-101",
+            serialNumber: "SN-MIC-101",
+            status: "ACTIVE",
+            note: null,
+            createdAt: "2026-08-15T00:00:00.000Z",
+            updatedAt: "2026-08-15T00:00:00.000Z",
+          },
+        ],
+        pageInfo: { nextCursor: null, hasNextPage: false },
+      });
+
+    render(
+      <MemoryRouter
+        initialEntries={["/reservations/00000000-0000-4000-8000-000000000101"]}
+      >
+        <Routes>
+          <Route
+            path="/reservations/:reservationId"
+            element={<ReservationDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Load more serial units" }),
+    );
+
+    expect(
+      await screen.findByLabelText("Assign serial SN-MIC-101"),
+    ).toBeInTheDocument();
+    expect(assetUnitsSpy).toHaveBeenLastCalledWith("asset-pending-1", {
+      from: mockPendingReservation.startAt,
+      to: mockPendingReservation.endAt,
+      cursor: "unit-100",
+      limit: 100,
+    });
+    expect(
+      screen.queryByRole("button", { name: "Load more serial units" }),
+    ).not.toBeInTheDocument();
   });
 
   it("confirms handover for only the serial units explicitly selected (partial handover)", async () => {

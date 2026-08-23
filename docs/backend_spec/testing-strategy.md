@@ -36,24 +36,26 @@ Functional acceptance criteria (business-rule assertions) อยู่ที่ 
 - Calendar ตาม date range
 - Reservation detail
 - Concurrent submit/approval ของ asset เดียวกัน
+- Serial เดิมมีหลาย assignment ที่ไม่ทับกันและ availability ต้องนับ serial นั้นครั้งเดียวในช่วงค้นหา
+- Cancel กับ handover แข่งกันแล้วต้องมีเพียง lifecycle transition เดียวที่ commit ได้
 - Return approval
 
 Concept acceptance profile เริ่มต้นคือ 50 concurrent virtual users บน target on-premise hardware ผลลัพธ์ต้องบันทึก hardware, dataset size, pool configuration และ test script เพื่อให้เปรียบเทียบรอบถัดไปได้
 
 ## Non-functional requirements
 
-| ID | Requirement |
-| --- | --- |
-| NFR-01 | Concurrent critical mutations ต้องไม่ assign asset unit เดียวกัน (ตาม serial number) ให้มากกว่าหนึ่ง reservation พร้อมกัน — รายละเอียด locking ที่ [Database and concurrency](database-and-concurrency.md) |
-| NFR-02 | Duplicate request ที่ใช้ idempotency key เดิมต้องไม่สร้างข้อมูลซ้ำ |
-| NFR-03 | API read P95 เป้าหมายไม่เกิน 500 ms ภายใต้ concept load profile |
-| NFR-04 | API write P95 เป้าหมายไม่เกิน 1,000 ms โดยไม่รวม file/external I/O |
-| NFR-05 | Backend ต้องไม่สร้าง Prisma connection pool ต่อ request |
-| NFR-06 | List endpoint ต้องมี bounded page size |
-| NFR-07 | ระบบต้อง recover จาก process restart โดยข้อมูล committed ไม่สูญหาย |
-| NFR-08 | Sensitive credentials และ password hashes ต้องไม่ปรากฏใน API/log |
-| NFR-09 | Frontend และ backend ต้อง build/deploy แยกกันได้ |
-| NFR-10 | ระบบต้องติดตั้งได้โดยไม่พึ่ง cloud-managed service |
+| ID     | Requirement                                                                                                                                                                                                                         |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NFR-01 | Concurrent critical mutations ต้องไม่สร้าง assignment ที่ช่วงเวลาทับกันบน serial เดียวกัน แต่ต้องรองรับหลาย assignment ที่ช่วงไม่ทับกัน — รายละเอียด locking/constraint ที่ [Database and concurrency](database-and-concurrency.md) |
+| NFR-02 | Duplicate request ที่ใช้ idempotency key เดิมต้องไม่สร้างข้อมูลซ้ำ                                                                                                                                                                  |
+| NFR-03 | API read P95 เป้าหมายไม่เกิน 500 ms ภายใต้ concept load profile                                                                                                                                                                     |
+| NFR-04 | API write P95 เป้าหมายไม่เกิน 1,000 ms โดยไม่รวม file/external I/O                                                                                                                                                                  |
+| NFR-05 | Backend ต้องไม่สร้าง Prisma connection pool ต่อ request                                                                                                                                                                             |
+| NFR-06 | List endpoint ต้องมี bounded page size                                                                                                                                                                                              |
+| NFR-07 | ระบบต้อง recover จาก process restart โดยข้อมูล committed ไม่สูญหาย                                                                                                                                                                  |
+| NFR-08 | Sensitive credentials และ password hashes ต้องไม่ปรากฏใน API/log                                                                                                                                                                    |
+| NFR-09 | Frontend และ backend ต้อง build/deploy แยกกันได้                                                                                                                                                                                    |
+| NFR-10 | ระบบต้องติดตั้งได้โดยไม่พึ่ง cloud-managed service                                                                                                                                                                                  |
 
 Performance targets ต้องยืนยันบน hardware และ dataset จริง หากไม่ผ่านให้ optimize query/index/payload ก่อนเพิ่ม pool size หรือ infrastructure
 

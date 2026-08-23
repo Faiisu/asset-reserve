@@ -23,7 +23,7 @@
           format: date-time
       - name: to
         in: query
-        description: Availability window end. Assets allocated by approved overlapping reservations are deducted from availability.
+        description: Availability window end. Distinct serial units with active assignments overlapping the window are deducted once from availability.
         schema:
           type: string
           format: date-time
@@ -249,13 +249,26 @@
     tags:
       - Assets
     summary: List an asset's physical units
-    description: Requires asset:view in the asset's area. Optionally filter by unit status.
+    description: >-
+      Requires asset:view in the asset's area. Optionally filter by unit status. When both from
+      and to are supplied, returns physically schedulable units that have no active assignment
+      overlapping the half-open [from, to) window. from and to must be supplied together.
     operationId: listAssetUnits
     parameters:
       - name: status
         in: query
         schema:
           $ref: "#/components/schemas/AssetUnitStatus"
+      - name: from
+        in: query
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        schema:
+          type: string
+          format: date-time
       - $ref: "#/components/parameters/Search"
       - $ref: "#/components/parameters/Cursor"
       - $ref: "#/components/parameters/Limit"
@@ -318,7 +331,7 @@
     tags:
       - Assets
     summary: Retire (deactivate) up to 200 asset units atomically
-    description: Requires asset:update in each unit's asset area. Sets AssetUnit.status to INACTIVE. Fails with 409 if a targeted unit is currently RESERVED or CHECKED_OUT.
+    description: Requires asset:update in each unit's asset area. Sets AssetUnit.status to INACTIVE. Fails with 409 if a targeted unit is physically checked out/legacy RESERVED or has an active current or future assignment.
     operationId: retireAssetUnits
     requestBody:
       required: true
@@ -355,7 +368,7 @@
     tags:
       - Assets
     summary: Manually change one unit's status (e.g. mark broken, send for repair, reactivate)
-    description: Requires asset:update in the unit's asset area. RESERVED/CHECKED_OUT are system-managed by the reservation flow and cannot be set here.
+    description: Requires asset:update in the unit's asset area. CHECKED_OUT is managed by handover/return and RESERVED is legacy-only; neither can be set here. Deactivation fails while an active current or future assignment exists.
     operationId: updateAssetUnitStatus
     parameters:
       - name: assetUnitId

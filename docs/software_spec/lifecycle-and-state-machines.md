@@ -14,29 +14,29 @@ flowchart LR
     S4 --> S5["5. Return Approval & Inspection"]
 ```
 
-| Step | Phase | Primary actor | สรุป |
-| :---: | --- | --- | --- |
-| 1 | Drafted & Created | Requester | เลือกวันที่และอุปกรณ์ เพิ่มผู้ร่วมกิจกรรม แล้ว submit |
-| 2 | Area Approvals | Area Manager | ตรวจรายการที่ขอในแต่ละ management area ปรับจำนวนอนุมัติ **เลือก serial-numbered unit ที่จะจ่ายให้** แล้ว approve/reject ในขั้นตอนเดียว (§3) |
-| 3 | Equipment Handover | Warehouse Staff / Requester | รับมอบอุปกรณ์จริงที่คลัง และยืนยัน handover |
-| 4 | Pending Return | Requester / Borrower | ใช้งานอุปกรณ์ เมื่อจบกิจกรรมนำมาคืนที่คลังพร้อม return slip |
-| 5 | Return Approval & Inspection | Area Manager (Inspector) | ตรวจสภาพอุปกรณ์ที่คืน (Good/Broken/Lost) แล้วอนุมัติ |
+| Step | Phase                        | Primary actor               | สรุป                                                                                                                                        |
+| :--: | ---------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+|  1   | Drafted & Created            | Requester                   | เลือกวันที่และอุปกรณ์ เพิ่มผู้ร่วมกิจกรรม แล้ว submit                                                                                       |
+|  2   | Area Approvals               | Area Manager                | ตรวจรายการที่ขอในแต่ละ management area ปรับจำนวนอนุมัติ **เลือก serial-numbered unit ที่จะจ่ายให้** แล้ว approve/reject ในขั้นตอนเดียว (§3) |
+|  3   | Equipment Handover           | Warehouse Staff / Requester | รับมอบอุปกรณ์จริงที่คลัง และยืนยัน handover                                                                                                 |
+|  4   | Pending Return               | Requester / Borrower        | ใช้งานอุปกรณ์ เมื่อจบกิจกรรมนำมาคืนที่คลังพร้อม return slip                                                                                 |
+|  5   | Return Approval & Inspection | Area Manager (Inspector)    | ตรวจสภาพอุปกรณ์ที่คืน (Good/Broken/Lost) แล้วอนุมัติ                                                                                        |
 
 ## 2. Reservation status {#reservation-status}
 
 Status เก็บเป็น `String` ใน database (ไม่ใช่ Prisma enum) ค่าที่ระบบยอมรับมีเท่านี้ — ห้าม frontend/backend ใช้ค่าอื่นนอกตารางนี้ (เช่น `ACTIVE`, `PENDING`, `RETURN` แบบเดี่ยวๆ ที่เคยมีในเอกสารรุ่นเก่า **ไม่ใช่ค่าที่ระบบรองรับอีกต่อไป**)
 
-| Status | ความหมาย | Transition ถัดไปที่เป็นไปได้ |
-| --- | --- | --- |
-| `DRAFT` | กำลังร่าง ยังไม่ submit | `PENDING_APPROVAL`, `CANCELLED` |
-| `PENDING_APPROVAL` | รอ area manager อนุมัติ | `APPROVED`, `PARTIALLY_APPROVED`, `REJECTED`, `CANCELLED` |
-| `PARTIALLY_APPROVED` | บาง item อนุมัติ (พร้อมผูก serial unit แล้ว — ดู §3) บาง item ถูกปฏิเสธ | `DELIVERY_CONFIRMED`, `CANCELLED` |
-| `APPROVED` | ทุก item อนุมัติและผูก serial unit แล้ว รอส่งมอบ | `DELIVERY_CONFIRMED`, `CANCELLED` |
-| `DELIVERY_CONFIRMED` | ส่งมอบอุปกรณ์ให้ผู้ขอแล้ว | `RETURN_PENDING`, `COMPLETED` |
-| `RETURN_PENDING` | ส่ง return slip แล้ว รอตรวจรับ | `COMPLETED`, `DELIVERY_CONFIRMED` (ถ้าคืนบางส่วน ยังมี item ค้าง) |
-| `COMPLETED` | คืนครบทุก item ที่ checkout แล้ว (final) | – |
-| `REJECTED` | ทุก item ถูกปฏิเสธ (final) | – |
-| `CANCELLED` | ยกเลิกก่อนรับมอบ (final) | – |
+| Status               | ความหมาย                                                                | Transition ถัดไปที่เป็นไปได้                                      |
+| -------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `DRAFT`              | กำลังร่าง ยังไม่ submit                                                 | `PENDING_APPROVAL`, `CANCELLED`                                   |
+| `PENDING_APPROVAL`   | รอ area manager อนุมัติ                                                 | `APPROVED`, `PARTIALLY_APPROVED`, `REJECTED`, `CANCELLED`         |
+| `PARTIALLY_APPROVED` | บาง item อนุมัติ (พร้อมผูก serial unit แล้ว — ดู §3) บาง item ถูกปฏิเสธ | `DELIVERY_CONFIRMED`, `CANCELLED`                                 |
+| `APPROVED`           | ทุก item อนุมัติและผูก serial unit แล้ว รอส่งมอบ                        | `DELIVERY_CONFIRMED`, `CANCELLED`                                 |
+| `DELIVERY_CONFIRMED` | ส่งมอบอุปกรณ์ให้ผู้ขอแล้ว                                               | `RETURN_PENDING`, `COMPLETED`                                     |
+| `RETURN_PENDING`     | ส่ง return slip แล้ว รอตรวจรับ                                          | `COMPLETED`, `DELIVERY_CONFIRMED` (ถ้าคืนบางส่วน ยังมี item ค้าง) |
+| `COMPLETED`          | คืนครบทุก item ที่ checkout แล้ว (final)                                | –                                                                 |
+| `REJECTED`           | ทุก item ถูกปฏิเสธ (final)                                              | –                                                                 |
+| `CANCELLED`          | ยกเลิกก่อนรับมอบ (final)                                                | –                                                                 |
 
 ```mermaid
 flowchart TD
@@ -87,14 +87,14 @@ stateDiagram-v2
     REJECTED --> [*]
 ```
 
-| Status | ความหมาย |
-| --- | --- |
-| `PENDING` | รอ area manager ตัดสินใจ |
-| `REJECTED` | ถูกปฏิเสธทั้ง item (reject ไม่ใช่ unit-based) |
-| `PREPARED` | อนุมัติแล้ว และผูก `AssetUnit`/`ReservationItemUnit` (serial) แล้วในคำขอเดียวกัน รอส่งมอบ — `quantity` คือจำนวนที่ approve จริง (อาจน้อยกว่าที่ขอตอน submit ถ้า approve บางส่วน) item จะค้างอยู่ status นี้ตราบใดที่ยังมี unit สถานะ `ASSIGNED` เหลืออยู่ แม้จะยืนยัน handover ไปแล้วบางส่วน |
-| `CHECKED_OUT` | เป็น status ของ `AssetUnit`/`ReservationItemUnit` (หน่วยจริงที่ถูกส่งมอบ) **ไม่ใช่** status ของ `ReservationItem` เอง — item ข้ามจาก `PREPARED` ไป `DELIVERED` ก็ต่อเมื่อ unit ที่ผูกไว้ทั้งหมดของ item นั้นเป็น `CHECKED_OUT` ครบแล้ว (handover เป็น unit-based, ยืนยันบางส่วนได้หลายรอบ) |
-| `DELIVERED` | ส่งมอบให้ผู้ขอแล้ว (ครบทุก unit ของ item) |
-| `RETURNED` | คืนครบสำหรับ item นี้แล้ว |
+| Status        | ความหมาย                                                                                                                                                                                                                                                                                     |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PENDING`     | รอ area manager ตัดสินใจ                                                                                                                                                                                                                                                                     |
+| `REJECTED`    | ถูกปฏิเสธทั้ง item (reject ไม่ใช่ unit-based)                                                                                                                                                                                                                                                |
+| `PREPARED`    | อนุมัติแล้ว และผูก `AssetUnit`/`ReservationItemUnit` (serial) แล้วในคำขอเดียวกัน รอส่งมอบ — `quantity` คือจำนวนที่ approve จริง (อาจน้อยกว่าที่ขอตอน submit ถ้า approve บางส่วน) item จะค้างอยู่ status นี้ตราบใดที่ยังมี unit สถานะ `ASSIGNED` เหลืออยู่ แม้จะยืนยัน handover ไปแล้วบางส่วน |
+| `CHECKED_OUT` | เป็น status ของ `AssetUnit`/`ReservationItemUnit` (หน่วยจริงที่ถูกส่งมอบ) **ไม่ใช่** status ของ `ReservationItem` เอง — item ข้ามจาก `PREPARED` ไป `DELIVERED` ก็ต่อเมื่อ unit ที่ผูกไว้ทั้งหมดของ item นั้นเป็น `CHECKED_OUT` ครบแล้ว (handover เป็น unit-based, ยืนยันบางส่วนได้หลายรอบ)   |
+| `DELIVERED`   | ส่งมอบให้ผู้ขอแล้ว (ครบทุก unit ของ item)                                                                                                                                                                                                                                                    |
+| `RETURNED`    | คืนครบสำหรับ item นี้แล้ว                                                                                                                                                                                                                                                                    |
 
 ## 3a. ReservationItemUnit status {#reservation-item-unit-status}
 
@@ -112,15 +112,15 @@ stateDiagram-v2
     RETURNED_LOST --> [*]
 ```
 
-| Status | ความหมาย |
-| --- | --- |
-| `ASSIGNED` | ผูกกับ `AssetUnit` (serial) แล้ว ยังไม่ส่งมอบ |
-| `CHECKED_OUT` | ส่งมอบให้ผู้ขอแล้ว (`ReservationItem` ข้ามไป `DELIVERED` พร้อมกัน — §3) |
-| `RETURNED_GOOD` | คืนแล้ว ตรวจสภาพดี → `AssetUnit.status` เป็น `ACTIVE` (§7) |
-| `RETURNED_BROKEN` | คืนแล้ว ชำรุด → `AssetUnit.status` เป็น `BROKEN` (§7) |
-| `RETURNED_LOST` | คืนแล้ว สูญหาย → `AssetUnit.status` เป็น `LOST` (§7) |
+| Status            | ความหมาย                                                                |
+| ----------------- | ----------------------------------------------------------------------- |
+| `ASSIGNED`        | ผูกกับ `AssetUnit` (serial) แล้ว ยังไม่ส่งมอบ                           |
+| `CHECKED_OUT`     | ส่งมอบให้ผู้ขอแล้ว (`ReservationItem` ข้ามไป `DELIVERED` พร้อมกัน — §3) |
+| `RETURNED_GOOD`   | คืนแล้ว ตรวจสภาพดี → `AssetUnit.status` เป็น `ACTIVE` (§7)              |
+| `RETURNED_BROKEN` | คืนแล้ว ชำรุด → `AssetUnit.status` เป็น `BROKEN` (§7)                   |
+| `RETURNED_LOST`   | คืนแล้ว สูญหาย → `AssetUnit.status` เป็น `LOST` (§7)                    |
 
-Constraint: หน่วยเดียวกัน (`asset_unit_id`) มีได้สูงสุด 1 assignment ที่ยัง active (`ASSIGNED`/`CHECKED_OUT`) ในเวลาเดียวกัน — กันไม่ให้ serial เดียวกันถูกจ่ายให้สองการจองพร้อมกัน
+Assignment ทุกแถวเก็บช่วง `[assignmentStartAt, assignmentEndAt)` ตามกำหนดการของ reservation หน่วยเดียวกัน (`asset_unit_id`) จึงมี future assignment ได้หลายแถว ตราบใดที่ช่วงของ assignment สถานะ `ASSIGNED`/`CHECKED_OUT` ไม่ทับกัน ฐานข้อมูลบังคับกติกานี้ด้วย time-range exclusion constraint; ช่วงที่ปลายของรายการแรกเท่ากับต้นของรายการถัดไปไม่ถือว่าทับกัน
 
 ## 4. Approval / ReturnApproval status {#approval-status}
 
@@ -128,10 +128,10 @@ Constraint: หน่วยเดียวกัน (`asset_unit_id`) มีไ�
 
 ## 5. Return status {#return-status}
 
-| Status | ความหมาย |
-| --- | --- |
-| `PENDING` | รอตรวจรับ |
-| `REJECTED` | ปฏิเสธหรือให้แก้ไข |
+| Status      | ความหมาย                                      |
+| ----------- | --------------------------------------------- |
+| `PENDING`   | รอตรวจรับ                                     |
+| `REJECTED`  | ปฏิเสธหรือให้แก้ไข                            |
 | `COMPLETED` | backend ประมวลผล item/ledger และปิดการคืนแล้ว |
 
 ผลอนุมัติ `APPROVED` ถูกเก็บที่ `ReturnApproval.status`; ตัว `Return.status` เปลี่ยนจาก `PENDING` ไป `COMPLETED` โดยตรงใน transaction เดียว จึงไม่มี `APPROVED` เป็นสถานะพัก
@@ -164,13 +164,13 @@ Condition ถูกบันทึก**ต่อ serial-numbered unit** (`Return
 
 ## 7. Condition classification → AssetUnit status {#condition-classification}
 
-| Condition | `AssetUnit.status` หลังตัดสินใจ | สี (badge) | ผล |
-| --- | --- | :---: | --- |
-| Good | `ACTIVE` | เขียว | กลับเข้า shared pool พร้อมให้จองใหม่ |
-| Broken | `BROKEN` | เหลือง | ถูกตัดออกจาก availability รอซ่อม |
-| Lost | `LOST` | แดง | ถูกตัดออกจาก availability ถาวร ไม่มี stock counter แยกให้ลด |
+| Condition | `AssetUnit.status` หลังตัดสินใจ | สี (badge) | ผล                                                          |
+| --------- | ------------------------------- | :--------: | ----------------------------------------------------------- |
+| Good      | `ACTIVE`                        |   เขียว    | กลับเข้า shared pool พร้อมให้จองใหม่                        |
+| Broken    | `BROKEN`                        |   เหลือง   | ถูกตัดออกจาก availability รอซ่อม                            |
+| Lost      | `LOST`                          |    แดง     | ถูกตัดออกจาก availability ถาวร ไม่มี stock counter แยกให้ลด |
 
-`AssetUnit.status` มีค่าที่เป็นไปได้เพิ่มเติมนอกช่วง reservation/return: `RESERVED`, `IN_REPAIR`, `INACTIVE` — วงจรเต็มคือ `ACTIVE ↔ RESERVED ↔ CHECKED_OUT ↔ BROKEN/LOST ↔ IN_REPAIR ↔ INACTIVE` รายละเอียด validation ของแต่ละ transition อยู่ใน [backend_spec/algorithms-and-validation.md](../backend_spec/algorithms-and-validation.md)
+`AssetUnit.status` บอก **สภาพทางกายภาพ ณ ตอนนี้** ไม่ใช่ตารางจองในอนาคต: การ approve จึงไม่เปลี่ยน `ACTIVE` เป็น `RESERVED`; การ handover ภายในช่วงจองจึงเปลี่ยนเป็น `CHECKED_OUT` และผลตรวจคืนเปลี่ยนเป็น `ACTIVE`/`BROKEN`/`LOST` ตามจริง ค่า `IN_REPAIR` และ `INACTIVE` ใช้กับงานซ่อม/ปลดระวาง ส่วน `RESERVED` คงอยู่ใน contract ชั่วคราวเพื่อรองรับข้อมูลหรือ backend รุ่นก่อน migration เท่านั้น และจะไม่ถูกสร้างใหม่โดย reservation flow
 
 ## เอกสารที่เกี่ยวข้อง
 
