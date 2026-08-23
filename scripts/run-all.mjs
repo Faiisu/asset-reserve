@@ -140,27 +140,49 @@ try {
   console.warn(`  ${colors.yellow}⚠️ Warning generating Prisma client:${colors.reset}`, err.message);
 }
 
+let schemaReady = false;
 try {
-  console.log(`  🔄 Synchronizing database tables (prisma db push)...`);
-  // --accept-data-loss: Prisma 7 falsely reports the filtered unique index
-  // (reservation_change_requests_one_pending) as a pending change even when
-  // already applied, so a plain push always exits 1. Safe in dev (disposable DB).
-  execSync("npx prisma db push --accept-data-loss", {
+  console.log(`  🔄 Applying database migrations (prisma migrate deploy)...`);
+  // migrate deploy, not db push: the EXCLUDE constraint that rejects
+  // overlapping serial assignments, the status CHECK constraints, the partial
+  // unique indexes and the assignment-window triggers exist only in the
+  // migration SQL -- Prisma schema language cannot express them. A pushed
+  // database therefore looks fine and silently enforces none of them, so dev
+  // would stop catching what production rejects.
+  execSync("npx prisma migrate deploy", {
     cwd: backendDir,
-    stdio: "ignore",
-    timeout: 15000,
+    stdio: "pipe",
+    timeout: 120000,
   });
-  console.log(`  ${colors.green}✓${colors.reset} Database tables synced with Prisma schema`);
+  schemaReady = true;
+  console.log(`  ${colors.green}✓${colors.reset} Database migrations applied`);
+} catch (err) {
+  const output = `${err.stdout ?? ""}${err.stderr ?? ""}`;
+  if (output.includes("P3005") || output.includes("P3009")) {
+    // P3005: tables exist with no migration history at all. P3009: a migration
+    // is recorded as failed. Both are the signature of a database the old
+    // `prisma db push` flow kept alive past a migration it never ran, so its
+    // tables look right while the CHECK/EXCLUDE constraints are missing.
+    console.log(`  ${colors.yellow}⚠️ This database drifted from the migration history (old \`prisma db push\` flow).${colors.reset}`);
+    console.log(`  ${colors.dim}Its tables look right, but the CHECK/EXCLUDE constraints are missing.${colors.reset}`);
+    console.log(`  ${colors.dim}Recreate it (dev data is disposable):${colors.reset} ${colors.cyan}docker compose -f database/docker-compose.yml down -v && npm run db:up${colors.reset}`);
+  } else {
+    console.log(`  ${colors.dim}ℹ️ Migrations skipped or database not yet reachable.${colors.reset}`);
+  }
+}
 
-  console.log(`  🌱 Ensuring seed users and initial data are present...`);
-  execSync("npm run seed", {
-    cwd: backendDir,
-    stdio: "ignore",
-    timeout: 15000,
-  });
-  console.log(`  ${colors.green}✓${colors.reset} Seed users and data verified`);
-} catch {
-  console.log(`  ${colors.dim}ℹ️ Database sync/seed skipped or database not yet reachable.${colors.reset}`);
+if (schemaReady) {
+  try {
+    console.log(`  🌱 Ensuring seed users and initial data are present...`);
+    execSync("npm run seed", {
+      cwd: backendDir,
+      stdio: "ignore",
+      timeout: 60000,
+    });
+    console.log(`  ${colors.green}✓${colors.reset} Seed users and data verified`);
+  } catch {
+    console.log(`  ${colors.dim}ℹ️ Seeding skipped.${colors.reset}`);
+  }
 }
 
 // -----------------------------------------------------------------------------

@@ -12,7 +12,7 @@
     "db:up": "node scripts/run-database.mjs",
     "db:down": "docker compose -f database/docker-compose.yml down",
     "db:logs": "docker compose -f database/docker-compose.yml logs -f postgres",
-    "db:push": "npm --prefix backend run db:push",
+    "db:migrate": "npm --prefix backend run db:deploy",
     "db:seed": "npm --prefix backend run seed",
     "db:reset": "npm --prefix backend run reset:admin",
     "stop": "node scripts/stop-all.mjs",

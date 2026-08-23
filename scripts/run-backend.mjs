@@ -48,24 +48,51 @@ try {
   console.warn("⚠️ Warning: Prisma generate failed:", err.message);
 }
 
-// 5. Try syncing database schema if postgres is accessible
-console.log("🔄 Checking database schema synchronization...");
+// 5. Try applying migrations if postgres is accessible
+console.log("🔄 Applying database migrations...");
+let schemaReady = false;
 try {
-  execSync("npx prisma db push --skip-generate", {
+  // migrate deploy, not db push: the EXCLUDE constraint that rejects
+  // overlapping serial assignments, the status CHECK constraints, the partial
+  // unique indexes and the assignment-window triggers exist only in the
+  // migration SQL -- Prisma schema language cannot express them. A pushed
+  // database therefore looks fine and silently enforces none of them, so dev
+  // would stop catching what production rejects.
+  execSync("npx prisma migrate deploy", {
     cwd: backendDir,
-    stdio: "inherit",
-    timeout: 10000,
+    stdio: "pipe",
+    timeout: 120000,
   });
-  console.log("✓ Database schema synchronized successfully.");
-  console.log("🌱 Ensuring seed users and initial data are present...");
-  execSync("npm run seed", {
-    cwd: backendDir,
-    stdio: "inherit",
-    timeout: 15000,
-  });
-  console.log("✓ Seed users and data verified.");
+  schemaReady = true;
+  console.log("✓ Database migrations applied.");
 } catch (err) {
-  console.log("ℹ️ Database sync/seed skipped (PostgreSQL might still be starting or unreachable).");
+  const output = `${err.stdout ?? ""}${err.stderr ?? ""}`;
+  if (output.includes("P3005") || output.includes("P3009")) {
+    // P3005: tables exist with no migration history at all. P3009: a migration
+    // is recorded as failed. Both are the signature of a database the old
+    // `prisma db push` flow kept alive past a migration it never ran, so its
+    // tables look right while the CHECK/EXCLUDE constraints are missing.
+    console.log("⚠️ This database drifted from the migration history (old `prisma db push`");
+    console.log("   flow). Its tables look right, but constraints are missing.");
+    console.log("   Recreate it (dev data is disposable):");
+    console.log("   docker compose -f database/docker-compose.yml down -v && npm run db:up");
+  } else {
+    console.log("ℹ️ Migrations skipped (PostgreSQL might still be starting or unreachable).");
+  }
+}
+
+if (schemaReady) {
+  try {
+    console.log("🌱 Ensuring seed users and initial data are present...");
+    execSync("npm run seed", {
+      cwd: backendDir,
+      stdio: "inherit",
+      timeout: 60000,
+    });
+    console.log("✓ Seed users and data verified.");
+  } catch {
+    console.log("ℹ️ Seeding skipped.");
+  }
 }
 
 // 6. Start backend development server
