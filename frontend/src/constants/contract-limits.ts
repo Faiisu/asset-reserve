@@ -49,6 +49,15 @@ export const CONTRACT_LIMITS = {
     descriptionMax: limit(10_000, "CreateReservationRequest.description"),
     itemQuantityMax: limit(200, "ReservationItemInput.quantity", "maximum"),
     cancelReasonMax: limit(2_000, "CancelReservationRequest.reason"),
+    decisionCommentMax: limit(
+      2_000,
+      "ReservationItemsDecisionRequest.comment",
+    ),
+    returnNoteMax: limit(2_000, "CreateReturnRequest.note"),
+    returnDecisionDescriptionMax: limit(
+      2_000,
+      "ReturnDecisionRequest.description",
+    ),
   },
   role: {
     nameMax: limit(50, "CreateRoleRequest.name"),

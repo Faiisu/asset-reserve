@@ -137,8 +137,12 @@ export function generateStepLogs(
   }
 
   // 2. APPROVAL STEP
+  // PARTIALLY_APPROVED counts as decided: per lifecycle §2 its only forward
+  // transition is DELIVERY_CONFIRMED, so the approval step is done and
+  // handover is the current one -- same as APPROVED.
   const isApprovedOrBeyond = [
     "APPROVED",
+    "PARTIALLY_APPROVED",
     "DELIVERY_CONFIRMED",
     "RETURN_PENDING",
     "COMPLETED",

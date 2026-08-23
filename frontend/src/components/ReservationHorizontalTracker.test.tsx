@@ -120,6 +120,24 @@ describe("ReservationHorizontalTracker & generateStepLogs", () => {
     expect(steps[4].status).toBe("upcoming");
   });
 
+  it("treats PARTIALLY_APPROVED as a decided approval with handover current", () => {
+    // Lifecycle §2: PARTIALLY_APPROVED's only forward transition is
+    // DELIVERY_CONFIRMED, so the approval step is done, not pending.
+    const partial: ReservationDetail = {
+      ...baseReservation,
+      status: "PARTIALLY_APPROVED",
+    };
+    const steps = generateStepLogs(partial);
+    expect(steps[1].stepKey).toBe("approval");
+    expect(steps[1].status).toBe("completed");
+    expect(steps[1].shortLabel).toBe("Partially Approved");
+    expect(
+      steps[1].logs.find((log) => log.label === "Decision Timestamp")?.value,
+    ).not.toBe("Pending");
+    expect(steps[2].stepKey).toBe("delivery");
+    expect(steps[2].status).toBe("current");
+  });
+
   it("sets step 4 as completed and step 5 'Return Approval' as current when return is submitted", () => {
     const returnPendingReservation: ReservationDetail = {
       ...baseReservation,

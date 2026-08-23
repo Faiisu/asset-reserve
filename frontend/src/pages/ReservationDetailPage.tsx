@@ -35,6 +35,7 @@ import {
   reservationItemStatusLabel,
   reservationStatusLabel,
 } from "../reservations";
+import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 import type {
   ReservationDetail,
   ReservationStatus,
@@ -1005,6 +1006,7 @@ export function ReservationDetailPage() {
                     value={returnNote}
                     onChange={(e) => setReturnNote(e.target.value)}
                     className="control"
+                    maxLength={cap(CONTRACT_LIMITS.reservation.returnNoteMax)}
                     aria-label="Return note"
                   />
                   <Button
@@ -1037,6 +1039,9 @@ export function ReservationDetailPage() {
                     value={inspectionComment}
                     onChange={(e) => setInspectionComment(e.target.value)}
                     className="control"
+                    maxLength={cap(
+                      CONTRACT_LIMITS.reservation.returnDecisionDescriptionMax,
+                    )}
                     aria-label="Inspection remarks"
                   />
                   <Button
@@ -1174,6 +1179,9 @@ export function ReservationDetailPage() {
                               }))
                             }
                             className="control"
+                            maxLength={cap(
+                              CONTRACT_LIMITS.reservation.decisionCommentMax,
+                            )}
                             aria-label={`Approval comment for ${item.asset.name}`}
                           />
                           <Button
