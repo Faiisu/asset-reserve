@@ -155,6 +155,12 @@
 .form-alert svg {
   flex-shrink: 0;
 }
+.form-alert--info {
+  border-color: color-mix(in srgb, var(--green) 30%, transparent);
+  border-left-color: var(--green);
+  background: var(--green-soft);
+  color: var(--green-dark);
+}
 .login-submit {
   width: 100%;
   margin-top: 3px;
