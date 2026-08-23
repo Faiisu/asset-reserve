@@ -55,6 +55,40 @@ UserListResponse:
         $ref: "#/components/schemas/UserListItem"
     pageInfo:
       $ref: "#/components/schemas/PageInfo"
+UserDirectoryEntry:
+  type: object
+  description: >-
+    Minimal identity used to pick reservation participants. Deliberately
+    narrower than UserListItem -- no username, roles, or timestamps.
+  required:
+    - id
+    - email
+    - name
+    - profilePictureUrl
+  properties:
+    id:
+      type: string
+      format: uuid
+    email:
+      type: [string, "null"]
+      format: email
+    name:
+      type: [string, "null"]
+    profilePictureUrl:
+      type: [string, "null"]
+      format: uri
+UserDirectoryResponse:
+  type: object
+  required:
+    - data
+    - pageInfo
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/components/schemas/UserDirectoryEntry"
+    pageInfo:
+      $ref: "#/components/schemas/PageInfo"
 ActorRef:
   type: object
   required:

@@ -1,20 +1,21 @@
 import {
   ArrowRight,
-  ArrowLeft,
   Check,
   Plus,
   Save,
   Search,
   Send,
   Trash2,
+  UserPlus,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { api, ApiClientError } from "../api";
+import { api, ApiClientError, isAbortError } from "../api";
 import { useAuth } from "../auth";
 import {
   AssetPicture,
+  Avatar,
   Button,
   Field,
   Input,
@@ -26,10 +27,12 @@ import {
   defaultReservationWindow,
   toLocalDateTime,
 } from "../reservations";
-import type { AssetSummary } from "../types";
+import type { AssetSummary, UserDirectoryEntry } from "../types";
 import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 
 type SelectedAsset = { asset: AssetSummary; quantity: number };
+// CreateReservationRequest.participantIds caps the list at 100.
+const MAX_PARTICIPANTS = 100;
 const MAX_RESERVATION_ITEM_QUANTITY = cap(
   CONTRACT_LIMITS.reservation.itemQuantityMax,
 );
@@ -85,6 +88,11 @@ export function ReservationCreatePage() {
   const [error, setError] = useState<unknown>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [reservationReference, setReservationReference] = useState("");
+  const [participants, setParticipants] = useState<UserDirectoryEntry[]>([]);
+  const [participantSearch, setParticipantSearch] = useState("");
+  const [directory, setDirectory] = useState<UserDirectoryEntry[]>([]);
+  const [loadingDirectory, setLoadingDirectory] = useState(false);
+  const [directoryError, setDirectoryError] = useState(false);
   const availabilityWindow = useMemo(() => {
     const start = new Date(startAt);
     const end = new Date(endAt);
@@ -121,6 +129,35 @@ export function ReservationCreatePage() {
       window.clearTimeout(timer);
     };
   }, [availabilityWindow?.from, availabilityWindow?.to, search]);
+
+  // Participant lookup. GET /users/directory is scoped to reservation:create
+  // and returns active users only, so anything it lists is addable.
+  useEffect(() => {
+    if (!hasPermission("reservation:create")) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setLoadingDirectory(true);
+      setDirectoryError(false);
+      void api
+        .userDirectory(
+          { search: participantSearch.trim(), limit: 20 },
+          controller.signal,
+        )
+        .then((response) => setDirectory(response.data))
+        .catch((caught) => {
+          if (isAbortError(caught)) return;
+          setDirectory([]);
+          setDirectoryError(true);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoadingDirectory(false);
+        });
+    }, 180);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [participantSearch]);
 
   useEffect(() => {
     if (!assets.length) return;
@@ -211,6 +248,20 @@ export function ReservationCreatePage() {
     setSelected((current) => [...current, { asset, quantity: 1 }]);
   }
 
+  const participantIds = new Set(participants.map((person) => person.id));
+  const participantLabel = (person: UserDirectoryEntry) =>
+    person.name ?? person.email ?? "Unnamed user";
+
+  function toggleParticipant(person: UserDirectoryEntry) {
+    setParticipants((current) =>
+      current.some((existing) => existing.id === person.id)
+        ? current.filter((existing) => existing.id !== person.id)
+        : current.length >= MAX_PARTICIPANTS
+          ? current
+          : [...current, person],
+    );
+  }
+
   function updateQuantity(assetId: string, quantity: number) {
     setSelected((current) =>
       current.map((item) =>
@@ -279,6 +330,7 @@ export function ReservationCreatePage() {
           assetId: item.asset.id,
           quantity: item.quantity,
         })),
+        participantIds: participants.map((participant) => participant.id),
       });
       navigate(`/reservations/${result.id}`, {
         replace: true,
@@ -542,6 +594,105 @@ export function ReservationCreatePage() {
                         ) : (
                           <Plus size={17} />
                         )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="reservation-panel">
+            <div className="reservation-panel__heading">
+              <span className="reservation-step">03</span>
+              <div>
+                <h2>Event team</h2>
+                <p>
+                  Participants can see this reservation and return its
+                  equipment. The requester is always included.
+                </p>
+              </div>
+              <span className="manifest-count">
+                {participants.length} added
+              </span>
+            </div>
+
+            {fields.participantIds && (
+              <div className="inline-field-error" role="alert">
+                {fields.participantIds}
+              </div>
+            )}
+            {participants.length > 0 && (
+              <ul className="participant-chips">
+                {participants.map((person) => (
+                  <li className="participant-chip" key={person.id}>
+                    <Avatar name={participantLabel(person)} />
+                    <span>
+                      <strong>{participantLabel(person)}</strong>
+                      {person.email && person.name && (
+                        <small>{person.email}</small>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      className="icon-button icon-button--danger"
+                      aria-label={`Remove ${participantLabel(person)}`}
+                      onClick={() => toggleParticipant(person)}
+                    >
+                      <X size={15} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="asset-picker">
+              <div className="asset-picker__search">
+                <Search size={17} />
+                <input
+                  value={participantSearch}
+                  onChange={(event) =>
+                    setParticipantSearch(event.target.value)
+                  }
+                  placeholder="Search people by name or email"
+                  aria-label="Search people by name or email"
+                />
+              </div>
+              <div className="asset-picker__list" aria-live="polite">
+                {loadingDirectory ? (
+                  <p className="asset-picker__message">Loading people…</p>
+                ) : directoryError ? (
+                  <p className="asset-picker__message">
+                    Couldn't load the people directory.
+                  </p>
+                ) : directory.length === 0 ? (
+                  <p className="asset-picker__message">
+                    No active users match this search.
+                  </p>
+                ) : (
+                  directory.map((person) => {
+                    const added = participantIds.has(person.id);
+                    const atCap =
+                      !added && participants.length >= MAX_PARTICIPANTS;
+                    return (
+                      <button
+                        type="button"
+                        className="asset-picker__item"
+                        key={person.id}
+                        disabled={atCap}
+                        title={
+                          atCap
+                            ? `A reservation can have at most ${MAX_PARTICIPANTS} participants`
+                            : undefined
+                        }
+                        onClick={() => toggleParticipant(person)}
+                      >
+                        <Avatar name={participantLabel(person)} />
+                        <span>
+                          <strong>{participantLabel(person)}</strong>
+                          <small>{person.email ?? "No email linked yet"}</small>
+                        </span>
+                        {added ? <Check size={17} /> : <UserPlus size={17} />}
                       </button>
                     );
                   })

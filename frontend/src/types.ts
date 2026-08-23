@@ -103,6 +103,14 @@ export type UserListItem = {
   updatedAt: string;
 };
 
+/** Minimal identity for picking reservation participants (GET /users/directory). */
+export type UserDirectoryEntry = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  profilePictureUrl: string | null;
+};
+
 export type RoleAssignment = {
   id: string;
   userId: string;

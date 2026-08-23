@@ -3,7 +3,11 @@ import { StrictMode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { api } from "../api";
 import { toLocalDateTime } from "../reservations";
-import type { AssetDetail, AssetSummary } from "../types";
+import type {
+  AssetDetail,
+  AssetSummary,
+  UserDirectoryEntry,
+} from "../types";
 import { ReservationCreatePage } from "./ReservationCreatePage";
 
 vi.mock("../auth", () => ({
@@ -52,7 +56,52 @@ const assetDetail: AssetDetail = {
   unitEventLedger: [],
 };
 
+const colleague: UserDirectoryEntry = {
+  id: "7a2d9f60-9d9c-4a54-9f0b-58fb2c3c1a11",
+  email: "sam@example.com",
+  name: "Sam Rivera",
+  profilePictureUrl: null,
+};
+
 describe("ReservationCreatePage", () => {
+  beforeEach(() => {
+    vi.spyOn(api, "userDirectory").mockResolvedValue({
+      data: [colleague],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+  });
+
+  it("sends the chosen participants with the reservation", async () => {
+    vi.spyOn(api, "assets").mockResolvedValue({
+      data: [asset],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+    const createSpy = vi
+      .spyOn(api, "createReservation")
+      .mockResolvedValue({ id: "created" } as never);
+
+    render(
+      <MemoryRouter>
+        <ReservationCreatePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /stage camera/i }));
+    fireEvent.change(screen.getByLabelText(/event name/i), {
+      target: { value: "Quarterly town hall" },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: /sam rivera/i }));
+    expect(screen.getByText("1 added")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /save draft/i }));
+    await vi.waitFor(() => expect(createSpy).toHaveBeenCalled());
+    expect(createSpy.mock.calls[0][0].participantIds).toEqual([colleague.id]);
+
+    // Removing puts the person back in the picker and out of the payload.
+    fireEvent.click(screen.getByRole("button", { name: /remove sam rivera/i }));
+    expect(screen.getByText("0 added")).toBeInTheDocument();
+  });
+
   it("adds a reservable asset to the event manifest", async () => {
     const createSpy = vi.spyOn(api, "createReservation");
     vi.spyOn(api, "assets").mockResolvedValue({

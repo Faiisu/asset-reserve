@@ -235,3 +235,43 @@
   gap: 9px;
 }
 
+
+/* Participant picker (step 03). Reuses .asset-picker for search + list; the
+   chips below hold the people already added. */
+.participant-chips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.participant-chip {
+  min-width: 0;
+  padding: 6px 8px 6px 6px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-raised);
+}
+.participant-chip > span {
+  min-width: 0;
+}
+.participant-chip strong,
+.participant-chip small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+.participant-chip strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.participant-chip small {
+  color: var(--ink-faint);
+  font-size: 11px;
+}

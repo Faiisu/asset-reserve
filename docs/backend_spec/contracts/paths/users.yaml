@@ -65,6 +65,33 @@
         $ref: "#/components/responses/Conflict"
       "422":
         $ref: "#/components/responses/ValidationError"
+/users/directory:
+  get:
+    tags:
+      - Users
+    summary: Look up active users to add as reservation participants
+    description: >-
+      Requires reservation:create in any scope (global or a single management
+      area) -- picking a colleague is part of composing a reservation.
+      Returns active users only, with just the fields needed to recognise
+      one; the full directory with usernames, roles, and status stays behind
+      GET /users and its user-administration permissions.
+    operationId: listUserDirectory
+    parameters:
+      - $ref: "#/components/parameters/Search"
+      - $ref: "#/components/parameters/Cursor"
+      - $ref: "#/components/parameters/Limit"
+    responses:
+      "200":
+        description: Paginated active users.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserDirectoryResponse"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
 /users/me:
   patch:
     tags:

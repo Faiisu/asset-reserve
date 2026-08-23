@@ -69,6 +69,8 @@ paths:
     $ref: ./paths/management-areas.yaml#/~1management-areas~1{managementAreaId}
   /users:
     $ref: ./paths/users.yaml#/~1users
+  /users/directory:
+    $ref: ./paths/users.yaml#/~1users~1directory
   /users/me:
     $ref: ./paths/users.yaml#/~1users~1me
   /users/me/password:
@@ -247,6 +249,10 @@ components:
       $ref: ./components/schemas/users.yaml#/UserListItem
     UserListResponse:
       $ref: ./components/schemas/users.yaml#/UserListResponse
+    UserDirectoryEntry:
+      $ref: ./components/schemas/users.yaml#/UserDirectoryEntry
+    UserDirectoryResponse:
+      $ref: ./components/schemas/users.yaml#/UserDirectoryResponse
     ActorRef:
       $ref: ./components/schemas/users.yaml#/ActorRef
     RoleRef:

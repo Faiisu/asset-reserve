@@ -25,6 +25,7 @@ import type {
   SessionContext,
   UpdateSelfInput,
   UserDetail,
+  UserDirectoryEntry,
   UserListItem,
 } from "./types";
 
@@ -170,6 +171,14 @@ export const api = {
     request<ListResponse<UserListItem>>(`/users${queryString(filters)}`, {
       signal,
     }),
+  userDirectory: (
+    filters: { search?: string; cursor?: string; limit?: number },
+    signal?: AbortSignal,
+  ) =>
+    request<ListResponse<UserDirectoryEntry>>(
+      `/users/directory${queryString(filters)}`,
+      { signal },
+    ),
   user: (userId: string) => request<UserDetail>(`/users/${userId}`),
   createUser: (input: { username: string; password: string }) =>
     request<UserDetail>("/users", { method: "POST", body: json(input) }),

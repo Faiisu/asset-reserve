@@ -218,6 +218,17 @@ Authorization: Global user-admin permission · Query: `search?`, `isActive?`, `r
 6. สร้าง `pageInfo` ตาม cursor algorithm
 7. คืน user summary พร้อม `roleCount` และ `roles`
 
+### 4.1a `GET /users/directory`
+
+Authorization: `reservation:create` ใน scope ใดก็ได้ (global หรือ management area เดียว) · Query: `search?`, `cursor?`, `limit?`
+
+การเลือก participant เป็นส่วนหนึ่งของการสร้าง reservation (§7.1) ผู้ขอจองที่มีสิทธิ์เฉพาะบาง area จึงต้องค้นหา user ได้ โดยไม่เปิด directory ของฝ่ายบริหารให้ทั้งหมด
+
+1. บังคับ `isActive = true` เสมอ — ปิดใช้งานแล้วเพิ่มเป็น participant ไม่ได้
+2. Search แบบ case-insensitive จาก email หรือ profile name เท่านั้น (**ไม่รวม username** ต่างจาก §4.1)
+3. Query `limit + 1` เรียง `createdAt DESC, id DESC` แล้วสร้าง `pageInfo` ตาม cursor algorithm เดียวกัน
+4. คืนเฉพาะ `id`, `email`, `name`, `profilePictureUrl` — ไม่มี `username`, role, สถานะ หรือ timestamp
+
 ### 4.2 `POST /users`
 
 Authorization: Global `user:create` · Input: `username`, `password`

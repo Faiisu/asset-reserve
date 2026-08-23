@@ -21,7 +21,11 @@ export const SkipAccountLinkCheck = () =>
 
 export type AccessRequirement =
   | { kind: "globalAdmin" }
-  | { kind: "anyGlobalPermission"; permissions: PermissionKey[] };
+  | { kind: "anyGlobalPermission"; permissions: PermissionKey[] }
+  // Holding the permission anywhere is enough -- globally, or in a single
+  // management area. For routes an area-scoped user legitimately needs (e.g.
+  // looking up participants to add to a reservation they can create).
+  | { kind: "anyScopedPermission"; permissions: PermissionKey[] };
 
 export const ACCESS_REQUIREMENT_KEY = "accessRequirement";
 export const RequireGlobalAdmin = () =>
@@ -31,6 +35,11 @@ export const RequireGlobalAdmin = () =>
 export const RequireAnyGlobalPermission = (...permissions: PermissionKey[]) =>
   SetMetadata(ACCESS_REQUIREMENT_KEY, {
     kind: "anyGlobalPermission",
+    permissions,
+  } satisfies AccessRequirement);
+export const RequireAnyScopedPermission = (...permissions: PermissionKey[]) =>
+  SetMetadata(ACCESS_REQUIREMENT_KEY, {
+    kind: "anyScopedPermission",
     permissions,
   } satisfies AccessRequirement);
 

@@ -5,6 +5,7 @@ import { Prisma } from "../../generated/prisma/client.js";
 import { ApiException } from "../common/api-exception.js";
 import { decodeCursor, pageInfo } from "../common/pagination.js";
 import { PrismaService } from "../database/prisma.service.js";
+import type { SearchPaginationQueryDto } from "../common/dto.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import type {
   AssignRoleDto,
@@ -107,6 +108,51 @@ export class UsersService {
         ],
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString(),
+      })),
+      pageInfo: page.pageInfo,
+    };
+  }
+
+  /**
+   * Participant lookup for reservation composition. Deliberately narrower
+   * than list(): active users only, and only the fields needed to recognise
+   * a colleague (no username, roles, or timestamps), so holding
+   * reservation:create anywhere does not expose the admin user directory.
+   */
+  async directory(query: SearchPaginationQueryDto) {
+    const cursor = decodeCursor(query.cursor);
+    const conditions: Prisma.UserWhereInput[] = [{ isActive: true }];
+    if (query.search) {
+      conditions.push({
+        OR: [
+          { email: { contains: query.search, mode: "insensitive" } },
+          {
+            profile: { name: { contains: query.search, mode: "insensitive" } },
+          },
+        ],
+      });
+    }
+    if (cursor) {
+      conditions.push({
+        OR: [
+          { createdAt: { lt: new Date(cursor.createdAt) } },
+          { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } },
+        ],
+      });
+    }
+    const rows = await this.prisma.user.findMany({
+      where: { AND: conditions },
+      take: query.limit + 1,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      include: { profile: true },
+    });
+    const page = pageInfo(rows, query.limit);
+    return {
+      data: page.data.map((user) => ({
+        id: user.id,
+        email: user.email,
+        name: user.profile?.name ?? null,
+        profilePictureUrl: user.profile?.profilePictureUrl ?? null,
       })),
       pageInfo: page.pageInfo,
     };
