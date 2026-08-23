@@ -391,28 +391,49 @@ describe("ReturnsService", () => {
     );
   });
 
-  it("rejects return creation before the reservation end time", async () => {
+  it("creates a return before the reservation end time (event finished early)", async () => {
     const reservation = {
       ...sampleReservation("DELIVERY_CONFIRMED"),
       endAt: new Date("2999-08-01T11:00:00.000Z"),
     };
+    const updateReservation = vi.fn().mockResolvedValue({});
     const prismaMock = {
       reservation: {
         findUnique: vi.fn().mockResolvedValue(reservation),
       },
+      reservationItemUnit: {
+        findMany: vi.fn().mockResolvedValue([sampleReservationItemUnit()]),
+      },
+      return: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue(sampleReturnDetailRecord("PENDING")),
+      },
+      $transaction: vi.fn().mockImplementation(async (callback) =>
+        callback({
+          return: { create: vi.fn().mockResolvedValue({}) },
+          reservation: { update: updateReservation },
+          activityLog: { create: vi.fn().mockResolvedValue({}) },
+        }),
+      ),
     } as unknown as PrismaService;
 
     const service = new ReturnsService(prismaMock, reservationEvents);
-    await expect(
-      service.create(requesterActor, reservationId, {
-        items: [
-          {
-            reservationItemId: itemId,
-            reservationItemUnitIds: [reservationItemUnitId],
-          },
-        ],
+    const result = await service.create(requesterActor, reservationId, {
+      items: [
+        {
+          reservationItemId: itemId,
+          reservationItemUnitIds: [reservationItemUnitId],
+        },
+      ],
+    });
+
+    expect(result.status).toBe("PENDING");
+    expect(updateReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "RETURN_PENDING" }),
       }),
-    ).rejects.toThrow(/after the reservation end time/);
+    );
   });
 
   it("rejects returning a unit that is not checked out", async () => {

@@ -409,8 +409,7 @@ export class ReservationsService {
       requester: {
         email: reservation.requester.email,
         name:
-          reservation.requester.profile?.name ??
-          reservation.requester.username,
+          reservation.requester.profile?.name ?? reservation.requester.username,
       },
       approverRecipients,
     });
@@ -1063,7 +1062,14 @@ export class ReservationsService {
           const handedOver = await tx.reservationItemUnit.count({
             where: {
               reservationItemId: item.id,
-              status: { in: ["CHECKED_OUT", "RETURNED_GOOD", "RETURNED_BROKEN", "RETURNED_LOST"] },
+              status: {
+                in: [
+                  "CHECKED_OUT",
+                  "RETURNED_GOOD",
+                  "RETURNED_BROKEN",
+                  "RETURNED_LOST",
+                ],
+              },
             },
           });
           await tx.reservationItem.update({
@@ -1512,7 +1518,6 @@ export class ReservationsService {
     actor: AuthenticatedActor,
     reservation: ReservationDetailRecord,
   ) {
-    const returnWindowOpen = new Date() >= reservation.endAt;
     const availability = await this.availabilityByAsset(
       this.prisma,
       reservation.items.map((item) => item.assetId),
@@ -1705,7 +1710,6 @@ export class ReservationsService {
               item.status === "PREPARED" &&
               this.canConfirmDeliveryItem(actor, reservation, item),
             canReturn:
-              returnWindowOpen &&
               ["DELIVERY_CONFIRMED", "RETURN_PENDING"].includes(
                 reservation.status,
               ) &&
@@ -1738,7 +1742,6 @@ export class ReservationsService {
             "APPROVED",
           ].includes(reservation.status),
         canReturn:
-          returnWindowOpen &&
           ["DELIVERY_CONFIRMED", "RETURN_PENDING"].includes(
             reservation.status,
           ) &&

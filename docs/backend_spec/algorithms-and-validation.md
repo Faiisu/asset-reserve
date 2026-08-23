@@ -563,7 +563,7 @@ flowchart LR
 
 ### 8.2 `POST /reservations/:reservationId/returns`
 
-ผู้ยืมหรือ participant ส่งสลิปเพื่อคืนอุปกรณ์ ระบุ `items[]` แต่ละรายการมี `reservationItemId` และ `reservationItemUnitIds[]` (1–200 unit ต่อ item, unique) คือ asset unit ที่ยังไม่ได้คืน — คืนได้เฉพาะ unit ที่ `CHECKED_OUT` จริง ดังนั้น unit ที่ถูก cancel ตอน handover (§7.8) จะไม่อยู่ในขอบเขตการคืนเลย ตรวจว่า unit แต่ละตัวอยู่ในสถานะ checked-out ของ item นั้นจริง ก่อนสร้างสลิป สร้างเรคคอร์ด `returns` ในสถานะ `PENDING` เสมอ — ทุกสลิปต้องผ่านขั้นตรวจสภาพ (§8.3) ไม่มี self-approve ข้ามขั้นตอน
+ผู้ยืมหรือ participant ส่งสลิปเพื่อคืนอุปกรณ์ ระบุ `items[]` แต่ละรายการมี `reservationItemId` และ `reservationItemUnitIds[]` (1–200 unit ต่อ item, unique) คือ asset unit ที่ยังไม่ได้คืน — คืนได้เฉพาะ unit ที่ `CHECKED_OUT` จริง ดังนั้น unit ที่ถูก cancel ตอน handover (§7.8) จะไม่อยู่ในขอบเขตการคืนเลย ตรวจว่า unit แต่ละตัวอยู่ในสถานะ checked-out ของ item นั้นจริง **ไม่มีขอบล่างเรื่องเวลา** — กิจกรรมที่จบก่อนกำหนดส่งสลิปคืนก่อน `Reservation.endAt` ได้ (ดู [software_spec/lifecycle-and-state-machines.md#return-eligibility-rule](../software_spec/lifecycle-and-state-machines.md#return-eligibility-rule)) ก่อนสร้างสลิป สร้างเรคคอร์ด `returns` ในสถานะ `PENDING` เสมอ — ทุกสลิปต้องผ่านขั้นตรวจสภาพ (§8.3) ไม่มี self-approve ข้ามขั้นตอน
 
 ### 8.3 `POST /reservations/:reservationId/returns/:returnId/decision`
 

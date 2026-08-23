@@ -249,7 +249,6 @@ export class ReturnsService {
       "DELIVERY_CONFIRMED",
       "RETURN_PENDING",
     ].includes(reservation.status);
-    const isPastEndAt = new Date() >= reservation.endAt;
     if (!canEnterReturnFlow) {
       throw new ApiException(
         409,
@@ -257,13 +256,9 @@ export class ReturnsService {
         `Cannot create return for a reservation with status ${reservation.status}.`,
       );
     }
-    if (!isPastEndAt) {
-      throw new ApiException(
-        409,
-        "RETURN_TOO_EARLY",
-        "A return can only be created after the reservation end time.",
-      );
-    }
+    // No lower time bound: an event that wraps up early hands its equipment
+    // back early. What is returnable is decided per unit below -- a unit has
+    // to be CHECKED_OUT, which already means it physically went out.
 
     const isRequester = reservation.requesterId === actor.user.id;
     const isParticipant = reservation.participants.some(

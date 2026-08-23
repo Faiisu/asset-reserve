@@ -69,7 +69,12 @@ flowchart TD
 
 ### Return eligibility rule
 
-Asset สามารถถูกคืนได้ **ตลอดเวลาหลังจาก `endAt` ของ reservation ผ่านไปแล้ว** ไม่ว่า reservation จะอยู่ status ใดก็ตาม (ยกเว้น final status) — เดิมมีการใช้ status `ACTIVE` เพื่อสื่อความหมายนี้ แต่ถูกตัดออกแล้ว เงื่อนไขคือ `now() >= reservation.endAt` ร่วมกับเงื่อนไข status ตามปกติ
+Asset สามารถถูกคืนได้ **ทุกเมื่อหลังจากถูก handover ออกไปแล้ว** ไม่มีเงื่อนไขเรื่องเวลา — กิจกรรมที่จบก่อนกำหนดคืนของก่อน `endAt` ได้ (เดิมมี `now() >= reservation.endAt` บังคับไว้ ตอบ `409 RETURN_TOO_EARLY` ซึ่งถูกตัดออกแล้ว) เงื่อนไขที่เหลือคือ:
+
+- reservation อยู่สถานะ `DELIVERY_CONFIRMED` หรือ `RETURN_PENDING`
+- unit ที่จะคืนอยู่สถานะ `CHECKED_OUT` และยังไม่ถูก claim ในสลิปอื่น
+
+เดิมมีการใช้ status `ACTIVE` เพื่อสื่อความหมาย "กำลังยืมอยู่" แต่ถูกตัดออกแล้ว
 
 ## 3. ReservationItem status {#reservation-item-status}
 
