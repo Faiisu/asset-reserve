@@ -529,15 +529,18 @@ Requester หรือ actor ที่ manage reservation ได้ยกเล�
 
 ### 7.8 `POST /reservations/:reservationId/delivery-confirm`
 
-เจ้าหน้าที่คลังหรือ Area Manager ยืนยันการส่งมอบอุปกรณ์ **แบบ unit-based**: รับ `items[]` แต่ละรายการระบุ `reservationItemId` และ `reservationItemUnitIds[]` (optional) ของตัวเอง — ไม่ต้องส่งมอบทั้ง item พร้อมกัน (breaking change จากรุ่นก่อนหน้าที่รับแค่ `itemIds[]` และส่งมอบทั้ง item เสมอ — ดู [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status))
+เจ้าหน้าที่คลังหรือ Area Manager ยืนยันการส่งมอบอุปกรณ์ **แบบ unit-based**: รับ `items[]` แต่ละรายการระบุ `reservationItemId`, `reservationItemUnitIds[]` (unit ที่ส่งมอบจริงตอนนี้) และ `cancelledReservationItemUnitIds[]` (unit ที่จะไม่ส่งมอบ) — ทั้งสอง optional และไม่ต้องส่งมอบทั้ง item พร้อมกัน (breaking change จากรุ่นก่อนหน้าที่รับแค่ `itemIds[]` และส่งมอบทั้ง item เสมอ — ดู [software_spec/lifecycle-and-state-machines.md §3](../software_spec/lifecycle-and-state-machines.md#reservation-item-status))
+
+**ทุก unit ต้องมีข้อสรุป**: unit ที่ผูกไว้แล้วแต่ไม่ได้ส่งมอบจริงต้องถูก cancel ไม่ปล่อยค้าง `ASSIGNED` — จึงเป็นทางที่ reservation เดินหน้าต่อได้เมื่อของบางชิ้นจ่ายไม่ได้ และทำให้การคืน (§8.2) อ้างอิงเฉพาะของที่ handover ไปแล้ว
 
 1. ภายใน serializable transaction ให้ lock reservation แล้วอ่านสถานะและช่วงเวลาใหม่; สถานะต้องเป็น `APPROVED` หรือ `PARTIALLY_APPROVED`/`DELIVERY_CONFIRMED` (รองรับยืนยัน handover เพิ่มเติมหลังบางรายการส่งมอบไปแล้ว) เพื่อไม่ให้ handover แข่งกับ cancellation
 2. แต่ละ item ที่ระบุต้องอยู่สถานะ `PREPARED` และ actor ต้องผ่าน `canConfirmDelivery` ของ item นั้น — มิฉะนั้นตอบ `409`/`403`
-3. ถ้าไม่ส่ง `reservationItemUnitIds` มาสำหรับ item ใด ให้ถือว่าส่งมอบ**ทุก unit ที่ยังเป็น `ASSIGNED`** ของ item นั้น (พฤติกรรมเดิม เท่ากับ full handover) ถ้าส่งมา ต้องเป็น `ReservationItemUnit.id` ของ item นั้นเองและอยู่สถานะ `ASSIGNED` เท่านั้น มิฉะนั้นตอบ `409`
+3. ถ้าไม่ส่งทั้ง `reservationItemUnitIds` และ `cancelledReservationItemUnitIds` มาสำหรับ item ใด ให้ถือว่าส่งมอบ**ทุก unit ที่ยังเป็น `ASSIGNED`** ของ item นั้น (พฤติกรรมเดิม เท่ากับ full handover) ถ้าส่งมา ทุก id ในทั้งสอง array ต้องเป็น `ReservationItemUnit.id` ของ item นั้นเองและอยู่สถานะ `ASSIGNED` เท่านั้น และ**ห้ามซ้ำกันข้าม array** (unit เดียวจะทั้งส่งมอบและ cancel พร้อมกันไม่ได้) มิฉะนั้นตอบ `409`
 4. `now` ต้องอยู่ในช่วง `[Reservation.startAt, Reservation.endAt)`; ก่อนเริ่มช่วงตอบ `409 HANDOVER_TOO_EARLY` และเมื่อหมดช่วงตอบ `409 HANDOVER_WINDOW_CLOSED`
 5. Lock physical unit แล้วตรวจว่า `AssetUnit.status = ACTIVE` (รองรับ legacy `RESERVED` ชั่วคราว) จากนั้นอัปเดตเฉพาะ unit ที่เลือก: `ReservationItemUnit.status` จาก `ASSIGNED` เป็น `CHECKED_OUT`, `AssetUnit.status` เป็น `CHECKED_OUT`, เขียน `AssetUnitEvent` และ `ReservationItemUnit.checkedOutAt = now` ต่อหน่วย ถ้า physical unit ถูก checkout/เสีย/สูญหายอยู่ให้ตอบ `409 ASSET_UNIT_PHYSICALLY_UNAVAILABLE`
-6. หลังอัปเดต ถ้า item นั้น**ไม่เหลือ unit สถานะ `ASSIGNED` อีกแล้ว** ให้เปลี่ยน `reservation_items.status` เป็น `DELIVERED` พร้อมบันทึก `checkedOutBy = actor.id`, `checkedOutAt = now` **ที่ระดับ item** — ถ้ายังมี unit ค้าง `ASSIGNED` อยู่ item ยังคง `PREPARED`
-7. เปลี่ยนสถานะภาพรวมของ `reservations` เป็น `DELIVERY_CONFIRMED` เมื่อทุก item ที่ approved/active เป็น `DELIVERED` หรือ `RETURNED` ครบ
+6. Unit ที่อยู่ใน `cancelledReservationItemUnitIds` เปลี่ยน `ReservationItemUnit.status` จาก `ASSIGNED` เป็น `CANCELLED` **โดยไม่แตะ `AssetUnit.status` และไม่เขียน `AssetUnitEvent`** (ของไม่เคยออกจากคลัง) — แถวสถานะ `CANCELLED` อยู่นอก exclusion constraint ช่วงเวลาของ serial นั้นจึงว่างให้จองใหม่ได้ทันที
+7. หลังอัปเดต ถ้า item นั้น**ไม่เหลือ unit สถานะ `ASSIGNED` อีกแล้ว** ให้ตัด `reservation_items.quantity` ให้เท่ากับจำนวน unit ที่เป็น `CHECKED_OUT` จริง แล้วเปลี่ยน status เป็น `DELIVERED` พร้อมบันทึก `checkedOutBy = actor.id`, `checkedOutAt = now` **ที่ระดับ item**; ถ้าไม่มี unit ที่ส่งมอบเลย (ถูก cancel ทั้งหมด) ให้เป็น `CANCELLED` โดย `quantity` คงไว้เท่าที่ approve ไว้ (status บอกอยู่แล้วว่าไม่มีของออกไป และ `reservation_items_quantity_check` บังคับ `> 0`) — ถ้ายังมี unit ค้าง `ASSIGNED` อยู่ item ยังคง `PREPARED`
+8. เปลี่ยนสถานะภาพรวมของ `reservations` เป็น `DELIVERY_CONFIRMED` เมื่อทุก item ที่ approved/active เป็น `DELIVERED` หรือ `RETURNED` ครบ; ถ้าไม่เหลือ item ที่ approved/active เลย (ทุก item เป็น `REJECTED`/`CANCELLED`) ให้ reservation เป็น `CANCELLED`
 
 ### 7.9 Past date/time validation (creation and reschedule)
 
@@ -560,7 +563,7 @@ flowchart LR
 
 ### 8.2 `POST /reservations/:reservationId/returns`
 
-ผู้ยืมหรือ participant ส่งสลิปเพื่อคืนอุปกรณ์ ระบุ `items[]` แต่ละรายการมี `reservationItemId` และ `reservationItemUnitIds[]` (1–200 unit ต่อ item, unique) คือ asset unit ที่ยังไม่ได้คืน ตรวจว่า unit แต่ละตัวอยู่ในสถานะ checked-out ของ item นั้นจริง ก่อนสร้างสลิป สร้างเรคคอร์ด `returns` ในสถานะ `PENDING` เสมอ — ทุกสลิปต้องผ่านขั้นตรวจสภาพ (§8.3) ไม่มี self-approve ข้ามขั้นตอน
+ผู้ยืมหรือ participant ส่งสลิปเพื่อคืนอุปกรณ์ ระบุ `items[]` แต่ละรายการมี `reservationItemId` และ `reservationItemUnitIds[]` (1–200 unit ต่อ item, unique) คือ asset unit ที่ยังไม่ได้คืน — คืนได้เฉพาะ unit ที่ `CHECKED_OUT` จริง ดังนั้น unit ที่ถูก cancel ตอน handover (§7.8) จะไม่อยู่ในขอบเขตการคืนเลย ตรวจว่า unit แต่ละตัวอยู่ในสถานะ checked-out ของ item นั้นจริง ก่อนสร้างสลิป สร้างเรคคอร์ด `returns` ในสถานะ `PENDING` เสมอ — ทุกสลิปต้องผ่านขั้นตรวจสภาพ (§8.3) ไม่มี self-approve ข้ามขั้นตอน
 
 ### 8.3 `POST /reservations/:reservationId/returns/:returnId/decision`
 

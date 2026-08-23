@@ -807,11 +807,14 @@ export class ReservationsService {
       deliverableItemStatuses.includes(item.status),
     );
 
-    // entries: which item to confirm, and which of its ASSIGNED units --
-    // unitIds === null means "every remaining ASSIGNED unit" (full handover).
+    // entries: which item to confirm, which of its ASSIGNED units to hand
+    // over, and which to cancel (§7.8 -- every assigned unit needs a
+    // disposition). unitIds === null means "every remaining ASSIGNED unit"
+    // (full handover); cancelledUnitIds is always an explicit list.
     type Entry = {
       item: (typeof reservation.items)[number];
       unitIds: string[] | null;
+      cancelledUnitIds: string[];
     };
     let entries: Entry[];
 
@@ -835,7 +838,27 @@ export class ReservationsService {
             "One or more selected items do not belong to this reservation.",
           );
         }
-        return { item, unitIds: entry.reservationItemUnitIds ?? null };
+        const cancelledUnitIds = entry.cancelledReservationItemUnitIds ?? [];
+        const handedOverUnitIds = entry.reservationItemUnitIds ?? null;
+        if (
+          handedOverUnitIds &&
+          cancelledUnitIds.some((id) => handedOverUnitIds.includes(id))
+        ) {
+          throw new ApiException(
+            400,
+            "INVALID_ITEM_SELECTION",
+            "A serial unit cannot be both handed over and cancelled in the same request.",
+          );
+        }
+        // Only the "nothing specified at all" case means full handover --
+        // cancelling some units without naming any to hand over must not be
+        // read as "hand over everything".
+        return {
+          item,
+          unitIds:
+            handedOverUnitIds ?? (cancelledUnitIds.length > 0 ? [] : null),
+          cancelledUnitIds,
+        };
       });
 
       const invalidStateItems = entries.filter(
@@ -856,14 +879,14 @@ export class ReservationsService {
         this.permissionDenied();
       }
 
-      for (const { item, unitIds } of entries) {
-        if (!unitIds) continue;
+      for (const { item, unitIds, cancelledUnitIds } of entries) {
         const assignedIds = new Set(
           item.unitAssignments
             .filter((unit) => unit.status === "ASSIGNED")
             .map((unit) => unit.id),
         );
-        if (unitIds.some((id) => !assignedIds.has(id))) {
+        const selected = [...(unitIds ?? []), ...cancelledUnitIds];
+        if (selected.some((id) => !assignedIds.has(id))) {
           throw new ApiException(
             409,
             "RESERVATION_ITEM_UNIT_UNAVAILABLE",
@@ -874,7 +897,7 @@ export class ReservationsService {
     } else {
       entries = deliverableItems
         .filter((item) => this.canConfirmDeliveryItem(actor, reservation, item))
-        .map((item) => ({ item, unitIds: null }));
+        .map((item) => ({ item, unitIds: null, cancelledUnitIds: [] }));
     }
 
     if (entries.length === 0) {
@@ -929,12 +952,14 @@ export class ReservationsService {
       const eventBatchId = randomUUID();
       let batchCreated = false;
       let fullyDeliveredCount = 0;
+      let cancelledUnitCount = 0;
       const deliveredUnitsByItem: {
         reservationItemId: string;
         reservationItemUnitIds: string[];
+        cancelledReservationItemUnitIds: string[];
       }[] = [];
 
-      for (const { item, unitIds } of entries) {
+      for (const { item, unitIds, cancelledUnitIds } of entries) {
         const assignedUnits = item.unitAssignments.filter(
           (unit) => unit.status === "ASSIGNED",
         );
@@ -944,6 +969,7 @@ export class ReservationsService {
         deliveredUnitsByItem.push({
           reservationItemId: item.id,
           reservationItemUnitIds: targetUnits.map((unit) => unit.id),
+          cancelledReservationItemUnitIds: cancelledUnitIds,
         });
 
         if (targetUnits.length > 0) {
@@ -1019,20 +1045,55 @@ export class ReservationsService {
           });
         }
 
+        // Units the actor is explicitly not handing over. The physical
+        // AssetUnit is untouched -- it never left the store room -- and the
+        // CANCELLED row falls outside the assignment-window exclusion
+        // constraint, so the serial is immediately schedulable again.
+        if (cancelledUnitIds.length > 0) {
+          const cancelled = await tx.reservationItemUnit.updateMany({
+            where: { id: { in: cancelledUnitIds }, status: "ASSIGNED" },
+            data: { status: "CANCELLED", updatedAt: deliveredAt },
+          });
+          if (cancelled.count !== cancelledUnitIds.length) {
+            throw new ApiException(
+              409,
+              "RESERVATION_ITEM_UNIT_UNAVAILABLE",
+              "One or more selected assignments changed before handover completed.",
+            );
+          }
+          cancelledUnitCount += cancelled.count;
+        }
+
         const remainingAssigned = await tx.reservationItemUnit.count({
           where: { reservationItemId: item.id, status: "ASSIGNED" },
         });
         if (remainingAssigned === 0) {
-          await tx.reservationItem.update({
-            where: { id: item.id },
-            data: {
-              status: "DELIVERED",
-              checkedOutAt: deliveredAt,
-              checkedOutBy: actor.user.id,
-              updatedAt: deliveredAt,
+          // Every assigned unit now has a disposition. Cut quantity to what
+          // actually left the store room (mirroring the cut approval makes in
+          // §7.5); an item where nothing was handed over is CANCELLED, not
+          // DELIVERED, so nothing downstream treats it as returnable -- its
+          // quantity stays at the approved count, which is what CANCELLED is
+          // saying was not delivered.
+          const handedOver = await tx.reservationItemUnit.count({
+            where: {
+              reservationItemId: item.id,
+              status: { in: ["CHECKED_OUT", "RETURNED_GOOD", "RETURNED_BROKEN", "RETURNED_LOST"] },
             },
           });
-          fullyDeliveredCount += 1;
+          await tx.reservationItem.update({
+            where: { id: item.id },
+            data:
+              handedOver > 0
+                ? {
+                    status: "DELIVERED",
+                    quantity: handedOver,
+                    checkedOutAt: deliveredAt,
+                    checkedOutBy: actor.user.id,
+                    updatedAt: deliveredAt,
+                  }
+                : { status: "CANCELLED", updatedAt: deliveredAt },
+          });
+          if (handedOver > 0) fullyDeliveredCount += 1;
         } else {
           await tx.reservationItem.update({
             where: { id: item.id },
@@ -1048,7 +1109,10 @@ export class ReservationsService {
       });
 
       const approvedOrActiveItems = allItems.filter(
-        (item) => item.status !== "REJECTED" && item.status !== "PENDING",
+        (item) =>
+          item.status !== "REJECTED" &&
+          item.status !== "PENDING" &&
+          item.status !== "CANCELLED",
       );
 
       const allDelivered =
@@ -1056,8 +1120,18 @@ export class ReservationsService {
         approvedOrActiveItems.every(
           (item) => item.status === "DELIVERED" || item.status === "RETURNED",
         );
+      // Nothing left to hand over and nothing was: every line was rejected at
+      // approval or cancelled at handover, so the booking itself is off.
+      const nothingHandedOver =
+        approvedOrActiveItems.length === 0 &&
+        allItems.some((item) => item.status === "CANCELLED");
 
-      if (allDelivered) {
+      if (nothingHandedOver) {
+        await tx.reservation.update({
+          where: { id: reservationId },
+          data: { status: "CANCELLED", updatedAt: deliveredAt },
+        });
+      } else if (allDelivered) {
         await tx.reservation.update({
           where: { id: reservationId },
           data: {
@@ -1084,6 +1158,7 @@ export class ReservationsService {
           confirmedBy: actor.user.id,
           itemCount: entries.length,
           fullyDeliveredCount,
+          cancelledUnitCount,
           units: deliveredUnitsByItem,
         },
       });
@@ -1650,6 +1725,8 @@ export class ReservationsService {
               ) &&
               item.status !== "REJECTED" &&
               item.status !== "PENDING" &&
+              // Cancelled at handover -- nothing left the store room (§7.8).
+              item.status !== "CANCELLED" &&
               remainingReturnQuantity > 0,
           },
         };
@@ -1680,7 +1757,10 @@ export class ReservationsService {
             reservation.status,
           ) &&
           reservation.items.some(
-            (item) => item.status !== "REJECTED" && item.status !== "PENDING",
+            (item) =>
+              item.status !== "REJECTED" &&
+              item.status !== "PENDING" &&
+              item.status !== "CANCELLED",
           ),
         canDecideReturn,
       },

@@ -186,14 +186,16 @@ describe("ReservationDetailPage", () => {
     ).toBeInTheDocument();
     // Every assigned serial unit is pre-selected for handover by default.
     expect(
-      screen.getByText("Handover confirmation (2 of 2 serial units selected)"),
+      screen.getByText(/Handover confirmation \(2 handing over, 0 cancelled/),
     ).toBeInTheDocument();
-    expect(
-      screen.getByLabelText("Select serial SN-CAM-001 for handover"),
-    ).toBeChecked();
-    expect(
-      screen.getByLabelText("Select serial SN-CAM-002 for handover"),
-    ).toBeChecked();
+    for (const serial of ["SN-CAM-001", "SN-CAM-002"]) {
+      const group = screen.getByRole("radiogroup", {
+        name: `Handover decision for serial ${serial}`,
+      });
+      expect(
+        within(group).getByRole("radio", { name: "Hand over" }),
+      ).toBeChecked();
+    }
     expect(
       screen.getByRole("button", { name: "Confirm Handover" }),
     ).toBeEnabled();
@@ -466,7 +468,7 @@ describe("ReservationDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("confirms handover for only the serial units explicitly selected (partial handover)", async () => {
+  it("hands over the units marked Hand over and cancels the rest", async () => {
     vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
     const confirmSpy = vi.spyOn(api, "confirmDelivery").mockResolvedValue({
       ...mockReservation,
@@ -475,7 +477,7 @@ describe("ReservationDetailPage", () => {
           ...mockReservation.items[0],
           units: [
             { ...mockReservation.items[0].units[0], status: "CHECKED_OUT" },
-            mockReservation.items[0].units[1],
+            { ...mockReservation.items[0].units[1], status: "CANCELLED" },
           ],
         },
       ],
@@ -494,42 +496,66 @@ describe("ReservationDetailPage", () => {
       </MemoryRouter>,
     );
 
-    const serialOne = await screen.findByLabelText(
-      "Select serial SN-CAM-001 for handover",
-    );
-    const serialTwo = screen.getByLabelText(
-      "Select serial SN-CAM-002 for handover",
-    );
-
-    const confirmButton = screen.getByRole("button", {
-      name: "Confirm Handover",
+    const serialTwoGroup = await screen.findByRole("radiogroup", {
+      name: "Handover decision for serial SN-CAM-002",
     });
-    // Every assigned serial unit is pre-selected by default.
-    expect(serialOne).toBeChecked();
-    expect(serialTwo).toBeChecked();
-    expect(confirmButton).toBeEnabled();
+    // Every assigned serial defaults to being handed over.
+    expect(
+      within(serialTwoGroup).getByRole("radio", { name: "Hand over" }),
+    ).toBeChecked();
 
-    // Partial handover: deselect one serial unit, hand over only the other.
-    fireEvent.click(serialTwo);
-    expect(serialOne).toBeChecked();
-    expect(serialTwo).not.toBeChecked();
-    expect(confirmButton).toBeEnabled();
-    fireEvent.click(confirmButton);
+    // Flip one serial to Cancel -- it goes out as a cancellation, not as a
+    // unit left dangling in ASSIGNED.
+    fireEvent.click(
+      within(serialTwoGroup).getByRole("radio", { name: "Cancel" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Handover" }));
 
     await waitFor(() => {
       expect(confirmSpy).toHaveBeenCalledWith(
         "00000000-0000-4000-8000-000000000101",
         {
           items: [
-            { reservationItemId: "item-1", reservationItemUnitIds: ["riu-1"] },
+            {
+              reservationItemId: "item-1",
+              reservationItemUnitIds: ["riu-1"],
+              cancelledReservationItemUnitIds: ["riu-2"],
+            },
           ],
         },
       );
     });
   });
 
-  it("toggles a manifest row's checkbox by clicking anywhere in the row (label association, not a div onClick)", async () => {
-    vi.spyOn(api, "reservation").mockResolvedValue(mockReservation);
+  it("toggles a return row's checkbox by clicking anywhere in the row (label association, not a div onClick)", async () => {
+    // The handover step uses a Hand over / Cancel radiogroup per serial, but
+    // the return step still selects units with a checkbox in a real <label>.
+    const deliveredReservation: ReservationDetail = {
+      ...mockReservation,
+      status: "DELIVERY_CONFIRMED",
+      items: [
+        {
+          ...mockReservation.items[0],
+          status: "DELIVERED",
+          units: mockReservation.items[0].units.map((unit) => ({
+            ...unit,
+            status: "CHECKED_OUT",
+          })),
+          capabilities: {
+            canApprove: false,
+            canReject: false,
+            canConfirmDelivery: false,
+            canReturn: true,
+          },
+        },
+      ],
+      capabilities: {
+        ...mockReservation.capabilities,
+        canConfirmDelivery: false,
+        canReturn: true,
+      },
+    };
+    vi.spyOn(api, "reservation").mockResolvedValue(deliveredReservation);
 
     render(
       <MemoryRouter
@@ -544,9 +570,7 @@ describe("ReservationDetailPage", () => {
       </MemoryRouter>,
     );
 
-    const checkbox = await screen.findByLabelText(
-      "Select serial SN-CAM-001 for handover",
-    );
+    const checkbox = await screen.findByLabelText("Return serial SN-CAM-001");
     expect(checkbox).toBeChecked();
 
     // Click the serial number text, not the checkbox itself -- this only

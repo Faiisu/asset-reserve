@@ -389,7 +389,6 @@
   font-size: 13px;
 }
 
-
 /* Selection Checkbox Utilities */
 .res-card-header__select-all-group {
   display: flex;
@@ -413,6 +412,19 @@
   margin: 0;
   accent-color: var(--blue);
   cursor: pointer;
+}
+/* "Hand over / Cancel all" shortcuts next to the handover toolbar. */
+.approval-select-all .link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.approval-select-all .link-button:hover {
+  color: var(--ink);
 }
 
 /* ==========================================================================
@@ -458,8 +470,11 @@
 .res-detail-hero {
   position: relative;
   overflow: hidden;
-  background:
-    linear-gradient(120deg, color-mix(in srgb, var(--blue-soft) 48%, var(--surface)) 0%, var(--surface) 48%);
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--blue-soft) 48%, var(--surface)) 0%,
+    var(--surface) 48%
+  );
   border: 1px solid var(--line);
   border-radius: var(--card-radius-hero);
   padding: 24px 28px 24px 140px;
@@ -496,7 +511,7 @@
   color: var(--blue);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
 }
 
 .res-detail-date-stamp strong {
@@ -504,8 +519,8 @@
   color: var(--ink);
   font-family: "Instrument Sans Variable", sans-serif;
   font-size: 36px;
-  line-height: .95;
-  letter-spacing: -.05em;
+  line-height: 0.95;
+  letter-spacing: -0.05em;
 }
 
 .res-detail-kicker {
@@ -513,7 +528,7 @@
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -1193,7 +1208,7 @@
   font-family: var(--mono);
   font-size: 9px;
   font-weight: 600;
-  letter-spacing: .02em;
+  letter-spacing: 0.02em;
 }
 
 .res-item-sub {
@@ -1282,14 +1297,14 @@
   font-family: var(--mono);
   font-size: 8px;
   font-weight: 600;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .res-item-qty-ticket strong {
   font-size: 24px;
   line-height: 1;
-  letter-spacing: -.04em;
+  letter-spacing: -0.04em;
 }
 
 .res-item-qty-ticket small {
@@ -1485,12 +1500,18 @@
 }
 
 .res-condition-toggle__option--good.is-active {
-  background: var(--green-soft, color-mix(in srgb, var(--green) 18%, transparent));
+  background: var(
+    --green-soft,
+    color-mix(in srgb, var(--green) 18%, transparent)
+  );
   color: var(--green, #168a4a);
 }
 
 .res-condition-toggle__option--broken.is-active {
-  background: var(--amber-soft, color-mix(in srgb, var(--amber) 18%, transparent));
+  background: var(
+    --amber-soft,
+    color-mix(in srgb, var(--amber) 18%, transparent)
+  );
   color: var(--amber, #d97706);
 }
 

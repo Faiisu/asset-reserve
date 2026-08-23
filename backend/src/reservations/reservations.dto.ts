@@ -177,6 +177,16 @@ export class ConfirmDeliveryItemDto {
   @ArrayUnique()
   @IsUUID(undefined, { each: true })
   reservationItemUnitIds?: string[];
+
+  // Assigned units that will not be handed over (§7.8). Every assigned unit
+  // needs a disposition before the item can leave PREPARED.
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  cancelledReservationItemUnitIds?: string[];
 }
 
 export class ConfirmDeliveryDto {

@@ -30,12 +30,12 @@
 - **Serial assignment เป็นช่วงเวลา**: `ReservationItemUnit` เก็บ `assignmentStartAt`/`assignmentEndAt`; serial เดียวกันถูก assign ให้หลาย reservation ได้เมื่อช่วง `[start, end)` ไม่ทับกัน แต่ assignment สถานะ `ASSIGNED`/`CHECKED_OUT` ที่ overlap กันต้องถูกปฏิเสธทั้งใน application และ database
 - `AssetUnit.status` เป็นสถานะทางกายภาพปัจจุบัน การ approve/cancel future assignment ไม่เปลี่ยนสถานะนี้; `CHECKED_OUT` เกิดเมื่อ handover จริงภายในช่วง reservation เท่านั้น
 - การแก้ไข reservation **หลัง submit แล้ว** ไม่รองรับ — `ReservationChangeRequest` ถูกยกเลิก (ดู [scope-and-roadmap.md](scope-and-roadmap.md#feature-ที่ถูกยกเลิก-decommissioned)) ต้องยกเลิก reservation เดิมแล้วสร้างใหม่แทนถ้าต้องการเปลี่ยนกำหนดการ/รายการ
-- **Handover เป็น unit-based**: ยืนยัน handover เลือกเฉพาะบาง `ReservationItemUnit` ของ item ได้ ไม่ต้องส่งมอบทั้ง item พร้อมกัน — item ยังอยู่ `PREPARED` ต่อไปจนกว่า unit ที่ผูกไว้ทั้งหมดจะถูกยืนยัน handover ครบ (ยืนยันได้หลายรอบ) `checkedOutBy`/`checkedOutAt` ระดับ item บันทึกเมื่อ item เพิ่งข้ามไป `DELIVERED` (ครบทุก unit แล้ว) เท่านั้น ส่วน `ReservationItemUnit.checkedOutAt` บันทึกต่อหน่วยทุกครั้งที่ยืนยัน
+- **Handover เป็น unit-based และทุก unit ต้องมีข้อสรุป**: ยืนยัน handover เลือกเฉพาะบาง `ReservationItemUnit` ของ item ได้ ไม่ต้องส่งมอบทั้ง item พร้อมกัน — unit ที่จะไม่ส่งมอบจริงต้องถูก cancel ในคำขอเดียวกัน ไม่ปล่อยค้าง `ASSIGNED`; item ยังอยู่ `PREPARED` ต่อไปจนกว่า unit ที่ผูกไว้ทั้งหมดจะถูก handover หรือ cancel ครบ (ยืนยันได้หลายรอบ) แล้วจึงไป `DELIVERED` (มีของส่งมอบจริง พร้อมตัด `quantity` ให้เท่าที่ส่งมอบจริง) หรือ `CANCELLED` (ถูก cancel ทั้งหมด) `checkedOutBy`/`checkedOutAt` ระดับ item บันทึกเมื่อ item เพิ่งข้ามไป `DELIVERED` (ครบทุก unit แล้ว) เท่านั้น ส่วน `ReservationItemUnit.checkedOutAt` บันทึกต่อหน่วยทุกครั้งที่ยืนยัน
 - Prepare/checkout ต้องบันทึก actor และเวลาที่ดำเนินการ
 
 ## 3. Return
 
-- สร้าง Return ได้เฉพาะจาก item ที่ถูก checked-out แล้ว (unit status `CHECKED_OUT`) และยังคืนไม่ครบ
+- สร้าง Return ได้เฉพาะจาก item ที่ถูก checked-out แล้ว (unit status `CHECKED_OUT`) และยังคืนไม่ครบ — unit ที่ถูก cancel ตอน handover ไม่เคยออกจากคลัง จึงไม่อยู่ในขอบเขตการคืน
 - การคืนอ้างอิงเป็นรายหน่วย (`reservationItemUnitIds`) ไม่มี field แบบ quantity — จำนวนคืนนับจากความยาว array
 - ต้องเลือกอย่างน้อยหนึ่ง unit ต่อการ submit
 - Unit ทุกตัวที่เลือกต้องอยู่ใน item ของ reservation เดียวกับ Return และยังไม่เคยถูกคืนมาก่อน

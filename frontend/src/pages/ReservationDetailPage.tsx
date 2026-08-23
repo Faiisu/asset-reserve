@@ -45,6 +45,8 @@ import type {
   AssetUnit,
 } from "../types";
 
+type DeliveryDisposition = "HANDOVER" | "CANCEL";
+
 const RETURN_PHASE_STATUSES: ReservationStatus[] = [
   "DELIVERY_CONFIRMED",
   "RETURN_PENDING",
@@ -68,11 +70,13 @@ export function ReservationDetailPage() {
 
   // Selection states for manifest actions
 
-  // Handover: which ASSIGNED serial units to hand over now, keyed by
-  // reservationItemUnitId -- handover is unit-based (partial handover
-  // allowed), matching how the return step already selects units.
-  const [selectedDeliveryUnitIds, setSelectedDeliveryUnitIds] = useState<
-    Record<string, boolean>
+  // Handover: what happens to each ASSIGNED serial unit, keyed by
+  // reservationItemUnitId. Every assigned unit needs a disposition before the
+  // item can leave PREPARED (§7.8) -- hand it over, or cancel it because it
+  // isn't actually going out. Cancelling frees the serial's window and keeps
+  // it out of the return step, which only ever covers what was handed over.
+  const [deliveryDispositions, setDeliveryDispositions] = useState<
+    Record<string, DeliveryDisposition>
   >({});
   // Inspection: which serial units (of the pending return) the reviewer is
   // explicitly reporting a condition for, keyed by reservationItemUnitId.
@@ -139,17 +143,17 @@ export function ReservationDetailPage() {
     });
     setSelectedReturnUnitIds(initialReturnUnits);
 
-    // Default every assigned (not-yet-handed-over) serial unit to selected
-    // for handover.
-    const initialDeliveryUnits: Record<string, boolean> = {};
+    // Default every assigned (not-yet-handed-over) serial unit to being
+    // handed over; the reviewer flips the exceptions to Cancel.
+    const initialDispositions: Record<string, DeliveryDisposition> = {};
     data.items.forEach((item) => {
       item.units
         .filter((unit) => unit.status === "ASSIGNED")
         .forEach((unit) => {
-          initialDeliveryUnits[unit.id] = true;
+          initialDispositions[unit.id] = "HANDOVER";
         });
     });
-    setSelectedDeliveryUnitIds(initialDeliveryUnits);
+    setDeliveryDispositions(initialDispositions);
 
     // Initialize inspection state for the pending return slip: default
     // every undecided unit to GOOD, matching the backend's own default.
@@ -308,26 +312,19 @@ export function ReservationDetailPage() {
       ),
     [deliverableItems],
   );
-  const selectedDeliveryUnitCount = deliverableUnitIds.filter(
-    (id) => selectedDeliveryUnitIds[id],
+  const handoverUnitCount = deliverableUnitIds.filter(
+    (id) => (deliveryDispositions[id] ?? "HANDOVER") === "HANDOVER",
   ).length;
+  const cancelUnitCount = deliverableUnitIds.length - handoverUnitCount;
 
-  const toggleSelectAllDeliveryUnits = () => {
-    if (selectedDeliveryUnitCount === deliverableUnitIds.length) {
-      setSelectedDeliveryUnitIds((prev) => {
-        const next = { ...prev };
-        deliverableUnitIds.forEach((id) => delete next[id]);
-        return next;
+  const setAllDispositions = (disposition: DeliveryDisposition) => {
+    setDeliveryDispositions((prev) => {
+      const next = { ...prev };
+      deliverableUnitIds.forEach((id) => {
+        next[id] = disposition;
       });
-    } else {
-      setSelectedDeliveryUnitIds((prev) => {
-        const next = { ...prev };
-        deliverableUnitIds.forEach((id) => {
-          next[id] = true;
-        });
-        return next;
-      });
-    }
+      return next;
+    });
   };
 
   // Returnable items helper (Pending Return)
@@ -524,26 +521,37 @@ export function ReservationDetailPage() {
     }
   };
 
-  // Handle Delivery Confirm -- unit-based, partial handover allowed: only
-  // the units the user actually checked are sent, grouped back into one
-  // entry per reservation item.
+  // Handle Delivery Confirm. Every remaining ASSIGNED unit is sent with a
+  // disposition -- handed over or cancelled -- so no unit is left dangling
+  // and the item settles into DELIVERED (or CANCELLED) in one call (§7.8).
   const handleConfirmDelivery = async () => {
     if (!reservation) return;
 
     const items = deliverableItems
-      .map((item) => ({
-        reservationItemId: item.id,
-        reservationItemUnitIds: item.units
-          .filter(
-            (unit) =>
-              unit.status === "ASSIGNED" && selectedDeliveryUnitIds[unit.id],
-          )
-          .map((unit) => unit.id),
-      }))
-      .filter((entry) => entry.reservationItemUnitIds.length > 0);
+      .map((item) => {
+        const assigned = item.units.filter(
+          (unit) => unit.status === "ASSIGNED",
+        );
+        const disposition = (unitId: string) =>
+          deliveryDispositions[unitId] ?? "HANDOVER";
+        return {
+          reservationItemId: item.id,
+          reservationItemUnitIds: assigned
+            .filter((unit) => disposition(unit.id) === "HANDOVER")
+            .map((unit) => unit.id),
+          cancelledReservationItemUnitIds: assigned
+            .filter((unit) => disposition(unit.id) === "CANCEL")
+            .map((unit) => unit.id),
+        };
+      })
+      .filter(
+        (entry) =>
+          entry.reservationItemUnitIds.length > 0 ||
+          entry.cancelledReservationItemUnitIds.length > 0,
+      );
 
     if (items.length === 0) {
-      setActionError("Select at least one serial unit to confirm handover.");
+      setActionError("There are no serial units awaiting handover.");
       return;
     }
 
@@ -554,11 +562,19 @@ export function ReservationDetailPage() {
       const updated = await api.confirmDelivery(reservation.id, { items });
       setReservation(updated);
       seedDefaultSelections(updated);
-      const unitCount = items.reduce(
+      const handedOver = items.reduce(
         (sum, entry) => sum + entry.reservationItemUnitIds.length,
         0,
       );
-      setActionNotice(`Handover confirmed for ${unitCount} serial unit(s).`);
+      const cancelled = items.reduce(
+        (sum, entry) => sum + entry.cancelledReservationItemUnitIds.length,
+        0,
+      );
+      setActionNotice(
+        cancelled > 0
+          ? `Handover confirmed for ${handedOver} serial unit(s); ${cancelled} cancelled.`
+          : `Handover confirmed for ${handedOver} serial unit(s).`,
+      );
     } catch (err: any) {
       setActionError(err.message ?? "Failed to confirm delivery.");
     } finally {
@@ -915,20 +931,23 @@ export function ReservationDetailPage() {
                   while another has a pending return awaiting inspection. */}
               <div className="res-card-header__select-all-group">
                 {deliverableUnitIds.length > 0 && (
-                  <label className="approval-select-all">
-                    <input
-                      type="checkbox"
-                      checked={
-                        selectedDeliveryUnitCount > 0 &&
-                        selectedDeliveryUnitCount === deliverableUnitIds.length
-                      }
-                      onChange={toggleSelectAllDeliveryUnits}
-                      aria-label="Select all serial units for handover"
-                    />
-                    <span>
-                      Select all for handover ({deliverableUnitIds.length})
-                    </span>
-                  </label>
+                  <div className="approval-select-all">
+                    <span>All {deliverableUnitIds.length} units:</span>
+                    <button
+                      type="button"
+                      className="link-button"
+                      onClick={() => setAllDispositions("HANDOVER")}
+                    >
+                      Hand over
+                    </button>
+                    <button
+                      type="button"
+                      className="link-button"
+                      onClick={() => setAllDispositions("CANCEL")}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 )}
                 {returnableUnitIds.length > 0 && (
                   <label className="approval-select-all">
@@ -971,19 +990,24 @@ export function ReservationDetailPage() {
                 <div className="res-review-bar__title">
                   <Truck size={18} />
                   <span>
-                    Handover confirmation ({selectedDeliveryUnitCount} of{" "}
-                    {deliverableUnitIds.length} serial units selected)
+                    Handover confirmation ({handoverUnitCount} handing over,{" "}
+                    {cancelUnitCount} cancelled — every unit is settled by this
+                    action)
                   </span>
                 </div>
                 <div className="res-review-bar__actions">
                   <Button
                     variant="primary"
-                    disabled={actionLoading || selectedDeliveryUnitCount === 0}
+                    disabled={actionLoading || deliverableUnitIds.length === 0}
                     loading={actionLoading}
                     onClick={handleConfirmDelivery}
                   >
                     <Check size={14} />
-                    <span>Confirm Handover</span>
+                    <span>
+                      {handoverUnitCount === 0
+                        ? "Cancel Remaining Units"
+                        : "Confirm Handover"}
+                    </span>
                   </Button>
                 </div>
               </div>
@@ -1329,19 +1353,22 @@ export function ReservationDetailPage() {
                               </div>
                             )}
                             <div className="res-item-sub">
-                              {isInspectSelectable
-                                ? `Returned by borrower (${inspectUnitCount} ${inspectUnitCount === 1 ? "unit" : "units"})`
-                                : isDeliverySelectable
-                                  ? `Approved — awaiting handover`
-                                  : isReturnSelectable
-                                    ? `Awaiting return (${remainingReturn} units remaining)`
-                                    : isFullyReturned
-                                      ? `All units returned and restocked in inventory`
-                                      : isDelivered
-                                        ? item.returnSummary?.pendingReturnCount
-                                          ? `Return slip submitted (${item.returnSummary.pendingReturnCount} units pending inspection)`
-                                          : `Equipment handed over • Pending return`
-                                        : `Prepared — awaiting handover`}
+                              {item.status === "CANCELLED"
+                                ? "Cancelled at handover — nothing was issued"
+                                : isInspectSelectable
+                                  ? `Returned by borrower (${inspectUnitCount} ${inspectUnitCount === 1 ? "unit" : "units"})`
+                                  : isDeliverySelectable
+                                    ? `Approved — awaiting handover`
+                                    : isReturnSelectable
+                                      ? `Awaiting return (${remainingReturn} units remaining)`
+                                      : isFullyReturned
+                                        ? `All units returned and restocked in inventory`
+                                        : isDelivered
+                                          ? item.returnSummary
+                                              ?.pendingReturnCount
+                                            ? `Return slip submitted (${item.returnSummary.pendingReturnCount} units pending inspection)`
+                                            : `Equipment handed over • Pending return`
+                                          : `Prepared — awaiting handover`}
                             </div>
                             {item.approval?.comment && (
                               <blockquote className="res-item-comment">
@@ -1438,43 +1465,64 @@ export function ReservationDetailPage() {
                           }
 
                           if (unit.status === "ASSIGNED") {
-                            const toggleDeliveryUnit = () => {
-                              if (!isDeliverySelectable) return;
-                              setSelectedDeliveryUnitIds((prev) => ({
-                                ...prev,
-                                [unit.id]: !prev[unit.id],
-                              }));
-                            };
+                            if (!isDeliverySelectable) {
+                              return (
+                                <div
+                                  key={unit.id}
+                                  className="res-manifest-unit-row"
+                                >
+                                  <span className="res-manifest-unit-row__check" />
+                                  <span className="mono res-manifest-unit-row__serial">
+                                    {unit.serialNumber}
+                                  </span>
+                                  <span className="res-manifest-unit-row__status">
+                                    Prepared — awaiting handover
+                                  </span>
+                                </div>
+                              );
+                            }
+                            const disposition =
+                              deliveryDispositions[unit.id] ?? "HANDOVER";
                             return (
-                              <label
+                              <div
                                 key={unit.id}
-                                className={`res-manifest-unit-row ${
-                                  isDeliverySelectable
-                                    ? "res-manifest-unit-row--clickable"
-                                    : ""
-                                }`}
+                                className="res-manifest-unit-row res-manifest-unit-row--inspect"
                               >
-                                <span className="res-manifest-unit-row__check">
-                                  {isDeliverySelectable && (
-                                    <input
-                                      type="checkbox"
-                                      checked={Boolean(
-                                        selectedDeliveryUnitIds[unit.id],
-                                      )}
-                                      onChange={toggleDeliveryUnit}
-                                      aria-label={`Select serial ${unit.serialNumber} for handover`}
-                                    />
-                                  )}
-                                </span>
+                                <span className="res-manifest-unit-row__check" />
                                 <span className="mono res-manifest-unit-row__serial">
                                   {unit.serialNumber}
                                 </span>
-                                <span className="res-manifest-unit-row__status">
-                                  {isDeliverySelectable
-                                    ? "Ready for handover"
-                                    : "Prepared — awaiting handover"}
-                                </span>
-                              </label>
+                                <div
+                                  className="res-condition-toggle"
+                                  role="radiogroup"
+                                  aria-label={`Handover decision for serial ${unit.serialNumber}`}
+                                >
+                                  {(
+                                    [
+                                      ["HANDOVER", "Hand over"],
+                                      ["CANCEL", "Cancel"],
+                                    ] as const
+                                  ).map(([option, label]) => (
+                                    <button
+                                      key={option}
+                                      type="button"
+                                      role="radio"
+                                      aria-checked={disposition === option}
+                                      className={`res-condition-toggle__option res-condition-toggle__option--${
+                                        option === "HANDOVER" ? "good" : "lost"
+                                      } ${disposition === option ? "is-active" : ""}`}
+                                      onClick={() =>
+                                        setDeliveryDispositions((prev) => ({
+                                          ...prev,
+                                          [unit.id]: option,
+                                        }))
+                                      }
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
                             );
                           }
 
@@ -1526,7 +1574,12 @@ export function ReservationDetailPage() {
                                 ? { text: "Broken", modifier: "broken" }
                                 : unit.status === "RETURNED_LOST"
                                   ? { text: "Lost", modifier: "lost" }
-                                  : { text: unit.status, modifier: "" };
+                                  : unit.status === "CANCELLED"
+                                    ? {
+                                        text: "Cancelled — never handed over",
+                                        modifier: "lost",
+                                      }
+                                    : { text: unit.status, modifier: "" };
 
                           return (
                             <div

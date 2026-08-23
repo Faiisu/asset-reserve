@@ -65,7 +65,9 @@ model ReservationItemUnit {
   id                String    @id @db.Uuid
   reservationItemId String    @map("reservation_item_id") @db.Uuid
   assetUnitId       String    @map("asset_unit_id") @db.Uuid
-  /// Supported values: ASSIGNED, CHECKED_OUT, RETURNED_GOOD, RETURNED_BROKEN, RETURNED_LOST.
+  /// Supported values: ASSIGNED, CANCELLED, CHECKED_OUT, RETURNED_GOOD, RETURNED_BROKEN, RETURNED_LOST.
+  /// CANCELLED = assigned but never handed over (§7.8); outside the
+  /// assignment-window EXCLUDE constraint, so the serial is free again.
   status            String    @default("ASSIGNED") @db.VarChar(20)
   assignedBy        String    @map("assigned_by") @db.Uuid
   assignedAt        DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(6)

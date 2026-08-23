@@ -36,7 +36,7 @@ Status เก็บเป็น `String` ใน database (ไม่ใช่ Pri
 | `RETURN_PENDING`     | ส่ง return slip แล้ว รอตรวจรับ                                          | `COMPLETED`, `DELIVERY_CONFIRMED` (ถ้าคืนบางส่วน ยังมี item ค้าง) |
 | `COMPLETED`          | คืนครบทุก item ที่ checkout แล้ว (final)                                | –                                                                 |
 | `REJECTED`           | ทุก item ถูกปฏิเสธ (final)                                              | –                                                                 |
-| `CANCELLED`          | ยกเลิกก่อนรับมอบ (final)                                                | –                                                                 |
+| `CANCELLED`          | ยกเลิกก่อนรับมอบ (final) — รวมกรณีที่ทุก item ถูก cancel ตอน handover                                                | –                                                                 |
 
 ```mermaid
 flowchart TD
@@ -60,6 +60,8 @@ flowchart TD
     PARTIAL -->|Cancel ก่อน handover| CANCELLED
     APPROVED -->|ยืนยัน handover| DELIVERY_CONFIRMED
     PARTIAL -->|ยืนยัน handover ของ item ที่ approve| DELIVERY_CONFIRMED
+    APPROVED -->|cancel ของทุก item ตอน handover| CANCELLED
+    PARTIAL -->|cancel ของทุก item ตอน handover| CANCELLED
     DELIVERY_CONFIRMED -->|ส่ง return slip| RETURN_PENDING
     RETURN_PENDING -->|ตรวจรับครบทุก item| COMPLETED
     RETURN_PENDING -->|คืนบางส่วน ยังมี item ค้าง| DELIVERY_CONFIRMED
@@ -73,18 +75,22 @@ Asset สามารถถูกคืนได้ **ตลอดเวลา�
 
 > **Breaking change จากรุ่นก่อนหน้า**: เดิม `PENDING` อนุมัติเป็น `APPROVED` ก่อน แล้วค่อยผูก serial unit เป็นอีกขั้นตอนแยก (`PREPARED`, คนละ endpoint/actor ได้) ตอนนี้ **รวมเป็นการตัดสินใจเดียว** — Area Manager ที่อนุมัติต้องเลือก serial-numbered unit (`assetUnitIds[]`) มาพร้อมกันในคำขอเดียว item จึงข้ามจาก `PENDING` ไป `PREPARED` ตรงๆ ไม่มีสถานะ `APPROVED` เป็นจุดพักอีกต่อไป **Approve เป็น unit-based**: เลือก S/N น้อยกว่าจำนวนที่ขอได้ (`quantity` จะถูกตัดลงให้ตรงกับจำนวนที่ approve จริงทันที ไม่มีส่วนที่เหลือค้าง `PENDING` รออนุมัติรอบถัดไป) — ส่วน **reject ยังเป็น all-or-nothing ทั้ง item เหมือนเดิม** ไม่มี unit-level reject รายละเอียด transaction: [backend_spec/algorithms-and-validation.md §7.5](../backend_spec/algorithms-and-validation.md#75-post-reservationsreservationiditemsitemiddecision)
 
-> **Handover เป็น unit-based เช่นกัน**: ยืนยัน handover เลือกเฉพาะบาง `ReservationItemUnit` (`reservationItemUnitIds[]`) ของ item ได้ ไม่ต้องส่งมอบทั้ง item พร้อมกัน — item ยังอยู่ status `PREPARED` ต่อไปตราบใดที่ยังมี unit ที่ผูกไว้ (`ASSIGNED`) เหลืออยู่ และข้ามไป `DELIVERED` ก็ต่อเมื่อ unit ที่ผูกไว้ทั้งหมดถูกยืนยัน handover ครบ (ยืนยันได้หลายรอบ) รายละเอียด transaction: [backend_spec/algorithms-and-validation.md §7.8](../backend_spec/algorithms-and-validation.md#78-post-reservationsreservationiddelivery-confirm)
+> **Handover เป็น unit-based เช่นกัน**: ยืนยัน handover เลือกเฉพาะบาง `ReservationItemUnit` (`reservationItemUnitIds[]`) ของ item ได้ ไม่ต้องส่งมอบทั้ง item พร้อมกัน — item ยังอยู่ status `PREPARED` ต่อไปตราบใดที่ยังมี unit ที่ผูกไว้ (`ASSIGNED`) เหลืออยู่ (ยืนยันได้หลายรอบ) รายละเอียด transaction: [backend_spec/algorithms-and-validation.md §7.8](../backend_spec/algorithms-and-validation.md#78-post-reservationsreservationiddelivery-confirm)
+
+> **ทุก unit ต้องมีข้อสรุปตอน handover**: unit ที่ผูกไว้แล้วแต่ไม่ได้ส่งมอบจริง (ของไม่พร้อม ผู้ยืมไม่เอาแล้ว ฯลฯ) ต้องถูก **cancel** ในคำขอเดียวกัน (`cancelledReservationItemUnitIds[]`) ไม่ปล่อยค้าง `ASSIGNED` — unit นั้นไปเป็น `CANCELLED` (§3a) และคืนช่วงเวลาให้ serial ทันที item จึงพ้น `PREPARED` ก็ต่อเมื่อ unit ที่ผูกไว้**ทุกตัว**ถูก handover หรือ cancel แล้ว โดยไป `DELIVERED` ถ้ามี unit ที่ส่งมอบจริงอย่างน้อยหนึ่งตัว (พร้อมตัด `quantity` ให้เท่ากับจำนวนที่ส่งมอบจริง) และไป `CANCELLED` ถ้าถูก cancel ทั้งหมด (`quantity` คงเดิม — status บอกอยู่แล้วว่าไม่มีของออกไป) — **การคืน (§6) จึงอ้างอิงเฉพาะของที่ handover ไปแล้วเท่านั้น**
 
 ```mermaid
 stateDiagram-v2
     [*] --> PENDING: สร้างพร้อม Reservation
     PENDING --> PREPARED: Area Manager อนุมัติ เลือก S/N 1 ถึง quantity ที่ขอ (§7.5)
     PENDING --> REJECTED: Area Manager ปฏิเสธทั้ง item
-    PREPARED --> PREPARED: ยืนยัน handover บางส่วน (unit-based, ยังมี unit ค้าง) (§7.8)
-    PREPARED --> DELIVERED: ยืนยัน handover ครบทุก unit ที่ผูกไว้แล้ว (§7.8)
+    PREPARED --> PREPARED: ยืนยัน/cancel บางส่วน (unit-based, ยังมี unit ค้าง) (§7.8)
+    PREPARED --> DELIVERED: ทุก unit สรุปแล้ว และมีที่ส่งมอบจริงอย่างน้อย 1 (§7.8)
+    PREPARED --> CANCELLED: ทุก unit ถูก cancel ตอน handover (§7.8)
     DELIVERED --> RETURNED: ตรวจรับคืนและอนุมัติแล้ว
     RETURNED --> [*]
     REJECTED --> [*]
+    CANCELLED --> [*]
 ```
 
 | Status        | ความหมาย                                                                                                                                                                                                                                                                                     |
@@ -95,6 +101,7 @@ stateDiagram-v2
 | `CHECKED_OUT` | เป็น status ของ `AssetUnit`/`ReservationItemUnit` (หน่วยจริงที่ถูกส่งมอบ) **ไม่ใช่** status ของ `ReservationItem` เอง — item ข้ามจาก `PREPARED` ไป `DELIVERED` ก็ต่อเมื่อ unit ที่ผูกไว้ทั้งหมดของ item นั้นเป็น `CHECKED_OUT` ครบแล้ว (handover เป็น unit-based, ยืนยันบางส่วนได้หลายรอบ)   |
 | `DELIVERED`   | ส่งมอบให้ผู้ขอแล้ว (ครบทุก unit ของ item)                                                                                                                                                                                                                                                    |
 | `RETURNED`    | คืนครบสำหรับ item นี้แล้ว                                                                                                                                                                                                                                                                    |
+| `CANCELLED`   | อนุมัติและผูก serial ไว้แล้ว แต่ตอน handover ถูก cancel ทั้งหมด ไม่มีของออกจากคลัง (final) — ไม่มีอะไรให้คืน                                                                                                                                                                                 |
 
 ## 3a. ReservationItemUnit status {#reservation-item-unit-status}
 
@@ -104,6 +111,8 @@ stateDiagram-v2
 stateDiagram-v2
     [*] --> ASSIGNED: ผูก AssetUnit (serial) เข้ากับ ReservationItem
     ASSIGNED --> CHECKED_OUT: ยืนยัน handover
+    ASSIGNED --> CANCELLED: cancel ตอน handover (ไม่ได้ส่งมอบจริง)
+    CANCELLED --> [*]
     CHECKED_OUT --> RETURNED_GOOD: ตรวจรับคืน สภาพดี
     CHECKED_OUT --> RETURNED_BROKEN: ตรวจรับคืน ชำรุด
     CHECKED_OUT --> RETURNED_LOST: ตรวจรับคืน สูญหาย
@@ -119,8 +128,9 @@ stateDiagram-v2
 | `RETURNED_GOOD`   | คืนแล้ว ตรวจสภาพดี → `AssetUnit.status` เป็น `ACTIVE` (§7)              |
 | `RETURNED_BROKEN` | คืนแล้ว ชำรุด → `AssetUnit.status` เป็น `BROKEN` (§7)                   |
 | `RETURNED_LOST`   | คืนแล้ว สูญหาย → `AssetUnit.status` เป็น `LOST` (§7)                    |
+| `CANCELLED`       | ถูก cancel ตอน handover ไม่เคยออกจากคลัง — คืนช่วงเวลาให้ serial ทันที ไม่แตะ `AssetUnit.status` |
 
-Assignment ทุกแถวเก็บช่วง `[assignmentStartAt, assignmentEndAt)` ตามกำหนดการของ reservation หน่วยเดียวกัน (`asset_unit_id`) จึงมี future assignment ได้หลายแถว ตราบใดที่ช่วงของ assignment สถานะ `ASSIGNED`/`CHECKED_OUT` ไม่ทับกัน ฐานข้อมูลบังคับกติกานี้ด้วย time-range exclusion constraint; ช่วงที่ปลายของรายการแรกเท่ากับต้นของรายการถัดไปไม่ถือว่าทับกัน
+Assignment ทุกแถวเก็บช่วง `[assignmentStartAt, assignmentEndAt)` ตามกำหนดการของ reservation หน่วยเดียวกัน (`asset_unit_id`) จึงมี future assignment ได้หลายแถว ตราบใดที่ช่วงของ assignment สถานะ `ASSIGNED`/`CHECKED_OUT` ไม่ทับกัน (แถวสถานะ `CANCELLED` และ `RETURNED_*` ไม่นับ จึงไม่กันช่วงเวลาอีกต่อไป) ฐานข้อมูลบังคับกติกานี้ด้วย time-range exclusion constraint; ช่วงที่ปลายของรายการแรกเท่ากับต้นของรายการถัดไปไม่ถือว่าทับกัน
 
 ## 4. Approval / ReturnApproval status {#approval-status}
 

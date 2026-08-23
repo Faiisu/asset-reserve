@@ -278,8 +278,10 @@ export type ReservationStatus =
 // Per docs §3: approval now assigns serial units in the same step, so items
 // go PENDING -> PREPARED directly (no APPROVED resting state); CHECKED_OUT
 // is a ReservationItemUnit status, not a ReservationItem one.
+// CANCELLED = every assigned serial was cancelled at handover (§7.8), so
+// nothing left the store room and there is nothing to return.
 export type ReservationItemStatus =
-  "PENDING" | "PREPARED" | "REJECTED" | "DELIVERED" | "RETURNED";
+  "PENDING" | "PREPARED" | "REJECTED" | "DELIVERED" | "RETURNED" | "CANCELLED";
 
 export type ReservationUser = {
   id: string;
@@ -297,6 +299,7 @@ export type ConfirmDeliveryInput = {
   items: Array<{
     reservationItemId: string;
     reservationItemUnitIds?: string[];
+    cancelledReservationItemUnitIds?: string[];
   }>;
 };
 

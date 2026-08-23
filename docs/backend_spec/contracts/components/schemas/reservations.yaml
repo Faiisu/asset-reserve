@@ -14,13 +14,16 @@ ReservationItemStatus:
   type: string
   description: >-
     APPROVE decisions assign serial units in the same request (§7.5) and go straight to
-    PREPARED -- there is no separate APPROVED resting state.
+    PREPARED -- there is no separate APPROVED resting state. CANCELLED means every
+    assigned serial was cancelled at handover time (§7.8), so nothing left the store
+    room and there is nothing to return.
   enum:
     - PENDING
     - REJECTED
     - PREPARED
     - DELIVERED
     - RETURNED
+    - CANCELLED
 ReservationItemInput:
   type: object
   additionalProperties: false
@@ -390,7 +393,10 @@ ReservationDetailItem:
         $ref: "#/components/schemas/ReservationWarning"
     units:
       type: array
-      description: Serial-numbered units assigned to this item once it reaches PREPARED (assigned during item approval, §7.5).
+      description: >-
+        Serial-numbered units assigned to this item once it reaches PREPARED
+        (assigned during item approval, §7.5). Includes units CANCELLED at
+        handover; only CHECKED_OUT ones are ever returnable.
       items:
         type: object
         required:
@@ -579,9 +585,24 @@ ConfirmDeliveryItem:
       type: array
       description: >-
         ASSIGNED ReservationItemUnit ids of this item to hand over now (unit-based,
-        partial handover allowed -- omit to hand over every remaining ASSIGNED unit
-        of this item, i.e. full handover). The item stays PREPARED until every
-        assigned unit has been handed over across one or more calls.
+        partial handover allowed -- omit both this and cancelledReservationItemUnitIds
+        to hand over every remaining ASSIGNED unit of this item, i.e. full handover).
+        The item stays PREPARED until every assigned unit has been handed over or
+        cancelled across one or more calls.
+      minItems: 1
+      maxItems: 200
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
+    cancelledReservationItemUnitIds:
+      type: array
+      description: >-
+        ASSIGNED ReservationItemUnit ids of this item that will NOT be handed over
+        (§7.8). They move to CANCELLED, freeing the serial's assignment window
+        immediately, without touching AssetUnit.status -- the unit never left the
+        store room, so it is never returnable. Must be ASSIGNED units of this same
+        item and must not also appear in reservationItemUnitIds.
       minItems: 1
       maxItems: 200
       uniqueItems: true

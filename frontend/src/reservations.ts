@@ -19,6 +19,7 @@ export const reservationItemStatusLabel: Record<ReservationItemStatus, string> =
     PREPARED: "Prepared",
     DELIVERED: "Delivered",
     RETURNED: "Returned",
+    CANCELLED: "Cancelled",
   };
 
 export function toLocalDateTime(value: string) {

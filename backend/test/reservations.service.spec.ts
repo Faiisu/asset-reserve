@@ -1350,6 +1350,9 @@ describe("confirmDelivery", () => {
   function mockTx(
     item: ReturnType<typeof preparedReservation>["items"][number],
     finalItemStatus: string,
+    // How many of the item's units end up handed over, once nothing is left
+    // ASSIGNED -- drives DELIVERED (>0) vs CANCELLED (0) and the quantity cut.
+    handedOverCount = item.unitAssignments.length,
   ) {
     const reservationItemUpdate = vi.fn().mockResolvedValue({});
     const reservationItemUnitUpdateMany = vi
@@ -1380,7 +1383,14 @@ describe("confirmDelivery", () => {
         updateMany: reservationItemUnitUpdateMany,
         count: vi
           .fn()
-          .mockResolvedValue(finalItemStatus === "DELIVERED" ? 0 : 1),
+          .mockImplementation(
+            async (args: { where: { status?: unknown } }) =>
+              args.where.status === "ASSIGNED"
+                ? finalItemStatus === "PREPARED"
+                  ? 1
+                  : 0
+                : handedOverCount,
+          ),
       },
       assetUnit: {
         findMany: vi
@@ -1519,6 +1529,138 @@ describe("confirmDelivery", () => {
         data: expect.not.objectContaining({ status: "DELIVERY_CONFIRMED" }),
       }),
     );
+  });
+
+  it("cancels the units that aren't handed over, delivering the rest", async () => {
+    const reservation = preparedReservation([
+      { id: unitOneId, assetUnitId: assetUnitOneId, status: "ASSIGNED" },
+      { id: unitTwoId, assetUnitId: assetUnitTwoId, status: "ASSIGNED" },
+    ]);
+    const {
+      tx,
+      reservationItemUpdate,
+      reservationItemUnitUpdateMany,
+      assetUnitUpdateMany,
+      reservationUpdate,
+    } = mockTx(reservation.items[0]!, "DELIVERED", 1);
+    const prisma = {
+      reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
+      $transaction: vi.fn(
+        async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
+      ),
+    } as unknown as PrismaService;
+    const service = new ReservationsService(
+      prisma,
+      new ReservationLifecycleEvents(),
+    );
+    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
+
+    await service.confirmDelivery(actor, reservationId, {
+      items: [
+        {
+          reservationItemId: itemId,
+          reservationItemUnitIds: [unitOneId],
+          cancelledReservationItemUnitIds: [unitTwoId],
+        },
+      ],
+    });
+
+    expect(reservationItemUnitUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: { in: [unitTwoId] } }),
+        data: expect.objectContaining({ status: "CANCELLED" }),
+      }),
+    );
+    // A cancelled serial never left the store room, so its physical unit is
+    // untouched -- only the handed-over one is checked out.
+    expect(assetUnitUpdateMany).toHaveBeenCalledTimes(1);
+    expect(assetUnitUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: { in: [assetUnitOneId] } }),
+      }),
+    );
+    // Nothing left ASSIGNED, so the item is done -- delivered, with quantity
+    // cut to what actually went out.
+    expect(reservationItemUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "DELIVERED", quantity: 1 }),
+      }),
+    );
+    expect(reservationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "DELIVERY_CONFIRMED" }),
+      }),
+    );
+  });
+
+  it("cancels the item, and the reservation, when no unit is handed over", async () => {
+    const reservation = preparedReservation([
+      { id: unitOneId, assetUnitId: assetUnitOneId, status: "ASSIGNED" },
+    ]);
+    const { tx, reservationItemUpdate, reservationUpdate, assetUnitUpdateMany } =
+      mockTx(reservation.items[0]!, "CANCELLED", 0);
+    const prisma = {
+      reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
+      $transaction: vi.fn(
+        async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
+      ),
+    } as unknown as PrismaService;
+    const service = new ReservationsService(
+      prisma,
+      new ReservationLifecycleEvents(),
+    );
+    vi.spyOn(service, "get").mockResolvedValue({ id: reservationId } as never);
+
+    await service.confirmDelivery(actor, reservationId, {
+      items: [
+        {
+          reservationItemId: itemId,
+          cancelledReservationItemUnitIds: [unitOneId],
+        },
+      ],
+    });
+
+    // Cancelling without naming anything to hand over must not be read as
+    // "hand over everything".
+    expect(assetUnitUpdateMany).not.toHaveBeenCalled();
+    expect(reservationItemUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "CANCELLED" }),
+      }),
+    );
+    expect(reservationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "CANCELLED" }),
+      }),
+    );
+  });
+
+  it("refuses to both hand over and cancel the same serial unit", async () => {
+    const reservation = preparedReservation([
+      { id: unitOneId, assetUnitId: assetUnitOneId, status: "ASSIGNED" },
+    ]);
+    const transaction = vi.fn();
+    const prisma = {
+      reservation: { findUnique: vi.fn().mockResolvedValue(reservation) },
+      $transaction: transaction,
+    } as unknown as PrismaService;
+    const service = new ReservationsService(
+      prisma,
+      new ReservationLifecycleEvents(),
+    );
+
+    await expect(
+      service.confirmDelivery(actor, reservationId, {
+        items: [
+          {
+            reservationItemId: itemId,
+            reservationItemUnitIds: [unitOneId],
+            cancelledReservationItemUnitIds: [unitOneId],
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_ITEM_SELECTION" });
+    expect(transaction).not.toHaveBeenCalled();
   });
 
   it("rejects handover of a unit that isn't ASSIGNED to the requested item", async () => {

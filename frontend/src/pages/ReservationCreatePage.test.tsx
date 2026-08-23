@@ -3,11 +3,7 @@ import { StrictMode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { api } from "../api";
 import { toLocalDateTime } from "../reservations";
-import type {
-  AssetDetail,
-  AssetSummary,
-  UserDirectoryEntry,
-} from "../types";
+import type { AssetDetail, AssetSummary, UserDirectoryEntry } from "../types";
 import { ReservationCreatePage } from "./ReservationCreatePage";
 
 vi.mock("../auth", () => ({
@@ -86,7 +82,9 @@ describe("ReservationCreatePage", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: /stage camera/i }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /stage camera/i }),
+    );
     fireEvent.change(screen.getByLabelText(/event name/i), {
       target: { value: "Quarterly town hall" },
     });
@@ -222,7 +220,9 @@ describe("ReservationCreatePage", () => {
 
     await screen.findByRole("button", { name: /available mic/i });
 
-    const items = screen.getAllByRole("button", { name: /(available mic|booked camera)/i });
+    const items = screen.getAllByRole("button", {
+      name: /(available mic|booked camera)/i,
+    });
     expect(items[0]).toHaveTextContent("Available Mic");
     expect(items[1]).toHaveTextContent("Booked Camera");
   });
@@ -246,7 +246,9 @@ describe("ReservationCreatePage", () => {
       target: { value: "Sprint Planning" },
     });
 
-    const submitBtn = screen.getByRole("button", { name: /send for approval/i });
+    const submitBtn = screen.getByRole("button", {
+      name: /send for approval/i,
+    });
     fireEvent.click(submitBtn);
 
     expect(
@@ -272,7 +274,9 @@ describe("ReservationCreatePage", () => {
       target: { value: "Sprint Planning" },
     });
 
-    const assetButton = await screen.findByRole("button", { name: /stage camera/i });
+    const assetButton = await screen.findByRole("button", {
+      name: /stage camera/i,
+    });
     fireEvent.click(assetButton);
 
     // Starts keeps its valid default; only Ends is cleared out.
@@ -280,8 +284,12 @@ describe("ReservationCreatePage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /send for approval/i }));
 
-    expect(await screen.findByText(/set a valid end time/i)).toBeInTheDocument();
-    expect(screen.queryByText(/set a valid start time/i)).not.toBeInTheDocument();
+    expect(
+      await screen.findByText(/set a valid end time/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/set a valid start time/i),
+    ).not.toBeInTheDocument();
     expect(createSpy).not.toHaveBeenCalled();
   });
 });

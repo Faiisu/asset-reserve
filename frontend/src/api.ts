@@ -160,14 +160,17 @@ export const api = {
   ) =>
     request<Role>(`/roles/${roleId}`, { method: "PATCH", body: json(input) }),
 
-  users: (filters: {
-    search?: string;
-    isActive?: boolean;
-    roleId?: string;
-    areaId?: string;
-    cursor?: string;
-    limit?: number;
-  }, signal?: AbortSignal) =>
+  users: (
+    filters: {
+      search?: string;
+      isActive?: boolean;
+      roleId?: string;
+      areaId?: string;
+      cursor?: string;
+      limit?: number;
+    },
+    signal?: AbortSignal,
+  ) =>
     request<ListResponse<UserListItem>>(`/users${queryString(filters)}`, {
       signal,
     }),
@@ -356,16 +359,20 @@ export const api = {
       method: "POST",
       body: json(input),
     }),
-  reservations: (filters: {
-    view?: "MINE" | "PARTICIPATING" | "APPROVALS" | "APPROVAL_HISTORY" | "ALL";
-    status?: string;
-    areaId?: string;
-    search?: string;
-    from?: string;
-    to?: string;
-    cursor?: string;
-    limit?: number;
-  }, signal?: AbortSignal) =>
+  reservations: (
+    filters: {
+      view?:
+        "MINE" | "PARTICIPATING" | "APPROVALS" | "APPROVAL_HISTORY" | "ALL";
+      status?: string;
+      areaId?: string;
+      search?: string;
+      from?: string;
+      to?: string;
+      cursor?: string;
+      limit?: number;
+    },
+    signal?: AbortSignal,
+  ) =>
     request<ListResponse<ReservationSummary>>(
       `/reservations${queryString(filters)}`,
       { signal },

@@ -23,10 +23,7 @@ import {
   Textarea,
   cx,
 } from "../components/ui";
-import {
-  defaultReservationWindow,
-  toLocalDateTime,
-} from "../reservations";
+import { defaultReservationWindow, toLocalDateTime } from "../reservations";
 import type { AssetSummary, UserDirectoryEntry } from "../types";
 import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 
@@ -651,9 +648,7 @@ export function ReservationCreatePage() {
                 <Search size={17} />
                 <input
                   value={participantSearch}
-                  onChange={(event) =>
-                    setParticipantSearch(event.target.value)
-                  }
+                  onChange={(event) => setParticipantSearch(event.target.value)}
                   placeholder="Search people by name or email"
                   aria-label="Search people by name or email"
                 />
