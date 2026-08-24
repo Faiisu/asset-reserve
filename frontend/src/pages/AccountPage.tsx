@@ -3,7 +3,7 @@ import { api, ApiClientError, isAbortError } from "../api";
 import { useAuth } from "../auth";
 import { Button, ErrorState, Field, Input, LoadingState, Notice } from "../components/ui";
 import { GoogleIcon, MicrosoftIcon } from "../components/OAuthIcons";
-import { ReputationEventList } from "../components/ReputationEventList";
+import { ReputationEventList, scoreClass } from "../components/ReputationEventList";
 import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 import type { ReputationEvent, ReputationSummary } from "../types";
 
@@ -199,15 +199,7 @@ export function AccountPage() {
           reputation && (
             <div className="form-stack">
               <div>
-                <span
-                  className={
-                    reputation.score >= 70
-                      ? "reputation-score reputation-score--good"
-                      : reputation.score < 40
-                        ? "reputation-score reputation-score--bad"
-                        : "reputation-score"
-                  }
-                >
+                <span className={scoreClass(reputation.score)}>
                   {reputation.score}
                 </span>
                 <p style={{ color: "var(--ink-faint)", fontSize: "13px", margin: "4px 0 0" }}>

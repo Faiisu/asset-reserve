@@ -12,15 +12,24 @@ const EVENT_LABEL: Record<ReputationEventType, string> = {
   ASSET_LOST: "Asset returned lost",
 };
 
+/** Single source of truth for the score good/bad color thresholds -- shared
+ * by ReputationHistoryPage's big score display and AccountPage's "My
+ * reputation" section so the two views can't silently disagree. */
+export function scoreClass(score: number) {
+  if (score >= 70) return "reputation-score reputation-score--good";
+  if (score < 40) return "reputation-score reputation-score--bad";
+  return "reputation-score";
+}
+
 function DeltaBadge({ delta }: { delta: number }) {
   const positive = delta > 0;
   return (
     <span
-      className="reputation-delta-badge"
-      style={{
-        color: positive ? "var(--green)" : "var(--red)",
-        background: positive ? "var(--green-soft)" : "var(--red-soft)",
-      }}
+      className={
+        positive
+          ? "reputation-delta-badge reputation-delta-badge--positive"
+          : "reputation-delta-badge reputation-delta-badge--negative"
+      }
     >
       {positive ? `+${delta}` : delta}
     </span>
@@ -44,9 +53,6 @@ export function ReputationEventList({
           <DeltaBadge delta={event.delta} />
           <div className="reputation-event-list__main">
             <span>{EVENT_LABEL[event.type] ?? event.type}</span>
-            {event.note && (
-              <span className="reputation-event-list__note">{event.note}</span>
-            )}
           </div>
           <span className="reputation-event-list__date">
             {formatDate(event.createdAt, true)}

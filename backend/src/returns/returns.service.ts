@@ -10,7 +10,10 @@ import { ApiException } from "../common/api-exception.js";
 import { decodeCursor, pageInfo } from "../common/pagination.js";
 import { ReservationLifecycleEvents } from "../common/reservation-lifecycle.events.js";
 import { PrismaService } from "../database/prisma.service.js";
-import { ReputationService } from "../reputation/reputation.service.js";
+import {
+  ReputationService,
+  type ReturnUnitCondition,
+} from "../reputation/reputation.service.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import {
   CreateReturnDto,
@@ -528,6 +531,26 @@ export class ReturnsService {
     const decidedAt = new Date();
 
     await this.runSerializable(async (tx) => {
+      // Atomically claim this return before doing anything else. The
+      // PENDING check above ran outside this transaction (and runSerializable
+      // retries this whole closure on a serialization conflict), so without
+      // this guard two overlapping decide() calls -- or a retried attempt --
+      // could each pass the outer check and both apply their side effects,
+      // including the now non-idempotent reputation deltas below. Only the
+      // transaction that actually flips PENDING -> something else proceeds;
+      // a second one sees count 0 and aborts cleanly with no partial writes.
+      const claimed = await tx.return.updateMany({
+        where: { id: returnId, status: "PENDING" },
+        data: { updatedAt: decidedAt },
+      });
+      if (claimed.count === 0) {
+        throw new ApiException(
+          409,
+          "INVALID_STATUS",
+          "This return has already been decided.",
+        );
+      }
+
       if (input.decision === "APPROVE") {
         await tx.return.update({
           where: { id: returnId },
@@ -568,11 +591,17 @@ export class ReturnsService {
 
         const batchId = randomUUID();
         let batchCreated = false;
+        // Collected in the same pass that resolves each unit's decided
+        // condition below, rather than re-walking returnRecord.items a
+        // second time with a second copy of the "?? GOOD" fallback --
+        // one source of truth for "what condition did this unit end up with."
+        const decidedUnitConditions: ReturnUnitCondition[] = [];
         for (const returnItem of returnRecord.items) {
           for (const unit of returnItem.units) {
             const decision = conditionByUnitId.get(
               unit.reservationItemUnitId,
             ) ?? { condition: "GOOD" as const };
+            decidedUnitConditions.push(decision.condition);
             const assetUnitStatus =
               assetUnitStatusByCondition[decision.condition];
 
@@ -622,18 +651,18 @@ export class ReturnsService {
           reservationId,
           returnId,
           decidedAt,
+          // Late/on-time is judged by when the borrower actually returned
+          // the equipment (submission time), not by when an approver got
+          // around to deciding it -- otherwise approval-queue latency alone
+          // would penalize an on-time borrower. Falls back to decidedAt only
+          // if returnedAt is somehow unset (schema requires it at creation).
+          returnedAt: returnRecord.returnedAt ?? decidedAt,
           reservationEndAt: returnRecord.reservation.endAt,
           affectedUserIds: [
             returnRecord.reservation.requesterId,
             ...returnRecord.reservation.participants.map((p) => p.userId),
           ],
-          unitConditions: returnRecord.items.flatMap((item) =>
-            item.units.map(
-              (unit) =>
-                conditionByUnitId.get(unit.reservationItemUnitId)?.condition ??
-                "GOOD",
-            ),
-          ),
+          unitConditions: decidedUnitConditions,
         });
 
         for (const item of returnRecord.reservation.items) {

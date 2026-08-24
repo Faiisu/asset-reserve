@@ -6,6 +6,7 @@
 -- no backfill and is safe to run on a populated database.
 
 ALTER TABLE "users" ADD COLUMN "reputation" INTEGER NOT NULL DEFAULT 100;
+ALTER TABLE "users" ADD CONSTRAINT "users_reputation_check" CHECK ("reputation" BETWEEN 0 AND 100);
 
 -- Audit log: one row per individual effect (a return with 2 broken units
 -- affecting 3 people produces 3 late/on-time rows + 6 broken rows), so the
@@ -16,10 +17,10 @@ CREATE TABLE "reputation_events" (
   "user_id" UUID NOT NULL REFERENCES "users"("id"),
   "reservation_id" UUID REFERENCES "reservations"("id"),
   "return_id" UUID REFERENCES "returns"("id"),
-  "type" VARCHAR(20) NOT NULL, -- RETURN_ON_TIME, RETURN_LATE, ASSET_BROKEN, ASSET_LOST
+  "type" VARCHAR(20) NOT NULL,
   "delta" INTEGER NOT NULL,
-  "note" TEXT,
-  "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT NOW()
+  "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
+  CONSTRAINT "reputation_events_type_check" CHECK ("type" IN ('RETURN_ON_TIME', 'RETURN_LATE', 'ASSET_BROKEN', 'ASSET_LOST'))
 );
 
 CREATE INDEX "reputation_events_user_id_created_at_idx" ON "reputation_events"("user_id", "created_at");
@@ -27,4 +28,5 @@ CREATE INDEX "reputation_events_return_id_idx" ON "reputation_events"("return_id
 
 -- Rollback (manual, before deploying the old application):
 --   DROP TABLE "reputation_events";
+--   ALTER TABLE "users" DROP CONSTRAINT "users_reputation_check";
 --   ALTER TABLE "users" DROP COLUMN "reputation";

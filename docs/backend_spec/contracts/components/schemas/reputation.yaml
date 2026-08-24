@@ -23,7 +23,10 @@ ReputationSummary:
       minimum: 0
       maximum: 100
     updatedAt:
-      type: string
+      description: When this user's score last actually moved (most recent ReputationEvent). Null if it has never moved from its starting value.
+      type:
+        - string
+        - "null"
       format: date-time
 ReputationListResponse:
   type: object
@@ -44,7 +47,6 @@ ReputationEvent:
     - userId
     - type
     - delta
-    - note
     - reservationId
     - returnId
     - createdAt
@@ -61,10 +63,6 @@ ReputationEvent:
     delta:
       type: integer
       description: "+5 or -5."
-    note:
-      type:
-        - string
-        - "null"
     reservationId:
       type:
         - string

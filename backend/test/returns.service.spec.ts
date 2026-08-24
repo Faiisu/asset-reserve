@@ -15,7 +15,6 @@ function makeReputationServiceMock(): ReputationService {
     recordReturnOutcome: vi.fn().mockResolvedValue(undefined),
   } as unknown as ReputationService;
 }
-const reputationServiceMock = makeReputationServiceMock();
 
 const reservationEvents = new ReservationLifecycleEvents();
 
@@ -232,6 +231,11 @@ function sampleReturnRecordForDecide(
     id: returnId,
     reservationId,
     status,
+    // Before reservation.endAt (2026-08-01T11:00) by default -- an on-time
+    // drop-off -- distinct from decidedAt (always "now" in these tests, well
+    // after both) so the two can never accidentally be confused for each
+    // other in an assertion.
+    returnedAt: new Date("2026-08-01T10:30:00.000Z"),
     reservation: {
       status: reservationStatus,
       requesterId,
@@ -537,7 +541,10 @@ describe("ReturnsService", () => {
       },
       $transaction: vi.fn().mockImplementation(async (callback) => {
         return callback({
-          return: { update: updateReturn },
+          return: {
+            update: updateReturn,
+            updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+          },
           returnApproval: { upsert: upsertApproval },
           returnItemUnit: { update: updateReturnItemUnit },
           reservationItemUnit: {
@@ -589,6 +596,7 @@ describe("ReturnsService", () => {
       expect.objectContaining({
         reservationId,
         returnId,
+        returnedAt: returnRecord.returnedAt,
         reservationEndAt: returnRecord.reservation.endAt,
         affectedUserIds: [requesterId],
         unitConditions: ["GOOD"],
@@ -619,6 +627,51 @@ describe("ReturnsService", () => {
         decision: "APPROVED",
       }),
     );
+  });
+
+  it("aborts cleanly (no double-applied side effects) when the return was already decided by a concurrent request", async () => {
+    // Simulates the race: this transaction's outer PENDING check passed,
+    // but by the time it runs, a concurrent decide() call already flipped
+    // the return's status -- the in-transaction claim (updateMany with a
+    // status: PENDING guard) sees count 0. Without this guard, a
+    // serialization-conflict retry of the whole closure would re-apply
+    // every side effect a second time, including reputation deltas.
+    const returnRecord = sampleReturnRecordForDecide("PENDING");
+    const recordReturnOutcome = vi.fn().mockResolvedValue(undefined);
+    const updateReturn = vi.fn().mockResolvedValue({});
+
+    const prismaMock = {
+      return: {
+        findFirst: vi.fn().mockResolvedValue(returnRecord),
+      },
+      $transaction: vi.fn().mockImplementation(async (callback) => {
+        return callback({
+          return: {
+            updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+            update: updateReturn,
+          },
+        });
+      }),
+    } as unknown as PrismaService;
+
+    const service = new ReturnsService(prismaMock, reservationEvents, {
+      recordReturnOutcome,
+    } as unknown as ReputationService);
+
+    await expect(
+      service.decide(areaManagerActor, reservationId, returnId, {
+        decision: "APPROVE",
+        items: [
+          {
+            reservationItemId: itemId,
+            units: [{ reservationItemUnitId, condition: "GOOD" }],
+          },
+        ],
+      }),
+    ).rejects.toThrow(/already been decided/);
+
+    expect(updateReturn).not.toHaveBeenCalled();
+    expect(recordReturnOutcome).not.toHaveBeenCalled();
   });
 
   it("forbids a manager from deciding returns for an unassigned management area", async () => {
@@ -656,7 +709,10 @@ describe("ReturnsService", () => {
       },
       $transaction: vi.fn().mockImplementation(async (callback) => {
         return callback({
-          return: { update: vi.fn().mockResolvedValue({}) },
+          return: {
+            update: vi.fn().mockResolvedValue({}),
+            updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+          },
           returnApproval: { upsert: vi.fn().mockResolvedValue({}) },
           returnItemUnit: { update: vi.fn().mockResolvedValue({}) },
           reservationItemUnit: {
@@ -726,6 +782,7 @@ describe("ReturnsService", () => {
           returnItemUnit: { deleteMany: deleteManyReturnItemUnits },
           return: {
             update: vi.fn().mockResolvedValue({}),
+            updateMany: vi.fn().mockResolvedValue({ count: 1 }),
             count: countPendingReturns,
           },
           returnApproval: { upsert: vi.fn().mockResolvedValue({}) },
@@ -788,6 +845,7 @@ describe("ReturnsService", () => {
           },
           return: {
             update: vi.fn().mockResolvedValue({}),
+            updateMany: vi.fn().mockResolvedValue({ count: 1 }),
             count: countPendingReturns,
           },
           returnApproval: { upsert: vi.fn().mockResolvedValue({}) },
@@ -821,7 +879,10 @@ describe("ReturnsService", () => {
       },
       $transaction: vi.fn().mockImplementation(async (callback) => {
         return callback({
-          return: { update: vi.fn().mockResolvedValue({}) },
+          return: {
+            update: vi.fn().mockResolvedValue({}),
+            updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+          },
           returnApproval: { upsert: vi.fn().mockResolvedValue({}) },
           returnItemUnit: { update: vi.fn().mockResolvedValue({}) },
           reservationItemUnit: {

@@ -115,7 +115,8 @@ export type ReputationSummary = {
   name: string | null;
   email: string | null;
   score: number;
-  updatedAt: string;
+  /** When this score last actually moved; null if it never has. */
+  updatedAt: string | null;
 };
 
 export type ReputationEvent = {
@@ -123,7 +124,6 @@ export type ReputationEvent = {
   userId: string;
   type: ReputationEventType;
   delta: number;
-  note: string | null;
   reservationId: string | null;
   returnId: string | null;
   createdAt: string;

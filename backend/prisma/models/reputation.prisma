@@ -9,7 +9,6 @@ model ReputationEvent {
   /// late/on-time row plus 3x2 broken rows. See ReputationService.recordReturnOutcome.
   type          String   @db.VarChar(20)
   delta         Int
-  note          String?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 

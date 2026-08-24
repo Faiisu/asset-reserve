@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, isAbortError } from "../api";
 import { useAuth } from "../auth";
-import { ReputationEventList } from "../components/ReputationEventList";
+import { ReputationEventList, scoreClass } from "../components/ReputationEventList";
 import {
   Breadcrumb,
   Button,
@@ -12,12 +12,6 @@ import {
   LoadingState,
 } from "../components/ui";
 import type { ReputationEvent, ReputationSummary } from "../types";
-
-function scoreClass(score: number) {
-  if (score >= 70) return "reputation-score reputation-score--good";
-  if (score < 40) return "reputation-score reputation-score--bad";
-  return "reputation-score";
-}
 
 /** Admin drilldown from ReputationPage: one user's score + full event
  * history, so an admin can see exactly what happened and why. */
