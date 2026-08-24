@@ -28,6 +28,7 @@ import {
   Textarea,
 } from "../components/ui";
 import { parseAssetImportCsv } from "../lib/csv";
+import { parseAssetImportXlsx } from "../lib/xlsx";
 import { recognitionApi, type RecognitionPhoto } from "../recognitionApi";
 import type { AssetDetail, ManagementArea } from "../types";
 import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
@@ -791,20 +792,24 @@ function BatchAssetForm({
     );
   }
 
-  // Reads a CSV (fixed column order: S/N, P/N, description; header row
-  // skipped) and replaces the manifest wholesale with the grouped result --
-  // see parseAssetImportCsv for the S/N-per-P/N grouping rule. Only file
-  // reading needs to be async; the input's value is cleared afterward so
-  // re-selecting the same file (e.g. after fixing it) still fires onChange.
-  async function importFromCsv(file: File) {
+  // Reads a CSV or XLSX file (fixed column order: S/N, P/N, description;
+  // header row skipped) and replaces the manifest wholesale with the
+  // grouped result -- see parseAssetImportCsv / parseAssetImportXlsx for the
+  // S/N-per-P/N grouping rule shared by both formats. The input's value is
+  // cleared afterward so re-selecting the same file (e.g. after fixing it)
+  // still fires onChange.
+  async function importManifestFile(file: File) {
     setError("");
     setImportNotice("");
+    const isXlsx = /\.xlsx$/i.test(file.name);
+    const formatLabel = isXlsx ? "Excel" : "CSV";
     try {
-      const text = await file.text();
-      const { rows: imported, skippedRows } = parseAssetImportCsv(text);
+      const { rows: imported, skippedRows } = isXlsx
+        ? await parseAssetImportXlsx(file)
+        : parseAssetImportCsv(await file.text());
       if (imported.length === 0) {
         setError(
-          "No valid rows found in that CSV -- check it has a header row and a P/N in each data row.",
+          `No valid rows found in that ${formatLabel} file -- check it has a header row and a P/N in each data row.`,
         );
         return;
       }
@@ -819,11 +824,11 @@ function BatchAssetForm({
       );
       setImportNotice(
         skippedRows > 0
-          ? `Imported ${imported.length} asset(s) from CSV. Skipped ${skippedRows} row(s) with no P/N.`
-          : `Imported ${imported.length} asset(s) from CSV.`,
+          ? `Imported ${imported.length} asset(s) from ${formatLabel}. Skipped ${skippedRows} row(s) with no P/N.`
+          : `Imported ${imported.length} asset(s) from ${formatLabel}.`,
       );
     } catch {
-      setError("Could not read that CSV file.");
+      setError(`Could not read that ${formatLabel} file.`);
     }
   }
 
@@ -1007,8 +1012,9 @@ function BatchAssetForm({
                 <p>
                   One row per asset -- add its name, part number, photos, and
                   any serial units to register right away. Or import a CSV
-                  (S/N, P/N, description) to fill this out automatically --
-                  rows sharing a P/N become one asset with multiple S/Ns.
+                  or Excel file (S/N, P/N, description) to fill this out
+                  automatically -- rows sharing a P/N become one asset with
+                  multiple S/Ns.
                 </p>
               </div>
               <div className="batch-manifest-actions">
@@ -1019,17 +1025,17 @@ function BatchAssetForm({
                   onClick={() => csvInputRef.current?.click()}
                 >
                   <FileUp size={15} />
-                  Import CSV
+                  Import CSV / Excel
                 </Button>
                 <input
                   ref={csvInputRef}
                   type="file"
-                  accept=".csv,text/csv"
+                  accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   style={{ display: "none" }}
                   onChange={(event) => {
                     const file = event.target.files?.[0] ?? null;
                     event.target.value = "";
-                    if (file) void importFromCsv(file);
+                    if (file) void importManifestFile(file);
                   }}
                 />
                 <Button
