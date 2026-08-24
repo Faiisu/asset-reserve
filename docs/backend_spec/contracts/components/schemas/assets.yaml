@@ -314,6 +314,142 @@ AssetUnitEventLedgerItem:
         - "null"
     performedBy:
       $ref: "#/components/schemas/AssetOwner"
+AssetRef:
+  type: object
+  required:
+    - id
+    - name
+    - partNumber
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+      maxLength: 40
+    partNumber:
+      type:
+        - string
+        - "null"
+      maxLength: 100
+AssetUnitWithAssetRef:
+  allOf:
+    - $ref: "#/components/schemas/AssetUnit"
+    - type: object
+      required:
+        - asset
+      properties:
+        asset:
+          $ref: "#/components/schemas/AssetRef"
+AssetUnitSearchResponse:
+  type: object
+  required:
+    - data
+    - pageInfo
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/components/schemas/AssetUnitWithAssetRef"
+    pageInfo:
+      $ref: "#/components/schemas/PageInfo"
+AssetUnitHistoryEventItem:
+  type: object
+  required:
+    - id
+    - batchId
+    - eventType
+    - fromStatus
+    - toStatus
+    - reason
+    - createdAt
+    - batchDescription
+    - performedBy
+  properties:
+    id:
+      type: string
+      format: uuid
+    batchId:
+      type: string
+      format: uuid
+    eventType:
+      type: string
+      enum:
+        - REGISTERED
+        - RETIRED
+        - REACTIVATED
+        - RESERVED
+        - CHECKED_OUT
+        - RETURNED_GOOD
+        - RETURNED_BROKEN
+        - RETURNED_LOST
+        - REPAIRED
+        - ADJUSTMENT
+    fromStatus:
+      oneOf:
+        - $ref: "#/components/schemas/AssetUnitStatus"
+        - type: "null"
+    toStatus:
+      oneOf:
+        - $ref: "#/components/schemas/AssetUnitStatus"
+        - type: "null"
+    reason:
+      type:
+        - string
+        - "null"
+    createdAt:
+      type: string
+      format: date-time
+    batchDescription:
+      type:
+        - string
+        - "null"
+    performedBy:
+      $ref: "#/components/schemas/AssetOwner"
+AssetUnitHistoryStats:
+  type: object
+  description: Derived entirely from this unit's asset_unit_events rows.
+  required:
+    - total
+    - byEventType
+    - registeredAt
+    - lastEventAt
+  properties:
+    total:
+      type: integer
+      minimum: 0
+    byEventType:
+      type: object
+      description: Count of events keyed by AssetUnitHistoryEventItem.eventType.
+      additionalProperties:
+        type: integer
+        minimum: 0
+    registeredAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+      description: createdAt of this unit's REGISTERED event, or null if none is present.
+    lastEventAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+AssetUnitHistoryResponse:
+  type: object
+  required:
+    - unit
+    - stats
+    - events
+  properties:
+    unit:
+      $ref: "#/components/schemas/AssetUnitWithAssetRef"
+    stats:
+      $ref: "#/components/schemas/AssetUnitHistoryStats"
+    events:
+      type: array
+      items:
+        $ref: "#/components/schemas/AssetUnitHistoryEventItem"
 AssetEditPolicy:
   type: object
   required:

@@ -95,6 +95,10 @@ paths:
     $ref: ./paths/assets.yaml#/~1assets~1{assetId}~1status
   /assets/{assetId}/units:
     $ref: ./paths/assets.yaml#/~1assets~1{assetId}~1units
+  /assets/units:
+    $ref: ./paths/assets.yaml#/~1assets~1units
+  /assets/units/{assetUnitId}/events:
+    $ref: ./paths/assets.yaml#/~1assets~1units~1{assetUnitId}~1events
   /assets/units/batch-retire:
     $ref: ./paths/assets.yaml#/~1assets~1units~1batch-retire
   /assets/units/{assetUnitId}/status:

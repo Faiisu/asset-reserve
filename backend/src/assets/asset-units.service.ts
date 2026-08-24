@@ -9,9 +9,13 @@ import {
   SCHEDULABLE_ASSET_UNIT_STATUSES,
 } from "../common/reservation-allocation.js";
 import { PrismaService } from "../database/prisma.service.js";
-import { assertAreaPermission } from "./asset-access.js";
+import {
+  assertAreaPermission,
+  permittedAreaIds,
+} from "./asset-access.js";
 import type {
   AssetUnitListQueryDto,
+  AssetUnitSearchQueryDto,
   RegisterAssetUnitsDto,
   RetireAssetUnitsDto,
   UpdateAssetUnitStatusDto,
@@ -77,6 +81,138 @@ export class AssetUnitsService {
     return {
       data: page.data.map((unit) => this.unitDto(unit)),
       pageInfo: page.pageInfo,
+    };
+  }
+
+  async search(actor: AuthenticatedActor, query: AssetUnitSearchQueryDto) {
+    const allowedAreaIds = permittedAreaIds(actor, "asset:view");
+    if (allowedAreaIds !== null && allowedAreaIds.length === 0) {
+      throw new ApiException(
+        403,
+        "PERMISSION_DENIED",
+        "You do not have permission to view assets.",
+      );
+    }
+
+    const cursor = decodeCursor(query.cursor);
+    const conditions: Prisma.AssetUnitWhereInput[] = [];
+    if (allowedAreaIds !== null) {
+      conditions.push({ asset: { managementAreaId: { in: allowedAreaIds } } });
+    }
+    if (query.search) {
+      conditions.push({
+        serialNumber: { contains: query.search, mode: "insensitive" },
+      });
+    }
+    if (cursor) {
+      conditions.push({
+        OR: [
+          { createdAt: { lt: new Date(cursor.createdAt) } },
+          { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } },
+        ],
+      });
+    }
+
+    const rows = await this.prisma.assetUnit.findMany({
+      where: conditions.length ? { AND: conditions } : {},
+      include: {
+        asset: { select: { id: true, name: true, partNumber: true } },
+        reservationItemUnits: {
+          where: { status: { in: ACTIVE_ASSIGNMENT_STATUSES } },
+          select: { id: true },
+          take: 1,
+        },
+      },
+      take: query.limit + 1,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    const page = pageInfo(rows, query.limit);
+    return {
+      data: page.data.map((unit) => ({
+        ...this.unitDto(unit),
+        asset: unit.asset,
+      })),
+      pageInfo: page.pageInfo,
+    };
+  }
+
+  async getHistory(actor: AuthenticatedActor, assetUnitId: string) {
+    const unit = await this.prisma.assetUnit.findUnique({
+      where: { id: assetUnitId },
+      include: {
+        asset: {
+          select: { id: true, name: true, partNumber: true, managementAreaId: true },
+        },
+        reservationItemUnits: {
+          where: { status: { in: ACTIVE_ASSIGNMENT_STATUSES } },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+    if (!unit)
+      throw new ApiException(
+        404,
+        "ASSET_UNIT_NOT_FOUND",
+        "The asset unit was not found.",
+      );
+    assertAreaPermission(actor, "asset:view", unit.asset.managementAreaId);
+
+    const events = await this.prisma.assetUnitEvent.findMany({
+      where: { assetUnitId },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      include: {
+        batch: { include: { performer: { include: { profile: true } } } },
+      },
+    });
+
+    const byEventType: Record<string, number> = {};
+    for (const event of events) {
+      byEventType[event.eventType] = (byEventType[event.eventType] ?? 0) + 1;
+    }
+    const registeredAt =
+      events.find((event) => event.eventType === "REGISTERED")?.createdAt ??
+      null;
+
+    return {
+      unit: {
+        ...this.unitDto(unit),
+        asset: {
+          id: unit.asset.id,
+          name: unit.asset.name,
+          partNumber: unit.asset.partNumber,
+        },
+      },
+      stats: {
+        total: events.length,
+        byEventType,
+        registeredAt: registeredAt ? registeredAt.toISOString() : null,
+        lastEventAt: events[0] ? events[0].createdAt.toISOString() : null,
+      },
+      events: events.map((event) => ({
+        id: event.id,
+        batchId: event.batchId,
+        eventType: event.eventType,
+        fromStatus: event.fromStatus,
+        toStatus: event.toStatus,
+        reason: event.reason,
+        createdAt: event.createdAt.toISOString(),
+        batchDescription: event.batch.description,
+        performedBy: this.userDto(event.batch.performer),
+      })),
+    };
+  }
+
+  private userDto(user: {
+    id: string;
+    email: string | null;
+    profile: { name: string; profilePictureUrl: string | null } | null;
+  }) {
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.profile?.name ?? null,
+      profilePictureUrl: user.profile?.profilePictureUrl ?? null,
     };
   }
 

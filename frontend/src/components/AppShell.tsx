@@ -7,6 +7,7 @@ import {
   Moon,
   CalendarDays,
   CalendarRange,
+  History,
   ShieldCheck,
   Sun,
   User as UserIcon,
@@ -27,6 +28,7 @@ const titles: Array<[string, string]> = [
   ["/assets/new", "Add asset"],
   ["/assets/", "Asset details"],
   ["/assets", "Asset registry"],
+  ["/asset-units", "Unit history"],
   ["/admin/access", "Access and roles"],
   ["/admin/users", "Users"],
   ["/admin/areas", "Management areas"],
@@ -68,6 +70,12 @@ export function AppShell() {
       to: "/assets",
       label: "Assets",
       icon: Boxes,
+      show: hasPermission("asset:view"),
+    },
+    {
+      to: "/asset-units",
+      label: "Unit history",
+      icon: History,
       show: hasPermission("asset:view"),
     },
     {

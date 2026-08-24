@@ -9,6 +9,7 @@ import { ApprovalRequestsPage } from "./pages/ApprovalRequestsPage";
 import { AssetDetailPage } from "./pages/AssetDetailPage";
 import { AssetFormPage } from "./pages/AssetFormPage";
 import { AssetsPage } from "./pages/AssetsPage";
+import { AssetUnitHistoryPage } from "./pages/AssetUnitHistoryPage";
 import { CalendarPage } from "./pages/CalendarPage";
 import { ConnectAccountCallbackPage } from "./pages/ConnectAccountCallbackPage";
 import { ConnectAccountPage } from "./pages/ConnectAccountPage";
@@ -93,6 +94,7 @@ export function App() {
         <Route path="asset/new" element={<Navigate to="/assets/new" replace />} />
         <Route path="assets/:assetId" element={<AssetDetailPage />} />
         <Route path="assets/:assetId/edit" element={<AssetFormPage />} />
+        <Route path="asset-units" element={<AssetUnitHistoryPage />} />
         <Route path="reservations" element={<ReservationsPage />} />
         <Route path="approvals" element={<ApprovalRequestsPage />} />
         <Route path="reservations/new" element={<ReservationCreatePage />} />

@@ -495,6 +495,27 @@
   gap: 6px;
   font-size: 11px;
 }
+.event-type-breakdown {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.event-type-breakdown span {
+  padding: 5px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+.event-type-breakdown span b {
+  color: var(--ink);
+}
 .floating-back {
   width: fit-content;
   display: flex;
