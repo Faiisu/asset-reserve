@@ -355,12 +355,8 @@ export const api = {
       `/assets/${assetId}/units${queryString(filters)}`,
       { signal },
     ),
-  reservationsByAsset: (
-    period: "day" | "week" | "month" | "year",
-    anchor?: string,
-    signal?: AbortSignal,
-  ) => {
-    const path = `/statistics/reservations-by-asset${queryString({ period, anchor })}`;
+  reservationsByAsset: (start: string, end: string, signal?: AbortSignal) => {
+    const path = `/statistics/reservations-by-asset${queryString({ start, end })}`;
     return request<ReservationsByAssetResponse>(path, { signal });
   },
   createReservation: (input: CreateReservationInput) =>

@@ -2,39 +2,38 @@
   get:
     tags:
       - Statistics
-    summary: Approved and rejected reservation-item counts per asset for the current period
+    summary: Approved and rejected reservation-item counts per asset for a date range
     description: >-
       Requires asset:view; results are scoped to the caller's permitted management areas the same
       way GET /assets is. Returns every permitted asset (even with zero decisions), each with the
       count of its reservation items whose approval decision was APPROVED, and separately REJECTED
       (a PENDING approval counts toward neither), where the reservation's booked window overlaps
-      the period. `period` selects a half-open [periodStart, periodEnd) window on the UTC calendar
-      around `anchor`: day = that date, week = the ISO week containing it (Monday start), month =
-      that calendar month, year = that calendar year. Without `anchor` the window is the one
-      containing the current instant. A reservation counts when it starts before the window ends
-      and ends after the window begins -- the same overlap convention used for unit availability
-      elsewhere in this API. Capped at the 200 assets with the highest approvedCount + rejectedCount.
+      [start, end]. Both bounds are calendar dates on the UTC clock -- the whole named end day is
+      included, so `end=2026-08-31` covers bookings up to 2026-09-01T00:00:00Z. A reservation
+      counts when it starts before the window ends and ends after the window begins -- the same
+      overlap convention used for unit availability elsewhere in this API. Capped at the 200
+      assets with the highest approvedCount + rejectedCount.
     operationId: getReservationsByAsset
     parameters:
-      - name: period
+      - name: start
         in: query
         required: true
-        schema:
-          $ref: "#/components/schemas/StatisticsPeriod"
-      - name: anchor
-        in: query
-        required: false
-        description: >-
-          Any date inside the period to report on, as `YYYY-MM-DD` or a full ISO-8601 timestamp
-          (only its UTC calendar date is read). Lets the caller page back to an earlier day, week,
-          month, or year instead of only the current one. Defaults to now.
+        description: Inclusive start of the reporting window, as `YYYY-MM-DD` or a full ISO-8601 timestamp (only its UTC calendar date is read).
         schema:
           type: string
           format: date
-        example: "2026-08-24"
+        example: "2026-08-01"
+      - name: end
+        in: query
+        required: true
+        description: Inclusive end of the reporting window, same format as `start`. Must be on or after `start`.
+        schema:
+          type: string
+          format: date
+        example: "2026-08-31"
     responses:
       "200":
-        description: Reservation-request counts per asset for the selected period.
+        description: Reservation-request counts per asset for the selected date range.
         content:
           application/json:
             schema:

@@ -255,8 +255,6 @@ export type AssetUnit = {
   updatedAt: string;
 };
 
-export type StatisticsPeriod = "day" | "week" | "month" | "year";
-
 export type AssetReservationCount = {
   assetId: string;
   name: string;
@@ -267,7 +265,6 @@ export type AssetReservationCount = {
 };
 
 export type ReservationsByAssetResponse = {
-  period: StatisticsPeriod;
   periodStart: string;
   periodEnd: string;
   data: AssetReservationCount[];

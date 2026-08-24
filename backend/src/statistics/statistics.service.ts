@@ -4,10 +4,7 @@ import { permittedAreaIds } from "../assets/asset-access.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import { ApiException } from "../common/api-exception.js";
 import { PrismaService } from "../database/prisma.service.js";
-import type {
-  ReservationsByAssetQueryDto,
-  StatisticsPeriod,
-} from "./statistics.dto.js";
+import type { ReservationsByAssetQueryDto } from "./statistics.dto.js";
 
 /** Response caps at this many assets (highest approved+rejected first) so a
  * very large catalog can't blow up the chart payload -- mirrors the array
@@ -31,7 +28,7 @@ export class StatisticsService {
       );
     }
 
-    const { start, end } = this.periodRange(query.period, query.anchor);
+    const { start, end } = this.resolveRange(query.start, query.end);
     const assetWhere: Prisma.AssetWhereInput =
       allowedAreaIds !== null
         ? { managementAreaId: { in: allowedAreaIds } }
@@ -50,7 +47,6 @@ export class StatisticsService {
 
     if (assets.length === 0) {
       return {
-        period: query.period,
         periodStart: start.toISOString(),
         periodEnd: end.toISOString(),
         data: [],
@@ -70,11 +66,10 @@ export class StatisticsService {
           // decision was made: createdAt/decidedAt cluster around whenever
           // approvals happened to be processed, so a freshly-seeded or
           // batch-approved database would put every decision in "today" and
-          // every period would return an identical number -- the same
-          // failure mode the reserved-count metric this replaced had with
-          // ReservationItem.createdAt. Overlap (starts before the period
-          // ends AND ends after it begins) is the same half-open convention
-          // used for unit availability in AssetUnitsService.list().
+          // every window would return an identical number. Overlap (starts
+          // before the window ends AND ends after it begins) is the same
+          // half-open convention used for unit availability in
+          // AssetUnitsService.list().
           reservation: { startAt: { lt: end }, endAt: { gt: start } },
         },
       },
@@ -109,56 +104,51 @@ export class StatisticsService {
       .slice(0, MAX_ASSETS);
 
     return {
-      period: query.period,
       periodStart: start.toISOString(),
       periodEnd: end.toISOString(),
       data,
     };
   }
 
-  /** The UTC day / ISO-week (Monday) / month / year containing `anchor` as a
-   * half-open [start, end) range. The range is bounded on both ends so
-   * "August" excludes reservations booked for later periods. `anchor` may be
-   * any instant inside the wanted period; without one it is right now. */
-  private periodRange(
-    period: StatisticsPeriod,
-    anchor?: string,
-  ): { start: Date; end: Date } {
-    const now = anchor ? new Date(anchor) : new Date();
-    if (Number.isNaN(now.getTime())) {
+  /** `start`/`end` are calendar dates naming an inclusive range (the caller
+   * picked them from a plain date input), so `end` is advanced to the start
+   * of the *next* UTC day to make a half-open [start, end) range covering
+   * the whole named end day -- same overlap convention used for unit
+   * availability elsewhere in this API. */
+  private resolveRange(start: string, end: string): { start: Date; end: Date } {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
       throw new ApiException(
         422,
         "VALIDATION_ERROR",
-        "The anchor date could not be read.",
-        { anchor: "Provide a calendar date such as 2026-08-24." },
+        "The date range could not be read.",
+        { start: "Provide calendar dates such as 2026-08-01." },
       );
     }
-    const year = now.getUTCFullYear();
-    const month = now.getUTCMonth();
-    const date = now.getUTCDate();
 
-    if (period === "day") {
-      const start = new Date(Date.UTC(year, month, date));
-      return { start, end: new Date(Date.UTC(year, month, date + 1)) };
+    const rangeStart = new Date(
+      Date.UTC(
+        startDate.getUTCFullYear(),
+        startDate.getUTCMonth(),
+        startDate.getUTCDate(),
+      ),
+    );
+    const rangeEnd = new Date(
+      Date.UTC(
+        endDate.getUTCFullYear(),
+        endDate.getUTCMonth(),
+        endDate.getUTCDate() + 1,
+      ),
+    );
+    if (rangeEnd <= rangeStart) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        "The end date must be on or after the start date.",
+        { end: "Choose an end date on or after the start date." },
+      );
     }
-    if (period === "week") {
-      const diffToMonday =
-        (new Date(Date.UTC(year, month, date)).getUTCDay() + 6) % 7;
-      const start = new Date(Date.UTC(year, month, date - diffToMonday));
-      return {
-        start,
-        end: new Date(Date.UTC(year, month, date - diffToMonday + 7)),
-      };
-    }
-    if (period === "month") {
-      return {
-        start: new Date(Date.UTC(year, month, 1)),
-        end: new Date(Date.UTC(year, month + 1, 1)),
-      };
-    }
-    return {
-      start: new Date(Date.UTC(year, 0, 1)),
-      end: new Date(Date.UTC(year + 1, 0, 1)),
-    };
+    return { start: rangeStart, end: rangeEnd };
   }
 }

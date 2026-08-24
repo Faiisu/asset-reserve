@@ -15,8 +15,7 @@
   margin-left: auto;
 }
 
-/* Stepper + native picker: the arrows carry the common "one period back or
-   forward" move, the field carries the jump to an arbitrary date. */
+/* Two native date pickers, Start and End, sharing one bordered pill. */
 .stat-anchor {
   display: flex;
   align-items: stretch;
@@ -25,29 +24,15 @@
   background: var(--surface);
   overflow: hidden;
 }
-.stat-anchor__step {
-  padding: 0 8px;
-  display: flex;
-  align-items: center;
-  border: 0;
-  background: transparent;
-  color: var(--ink-soft);
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.stat-anchor__step:hover {
-  background: var(--surface-raised);
-  color: var(--ink);
-}
 .stat-anchor__field {
   min-height: 41px;
   padding: 4px 10px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  border-inline: 1px solid var(--line);
+}
+.stat-anchor__field + .stat-anchor__field {
+  border-left: 1px solid var(--line);
 }
 .stat-anchor__field > span {
   color: var(--ink-faint);
@@ -65,11 +50,6 @@
   color: var(--ink);
   font-size: 12px;
   font-weight: 600;
-}
-/* The year picker is a bare number, so it needs no calendar affordance and
-   reads better narrow. */
-.stat-anchor__field input[type="number"] {
-  width: 68px;
 }
 /* Recolour the built-in calendar glyph for dark mode, where the browser's
    default black icon disappears against the surface. */
@@ -130,9 +110,39 @@
   font-weight: 650;
   line-height: 1.05;
 }
+.stat-kpi__value--muted {
+  color: var(--ink-faint);
+}
 .stat-kpi__hint {
   color: var(--ink-faint);
   font-size: 11px;
+}
+/* "Most requested" renders as a badge (P/N + count) rather than a bare
+   number -- the value being named is an asset, not a count on its own. */
+.stat-kpi__badge {
+  width: fit-content;
+  max-width: 100%;
+  padding: 7px 12px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.stat-kpi__badge b {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stat-kpi__badge span {
+  flex: none;
+  color: var(--ink-faint);
+  font-size: 10px;
 }
 
 /* -------------------------------------------------------- ranked bars */
@@ -209,7 +219,7 @@
 .stat-bars__group {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 0;
 }
 .stat-bars__series {
   display: flex;
@@ -218,7 +228,7 @@
 }
 .stat-bars__track {
   flex: 1;
-  height: 8px;
+  height: 14px;
   border-radius: 3px;
   /* A track one step off the surface, so a zero-count row still reads as a
      row rather than as missing content. */

@@ -413,8 +413,6 @@ components:
       $ref: ./components/schemas/notification-settings.yaml#/NotificationSettings
     UpdateNotificationSettingsRequest:
       $ref: ./components/schemas/notification-settings.yaml#/UpdateNotificationSettingsRequest
-    StatisticsPeriod:
-      $ref: ./components/schemas/statistics.yaml#/StatisticsPeriod
     AssetReservationCount:
       $ref: ./components/schemas/statistics.yaml#/AssetReservationCount
     ReservationsByAssetResponse:

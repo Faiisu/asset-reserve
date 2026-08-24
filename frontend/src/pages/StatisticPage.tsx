@@ -1,4 +1,4 @@
-import { BarChart3, ChevronLeft, ChevronRight, Table2 } from "lucide-react";
+import { BarChart3, Table2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, isAbortError } from "../api";
 import { useAuth } from "../auth";
@@ -10,50 +10,16 @@ import {
   LoadingState,
   cx,
 } from "../components/ui";
-import {
-  formatPeriodLabel,
-  fromInputValue,
-  isCurrentPeriod,
-  shiftAnchor,
-  toInputValue,
-  todayAnchor,
-} from "../lib/periodAnchor";
-import type { ReservationsByAssetResponse, StatisticsPeriod } from "../types";
-
-const PERIODS: Array<{ value: StatisticsPeriod; label: string }> = [
-  { value: "day", label: "Day" },
-  { value: "week", label: "Week" },
-  { value: "month", label: "Month" },
-  { value: "year", label: "Year" },
-];
-
-/** Native pickers, so each granularity gets the platform's own calendar and
- * nobody is asked to choose a day that the period ignores. */
-const INPUT_TYPE: Record<StatisticsPeriod, string> = {
-  day: "date",
-  week: "date",
-  month: "month",
-  year: "number",
-};
-
-const STEP_LABEL: Record<StatisticsPeriod, string> = {
-  day: "day",
-  week: "week",
-  month: "month",
-  year: "year",
-};
-
-const CURRENT_NOUN: Record<StatisticsPeriod, string> = {
-  day: "today",
-  week: "this week",
-  month: "this month",
-  year: "this year",
-};
+import { formatRangeLabel, subtractDays, todayIsoDate } from "../lib/dateRange";
+import type { ReservationsByAssetResponse } from "../types";
 
 export function StatisticPage() {
   const { hasPermission } = useAuth();
-  const [period, setPeriod] = useState<StatisticsPeriod>("month");
-  const [anchor, setAnchor] = useState(() => todayAnchor());
+  // Defaults to the trailing 30 days -- a plain, immediately-useful window
+  // with no "current period" concept to keep in sync now that start/end can
+  // be any two dates.
+  const [start, setStart] = useState(() => subtractDays(todayIsoDate(), 29));
+  const [end, setEnd] = useState(() => todayIsoDate());
   const [showTable, setShowTable] = useState(false);
   const [result, setResult] = useState<ReservationsByAssetResponse | null>(
     null,
@@ -62,18 +28,13 @@ export function StatisticPage() {
   const [error, setError] = useState<unknown>(null);
 
   const canView = hasPermission("asset:view");
-  const atCurrent = isCurrentPeriod(anchor, period);
 
   const load = useCallback(
-    (
-      selectedPeriod: StatisticsPeriod,
-      selectedAnchor: string,
-      signal?: AbortSignal,
-    ) => {
+    (selectedStart: string, selectedEnd: string, signal?: AbortSignal) => {
       setLoading(true);
       setError(null);
       void api
-        .reservationsByAsset(selectedPeriod, selectedAnchor, signal)
+        .reservationsByAsset(selectedStart, selectedEnd, signal)
         .then((response) => setResult(response))
         .catch((caught) => {
           if (isAbortError(caught)) return;
@@ -89,9 +50,9 @@ export function StatisticPage() {
   useEffect(() => {
     if (!canView) return;
     const controller = new AbortController();
-    load(period, anchor, controller.signal);
+    load(start, end, controller.signal);
     return () => controller.abort();
-  }, [period, anchor, load, canView]);
+  }, [start, end, load, canView]);
 
   const summary = useMemo(() => {
     if (!result) return null;
@@ -103,20 +64,22 @@ export function StatisticPage() {
       (sum, a) => sum + a.rejectedCount,
       0,
     );
-    const decided = approvedTotal + rejectedTotal;
+    // The API already ranks by approved+rejected desc, so the leader is the
+    // head of the list -- but only once it actually has a decision.
+    const top = result.data[0];
+    const topTotal = top ? top.approvedCount + top.rejectedCount : 0;
     return {
       approvedTotal,
       rejectedTotal,
-      approvalRate:
-        decided > 0 ? Math.round((approvedTotal / decided) * 100) : null,
-      assets: result.data.length,
+      mostRequested: topTotal > 0 ? { asset: top!, total: topTotal } : null,
     };
   }, [result]);
 
   // Derived from the resolved window the server echoed back, not from the
-  // local anchor, so the heading can never disagree with the numbers under it.
+  // local start/end state, so the heading can never disagree with the
+  // numbers under it.
   const windowLabel = result
-    ? formatPeriodLabel(result.periodStart, result.period)
+    ? formatRangeLabel(result.periodStart, result.periodEnd)
     : null;
 
   if (!canView) {
@@ -130,75 +93,43 @@ export function StatisticPage() {
 
   return (
     <div className="page-stack">
-      {/* One filter row above everything it scopes, so the period is never
+      {/* One filter row above everything it scopes, so the range is never
           hidden behind a loading, empty, or error state. */}
       <section className="stat-toolbar" aria-label="Statistics filters">
-        <div
-          className="segmented"
-          role="tablist"
-          aria-label="Statistics period"
-        >
-          {PERIODS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="tab"
-              aria-selected={period === option.value}
-              className={cx(period === option.value && "segmented--active")}
-              onClick={() => setPeriod(option.value)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
         <div className="stat-anchor">
-          <button
-            type="button"
-            className="stat-anchor__step"
-            aria-label={`Previous ${STEP_LABEL[period]}`}
-            onClick={() =>
-              setAnchor((current) => shiftAnchor(current, period, -1))
-            }
-          >
-            <ChevronLeft size={15} aria-hidden />
-          </button>
           <label className="stat-anchor__field">
-            <span>{STEP_LABEL[period]}</span>
+            <span>Start</span>
             <input
-              type={INPUT_TYPE[period]}
-              value={toInputValue(anchor, period)}
-              min={period === "year" ? 2000 : undefined}
-              max={period === "year" ? 2100 : undefined}
-              aria-label={`Choose the ${STEP_LABEL[period]} to report on`}
+              type="date"
+              value={start}
+              max={end}
+              aria-label="Report start date"
               onChange={(event) => {
-                // A native picker emits "" and half-typed values while it is
-                // being edited; only a complete value moves the report.
-                const next = fromInputValue(event.target.value, period);
-                if (next) setAnchor(next);
+                const next = event.target.value;
+                if (!next) return;
+                setStart(next);
+                // Keep the range valid without rejecting the edit outright --
+                // a start dragged past the current end pulls the end along.
+                if (next > end) setEnd(next);
               }}
             />
           </label>
-          <button
-            type="button"
-            className="stat-anchor__step"
-            aria-label={`Next ${STEP_LABEL[period]}`}
-            onClick={() =>
-              setAnchor((current) => shiftAnchor(current, period, 1))
-            }
-          >
-            <ChevronRight size={15} aria-hidden />
-          </button>
+          <label className="stat-anchor__field">
+            <span>End</span>
+            <input
+              type="date"
+              value={end}
+              min={start}
+              aria-label="Report end date"
+              onChange={(event) => {
+                const next = event.target.value;
+                if (!next) return;
+                setEnd(next);
+                if (next < start) setStart(next);
+              }}
+            />
+          </label>
         </div>
-
-        {!atCurrent && (
-          <Button
-            variant="quiet"
-            size="sm"
-            onClick={() => setAnchor(todayAnchor())}
-          >
-            Back to {CURRENT_NOUN[period]}
-          </Button>
-        )}
 
         <Button
           className="stat-toolbar__view"
@@ -233,13 +164,20 @@ export function StatisticPage() {
             <span className="stat-kpi__hint">{windowLabel}</span>
           </article>
           <article className="stat-kpi">
-            <p className="stat-kpi__label">Approval rate</p>
-            <strong className="stat-kpi__value">
-              {summary.approvalRate === null ? "—" : `${summary.approvalRate}%`}
-            </strong>
-            <span className="stat-kpi__hint">
-              across {summary.assets} assets
-            </span>
+            <p className="stat-kpi__label">Most requested</p>
+            {summary.mostRequested ? (
+              <span className="stat-kpi__badge">
+                <b className="mono">
+                  {summary.mostRequested.asset.partNumber ||
+                    summary.mostRequested.asset.name}
+                </b>
+                <span>{summary.mostRequested.total} requests</span>
+              </span>
+            ) : (
+              <strong className="stat-kpi__value stat-kpi__value--muted">
+                —
+              </strong>
+            )}
           </article>
         </section>
       )}
@@ -248,21 +186,21 @@ export function StatisticPage() {
         <header>
           <div>
             <p className="eyebrow">Approved vs. rejected, by asset</p>
-            <h2>{windowLabel ? `Decided in ${windowLabel}` : "Decided"}</h2>
+            <h2>{windowLabel ? `Decided ${windowLabel}` : "Decided"}</h2>
           </div>
         </header>
 
         {loading && !result ? (
           <LoadingState label="Loading statistics" />
         ) : error ? (
-          <ErrorState error={error} onRetry={() => load(period, anchor)} />
+          <ErrorState error={error} onRetry={() => load(start, end)} />
         ) : !result || result.data.length === 0 ? (
           <EmptyState
             title="No assets yet"
             description="No assets are visible to your account, so there is nothing to measure."
           />
         ) : (
-          // Hold the previous render at reduced opacity while a new period
+          // Hold the previous render at reduced opacity while a new range
           // loads, rather than flashing a skeleton and jumping the layout.
           <div className={cx("stat-chart-body", loading && "is-refetching")}>
             <AssetReservationChart data={result.data} showTable={showTable} />

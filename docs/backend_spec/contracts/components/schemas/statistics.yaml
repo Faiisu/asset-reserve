@@ -1,11 +1,3 @@
-StatisticsPeriod:
-  type: string
-  description: The aggregation window for statistics endpoints, anchored to the current UTC calendar boundary (see each endpoint's description for the exact start).
-  enum:
-    - day
-    - week
-    - month
-    - year
 AssetReservationCount:
   type: object
   required:
@@ -34,7 +26,7 @@ AssetReservationCount:
       minimum: 0
       description: >-
         Count of this asset's reservation items whose ReservationItemApproval.status is APPROVED,
-        where the reservation's booked window overlaps the period. Counted on the reservation's
+        where the reservation's booked window overlaps [start, end]. Counted on the reservation's
         startAt/endAt rather than a decision timestamp, so the number reflects when the equipment
         is actually booked rather than when the approval happened to be processed.
     rejectedCount:
@@ -47,21 +39,18 @@ AssetReservationCount:
 ReservationsByAssetResponse:
   type: object
   required:
-    - period
     - periodStart
     - periodEnd
     - data
   properties:
-    period:
-      $ref: "#/components/schemas/StatisticsPeriod"
     periodStart:
       type: string
       format: date-time
-      description: Inclusive start of the resolved period window, in UTC.
+      description: Inclusive start of the resolved date range, in UTC (midnight of the requested `start`).
     periodEnd:
       type: string
       format: date-time
-      description: Exclusive end of the resolved period window, in UTC.
+      description: Exclusive end of the resolved date range, in UTC (midnight of the day after the requested `end`).
     data:
       type: array
       maxItems: 200
