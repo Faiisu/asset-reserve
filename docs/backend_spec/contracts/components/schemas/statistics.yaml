@@ -31,12 +31,17 @@ AssetReservationCount:
     reservedCount:
       type: integer
       minimum: 0
-      description: Count of ReservationItem rows created for this asset since the period start, regardless of reservation/item status.
+      description: >-
+        Count of this asset's reservation items whose reservation's booked window overlaps the
+        period, regardless of reservation/item status. Counted on the reservation's startAt/endAt
+        rather than the item row's createdAt, so the number reflects when the equipment is
+        actually booked rather than when the request happened to be entered.
 ReservationsByAssetResponse:
   type: object
   required:
     - period
     - periodStart
+    - periodEnd
     - data
   properties:
     period:
@@ -44,7 +49,11 @@ ReservationsByAssetResponse:
     periodStart:
       type: string
       format: date-time
-      description: The resolved start-of-period boundary used for the count, in UTC.
+      description: Inclusive start of the resolved period window, in UTC.
+    periodEnd:
+      type: string
+      format: date-time
+      description: Exclusive end of the resolved period window, in UTC.
     data:
       type: array
       maxItems: 200

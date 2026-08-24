@@ -84,7 +84,7 @@ export function AppShell() {
       to: "/statistic",
       label: "Statistic",
       icon: BarChart3,
-      show: true,
+      show: hasPermission("asset:view"),
     },
     {
       to: "/reservations",

@@ -293,6 +293,7 @@ export type AssetReservationCount = {
 export type ReservationsByAssetResponse = {
   period: StatisticsPeriod;
   periodStart: string;
+  periodEnd: string;
   data: AssetReservationCount[];
 };
 

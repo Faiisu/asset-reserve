@@ -6,11 +6,13 @@
     description: >-
       Requires asset:view; results are scoped to the caller's permitted management areas the same
       way GET /assets is. Returns every permitted asset (even with zero reservations), each with
-      the count of ReservationItem rows created since the start of the current period --
+      the count of its reservation items whose reservation's booked window overlaps the period --
       regardless of reservation/item status (draft, pending, approved, rejected all count).
-      `period` selects the window: day = since today 00:00 UTC, week = since this ISO week's
-      Monday 00:00 UTC, month = since the 1st of this month 00:00 UTC, year = since Jan 1 this
-      year 00:00 UTC. Capped at the 200 assets with the highest reservedCount.
+      `period` selects a half-open [periodStart, periodEnd) window on the current UTC calendar:
+      day = today, week = this ISO week (Monday start), month = this calendar month, year = this
+      calendar year. A reservation counts when it starts before the window ends and ends after
+      the window begins -- the same overlap convention used for unit availability elsewhere in
+      this API. Capped at the 200 assets with the highest reservedCount.
     operationId: getReservationsByAsset
     parameters:
       - name: period

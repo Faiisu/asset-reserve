@@ -31,7 +31,7 @@ export class StatisticsService {
       );
     }
 
-    const periodStart = this.periodStart(query.period);
+    const { start, end } = this.periodRange(query.period);
     const assetWhere: Prisma.AssetWhereInput =
       allowedAreaIds !== null
         ? { managementAreaId: { in: allowedAreaIds } }
@@ -51,7 +51,8 @@ export class StatisticsService {
     if (assets.length === 0) {
       return {
         period: query.period,
-        periodStart: periodStart.toISOString(),
+        periodStart: start.toISOString(),
+        periodEnd: end.toISOString(),
         data: [],
       };
     }
@@ -60,7 +61,14 @@ export class StatisticsService {
       by: ["assetId"],
       where: {
         assetId: { in: assets.map((asset) => asset.id) },
-        createdAt: { gte: periodStart },
+        // Counted by the reservation's *booked window*, not the item row's
+        // createdAt: createdAt is when the request was typed in, so a
+        // freshly-imported or freshly-seeded database puts every row in
+        // "today" and every period returns an identical number. Overlap
+        // (starts before the period ends AND ends after it begins) is the
+        // same half-open convention used for unit availability in
+        // AssetUnitsService.list().
+        reservation: { startAt: { lt: end }, endAt: { gt: start } },
       },
       _count: { _all: true },
     });
@@ -83,29 +91,44 @@ export class StatisticsService {
 
     return {
       period: query.period,
-      periodStart: periodStart.toISOString(),
+      periodStart: start.toISOString(),
+      periodEnd: end.toISOString(),
       data,
     };
   }
 
-  /** Start of the current UTC day/ISO-week(Monday)/month/year -- same
-   * calendar-boundary convention the frontend's activityBuckets.ts uses for
-   * the per-unit history chart, kept consistent across both statistics. */
-  private periodStart(period: StatisticsPeriod): Date {
+  /** The current UTC day / ISO-week (Monday) / month / year as a half-open
+   * [start, end) range -- same calendar-boundary convention the frontend's
+   * activityBuckets.ts uses for the per-unit history chart, kept consistent
+   * across both statistics. The range is bounded on both ends so "this month"
+   * excludes reservations booked for later periods. */
+  private periodRange(period: StatisticsPeriod): { start: Date; end: Date } {
     const now = new Date();
-    const day = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-    );
-    if (period === "day") return day;
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth();
+    const date = now.getUTCDate();
+
+    if (period === "day") {
+      const start = new Date(Date.UTC(year, month, date));
+      return { start, end: new Date(Date.UTC(year, month, date + 1)) };
+    }
     if (period === "week") {
-      const weekday = day.getUTCDay();
-      const diffToMonday = (weekday + 6) % 7;
-      day.setUTCDate(day.getUTCDate() - diffToMonday);
-      return day;
+      const diffToMonday = (new Date(Date.UTC(year, month, date)).getUTCDay() + 6) % 7;
+      const start = new Date(Date.UTC(year, month, date - diffToMonday));
+      return {
+        start,
+        end: new Date(Date.UTC(year, month, date - diffToMonday + 7)),
+      };
     }
     if (period === "month") {
-      return new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), 1));
+      return {
+        start: new Date(Date.UTC(year, month, 1)),
+        end: new Date(Date.UTC(year, month + 1, 1)),
+      };
     }
-    return new Date(Date.UTC(day.getUTCFullYear(), 0, 1));
+    return {
+      start: new Date(Date.UTC(year, 0, 1)),
+      end: new Date(Date.UTC(year + 1, 0, 1)),
+    };
   }
 }

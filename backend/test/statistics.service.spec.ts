@@ -68,6 +68,15 @@ describe("StatisticsService.reservationsByAsset", () => {
         }),
       }),
     );
+    // Counted by the reservation's booked window, never the item row's
+    // createdAt -- createdAt puts every freshly-seeded row in "today", which
+    // made every period return the same number.
+    const where = groupBy.mock.calls[0]![0].where;
+    expect(where.createdAt).toBeUndefined();
+    expect(where.reservation).toEqual({
+      startAt: { lt: expect.any(Date) },
+      endAt: { gt: expect.any(Date) },
+    });
     // Sorted by reservedCount desc, so Camera (3) comes before Tripod (0).
     expect(result.data).toEqual([
       expect.objectContaining({ assetId: assetA, reservedCount: 3 }),
@@ -75,19 +84,50 @@ describe("StatisticsService.reservationsByAsset", () => {
     ]);
   });
 
-  it("computes the current-week start as the preceding Monday (UTC)", async () => {
+  it.each([
+    ["day", "2026-08-19T00:00:00.000Z", "2026-08-20T00:00:00.000Z"],
+    // Wednesday the 19th sits in the week starting Monday the 17th.
+    ["week", "2026-08-17T00:00:00.000Z", "2026-08-24T00:00:00.000Z"],
+    ["month", "2026-08-01T00:00:00.000Z", "2026-09-01T00:00:00.000Z"],
+    ["year", "2026-01-01T00:00:00.000Z", "2027-01-01T00:00:00.000Z"],
+  ] as const)(
+    "resolves %s to a bounded [start, end) UTC window",
+    async (period, expectedStart, expectedEnd) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-19T15:00:00.000Z")); // a Wednesday
+      const prisma = {
+        asset: { findMany: vi.fn().mockResolvedValue([]) },
+        reservationItem: { groupBy: vi.fn() },
+      } as unknown as PrismaService;
+      const service = new StatisticsService(prisma);
+
+      const result = await service.reservationsByAsset(actor, { period });
+
+      expect(result.periodStart).toBe(expectedStart);
+      expect(result.periodEnd).toBe(expectedEnd);
+      vi.useRealTimers();
+    },
+  );
+
+  it("bounds the window on both ends so later bookings are excluded", async () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-19T15:00:00.000Z")); // a Wednesday
-    const findMany = vi.fn().mockResolvedValue([]);
+    vi.setSystemTime(new Date("2026-08-19T15:00:00.000Z"));
+    const groupBy = vi.fn().mockResolvedValue([]);
     const prisma = {
-      asset: { findMany },
-      reservationItem: { groupBy: vi.fn() },
+      asset: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: assetA, name: "Camera", partNumber: "CAM-1", managementArea: { id: areaId, name: "Studio A" } },
+        ]),
+      },
+      reservationItem: { groupBy },
     } as unknown as PrismaService;
     const service = new StatisticsService(prisma);
 
-    const result = await service.reservationsByAsset(actor, { period: "week" });
+    await service.reservationsByAsset(actor, { period: "month" });
 
-    expect(result.periodStart).toBe("2026-08-17T00:00:00.000Z");
+    const { reservation } = groupBy.mock.calls[0]![0].where;
+    expect(reservation.startAt.lt.toISOString()).toBe("2026-09-01T00:00:00.000Z");
+    expect(reservation.endAt.gt.toISOString()).toBe("2026-08-01T00:00:00.000Z");
     vi.useRealTimers();
   });
 });
