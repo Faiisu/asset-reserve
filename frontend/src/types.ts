@@ -103,6 +103,32 @@ export type UserListItem = {
   updatedAt: string;
 };
 
+/// Supported values: RETURN_ON_TIME, RETURN_LATE, ASSET_BROKEN, ASSET_LOST.
+export type ReputationEventType =
+  | "RETURN_ON_TIME"
+  | "RETURN_LATE"
+  | "ASSET_BROKEN"
+  | "ASSET_LOST";
+
+export type ReputationSummary = {
+  userId: string;
+  name: string | null;
+  email: string | null;
+  score: number;
+  updatedAt: string;
+};
+
+export type ReputationEvent = {
+  id: string;
+  userId: string;
+  type: ReputationEventType;
+  delta: number;
+  note: string | null;
+  reservationId: string | null;
+  returnId: string | null;
+  createdAt: string;
+};
+
 /** Minimal identity for picking reservation participants (GET /users/directory). */
 export type UserDirectoryEntry = {
   id: string;

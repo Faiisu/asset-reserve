@@ -10,6 +10,7 @@ import { ApiException } from "../common/api-exception.js";
 import { decodeCursor, pageInfo } from "../common/pagination.js";
 import { ReservationLifecycleEvents } from "../common/reservation-lifecycle.events.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { ReputationService } from "../reputation/reputation.service.js";
 import type { AuthenticatedActor } from "../auth/auth.types.js";
 import {
   CreateReturnDto,
@@ -65,6 +66,7 @@ export class ReturnsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reservationEvents: ReservationLifecycleEvents,
+    private readonly reputation: ReputationService,
   ) {}
 
   async list(actor: AuthenticatedActor, query: ReturnListQueryDto) {
@@ -446,6 +448,10 @@ export class ReturnsService {
         reservation: {
           include: {
             items: { include: { asset: true } },
+            // Needed for ReputationService.recordReturnOutcome below --
+            // reputation deltas apply to the requester AND every
+            // participant, not just whoever physically dropped the return off.
+            participants: true,
           },
         },
         items: {
@@ -611,6 +617,24 @@ export class ReturnsService {
             });
           }
         }
+
+        await this.reputation.recordReturnOutcome(tx, {
+          reservationId,
+          returnId,
+          decidedAt,
+          reservationEndAt: returnRecord.reservation.endAt,
+          affectedUserIds: [
+            returnRecord.reservation.requesterId,
+            ...returnRecord.reservation.participants.map((p) => p.userId),
+          ],
+          unitConditions: returnRecord.items.flatMap((item) =>
+            item.units.map(
+              (unit) =>
+                conditionByUnitId.get(unit.reservationItemUnitId)?.condition ??
+                "GOOD",
+            ),
+          ),
+        });
 
         for (const item of returnRecord.reservation.items) {
           const allUnits = await tx.reservationItemUnit.findMany({

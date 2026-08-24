@@ -10,10 +10,11 @@ model Return {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  reservation Reservation     @relation(fields: [reservationId], references: [id])
-  returner    User            @relation("ReturnReturnedBy", fields: [returnedBy], references: [id])
-  items       ReturnItem[]
-  approval    ReturnApproval?
+  reservation      Reservation       @relation(fields: [reservationId], references: [id])
+  returner         User              @relation("ReturnReturnedBy", fields: [returnedBy], references: [id])
+  items            ReturnItem[]
+  approval         ReturnApproval?
+  reputationEvents ReputationEvent[]
 
   @@index([reservationId])
   @@index([status])

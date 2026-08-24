@@ -2,7 +2,20 @@ import { describe, expect, it, vi } from "vitest";
 import type { AuthenticatedActor } from "../src/auth/auth.types.js";
 import { ReservationLifecycleEvents } from "../src/common/reservation-lifecycle.events.js";
 import type { PrismaService } from "../src/database/prisma.service.js";
+import type { ReputationService } from "../src/reputation/reputation.service.js";
 import { ReturnsService } from "../src/returns/returns.service.js";
+
+// decide()'s APPROVE path calls ReputationService.recordReturnOutcome --
+// ReputationService's own logic is covered by reputation.service.spec.ts,
+// so every test here just needs a stub that resolves. Fresh per test
+// (matching this file's existing "mock everything locally" pattern) unless
+// a test wants to assert on the call itself.
+function makeReputationServiceMock(): ReputationService {
+  return {
+    recordReturnOutcome: vi.fn().mockResolvedValue(undefined),
+  } as unknown as ReputationService;
+}
+const reputationServiceMock = makeReputationServiceMock();
 
 const reservationEvents = new ReservationLifecycleEvents();
 
@@ -221,6 +234,9 @@ function sampleReturnRecordForDecide(
     status,
     reservation: {
       status: reservationStatus,
+      requesterId,
+      endAt: new Date("2026-08-01T11:00:00.000Z"),
+      participants: [],
       items: [
         {
           id: itemId,
@@ -259,7 +275,7 @@ describe("ReturnsService", () => {
     const prismaMock = {
       return: { findMany },
     } as unknown as PrismaService;
-    const service = new ReturnsService(prismaMock, reservationEvents);
+    const service = new ReturnsService(prismaMock, reservationEvents, makeReputationServiceMock());
 
     const result = await service.list(requesterActor, {
       view: "MINE",
@@ -281,7 +297,7 @@ describe("ReturnsService", () => {
     const prismaMock = {
       return: { findMany },
     } as unknown as PrismaService;
-    const service = new ReturnsService(prismaMock, reservationEvents);
+    const service = new ReturnsService(prismaMock, reservationEvents, makeReputationServiceMock());
     const cursor = Buffer.from(
       JSON.stringify({
         createdAt: "2026-09-01T12:00:00.000Z",
@@ -335,7 +351,7 @@ describe("ReturnsService", () => {
       }),
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock, reservationEvents);
+    const service = new ReturnsService(prismaMock, reservationEvents, makeReputationServiceMock());
     const result = await service.create(requesterActor, reservationId, {
       items: [
         {
@@ -376,7 +392,7 @@ describe("ReturnsService", () => {
       },
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock, reservationEvents);
+    const service = new ReturnsService(prismaMock, reservationEvents, makeReputationServiceMock());
     await expect(
       service.create(requesterActor, reservationId, {
         items: [
@@ -418,7 +434,7 @@ describe("ReturnsService", () => {
       ),
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock, reservationEvents);
+    const service = new ReturnsService(prismaMock, reservationEvents, makeReputationServiceMock());
     const result = await service.create(requesterActor, reservationId, {
       items: [
         {
@@ -451,7 +467,7 @@ describe("ReturnsService", () => {
       },
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock, reservationEvents);
+    const service = new ReturnsService(prismaMock, reservationEvents, makeReputationServiceMock());
     await expect(
       service.create(requesterActor, reservationId, {
         items: [
@@ -479,7 +495,7 @@ describe("ReturnsService", () => {
       },
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock, reservationEvents);
+    const service = new ReturnsService(prismaMock, reservationEvents, makeReputationServiceMock());
     await expect(
       service.create(requesterActor, reservationId, {
         items: [
@@ -544,7 +560,10 @@ describe("ReturnsService", () => {
     const events = new ReservationLifecycleEvents();
     const returnDecidedSpy = vi.fn();
     events.onReturnDecided(returnDecidedSpy);
-    const service = new ReturnsService(prismaMock, events);
+    const recordReturnOutcome = vi.fn().mockResolvedValue(undefined);
+    const service = new ReturnsService(prismaMock, events, {
+      recordReturnOutcome,
+    } as unknown as ReputationService);
     const result = await service.decide(
       areaManagerActor,
       reservationId,
@@ -562,6 +581,19 @@ describe("ReturnsService", () => {
     );
 
     expect(result.status).toBe("COMPLETED");
+    // Reputation deltas apply to the requester (no participants in this
+    // fixture) inside the same transaction, keyed off the decided unit
+    // conditions -- see reputation.service.spec.ts for the actual math.
+    expect(recordReturnOutcome).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        reservationId,
+        returnId,
+        reservationEndAt: returnRecord.reservation.endAt,
+        affectedUserIds: [requesterId],
+        unitConditions: ["GOOD"],
+      }),
+    );
     expect(updateAssetUnit).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: assetUnitId },
@@ -598,7 +630,7 @@ describe("ReturnsService", () => {
       },
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock, reservationEvents);
+    const service = new ReturnsService(prismaMock, reservationEvents, makeReputationServiceMock());
     await expect(
       service.decide(otherAreaManagerActor, reservationId, returnId, {
         decision: "APPROVE",
@@ -648,7 +680,7 @@ describe("ReturnsService", () => {
       }),
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock, reservationEvents);
+    const service = new ReturnsService(prismaMock, reservationEvents, makeReputationServiceMock());
     await service.decide(areaManagerActor, reservationId, returnId, {
       decision: "APPROVE",
       items: [
@@ -703,7 +735,7 @@ describe("ReturnsService", () => {
       }),
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock, reservationEvents);
+    const service = new ReturnsService(prismaMock, reservationEvents, makeReputationServiceMock());
     const result = await service.decide(
       areaManagerActor,
       reservationId,
@@ -765,7 +797,7 @@ describe("ReturnsService", () => {
       }),
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock, reservationEvents);
+    const service = new ReturnsService(prismaMock, reservationEvents, makeReputationServiceMock());
     await service.decide(areaManagerActor, reservationId, returnId, {
       decision: "REJECT",
     });
@@ -815,7 +847,7 @@ describe("ReturnsService", () => {
       }),
     } as unknown as PrismaService;
 
-    const service = new ReturnsService(prismaMock, reservationEvents);
+    const service = new ReturnsService(prismaMock, reservationEvents, makeReputationServiceMock());
     await service.decide(areaManagerActor, reservationId, returnId, {
       decision: "APPROVE",
       items: [
