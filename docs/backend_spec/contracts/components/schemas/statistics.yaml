@@ -13,7 +13,8 @@ AssetReservationCount:
     - name
     - partNumber
     - managementArea
-    - reservedCount
+    - approvedCount
+    - rejectedCount
   properties:
     assetId:
       type: string
@@ -28,14 +29,21 @@ AssetReservationCount:
       maxLength: 100
     managementArea:
       $ref: "#/components/schemas/ManagementAreaRef"
-    reservedCount:
+    approvedCount:
       type: integer
       minimum: 0
       description: >-
-        Count of this asset's reservation items whose reservation's booked window overlaps the
-        period, regardless of reservation/item status. Counted on the reservation's startAt/endAt
-        rather than the item row's createdAt, so the number reflects when the equipment is
-        actually booked rather than when the request happened to be entered.
+        Count of this asset's reservation items whose ReservationItemApproval.status is APPROVED,
+        where the reservation's booked window overlaps the period. Counted on the reservation's
+        startAt/endAt rather than a decision timestamp, so the number reflects when the equipment
+        is actually booked rather than when the approval happened to be processed.
+    rejectedCount:
+      type: integer
+      minimum: 0
+      description: >-
+        Count of this asset's reservation items whose ReservationItemApproval.status is REJECTED,
+        under the same booked-window rule as approvedCount. A PENDING approval counts toward
+        neither field.
 ReservationsByAssetResponse:
   type: object
   required:

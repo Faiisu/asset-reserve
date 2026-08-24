@@ -21,18 +21,19 @@ vi.mock("../auth", () => ({
 
 function response(
   period: ReservationsByAssetResponse["period"],
-  counts: number[],
+  counts: Array<[approved: number, rejected: number]>,
 ): ReservationsByAssetResponse {
   return {
     period,
     periodStart: "2026-08-01T00:00:00.000Z",
     periodEnd: "2026-09-01T00:00:00.000Z",
-    data: counts.map((reservedCount, index) => ({
+    data: counts.map(([approvedCount, rejectedCount], index) => ({
       assetId: `asset-${index}`,
       name: `Asset ${index}`,
       partNumber: `PN-${index}`,
       managementArea: { id: "area-1", name: "Studio A" },
-      reservedCount,
+      approvedCount,
+      rejectedCount,
     })),
   };
 }
@@ -63,22 +64,36 @@ describe("StatisticPage", () => {
     expect(reservationsByAsset).not.toHaveBeenCalled();
   });
 
-  it("requests the month period by default and renders the resolved window", async () => {
-    reservationsByAsset.mockResolvedValue(response("month", [3, 1]));
+  it("requests the month period by default and totals approved/rejected separately", async () => {
+    reservationsByAsset.mockResolvedValue(
+      response("month", [
+        [3, 1],
+        [1, 0],
+      ]),
+    );
     render(<StatisticPage />);
 
     await waitFor(() => expect(reservationsByAsset).toHaveBeenCalled());
     expect(reservationsByAsset.mock.calls[0]![0]).toBe("month");
-    // 3 + 1 booked in the window.
-    expect(await screen.findByText("4")).toBeTruthy();
+    // Approved: 3 + 1 = 4. Rejected: 1 + 0 = 1. Kept in separate KPI tiles,
+    // never summed into one "reservations" figure -- scoped to the KPI
+    // value element since a bar can carry the same digit as a row count.
+    expect(
+      await screen.findByText("4", { selector: ".stat-kpi__value" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("1", { selector: ".stat-kpi__value" }),
+    ).toBeTruthy();
+    // 4 approved of 5 decisions = 80%.
+    expect(screen.getByText("80%")).toBeTruthy();
   });
 
   it("refetches from the server when the period changes", async () => {
-    reservationsByAsset.mockResolvedValue(response("month", [2]));
+    reservationsByAsset.mockResolvedValue(response("month", [[2, 0]]));
     render(<StatisticPage />);
     await waitFor(() => expect(reservationsByAsset).toHaveBeenCalledTimes(1));
 
-    reservationsByAsset.mockResolvedValue(response("year", [9]));
+    reservationsByAsset.mockResolvedValue(response("year", [[9, 0]]));
     fireEvent.click(screen.getByRole("tab", { name: "Year" }));
 
     await waitFor(() => expect(reservationsByAsset).toHaveBeenCalledTimes(2));
@@ -96,14 +111,20 @@ describe("StatisticPage", () => {
     expect(screen.getByRole("tab", { name: "Day" })).toBeTruthy();
   });
 
-  it("separates 'no assets at all' from 'assets exist but none booked'", async () => {
+  it("separates 'no assets at all' from 'assets exist but nothing decided'", async () => {
     // Every asset at zero is the normal shape of a quiet day, and must not
     // read as "there is no data here" -- it should point at a wider period.
-    reservationsByAsset.mockResolvedValue(response("day", [0, 0, 0]));
+    reservationsByAsset.mockResolvedValue(
+      response("day", [
+        [0, 0],
+        [0, 0],
+        [0, 0],
+      ]),
+    );
     render(<StatisticPage />);
 
     expect(
-      await screen.findByText("No reservations in this period"),
+      await screen.findByText("No approvals or rejections in this period"),
     ).toBeTruthy();
     // The idle assets stay reachable rather than being silently dropped.
     expect(
@@ -112,24 +133,30 @@ describe("StatisticPage", () => {
   });
 
   it("hides zero-count assets from the ranking but keeps them one click away", async () => {
-    reservationsByAsset.mockResolvedValue(response("month", [4, 0, 0]));
+    reservationsByAsset.mockResolvedValue(
+      response("month", [
+        [4, 0],
+        [0, 0],
+        [0, 0],
+      ]),
+    );
     render(<StatisticPage />);
 
-    // Only the booked asset is ranked; the two idle ones are folded away.
+    // Only the decided asset is ranked; the two idle ones are folded away.
     await waitFor(() =>
       expect(screen.getAllByRole("listitem")).toHaveLength(1),
     );
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: /Show 2 assets with no reservations/,
+        name: /Show 2 assets with no decisions/,
       }),
     );
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
   });
 
   it("anchors the first request to today", async () => {
-    reservationsByAsset.mockResolvedValue(response("month", [1]));
+    reservationsByAsset.mockResolvedValue(response("month", [[1, 0]]));
     render(<StatisticPage />);
 
     await waitFor(() => expect(reservationsByAsset).toHaveBeenCalled());
@@ -137,7 +164,7 @@ describe("StatisticPage", () => {
   });
 
   it("steps the anchor back a whole period and refetches", async () => {
-    reservationsByAsset.mockResolvedValue(response("month", [1]));
+    reservationsByAsset.mockResolvedValue(response("month", [[1, 0]]));
     render(<StatisticPage />);
     await waitFor(() => expect(reservationsByAsset).toHaveBeenCalledTimes(1));
 
@@ -148,7 +175,7 @@ describe("StatisticPage", () => {
   });
 
   it("offers a way back only once the reader has navigated away", async () => {
-    reservationsByAsset.mockResolvedValue(response("month", [1]));
+    reservationsByAsset.mockResolvedValue(response("month", [[1, 0]]));
     render(<StatisticPage />);
     await waitFor(() => expect(reservationsByAsset).toHaveBeenCalled());
 
@@ -166,7 +193,7 @@ describe("StatisticPage", () => {
   });
 
   it("sends a whole anchor date when a month is picked from the calendar", async () => {
-    reservationsByAsset.mockResolvedValue(response("month", [1]));
+    reservationsByAsset.mockResolvedValue(response("month", [[1, 0]]));
     render(<StatisticPage />);
     await waitFor(() => expect(reservationsByAsset).toHaveBeenCalled());
 
@@ -184,7 +211,7 @@ describe("StatisticPage", () => {
   });
 
   it("ignores the half-typed values a native picker emits mid-edit", async () => {
-    reservationsByAsset.mockResolvedValue(response("month", [1]));
+    reservationsByAsset.mockResolvedValue(response("month", [[1, 0]]));
     render(<StatisticPage />);
     await waitFor(() => expect(reservationsByAsset).toHaveBeenCalledTimes(1));
 
@@ -205,7 +232,7 @@ describe("StatisticPage", () => {
   });
 
   it("exposes every value in a table view, including long part numbers", async () => {
-    const data = response("month", [5]);
+    const data = response("month", [[5, 2]]);
     data.data[0]!.partNumber = "VERY-LONG-PART-NUMBER-THAT-WOULD-CLIP-ON-AXIS";
     reservationsByAsset.mockResolvedValue(data);
     render(<StatisticPage />);

@@ -95,9 +95,21 @@
   border-radius: var(--card-radius-lg);
   background: var(--surface);
 }
-.stat-kpi--lead {
-  background: var(--blue-soft);
-  border-color: color-mix(in srgb, var(--blue) 22%, transparent);
+/* Approved/rejected KPIs pick up the same green/red the bars use, so the
+   headline numbers and the chart underneath them read as one system. */
+.stat-kpi--approved {
+  background: var(--green-soft);
+  border-color: color-mix(in srgb, var(--green) 22%, transparent);
+}
+.stat-kpi--approved .stat-kpi__value {
+  color: var(--green);
+}
+.stat-kpi--rejected {
+  background: var(--red-soft);
+  border-color: color-mix(in srgb, var(--red) 22%, transparent);
+}
+.stat-kpi--rejected .stat-kpi__value {
+  color: var(--red);
 }
 .stat-kpi__label {
   margin: 0;
@@ -118,23 +130,6 @@
   font-weight: 650;
   line-height: 1.05;
 }
-.stat-kpi--lead .stat-kpi__value {
-  color: var(--blue);
-}
-.stat-kpi__value--text {
-  font-family: var(--mono);
-  font-size: 16px;
-  font-weight: 600;
-  word-break: break-word;
-}
-.stat-kpi__value--muted {
-  color: var(--ink-faint);
-}
-.stat-kpi__of {
-  color: var(--ink-faint);
-  font-size: 13px;
-  font-weight: 500;
-}
 .stat-kpi__hint {
   color: var(--ink-faint);
   font-size: 11px;
@@ -145,6 +140,28 @@
 .stat-chart-body {
   margin-top: 16px;
 }
+/* A legend is mandatory once a chart has two or more series -- color alone
+   is never the only way to tell Approved from Rejected apart. */
+.stat-bars__legend {
+  margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.stat-bars__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+.stat-bars__legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
 .stat-bars {
   margin: 0;
   padding: 0;
@@ -155,7 +172,7 @@
 .stat-bars__row {
   padding: 9px 0;
   display: grid;
-  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) 3rem;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
   align-items: center;
   gap: 16px;
   border-top: 1px solid var(--line);
@@ -184,8 +201,24 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Approved and rejected as two grouped (side-by-side) tracks per asset,
+   stacked vertically within the row -- the row itself already reads
+   top-to-bottom as a ranking, so a second dimension has to nest inside it
+   rather than compete with it for space. */
+.stat-bars__group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.stat-bars__series {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .stat-bars__track {
-  height: 10px;
+  flex: 1;
+  height: 8px;
   border-radius: 3px;
   /* A track one step off the surface, so a zero-count row still reads as a
      row rather than as missing content. */
@@ -197,12 +230,23 @@
   height: 100%;
   /* Square at the baseline, rounded at the data end. */
   border-radius: 0 3px 3px 0;
-  background: var(--chart-checked-out);
   transition: width 0.25s ease;
 }
+/* This genuinely is a good/bad outcome, not an arbitrary series 1 vs 2 --
+   status color is the correct channel here, not a categorical hue pair. */
+.stat-bars__fill--approved,
+.stat-bars__legend i.stat-bars__fill--approved {
+  background: var(--green);
+}
+.stat-bars__fill--rejected,
+.stat-bars__legend i.stat-bars__fill--rejected {
+  background: var(--red);
+}
 .stat-bars__value {
+  width: 1.6rem;
+  flex: none;
   color: var(--ink);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 650;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -240,20 +284,14 @@
   .stat-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .stat-kpi--lead {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 620px) {
-  /* Stack the label above its bar rather than squeezing three columns into
+  /* Stack the label above its bars rather than squeezing both columns into
      a phone width. */
   .stat-bars__row {
-    grid-template-columns: minmax(0, 1fr) 3rem;
-    gap: 6px 12px;
-  }
-  .stat-bars__label {
-    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
   }
   .stat-toolbar__view {
     margin-left: 0;

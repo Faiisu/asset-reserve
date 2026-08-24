@@ -95,15 +95,21 @@ export function StatisticPage() {
 
   const summary = useMemo(() => {
     if (!result) return null;
-    const total = result.data.reduce((sum, a) => sum + a.reservedCount, 0);
-    const reserved = result.data.filter((a) => a.reservedCount > 0);
-    // The API already returns the list ranked, so the leader is the head.
-    const top = reserved[0] ?? null;
+    const approvedTotal = result.data.reduce(
+      (sum, a) => sum + a.approvedCount,
+      0,
+    );
+    const rejectedTotal = result.data.reduce(
+      (sum, a) => sum + a.rejectedCount,
+      0,
+    );
+    const decided = approvedTotal + rejectedTotal;
     return {
-      total,
-      reservedCount: reserved.length,
+      approvedTotal,
+      rejectedTotal,
+      approvalRate:
+        decided > 0 ? Math.round((approvedTotal / decided) * 100) : null,
       assets: result.data.length,
-      top,
     };
   }, [result]);
 
@@ -212,39 +218,28 @@ export function StatisticPage() {
           className={cx("stat-kpis", loading && "is-refetching")}
           aria-label="Summary"
         >
-          <article className="stat-kpi stat-kpi--lead">
-            <p className="stat-kpi__label">Reservations</p>
+          <article className="stat-kpi stat-kpi--approved">
+            <p className="stat-kpi__label">Approved</p>
             <strong className="stat-kpi__value">
-              {summary.total.toLocaleString()}
+              {summary.approvedTotal.toLocaleString()}
+            </strong>
+            <span className="stat-kpi__hint">{windowLabel}</span>
+          </article>
+          <article className="stat-kpi stat-kpi--rejected">
+            <p className="stat-kpi__label">Rejected</p>
+            <strong className="stat-kpi__value">
+              {summary.rejectedTotal.toLocaleString()}
             </strong>
             <span className="stat-kpi__hint">{windowLabel}</span>
           </article>
           <article className="stat-kpi">
-            <p className="stat-kpi__label">Assets reserved</p>
+            <p className="stat-kpi__label">Approval rate</p>
             <strong className="stat-kpi__value">
-              {summary.reservedCount}
-              <span className="stat-kpi__of">/ {summary.assets}</span>
+              {summary.approvalRate === null ? "—" : `${summary.approvalRate}%`}
             </strong>
-          </article>
-          <article className="stat-kpi">
-            <p className="stat-kpi__label">Most reserved</p>
-            {summary.top ? (
-              <>
-                <strong className="stat-kpi__value stat-kpi__value--text">
-                  {summary.top.partNumber || summary.top.name}
-                </strong>
-                <span className="stat-kpi__hint">
-                  {summary.top.reservedCount}{" "}
-                  {summary.top.reservedCount === 1
-                    ? "reservation"
-                    : "reservations"}
-                </span>
-              </>
-            ) : (
-              <strong className="stat-kpi__value stat-kpi__value--muted">
-                —
-              </strong>
-            )}
+            <span className="stat-kpi__hint">
+              across {summary.assets} assets
+            </span>
           </article>
         </section>
       )}
@@ -252,8 +247,8 @@ export function StatisticPage() {
       <section className="detail-card">
         <header>
           <div>
-            <p className="eyebrow">Ranked by reservations</p>
-            <h2>{windowLabel ? `Booked in ${windowLabel}` : "Booked"}</h2>
+            <p className="eyebrow">Approved vs. rejected, by asset</p>
+            <h2>{windowLabel ? `Decided in ${windowLabel}` : "Decided"}</h2>
           </div>
         </header>
 

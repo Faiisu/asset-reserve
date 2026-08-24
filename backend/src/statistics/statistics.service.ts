@@ -9,9 +9,9 @@ import type {
   StatisticsPeriod,
 } from "./statistics.dto.js";
 
-/** Response caps at this many assets (highest reservedCount first) so a very
- * large catalog can't blow up the chart payload -- mirrors the array caps
- * used elsewhere in this API (e.g. RegisterAssetUnitsDto.serialNumbers). */
+/** Response caps at this many assets (highest approved+rejected first) so a
+ * very large catalog can't blow up the chart payload -- mirrors the array
+ * caps used elsewhere in this API (e.g. RegisterAssetUnitsDto.serialNumbers). */
 const MAX_ASSETS = 200;
 
 @Injectable()
@@ -57,24 +57,38 @@ export class StatisticsService {
       };
     }
 
-    const counts = await this.prisma.reservationItem.groupBy({
-      by: ["assetId"],
+    // ReservationItemApproval has no assetId of its own -- it hangs off
+    // ReservationItem, which does -- so this can't be a single groupBy the
+    // way AssetsService.unitCounts() groups AssetUnit by (assetId, status)
+    // directly. Fetch the decided rows and reduce them by hand instead.
+    const approvals = await this.prisma.reservationItemApproval.findMany({
       where: {
-        assetId: { in: assets.map((asset) => asset.id) },
-        // Counted by the reservation's *booked window*, not the item row's
-        // createdAt: createdAt is when the request was typed in, so a
-        // freshly-imported or freshly-seeded database puts every row in
-        // "today" and every period returns an identical number. Overlap
-        // (starts before the period ends AND ends after it begins) is the
-        // same half-open convention used for unit availability in
-        // AssetUnitsService.list().
-        reservation: { startAt: { lt: end }, endAt: { gt: start } },
+        status: { in: ["APPROVED", "REJECTED"] },
+        reservationItem: {
+          assetId: { in: assets.map((asset) => asset.id) },
+          // Counted by the reservation's *booked window*, not when the
+          // decision was made: createdAt/decidedAt cluster around whenever
+          // approvals happened to be processed, so a freshly-seeded or
+          // batch-approved database would put every decision in "today" and
+          // every period would return an identical number -- the same
+          // failure mode the reserved-count metric this replaced had with
+          // ReservationItem.createdAt. Overlap (starts before the period
+          // ends AND ends after it begins) is the same half-open convention
+          // used for unit availability in AssetUnitsService.list().
+          reservation: { startAt: { lt: end }, endAt: { gt: start } },
+        },
       },
-      _count: { _all: true },
+      select: { status: true, reservationItem: { select: { assetId: true } } },
     });
-    const countByAsset = new Map(
-      counts.map((row) => [row.assetId, row._count._all]),
-    );
+
+    const approvedByAsset = new Map<string, number>();
+    const rejectedByAsset = new Map<string, number>();
+    for (const approval of approvals) {
+      const byAsset =
+        approval.status === "APPROVED" ? approvedByAsset : rejectedByAsset;
+      const assetId = approval.reservationItem.assetId;
+      byAsset.set(assetId, (byAsset.get(assetId) ?? 0) + 1);
+    }
 
     const data = assets
       .map((asset) => ({
@@ -82,12 +96,16 @@ export class StatisticsService {
         name: asset.name,
         partNumber: asset.partNumber,
         managementArea: asset.managementArea,
-        reservedCount: countByAsset.get(asset.id) ?? 0,
+        approvedCount: approvedByAsset.get(asset.id) ?? 0,
+        rejectedCount: rejectedByAsset.get(asset.id) ?? 0,
       }))
-      .sort(
-        (a, b) =>
-          b.reservedCount - a.reservedCount || a.name.localeCompare(b.name),
-      )
+      .sort((a, b) => {
+        const totalDelta =
+          b.approvedCount +
+          b.rejectedCount -
+          (a.approvedCount + a.rejectedCount);
+        return totalDelta || a.name.localeCompare(b.name);
+      })
       .slice(0, MAX_ASSETS);
 
     return {

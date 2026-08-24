@@ -2,18 +2,18 @@
   get:
     tags:
       - Statistics
-    summary: Reservation-request counts per asset for the current period
+    summary: Approved and rejected reservation-item counts per asset for the current period
     description: >-
       Requires asset:view; results are scoped to the caller's permitted management areas the same
-      way GET /assets is. Returns every permitted asset (even with zero reservations), each with
-      the count of its reservation items whose reservation's booked window overlaps the period --
-      regardless of reservation/item status (draft, pending, approved, rejected all count).
-      `period` selects a half-open [periodStart, periodEnd) window on the UTC calendar around
-      `anchor`: day = that date, week = the ISO week containing it (Monday start), month = that
-      calendar month, year = that calendar year. Without `anchor` the window is the one
+      way GET /assets is. Returns every permitted asset (even with zero decisions), each with the
+      count of its reservation items whose approval decision was APPROVED, and separately REJECTED
+      (a PENDING approval counts toward neither), where the reservation's booked window overlaps
+      the period. `period` selects a half-open [periodStart, periodEnd) window on the UTC calendar
+      around `anchor`: day = that date, week = the ISO week containing it (Monday start), month =
+      that calendar month, year = that calendar year. Without `anchor` the window is the one
       containing the current instant. A reservation counts when it starts before the window ends
       and ends after the window begins -- the same overlap convention used for unit availability
-      elsewhere in this API. Capped at the 200 assets with the highest reservedCount.
+      elsewhere in this API. Capped at the 200 assets with the highest approvedCount + rejectedCount.
     operationId: getReservationsByAsset
     parameters:
       - name: period

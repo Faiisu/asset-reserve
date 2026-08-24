@@ -262,7 +262,8 @@ export type AssetReservationCount = {
   name: string;
   partNumber: string | null;
   managementArea: ManagementAreaRef;
-  reservedCount: number;
+  approvedCount: number;
+  rejectedCount: number;
 };
 
 export type ReservationsByAssetResponse = {
