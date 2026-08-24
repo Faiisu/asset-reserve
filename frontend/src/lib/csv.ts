@@ -69,19 +69,22 @@ export type CsvImportResult = {
   skippedRows: number;
 };
 
-/**
- * Parses a batch-import CSV: fixed column order S/N, P/N, description, one
- * header row (skipped). Rows are grouped by P/N -- each unique P/N becomes
- * one asset row (name = P/N, matching the existing "one asset, many
- * serialized units" data model), with every matching row's S/N collected
- * into that asset's serial-numbers list. The first non-empty description
- * seen for a given P/N wins; rows with no P/N are skipped and counted since
- * there's nothing to group them by.
- */
-export function parseAssetImportCsv(text: string): CsvImportResult {
-  const allRows = splitCsvRows(text).filter((line) => line.trim().length > 0);
-  const dataRows = allRows.slice(1); // drop header row
+function cellToString(cell: unknown): string {
+  if (cell === null || cell === undefined) return "";
+  if (cell instanceof Date) return cell.toISOString().slice(0, 10);
+  return String(cell).trim();
+}
 
+/**
+ * Groups already-split data rows (S/N, P/N, description; header row already
+ * removed by the caller) by P/N -- each unique P/N becomes one asset row
+ * (name = P/N, matching the existing "one asset, many serialized units"
+ * data model), with every matching row's S/N collected into that asset's
+ * serial-numbers list. The first non-empty description seen for a given P/N
+ * wins; rows with no P/N are skipped and counted since there's nothing to
+ * group them by. Shared by both the CSV and XLSX importers.
+ */
+export function groupImportRowsByPartNumber(dataRows: unknown[][]): CsvImportResult {
   const order: string[] = [];
   const groups = new Map<
     string,
@@ -89,11 +92,10 @@ export function parseAssetImportCsv(text: string): CsvImportResult {
   >();
   let skippedRows = 0;
 
-  for (const line of dataRows) {
-    const [serialRaw, partNumberRaw, descriptionRaw] = parseCsvLine(line);
-    const serial = (serialRaw ?? "").trim();
-    const partNumber = (partNumberRaw ?? "").trim();
-    const description = (descriptionRaw ?? "").trim();
+  for (const row of dataRows) {
+    const serial = cellToString(row[0]);
+    const partNumber = cellToString(row[1]);
+    const description = cellToString(row[2]);
 
     if (!partNumber) {
       skippedRows++;
@@ -124,4 +126,15 @@ export function parseAssetImportCsv(text: string): CsvImportResult {
     }),
     skippedRows,
   };
+}
+
+/**
+ * Parses a batch-import CSV: fixed column order S/N, P/N, description, one
+ * header row (skipped). See groupImportRowsByPartNumber for the grouping
+ * rule applied to the parsed rows.
+ */
+export function parseAssetImportCsv(text: string): CsvImportResult {
+  const allRows = splitCsvRows(text).filter((line) => line.trim().length > 0);
+  const dataRows = allRows.slice(1).map(parseCsvLine); // drop header row
+  return groupImportRowsByPartNumber(dataRows);
 }
