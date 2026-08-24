@@ -8,11 +8,12 @@
       way GET /assets is. Returns every permitted asset (even with zero reservations), each with
       the count of its reservation items whose reservation's booked window overlaps the period --
       regardless of reservation/item status (draft, pending, approved, rejected all count).
-      `period` selects a half-open [periodStart, periodEnd) window on the current UTC calendar:
-      day = today, week = this ISO week (Monday start), month = this calendar month, year = this
-      calendar year. A reservation counts when it starts before the window ends and ends after
-      the window begins -- the same overlap convention used for unit availability elsewhere in
-      this API. Capped at the 200 assets with the highest reservedCount.
+      `period` selects a half-open [periodStart, periodEnd) window on the UTC calendar around
+      `anchor`: day = that date, week = the ISO week containing it (Monday start), month = that
+      calendar month, year = that calendar year. Without `anchor` the window is the one
+      containing the current instant. A reservation counts when it starts before the window ends
+      and ends after the window begins -- the same overlap convention used for unit availability
+      elsewhere in this API. Capped at the 200 assets with the highest reservedCount.
     operationId: getReservationsByAsset
     parameters:
       - name: period
@@ -20,6 +21,17 @@
         required: true
         schema:
           $ref: "#/components/schemas/StatisticsPeriod"
+      - name: anchor
+        in: query
+        required: false
+        description: >-
+          Any date inside the period to report on, as `YYYY-MM-DD` or a full ISO-8601 timestamp
+          (only its UTC calendar date is read). Lets the caller page back to an earlier day, week,
+          month, or year instead of only the current one. Defaults to now.
+        schema:
+          type: string
+          format: date
+        example: "2026-08-24"
     responses:
       "200":
         description: Reservation-request counts per asset for the selected period.

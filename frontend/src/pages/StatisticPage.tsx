@@ -1,4 +1,4 @@
-import { BarChart3, CalendarRange, Table2 } from "lucide-react";
+import { BarChart3, ChevronLeft, ChevronRight, Table2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, isAbortError } from "../api";
 import { useAuth } from "../auth";
@@ -9,8 +9,15 @@ import {
   ErrorState,
   LoadingState,
   cx,
-  formatDate,
 } from "../components/ui";
+import {
+  formatPeriodLabel,
+  fromInputValue,
+  isCurrentPeriod,
+  shiftAnchor,
+  toInputValue,
+  todayAnchor,
+} from "../lib/periodAnchor";
 import type { ReservationsByAssetResponse, StatisticsPeriod } from "../types";
 
 const PERIODS: Array<{ value: StatisticsPeriod; label: string }> = [
@@ -20,7 +27,23 @@ const PERIODS: Array<{ value: StatisticsPeriod; label: string }> = [
   { value: "year", label: "Year" },
 ];
 
-const PERIOD_NOUN: Record<StatisticsPeriod, string> = {
+/** Native pickers, so each granularity gets the platform's own calendar and
+ * nobody is asked to choose a day that the period ignores. */
+const INPUT_TYPE: Record<StatisticsPeriod, string> = {
+  day: "date",
+  week: "date",
+  month: "month",
+  year: "number",
+};
+
+const STEP_LABEL: Record<StatisticsPeriod, string> = {
+  day: "day",
+  week: "week",
+  month: "month",
+  year: "year",
+};
+
+const CURRENT_NOUN: Record<StatisticsPeriod, string> = {
   day: "today",
   week: "this week",
   month: "this month",
@@ -30,6 +53,7 @@ const PERIOD_NOUN: Record<StatisticsPeriod, string> = {
 export function StatisticPage() {
   const { hasPermission } = useAuth();
   const [period, setPeriod] = useState<StatisticsPeriod>("month");
+  const [anchor, setAnchor] = useState(() => todayAnchor());
   const [showTable, setShowTable] = useState(false);
   const [result, setResult] = useState<ReservationsByAssetResponse | null>(
     null,
@@ -38,13 +62,18 @@ export function StatisticPage() {
   const [error, setError] = useState<unknown>(null);
 
   const canView = hasPermission("asset:view");
+  const atCurrent = isCurrentPeriod(anchor, period);
 
   const load = useCallback(
-    (selectedPeriod: StatisticsPeriod, signal?: AbortSignal) => {
+    (
+      selectedPeriod: StatisticsPeriod,
+      selectedAnchor: string,
+      signal?: AbortSignal,
+    ) => {
       setLoading(true);
       setError(null);
       void api
-        .reservationsByAsset(selectedPeriod, signal)
+        .reservationsByAsset(selectedPeriod, selectedAnchor, signal)
         .then((response) => setResult(response))
         .catch((caught) => {
           if (isAbortError(caught)) return;
@@ -60,9 +89,9 @@ export function StatisticPage() {
   useEffect(() => {
     if (!canView) return;
     const controller = new AbortController();
-    load(period, controller.signal);
+    load(period, anchor, controller.signal);
     return () => controller.abort();
-  }, [period, load, canView]);
+  }, [period, anchor, load, canView]);
 
   const summary = useMemo(() => {
     if (!result) return null;
@@ -77,6 +106,12 @@ export function StatisticPage() {
       top,
     };
   }, [result]);
+
+  // Derived from the resolved window the server echoed back, not from the
+  // local anchor, so the heading can never disagree with the numbers under it.
+  const windowLabel = result
+    ? formatPeriodLabel(result.periodStart, result.period)
+    : null;
 
   if (!canView) {
     return (
@@ -110,12 +145,55 @@ export function StatisticPage() {
             </button>
           ))}
         </div>
-        {result && (
-          <span className="stat-toolbar__window">
-            <CalendarRange size={14} aria-hidden />
-            {formatDate(result.periodStart)} – {formatDate(result.periodEnd)}
-          </span>
+        <div className="stat-anchor">
+          <button
+            type="button"
+            className="stat-anchor__step"
+            aria-label={`Previous ${STEP_LABEL[period]}`}
+            onClick={() =>
+              setAnchor((current) => shiftAnchor(current, period, -1))
+            }
+          >
+            <ChevronLeft size={15} aria-hidden />
+          </button>
+          <label className="stat-anchor__field">
+            <span>{STEP_LABEL[period]}</span>
+            <input
+              type={INPUT_TYPE[period]}
+              value={toInputValue(anchor, period)}
+              min={period === "year" ? 2000 : undefined}
+              max={period === "year" ? 2100 : undefined}
+              aria-label={`Choose the ${STEP_LABEL[period]} to report on`}
+              onChange={(event) => {
+                // A native picker emits "" and half-typed values while it is
+                // being edited; only a complete value moves the report.
+                const next = fromInputValue(event.target.value, period);
+                if (next) setAnchor(next);
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className="stat-anchor__step"
+            aria-label={`Next ${STEP_LABEL[period]}`}
+            onClick={() =>
+              setAnchor((current) => shiftAnchor(current, period, 1))
+            }
+          >
+            <ChevronRight size={15} aria-hidden />
+          </button>
+        </div>
+
+        {!atCurrent && (
+          <Button
+            variant="quiet"
+            size="sm"
+            onClick={() => setAnchor(todayAnchor())}
+          >
+            Back to {CURRENT_NOUN[period]}
+          </Button>
         )}
+
         <Button
           className="stat-toolbar__view"
           variant="quiet"
@@ -135,12 +213,11 @@ export function StatisticPage() {
           aria-label="Summary"
         >
           <article className="stat-kpi stat-kpi--lead">
-            <p className="stat-kpi__label">
-              Reservations {PERIOD_NOUN[period]}
-            </p>
+            <p className="stat-kpi__label">Reservations</p>
             <strong className="stat-kpi__value">
               {summary.total.toLocaleString()}
             </strong>
+            <span className="stat-kpi__hint">{windowLabel}</span>
           </article>
           <article className="stat-kpi">
             <p className="stat-kpi__label">Assets reserved</p>
@@ -176,14 +253,14 @@ export function StatisticPage() {
         <header>
           <div>
             <p className="eyebrow">Ranked by reservations</p>
-            <h2>Every asset, booked {PERIOD_NOUN[period]}</h2>
+            <h2>{windowLabel ? `Booked in ${windowLabel}` : "Booked"}</h2>
           </div>
         </header>
 
         {loading && !result ? (
           <LoadingState label="Loading statistics" />
         ) : error ? (
-          <ErrorState error={error} onRetry={() => load(period)} />
+          <ErrorState error={error} onRetry={() => load(period, anchor)} />
         ) : !result || result.data.length === 0 ? (
           <EmptyState
             title="No assets yet"

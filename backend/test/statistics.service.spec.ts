@@ -109,6 +109,51 @@ describe("StatisticsService.reservationsByAsset", () => {
     },
   );
 
+  it.each([
+    // A past month, nowhere near "now".
+    ["month", "2026-02-14", "2026-02-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"],
+    // Rolls into the next year rather than month 12.
+    ["month", "2025-12-09", "2025-12-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"],
+    ["year", "2024-06-30", "2024-01-01T00:00:00.000Z", "2025-01-01T00:00:00.000Z"],
+    ["day", "2026-02-28", "2026-02-28T00:00:00.000Z", "2026-03-01T00:00:00.000Z"],
+    // A Sunday anchors to the Monday six days earlier, not the next one.
+    ["week", "2026-08-23", "2026-08-17T00:00:00.000Z", "2026-08-24T00:00:00.000Z"],
+    // A week straddling a month boundary keeps running into the next month.
+    ["week", "2026-09-01", "2026-08-31T00:00:00.000Z", "2026-09-07T00:00:00.000Z"],
+  ] as const)(
+    "anchors the %s window to the supplied date (%s)",
+    async (period, anchor, expectedStart, expectedEnd) => {
+      const prisma = {
+        asset: { findMany: vi.fn().mockResolvedValue([]) },
+        reservationItem: { groupBy: vi.fn() },
+      } as unknown as PrismaService;
+      const service = new StatisticsService(prisma);
+
+      const result = await service.reservationsByAsset(actor, {
+        period,
+        anchor,
+      });
+
+      expect(result.periodStart).toBe(expectedStart);
+      expect(result.periodEnd).toBe(expectedEnd);
+    },
+  );
+
+  it("falls back to the period containing now when no anchor is given", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-19T15:00:00.000Z"));
+    const prisma = {
+      asset: { findMany: vi.fn().mockResolvedValue([]) },
+      reservationItem: { groupBy: vi.fn() },
+    } as unknown as PrismaService;
+    const service = new StatisticsService(prisma);
+
+    const result = await service.reservationsByAsset(actor, { period: "month" });
+
+    expect(result.periodStart).toBe("2026-08-01T00:00:00.000Z");
+    vi.useRealTimers();
+  });
+
   it("bounds the window on both ends so later bookings are excluded", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-19T15:00:00.000Z"));

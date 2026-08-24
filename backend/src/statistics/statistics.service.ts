@@ -31,7 +31,7 @@ export class StatisticsService {
       );
     }
 
-    const { start, end } = this.periodRange(query.period);
+    const { start, end } = this.periodRange(query.period, query.anchor);
     const assetWhere: Prisma.AssetWhereInput =
       allowedAreaIds !== null
         ? { managementAreaId: { in: allowedAreaIds } }
@@ -97,13 +97,25 @@ export class StatisticsService {
     };
   }
 
-  /** The current UTC day / ISO-week (Monday) / month / year as a half-open
-   * [start, end) range -- same calendar-boundary convention the frontend's
-   * activityBuckets.ts uses for the per-unit history chart, kept consistent
-   * across both statistics. The range is bounded on both ends so "this month"
-   * excludes reservations booked for later periods. */
-  private periodRange(period: StatisticsPeriod): { start: Date; end: Date } {
-    const now = new Date();
+  /** The UTC day / ISO-week (Monday) / month / year containing `anchor` as a
+   * half-open [start, end) range -- same calendar-boundary convention the
+   * frontend's activityBuckets.ts uses for the per-unit history chart, kept
+   * consistent across both statistics. The range is bounded on both ends so
+   * "August" excludes reservations booked for later periods. `anchor` may be
+   * any instant inside the wanted period; without one it is right now. */
+  private periodRange(
+    period: StatisticsPeriod,
+    anchor?: string,
+  ): { start: Date; end: Date } {
+    const now = anchor ? new Date(anchor) : new Date();
+    if (Number.isNaN(now.getTime())) {
+      throw new ApiException(
+        422,
+        "VALIDATION_ERROR",
+        "The anchor date could not be read.",
+        { anchor: "Provide a calendar date such as 2026-08-24." },
+      );
+    }
     const year = now.getUTCFullYear();
     const month = now.getUTCMonth();
     const date = now.getUTCDate();

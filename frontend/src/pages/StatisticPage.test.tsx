@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StatisticPage } from "./StatisticPage";
 import type { ReservationsByAssetResponse } from "../types";
 
@@ -39,9 +39,20 @@ function response(
 
 describe("StatisticPage", () => {
   beforeEach(() => {
+    // A fixed clock for the whole suite so the default anchor ("today") is
+    // deterministic. shouldAdvanceTime keeps promises and waitFor working;
+    // without it the fake clock stalls every async assertion.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-08-24T12:00:00.000Z"));
     reservationsByAsset.mockReset();
     hasPermission.mockReset();
     hasPermission.mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    // Restored here rather than at the end of each test: a test that fails
+    // mid-way would otherwise leak the fake clock into every later one.
+    vi.useRealTimers();
   });
 
   it("blocks the page without asset:view and never calls the API", async () => {
@@ -115,6 +126,74 @@ describe("StatisticPage", () => {
       }),
     );
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
+  });
+
+  it("anchors the first request to today", async () => {
+    reservationsByAsset.mockResolvedValue(response("month", [1]));
+    render(<StatisticPage />);
+
+    await waitFor(() => expect(reservationsByAsset).toHaveBeenCalled());
+    expect(reservationsByAsset.mock.calls[0]![1]).toBe("2026-08-24");
+  });
+
+  it("steps the anchor back a whole period and refetches", async () => {
+    reservationsByAsset.mockResolvedValue(response("month", [1]));
+    render(<StatisticPage />);
+    await waitFor(() => expect(reservationsByAsset).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+
+    await waitFor(() => expect(reservationsByAsset).toHaveBeenCalledTimes(2));
+    expect(reservationsByAsset.mock.calls[1]![1]).toBe("2026-07-01");
+  });
+
+  it("offers a way back only once the reader has navigated away", async () => {
+    reservationsByAsset.mockResolvedValue(response("month", [1]));
+    render(<StatisticPage />);
+    await waitFor(() => expect(reservationsByAsset).toHaveBeenCalled());
+
+    expect(screen.queryByRole("button", { name: /Back to/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    const back = await screen.findByRole("button", {
+      name: /Back to this month/,
+    });
+
+    fireEvent.click(back);
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /Back to/ })).toBeNull(),
+    );
+  });
+
+  it("sends a whole anchor date when a month is picked from the calendar", async () => {
+    reservationsByAsset.mockResolvedValue(response("month", [1]));
+    render(<StatisticPage />);
+    await waitFor(() => expect(reservationsByAsset).toHaveBeenCalled());
+
+    const field = screen.getByLabelText(/Choose the month/);
+    // A native month picker reports "YYYY-MM"; the API needs a full date.
+    fireEvent.change(field, { target: { value: "2025-03" } });
+
+    await waitFor(() =>
+      expect(reservationsByAsset).toHaveBeenLastCalledWith(
+        "month",
+        "2025-03-01",
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("ignores the half-typed values a native picker emits mid-edit", async () => {
+    reservationsByAsset.mockResolvedValue(response("month", [1]));
+    render(<StatisticPage />);
+    await waitFor(() => expect(reservationsByAsset).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText(/Choose the month/), {
+      target: { value: "" },
+    });
+
+    // A cleared field must not refetch, and must not blank the report.
+    expect(reservationsByAsset).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the period switch usable when the request fails", async () => {
