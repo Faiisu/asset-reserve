@@ -1,0 +1,90 @@
+ReputationSummary:
+  type: object
+  required:
+    - userId
+    - name
+    - email
+    - score
+    - updatedAt
+  properties:
+    userId:
+      type: string
+      format: uuid
+    name:
+      type:
+        - string
+        - "null"
+    email:
+      type:
+        - string
+        - "null"
+    score:
+      type: integer
+      minimum: 0
+      maximum: 100
+    updatedAt:
+      description: When this user's score last actually moved (most recent ReputationEvent). Null if it has never moved from its starting value.
+      type:
+        - string
+        - "null"
+      format: date-time
+ReputationListResponse:
+  type: object
+  required:
+    - data
+    - pageInfo
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/components/schemas/ReputationSummary"
+    pageInfo:
+      $ref: "#/components/schemas/PageInfo"
+ReputationEvent:
+  type: object
+  required:
+    - id
+    - userId
+    - type
+    - delta
+    - reservationId
+    - returnId
+    - createdAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    userId:
+      type: string
+      format: uuid
+    type:
+      type: string
+      enum: [RETURN_ON_TIME, RETURN_LATE, ASSET_BROKEN, ASSET_LOST]
+    delta:
+      type: integer
+      description: "+5 or -5."
+    reservationId:
+      type:
+        - string
+        - "null"
+      format: uuid
+    returnId:
+      type:
+        - string
+        - "null"
+      format: uuid
+    createdAt:
+      type: string
+      format: date-time
+ReputationEventListResponse:
+  type: object
+  required:
+    - data
+    - pageInfo
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/components/schemas/ReputationEvent"
+    pageInfo:
+      $ref: "#/components/schemas/PageInfo"

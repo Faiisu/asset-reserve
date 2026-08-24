@@ -1,9 +1,11 @@
-import { useState, type FormEvent } from "react";
-import { api, ApiClientError } from "../api";
+import { useEffect, useState, type FormEvent } from "react";
+import { api, ApiClientError, isAbortError } from "../api";
 import { useAuth } from "../auth";
-import { Button, Field, Input, Notice } from "../components/ui";
+import { Button, ErrorState, Field, Input, LoadingState, Notice } from "../components/ui";
 import { GoogleIcon, MicrosoftIcon } from "../components/OAuthIcons";
+import { ReputationEventList, scoreClass } from "../components/ReputationEventList";
 import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
+import type { ReputationEvent, ReputationSummary } from "../types";
 
 type Provider = "google" | "microsoft";
 
@@ -40,6 +42,32 @@ export function AccountPage() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [passwordNotice, setPasswordNotice] = useState("");
+
+  const [reputation, setReputation] = useState<ReputationSummary | null>(null);
+  const [reputationEvents, setReputationEvents] = useState<ReputationEvent[]>([]);
+  const [reputationLoading, setReputationLoading] = useState(true);
+  const [reputationError, setReputationError] = useState<unknown>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      setReputationLoading(true);
+      setReputationError(null);
+      try {
+        const [summary, history] = await Promise.all([
+          api.myReputation(),
+          api.myReputationEvents({ limit: 10 }, controller.signal),
+        ]);
+        setReputation(summary);
+        setReputationEvents(history.data);
+      } catch (caught) {
+        if (!isAbortError(caught)) setReputationError(caught);
+      } finally {
+        if (!controller.signal.aborted) setReputationLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, []);
 
   if (!user) return null;
 
@@ -151,6 +179,40 @@ export function AccountPage() {
             </Button>
           </div>
         </form>
+      </section>
+
+      <section className="form-section">
+        <div className="form-section__heading">
+          <div>
+            <h2>My reputation</h2>
+            <p>
+              Moves when a return you're part of is decided -- late/on-time and any
+              broken or lost assets.
+            </p>
+          </div>
+        </div>
+        {reputationLoading ? (
+          <LoadingState label="Loading your reputation" />
+        ) : reputationError ? (
+          <ErrorState error={reputationError} />
+        ) : (
+          reputation && (
+            <div className="form-stack">
+              <div>
+                <span className={scoreClass(reputation.score)}>
+                  {reputation.score}
+                </span>
+                <p style={{ color: "var(--ink-faint)", fontSize: "13px", margin: "4px 0 0" }}>
+                  out of 100
+                </p>
+              </div>
+              <ReputationEventList
+                events={reputationEvents}
+                emptyLabel="No reputation events yet -- your score only moves once a return you're part of is decided."
+              />
+            </div>
+          )
+        )}
       </section>
 
       <section className="form-section">

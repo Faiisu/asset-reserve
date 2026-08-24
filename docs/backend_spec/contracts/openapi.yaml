@@ -34,6 +34,8 @@ tags:
     description: Global-admin management of the customizable subject/body for each outbound notification situation. See modules/email-templates.md.
   - name: Notification Settings
     description: Global-admin SMTP/notification configuration, singleton settings. See modules/notification-settings.md.
+  - name: Reputation
+    description: Behavior score (0-100, starts at 100) moved by return outcomes -- late/on-time, broken/lost assets. See modules/reputation.md.
 security:
   - bearerAuth: []
 paths:
@@ -149,6 +151,16 @@ paths:
     $ref: ./paths/notification-settings.yaml#/~1notification-settings
   /notification-settings/test:
     $ref: ./paths/notification-settings.yaml#/~1notification-settings~1test
+  /reputation/me:
+    $ref: ./paths/reputation.yaml#/~1reputation~1me
+  /reputation/me/events:
+    $ref: ./paths/reputation.yaml#/~1reputation~1me~1events
+  /reputation:
+    $ref: ./paths/reputation.yaml#/~1reputation
+  /reputation/{userId}:
+    $ref: ./paths/reputation.yaml#/~1reputation~1{userId}
+  /reputation/{userId}/events:
+    $ref: ./paths/reputation.yaml#/~1reputation~1{userId}~1events
 components:
   securitySchemes:
     bearerAuth:
@@ -409,3 +421,11 @@ components:
       $ref: ./components/schemas/notification-settings.yaml#/NotificationSettings
     UpdateNotificationSettingsRequest:
       $ref: ./components/schemas/notification-settings.yaml#/UpdateNotificationSettingsRequest
+    ReputationSummary:
+      $ref: ./components/schemas/reputation.yaml#/ReputationSummary
+    ReputationListResponse:
+      $ref: ./components/schemas/reputation.yaml#/ReputationListResponse
+    ReputationEvent:
+      $ref: ./components/schemas/reputation.yaml#/ReputationEvent
+    ReputationEventListResponse:
+      $ref: ./components/schemas/reputation.yaml#/ReputationEventListResponse

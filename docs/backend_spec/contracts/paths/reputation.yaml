@@ -1,0 +1,102 @@
+/reputation/me:
+  get:
+    tags:
+      - Reputation
+    summary: Get my own reputation score
+    description: >-
+      Any authenticated user. Score starts at 100 and is clamped 0-100; moved only when a
+      return is approved (see `POST /reservations/{reservationId}/returns/{returnId}/decision`).
+    operationId: getMyReputation
+    responses:
+      "200":
+        description: Current score.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReputationSummary"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+/reputation/me/events:
+  get:
+    tags:
+      - Reputation
+    summary: My own reputation event history
+    operationId: getMyReputationEvents
+    parameters:
+      - $ref: "#/components/parameters/Cursor"
+      - $ref: "#/components/parameters/Limit"
+    responses:
+      "200":
+        description: Paginated events, newest first.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReputationEventListResponse"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+/reputation:
+  get:
+    tags:
+      - Reputation
+    summary: List every user's reputation score
+    description: Global admin only.
+    operationId: listReputation
+    parameters:
+      - $ref: "#/components/parameters/Search"
+      - $ref: "#/components/parameters/Cursor"
+      - $ref: "#/components/parameters/Limit"
+    responses:
+      "200":
+        description: Paginated user scores.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReputationListResponse"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+/reputation/{userId}:
+  get:
+    tags:
+      - Reputation
+    summary: Get one user's reputation score
+    description: Global admin only.
+    operationId: getUserReputation
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    responses:
+      "200":
+        description: Current score.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReputationSummary"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "404":
+        description: User not found (`USER_NOT_FOUND`).
+/reputation/{userId}/events:
+  get:
+    tags:
+      - Reputation
+    summary: One user's reputation event history
+    description: Global admin only.
+    operationId: getUserReputationEvents
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+      - $ref: "#/components/parameters/Cursor"
+      - $ref: "#/components/parameters/Limit"
+    responses:
+      "200":
+        description: Paginated events, newest first.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReputationEventListResponse"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
