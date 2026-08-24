@@ -686,6 +686,14 @@ export function AssetFormPage() {
   );
 }
 
+// Mirrors BatchCreateAssetsDto's @ArrayMaxSize(100) on the backend
+// (backend/src/assets/assets.dto.ts) -- a CSV/XLSX import has no natural
+// upper bound (unlike clicking "Add row" by hand), so without this a large
+// manifest parses and previews fine, only to fail as one opaque validation
+// error from POST /assets/batch after the user has already reviewed/edited
+// every row.
+const MAX_BATCH_SIZE = 100;
+
 type BatchRow = {
   key: number;
   name: string;
@@ -812,8 +820,10 @@ function BatchAssetForm({
         );
         return;
       }
+      const overflow = Math.max(0, imported.length - MAX_BATCH_SIZE);
+      const kept = overflow > 0 ? imported.slice(0, MAX_BATCH_SIZE) : imported;
       setRows(
-        imported.map((row, i) => ({
+        kept.map((row, i) => ({
           ...newBatchRow(Date.now() + i),
           name: row.name,
           partNumber: row.partNumber,
@@ -821,10 +831,14 @@ function BatchAssetForm({
           serialNumbers: row.serialNumbers,
         })),
       );
+      const notes = [
+        skippedRows > 0 ? `Skipped ${skippedRows} row(s) with no P/N.` : null,
+        overflow > 0
+          ? `Only the first ${MAX_BATCH_SIZE} assets were imported (${overflow} left out) -- a batch can't exceed ${MAX_BATCH_SIZE}. Split the rest into another import.`
+          : null,
+      ].filter(Boolean);
       setImportNotice(
-        skippedRows > 0
-          ? `Imported ${imported.length} asset(s) from ${formatLabel}. Skipped ${skippedRows} row(s) with no P/N.`
-          : `Imported ${imported.length} asset(s) from ${formatLabel}.`,
+        `Imported ${kept.length} asset(s) from ${formatLabel}.${notes.length > 0 ? ` ${notes.join(" ")}` : ""}`,
       );
     } catch {
       setError(`Could not read that ${formatLabel} file.`);
@@ -835,6 +849,10 @@ function BatchAssetForm({
     event.preventDefault();
     if (!areaId) {
       setError("Please select a management area.");
+      return;
+    }
+    if (rows.length > MAX_BATCH_SIZE) {
+      setError(`A batch can't exceed ${MAX_BATCH_SIZE} assets -- remove ${rows.length - MAX_BATCH_SIZE} row(s).`);
       return;
     }
     const emptyNameIndex = rows.findIndex((row) => !row.name.trim());
