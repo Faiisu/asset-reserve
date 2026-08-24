@@ -20,6 +20,7 @@ import { ReservationDetailPage } from "./pages/ReservationDetailPage";
 import { ReservationsPage } from "./pages/ReservationsPage";
 import { ManagementAreasPage } from "./pages/ManagementAreasPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { StatisticPage } from "./pages/StatisticPage";
 import { UsersPage } from "./pages/UsersPage";
 
 function BootScreen({ label }: { label: string }) {
@@ -95,6 +96,7 @@ export function App() {
         <Route path="assets/:assetId" element={<AssetDetailPage />} />
         <Route path="assets/:assetId/edit" element={<AssetFormPage />} />
         <Route path="asset-units" element={<AssetUnitHistoryPage />} />
+        <Route path="statistic" element={<StatisticPage />} />
         <Route path="reservations" element={<ReservationsPage />} />
         <Route path="approvals" element={<ApprovalRequestsPage />} />
         <Route path="reservations/new" element={<ReservationCreatePage />} />

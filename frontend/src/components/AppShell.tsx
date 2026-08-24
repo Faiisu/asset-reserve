@@ -1,6 +1,7 @@
 import {
   Bell,
   Boxes,
+  BarChart3,
   Building2,
   ChevronDown,
   LogOut,
@@ -29,6 +30,7 @@ const titles: Array<[string, string]> = [
   ["/assets/", "Asset details"],
   ["/assets", "Asset registry"],
   ["/asset-units", "Unit history"],
+  ["/statistic", "Statistic"],
   ["/admin/access", "Access and roles"],
   ["/admin/users", "Users"],
   ["/admin/areas", "Management areas"],
@@ -77,6 +79,12 @@ export function AppShell() {
       label: "Unit history",
       icon: History,
       show: hasPermission("asset:view"),
+    },
+    {
+      to: "/statistic",
+      label: "Statistic",
+      icon: BarChart3,
+      show: true,
     },
     {
       to: "/reservations",
