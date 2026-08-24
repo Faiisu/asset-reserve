@@ -36,6 +36,15 @@
   --emerald-soft: #ddf4ea;
   --cyan: #0d8ea8;
   --cyan-soft: #e0f5fa;
+  /* Fixed categorical chart marks -- deliberately NOT overridden in dark mode.
+     The UI accent tokens above get lighter under dark mode (for text/badge
+     contrast), which pushes them outside the OKLCH lightness band charts need
+     (validated with dataviz's scripts/validate_palette.js); these three hexes
+     pass the categorical six-checks in both light (surface #ffffff) and dark
+     (surface #152234) unchanged. */
+  --chart-checked-out: #225be2;
+  --chart-returned: #267447;
+  --chart-other: #7251b5;
   --shadow: 0 12px 35px rgba(16, 33, 58, 0.08);
   --radius: 14px;
   --mono: "IBM Plex Mono", monospace;

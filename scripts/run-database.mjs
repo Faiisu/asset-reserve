@@ -3,7 +3,7 @@ import { resolve, join } from "node:path";
 import { execSync, spawn } from "node:child_process";
 
 const rootDir = resolve(import.meta.dirname, "..");
-const dbDir = join(rootDir, "database");
+const dbDir = join(rootDir, "deploy", "prod", "database");
 const envFile = join(dbDir, ".env");
 const envExampleFile = join(dbDir, ".env.example");
 const composeFile = join(dbDir, "docker-compose.yml");

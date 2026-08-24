@@ -75,7 +75,7 @@ try {
     console.log("⚠️ This database drifted from the migration history (old `prisma db push`");
     console.log("   flow). Its tables look right, but constraints are missing.");
     console.log("   Recreate it (dev data is disposable):");
-    console.log("   docker compose -f database/docker-compose.yml down -v && npm run db:up");
+    console.log("   docker compose -f deploy/prod/database/docker-compose.yml down -v && npm run db:up");
   } else {
     console.log("ℹ️ Migrations skipped (PostgreSQL might still be starting or unreachable).");
   }

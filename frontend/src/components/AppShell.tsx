@@ -2,6 +2,7 @@ import {
   Award,
   Bell,
   Boxes,
+  BarChart3,
   Building2,
   ChevronDown,
   LogOut,
@@ -28,6 +29,7 @@ const titles: Array<[string, string]> = [
   ["/assets/new", "Add asset"],
   ["/assets/", "Asset details"],
   ["/assets", "Asset registry"],
+  ["/statistic", "Statistic"],
   ["/admin/access", "Access and roles"],
   ["/admin/users", "Users"],
   ["/admin/areas", "Management areas"],
@@ -70,6 +72,12 @@ export function AppShell() {
       to: "/assets",
       label: "Assets",
       icon: Boxes,
+      show: hasPermission("asset:view"),
+    },
+    {
+      to: "/statistic",
+      label: "Statistic",
+      icon: BarChart3,
       show: hasPermission("asset:view"),
     },
     {

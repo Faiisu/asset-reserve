@@ -231,6 +231,27 @@ export type AssetSummary = {
   updatedAt: string;
 };
 
+export type AssetUnitEventPerformer = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  profilePictureUrl: string | null;
+};
+
+export type AssetUnitLedgerEntry = {
+  id: string;
+  batchId: string;
+  assetUnitId: string;
+  serialNumber: string;
+  eventType: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  reason: string | null;
+  createdAt: string;
+  batchDescription: string | null;
+  performedBy: AssetUnitEventPerformer;
+};
+
 export type AssetDetail = AssetSummary & {
   editPolicy: { permission: "asset:update"; roles: RoleName[] };
   activeReservationItems: Array<{
@@ -246,24 +267,7 @@ export type AssetDetail = AssetSummary & {
     };
   }>;
   units: AssetUnit[];
-  unitEventLedger: Array<{
-    id: string;
-    batchId: string;
-    assetUnitId: string;
-    serialNumber: string;
-    eventType: string;
-    fromStatus: string | null;
-    toStatus: string | null;
-    reason: string | null;
-    createdAt: string;
-    batchDescription: string | null;
-    performedBy: {
-      id: string;
-      email: string | null;
-      name: string | null;
-      profilePictureUrl: string | null;
-    };
-  }>;
+  unitEventLedger: AssetUnitLedgerEntry[];
 };
 
 export type AssetUnit = {
@@ -275,6 +279,23 @@ export type AssetUnit = {
   note: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type AssetReservationCount = {
+  assetId: string;
+  name: string;
+  partNumber: string | null;
+  managementArea: ManagementAreaRef;
+  approvedCount: number;
+  rejectedCount: number;
+  activeUnitCount: number;
+  utilizationPercent: number | null;
+};
+
+export type ReservationsByAssetResponse = {
+  periodStart: string;
+  periodEnd: string;
+  data: AssetReservationCount[];
 };
 
 export type AssetInput = {

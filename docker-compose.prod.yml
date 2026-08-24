@@ -1,4 +1,0 @@
-# Production Deployment Compose Spec
-# Run with: docker compose -f docker-compose.prod.yml up -d --build
-include:
-  - docker-compose.yml

@@ -16,6 +16,7 @@ import { RecognitionModule } from "./recognition/recognition.module.js";
 import { ReputationModule } from "./reputation/reputation.module.js";
 import { ReservationsModule } from "./reservations/reservations.module.js";
 import { ReturnsModule } from "./returns/returns.module.js";
+import { StatisticsModule } from "./statistics/statistics.module.js";
 import { UploadsModule } from "./uploads/uploads.module.js";
 import { UsersModule } from "./users/users.module.js";
 
@@ -33,6 +34,7 @@ import { UsersModule } from "./users/users.module.js";
     ManagementAreasModule,
     ReservationsModule,
     ReturnsModule,
+    StatisticsModule,
     UploadsModule,
     RecognitionModule,
     ReputationModule,

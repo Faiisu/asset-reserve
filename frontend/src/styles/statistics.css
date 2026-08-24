@@ -1,0 +1,339 @@
+/* Statistic page -- filter row, KPI summary, ranked horizontal bars.
+   Every colour is a token so light/dark switch with the rest of the app. */
+
+.stat-toolbar {
+  padding: var(--card-padding-sm);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--card-radius-lg);
+  background: var(--surface);
+}
+.stat-toolbar__view {
+  margin-left: auto;
+}
+
+/* Two native date pickers, Start and End, sharing one bordered pill. */
+.stat-anchor {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.stat-anchor__field {
+  min-height: 41px;
+  padding: 4px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.stat-anchor__field + .stat-anchor__field {
+  border-left: 1px solid var(--line);
+}
+.stat-anchor__field > span {
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.stat-anchor__field input {
+  width: 122px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+/* Recolour the built-in calendar glyph for dark mode, where the browser's
+   default black icon disappears against the surface. */
+:root[data-theme="dark"]
+  .stat-anchor__field
+  input::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(0.65);
+}
+
+/* ---------------------------------------------------------------- KPIs */
+
+.stat-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.stat-kpi {
+  padding: var(--card-padding-md);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--card-radius-lg);
+  background: var(--surface);
+}
+/* Approved/rejected KPIs pick up the same green/red the bars use, so the
+   headline numbers and the chart underneath them read as one system. */
+.stat-kpi--approved {
+  background: var(--green-soft);
+  border-color: color-mix(in srgb, var(--green) 22%, transparent);
+}
+.stat-kpi--approved .stat-kpi__value {
+  color: var(--green);
+}
+.stat-kpi--rejected {
+  background: var(--red-soft);
+  border-color: color-mix(in srgb, var(--red) 22%, transparent);
+}
+.stat-kpi--rejected .stat-kpi__value {
+  color: var(--red);
+}
+/* Matches the utilization bars' own accent, so the KPI and the chart under
+   it read as the same metric rather than an unrelated blue tile. */
+.stat-kpi--utilization {
+  background: var(--blue-soft);
+  border-color: color-mix(in srgb, var(--blue) 22%, transparent);
+}
+.stat-kpi--utilization .stat-kpi__value {
+  color: var(--blue);
+}
+.stat-kpi__label {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.stat-kpi__value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--ink);
+  /* Proportional figures: tabular digits make a large standalone number
+     look loose. Tabular is kept for the columns of counts below. */
+  font-size: 30px;
+  font-weight: 650;
+  line-height: 1.05;
+}
+.stat-kpi__value--muted {
+  color: var(--ink-faint);
+}
+.stat-kpi__hint {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+/* "Most requested" renders as a badge (P/N + count) rather than a bare
+   number -- the value being named is an asset, not a count on its own. */
+.stat-kpi__badge {
+  width: fit-content;
+  max-width: 100%;
+  padding: 7px 12px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.stat-kpi__badge b {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stat-kpi__badge span {
+  flex: none;
+  color: var(--ink-faint);
+  font-size: 10px;
+}
+
+/* -------------------------------------------------------- ranked bars */
+
+.stat-chart-body {
+  margin-top: 16px;
+}
+/* A legend is mandatory once a chart has two or more series -- color alone
+   is never the only way to tell Approved from Rejected apart. */
+.stat-bars__legend {
+  margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.stat-bars__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+.stat-bars__legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.stat-bars {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+.stat-bars__row {
+  padding: 9px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid var(--line);
+}
+.stat-bars__row:first-child {
+  border-top: 0;
+}
+.stat-bars__label {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stat-bars__name {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stat-bars__meta {
+  color: var(--ink-faint);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Approved and rejected as two grouped (side-by-side) tracks per asset,
+   stacked vertically within the row -- the row itself already reads
+   top-to-bottom as a ranking, so a second dimension has to nest inside it
+   rather than compete with it for space. */
+.stat-bars__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.stat-bars__series {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.stat-bars__track {
+  flex: 1;
+  height: 14px;
+  border-radius: 3px;
+  /* A track one step off the surface, so a zero-count row still reads as a
+     row rather than as missing content. */
+  background: var(--surface-raised);
+  overflow: hidden;
+}
+.stat-bars__fill {
+  height: 100%;
+  /* Square at the baseline, rounded at the data end. */
+  border-radius: 0 3px 3px 0;
+  transition: width 0.25s ease;
+}
+/* This genuinely is a good/bad outcome, not an arbitrary series 1 vs 2 --
+   status color is the correct channel here, not a categorical hue pair. */
+.stat-bars__fill--approved,
+.stat-bars__legend i.stat-bars__fill--approved {
+  background: var(--green);
+}
+.stat-bars__fill--rejected,
+.stat-bars__legend i.stat-bars__fill--rejected {
+  background: var(--red);
+}
+/* Utilization is a single-series magnitude (percent of capacity used), not
+   an identity or an outcome, so it gets one plain accent hue and no legend. */
+.stat-bars__fill--utilization {
+  background: var(--chart-checked-out);
+}
+.stat-bars__value {
+  width: 1.6rem;
+  flex: none;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.stat-bars__toggle {
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-faint);
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.stat-bars__toggle:hover {
+  color: var(--blue);
+}
+
+.stat-table__number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* Carries the same series identity into the table that the bars and legend
+   already use -- a colored swatch beside the value, never the digits
+   themselves in color (a colored number reads as a status, not a count). */
+.stat-table__swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+.stat-table__swatch i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.is-refetching {
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+@media (max-width: 820px) {
+  .stat-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  /* Stack the label above its bars rather than squeezing both columns into
+     a phone width. */
+  .stat-bars__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .stat-toolbar__view {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stat-bars__fill {
+    transition: none;
+  }
+}

@@ -4,7 +4,7 @@ import { execSync, spawn } from "node:child_process";
 import readline from "node:readline";
 
 const rootDir = resolve(import.meta.dirname, "..");
-const dbDir = join(rootDir, "database");
+const dbDir = join(rootDir, "deploy", "prod", "database");
 const backendDir = join(rootDir, "backend");
 const frontendDir = join(rootDir, "frontend");
 
@@ -165,7 +165,7 @@ try {
     // tables look right while the CHECK/EXCLUDE constraints are missing.
     console.log(`  ${colors.yellow}⚠️ This database drifted from the migration history (old \`prisma db push\` flow).${colors.reset}`);
     console.log(`  ${colors.dim}Its tables look right, but the CHECK/EXCLUDE constraints are missing.${colors.reset}`);
-    console.log(`  ${colors.dim}Recreate it (dev data is disposable):${colors.reset} ${colors.cyan}docker compose -f database/docker-compose.yml down -v && npm run db:up${colors.reset}`);
+    console.log(`  ${colors.dim}Recreate it (dev data is disposable):${colors.reset} ${colors.cyan}docker compose -f deploy/prod/database/docker-compose.yml down -v && npm run db:up${colors.reset}`);
   } else {
     console.log(`  ${colors.dim}ℹ️ Migrations skipped or database not yet reachable.${colors.reset}`);
   }

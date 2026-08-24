@@ -31,14 +31,14 @@ asset-reservation/
 │   └── test/
 ├── recognition-service/      # แยก deployable ต่างหาก (own Dockerfile, docker-compose.yml)
 ├── scripts/                  # Repo-level operational script (นอกเหนือจาก backend/scripts/)
-├── database/                 # PostgreSQL deployment configuration
+├── deploy/                   # Docker deploy configuration (dev/ และ prod/, ดู deploy/*/README.md)
 ├── docs/                  # Specification และ decision records
 └── .dockerignore
 ```
 
 - แต่ละ deployable มี `package.json`, environment, Dockerfile และ build output ของตัวเอง
 - `docs/` อธิบาย contract และ decision; source code ต้องไม่พึ่งการ parse เอกสาร Markdown ตอน runtime
-- `database/` ดูแลการรัน PostgreSQL ส่วน schema ของ application อยู่ที่ `backend/prisma/`
+- `deploy/prod/database/` ดูแลการรัน PostgreSQL ส่วน schema ของ application อยู่ที่ `backend/prisma/`
 
 frontend รู้จัก backend ผ่าน API contract เท่านั้น และ backend รู้จัก PostgreSQL ผ่าน repository/Prisma เท่านั้น — สถาปัตยกรรม/layer โดยรวมดูที่ [Hybrid BFF architecture](architecture/hybrid-bff.md)
 
@@ -159,7 +159,7 @@ Domain policy ← Repository interface
 
 ### Ownership
 
-Prisma เป็นส่วนของ backend เพราะ schema และ generated client ต้องเปลี่ยนพร้อม application code ส่วน `database/docker-compose.yml` มีหน้าที่รัน PostgreSQL เท่านั้นและห้ามมี schema SQL อีกชุดที่ซ้ำกับ Prisma migrations
+Prisma เป็นส่วนของ backend เพราะ schema และ generated client ต้องเปลี่ยนพร้อม application code ส่วน `deploy/prod/database/docker-compose.yml` มีหน้าที่รัน PostgreSQL เท่านั้นและห้ามมี schema SQL อีกชุดที่ซ้ำกับ Prisma migrations
 
 ```text
 backend/prisma/

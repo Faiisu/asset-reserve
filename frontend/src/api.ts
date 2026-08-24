@@ -19,6 +19,7 @@ import type {
   PermissionKey,
   Role,
   ReservationDetail,
+  ReservationsByAssetResponse,
   ReservationSummary,
   ReputationEvent,
   ReputationSummary,
@@ -385,6 +386,10 @@ export const api = {
       `/assets/${assetId}/units${queryString(filters)}`,
       { signal },
     ),
+  reservationsByAsset: (start: string, end: string, signal?: AbortSignal) => {
+    const path = `/statistics/reservations-by-asset${queryString({ start, end })}`;
+    return request<ReservationsByAssetResponse>(path, { signal });
+  },
   createReservation: (input: CreateReservationInput) =>
     request<ReservationDetail>("/reservations", {
       method: "POST",

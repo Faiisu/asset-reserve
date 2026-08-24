@@ -6,17 +6,22 @@ x-backend-environment: &backend-environment
   DATABASE_CONNECTION_TIMEOUT_MS: ${DATABASE_CONNECTION_TIMEOUT_MS:-5000}
 
 services:
+  # Idempotent on every redeploy: `prisma migrate deploy` only applies
+  # pending migrations, and the seed only upserts -- neither touches
+  # existing rows, so the database keeps its data across `down`/`up`.
   schema:
     build:
-      context: ..
+      context: ../../..
       dockerfile: backend/Dockerfile
       target: schema
     environment:
       <<: *backend-environment
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
-      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Set BOOTSTRAP_ADMIN_PASSWORD in backend/.env}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Set BOOTSTRAP_ADMIN_PASSWORD in deploy/prod/backend/.env}
       BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-System Admin}
-      LOAD_MOCK_DATA: ${LOAD_MOCK_DATA:-true}
+      # Real deploys don't load demo data; set true only if you intentionally
+      # want the mock dataset in this environment.
+      LOAD_MOCK_DATA: ${LOAD_MOCK_DATA:-false}
       MOCK_USER_PASSWORD: ${MOCK_USER_PASSWORD:-}
     networks:
       - app-network
@@ -24,14 +29,14 @@ services:
 
   backend:
     build:
-      context: ..
+      context: ../../..
       dockerfile: backend/Dockerfile
       target: runtime
     environment:
       <<: *backend-environment
       NODE_ENV: production
       PORT: 3000
-      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in backend/.env}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in deploy/prod/backend/.env}
       JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
       TRUST_PROXY: ${TRUST_PROXY:-true}

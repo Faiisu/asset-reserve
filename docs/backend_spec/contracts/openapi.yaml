@@ -26,6 +26,8 @@ tags:
     description: Reservation details, item approvals, availability conflicts, overlap warnings, and post-approval changes.
   - name: Returns
     description: Equipment return slips, drop-off verification, and inspection decision workflow.
+  - name: Statistics
+    description: Aggregate reporting endpoints for the Statistic page (e.g. reservation-request counts per asset over a period).
   - name: Uploads
     description: Authenticated local image uploads used by asset and user forms.
   - name: Recognition
@@ -123,6 +125,8 @@ paths:
     $ref: ./paths/returns.yaml#/~1returns
   /returns/{returnId}:
     $ref: ./paths/returns.yaml#/~1returns~1{returnId}
+  /statistics/reservations-by-asset:
+    $ref: ./paths/statistics.yaml#/~1statistics~1reservations-by-asset
   /uploads/image:
     $ref: ./paths/uploads.yaml#/~1uploads~1image
   /recognition/assets:
@@ -421,6 +425,10 @@ components:
       $ref: ./components/schemas/notification-settings.yaml#/NotificationSettings
     UpdateNotificationSettingsRequest:
       $ref: ./components/schemas/notification-settings.yaml#/UpdateNotificationSettingsRequest
+    AssetReservationCount:
+      $ref: ./components/schemas/statistics.yaml#/AssetReservationCount
+    ReservationsByAssetResponse:
+      $ref: ./components/schemas/statistics.yaml#/ReservationsByAssetResponse
     ReputationSummary:
       $ref: ./components/schemas/reputation.yaml#/ReputationSummary
     ReputationListResponse:

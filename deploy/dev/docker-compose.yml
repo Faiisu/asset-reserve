@@ -1,27 +1,27 @@
-name: asset-reservation-stack
+name: asset-reservation-dev
+
+# Dev deploy: rebuilds every image from the current source tree on every
+# `up --build`, so it always reflects whatever is on disk. Not meant to
+# preserve data across resets -- use `db:seed`/`db:reset` (the `tools`
+# profile services below) to (re)populate it.
 
 x-db-env: &db-env
-  DATABASE_URL: postgresql://${POSTGRES_USER:-asset_reservation}:${POSTGRES_PASSWORD:-change-this-database-password}@postgres:5432/${POSTGRES_DB:-asset_reservation}?schema=public
+  DATABASE_URL: postgresql://${POSTGRES_USER:-asset_reservation}:${POSTGRES_PASSWORD:-dev-password}@postgres:5432/${POSTGRES_DB:-asset_reservation}?schema=public
   DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
   DATABASE_CONNECTION_TIMEOUT_MS: ${DATABASE_CONNECTION_TIMEOUT_MS:-5000}
 
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: asset-reservation-postgres
+    container_name: asset-reservation-dev-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-asset_reservation}
       POSTGRES_USER: ${POSTGRES_USER:-asset_reservation}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-database-password}
-    command:
-      - postgres
-      - -c
-      - max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
-    shm_size: ${POSTGRES_SHM_SIZE:-256mb}
     healthcheck:
       test:
         [
@@ -32,17 +32,19 @@ services:
       timeout: 3s
       retries: 10
       start_period: 5s
-    stop_grace_period: 30s
     restart: unless-stopped
     networks:
       - app-network
 
+  # Runs `prisma migrate deploy` + the demo-data seed. Re-run on every
+  # `up --build` -- the seed upserts, it never truncates, so this is safe
+  # against an existing dev database.
   schema:
     build:
-      context: .
+      context: ../..
       dockerfile: backend/Dockerfile
       target: schema
-    container_name: asset-reservation-schema
+    container_name: asset-reservation-dev-schema
     environment:
       <<: *db-env
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
@@ -57,17 +59,66 @@ services:
       - app-network
     restart: "no"
 
-  backend:
+  # `docker compose --profile tools run --rm seed` -- re-run the demo-data
+  # seed on its own, without rebuilding/restarting anything else.
+  seed:
     build:
-      context: .
+      context: ../..
       dockerfile: backend/Dockerfile
-      target: runtime
-    container_name: asset-reservation-backend
+      target: schema
     environment:
       <<: *db-env
-      NODE_ENV: production
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-00000000}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-System Admin}
+      LOAD_MOCK_DATA: ${LOAD_MOCK_DATA:-true}
+      MOCK_USER_PASSWORD: ${MOCK_USER_PASSWORD:-password123456}
+    command: ["sh", "-c", "npm run seed"]
+    volumes:
+      - uploads-data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    profiles: ["tools"]
+    restart: "no"
+
+  # `docker compose --profile tools run --rm reset` -- DESTRUCTIVE. Truncates
+  # every table, wipes uploaded asset images, and re-seeds only the admin
+  # user. Dev-only, never wired into the default `up`.
+  reset:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+      target: schema
+    environment:
+      <<: *db-env
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-00000000}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-System Admin}
+    command: ["sh", "-c", "npm run reset:admin"]
+    volumes:
+      - uploads-data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    profiles: ["tools"]
+    restart: "no"
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+      target: runtime
+    container_name: asset-reservation-dev-backend
+    environment:
+      <<: *db-env
+      NODE_ENV: development
       PORT: 3000
-      JWT_SECRET: ${JWT_SECRET:-replace-with-at-least-32-random-characters-for-production}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-key-must-be-at-least-32-characters-long}
       JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-28800}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:3000,http://127.0.0.1:8080,http://127.0.0.1:3000}
       TRUST_PROXY: ${TRUST_PROXY:-true}
@@ -87,8 +138,7 @@ services:
       MICROSOFT_REDIRECT_URI: ${MICROSOFT_REDIRECT_URI:-}
       MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:8080}
-      REQUIRE_ACCOUNT_LINK: ${REQUIRE_ACCOUNT_LINK:-}
-      OPENAPI_CONTRACT_PATH: /docs/openapi.bundle.yaml
+      REQUIRE_ACCOUNT_LINK: ${REQUIRE_ACCOUNT_LINK:-false}
     depends_on:
       postgres:
         condition: service_healthy
@@ -117,10 +167,10 @@ services:
 
   frontend:
     build:
-      context: .
+      context: ../..
       dockerfile: frontend/Dockerfile
       target: runtime
-    container_name: asset-reservation-frontend
+    container_name: asset-reservation-dev-frontend
     ports:
       - "${FRONTEND_PORT:-8080}:80"
     depends_on:
@@ -139,10 +189,10 @@ services:
 
 volumes:
   postgres-data:
-    name: ${POSTGRES_VOLUME_NAME:-asset-reservation-postgres-data}
+    name: ${POSTGRES_VOLUME_NAME:-asset-reservation-dev-postgres-data}
   uploads-data:
-    name: ${UPLOADS_VOLUME_NAME:-asset-reservation-uploads-data}
+    name: ${UPLOADS_VOLUME_NAME:-asset-reservation-dev-uploads-data}
 
 networks:
   app-network:
-    name: ${DOCKER_NETWORK_NAME:-asset-reservation-network}
+    name: ${DOCKER_NETWORK_NAME:-asset-reservation-dev-network}
