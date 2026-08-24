@@ -251,6 +251,11 @@
 .stat-bars__legend i.stat-bars__fill--rejected {
   background: var(--red);
 }
+/* Utilization is a single-series magnitude (percent of capacity used), not
+   an identity or an outcome, so it gets one plain accent hue and no legend. */
+.stat-bars__fill--utilization {
+  background: var(--chart-checked-out);
+}
 .stat-bars__value {
   width: 1.6rem;
   flex: none;

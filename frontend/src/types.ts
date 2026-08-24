@@ -262,6 +262,8 @@ export type AssetReservationCount = {
   managementArea: ManagementAreaRef;
   approvedCount: number;
   rejectedCount: number;
+  activeUnitCount: number;
+  utilizationPercent: number | null;
 };
 
 export type ReservationsByAssetResponse = {

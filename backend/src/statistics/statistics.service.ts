@@ -85,6 +85,13 @@ export class StatisticsService {
       byAsset.set(assetId, (byAsset.get(assetId) ?? 0) + 1);
     }
 
+    const { activeUnitCountByAsset, utilizationPercentByAsset } =
+      await this.utilization(
+        assets.map((asset) => asset.id),
+        start,
+        end,
+      );
+
     const data = assets
       .map((asset) => ({
         assetId: asset.id,
@@ -93,6 +100,8 @@ export class StatisticsService {
         managementArea: asset.managementArea,
         approvedCount: approvedByAsset.get(asset.id) ?? 0,
         rejectedCount: rejectedByAsset.get(asset.id) ?? 0,
+        activeUnitCount: activeUnitCountByAsset.get(asset.id) ?? 0,
+        utilizationPercent: utilizationPercentByAsset.get(asset.id) ?? null,
       }))
       .sort((a, b) => {
         const totalDelta =
@@ -108,6 +117,86 @@ export class StatisticsService {
       periodEnd: end.toISOString(),
       data,
     };
+  }
+
+  /** What fraction of an asset's own capacity actually got used: for each
+   * asset, (hours its non-retired units spent checked out during
+   * [start, end)) / (non-retired unit count * window hours). Two assets
+   * can have the same approvedCount and still tell a different story here
+   * -- one might be a single unit in constant use, the other ten units
+   * that are mostly idle. */
+  private async utilization(
+    assetIds: string[],
+    start: Date,
+    end: Date,
+  ): Promise<{
+    activeUnitCountByAsset: Map<string, number>;
+    utilizationPercentByAsset: Map<string, number>;
+  }> {
+    const unitCounts = await this.prisma.assetUnit.groupBy({
+      by: ["assetId"],
+      where: {
+        assetId: { in: assetIds },
+        // A retired unit can never be checked out again, so it shouldn't
+        // dilute the denominator -- same exclusion AssetSummary.unitCounts
+        // already applies when it reports a "total" unit count.
+        status: { not: "INACTIVE" },
+        // Not yet registered when the window ends is not capacity either.
+        createdAt: { lt: end },
+      },
+      _count: { _all: true },
+    });
+    const activeUnitCountByAsset = new Map(
+      unitCounts.map((row) => [row.assetId, row._count._all]),
+    );
+
+    const assignments = await this.prisma.reservationItemUnit.findMany({
+      where: {
+        checkedOutAt: { not: null, lt: end },
+        OR: [{ returnedAt: null }, { returnedAt: { gt: start } }],
+        reservationItem: { assetId: { in: assetIds } },
+        // Matches the same unit set the denominator counts -- otherwise a
+        // unit retired after being heavily used could push usedMs above
+        // the capacity it no longer counts toward, reading over 100%.
+        assetUnit: { status: { not: "INACTIVE" }, createdAt: { lt: end } },
+      },
+      select: {
+        checkedOutAt: true,
+        returnedAt: true,
+        reservationItem: { select: { assetId: true } },
+      },
+    });
+
+    const usedMsByAsset = new Map<string, number>();
+    for (const assignment of assignments) {
+      const checkedOutAt = assignment.checkedOutAt!;
+      const overlapStart = checkedOutAt > start ? checkedOutAt : start;
+      const overlapEnd =
+        assignment.returnedAt && assignment.returnedAt < end
+          ? assignment.returnedAt
+          : end;
+      const ms = overlapEnd.getTime() - overlapStart.getTime();
+      if (ms <= 0) continue;
+      const assetId = assignment.reservationItem.assetId;
+      usedMsByAsset.set(assetId, (usedMsByAsset.get(assetId) ?? 0) + ms);
+    }
+
+    // windowMs > 0 is guaranteed by resolveRange, and every entry in
+    // activeUnitCountByAsset has unitCount >= 1 (groupBy only returns rows
+    // that matched at least one AssetUnit) -- so capacityMs is always > 0
+    // here and every asset with any active unit gets a percent.
+    const windowMs = end.getTime() - start.getTime();
+    const utilizationPercentByAsset = new Map<string, number>();
+    for (const [assetId, unitCount] of activeUnitCountByAsset) {
+      const capacityMs = unitCount * windowMs;
+      const usedMs = usedMsByAsset.get(assetId) ?? 0;
+      utilizationPercentByAsset.set(
+        assetId,
+        Math.round((usedMs / capacityMs) * 1000) / 10,
+      );
+    }
+
+    return { activeUnitCountByAsset, utilizationPercentByAsset };
   }
 
   /** `start`/`end` are calendar dates naming an inclusive range (the caller

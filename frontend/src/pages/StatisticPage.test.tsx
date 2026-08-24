@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StatisticPage } from "./StatisticPage";
 import type { ReservationsByAssetResponse } from "../types";
@@ -22,20 +28,49 @@ vi.mock("../auth", () => ({
 function response(
   periodStart: string,
   periodEnd: string,
-  counts: Array<[approved: number, rejected: number]>,
+  counts: Array<
+    [
+      approved: number,
+      rejected: number,
+      activeUnitCount?: number,
+      utilizationPercent?: number | null,
+    ]
+  >,
 ): ReservationsByAssetResponse {
   return {
     periodStart,
     periodEnd,
-    data: counts.map(([approvedCount, rejectedCount], index) => ({
-      assetId: `asset-${index}`,
-      name: `Asset ${index}`,
-      partNumber: `PN-${index}`,
-      managementArea: { id: "area-1", name: "Studio A" },
-      approvedCount,
-      rejectedCount,
-    })),
+    data: counts.map(
+      (
+        [
+          approvedCount,
+          rejectedCount,
+          activeUnitCount = 1,
+          utilizationPercent = 0,
+        ],
+        index,
+      ) => ({
+        assetId: `asset-${index}`,
+        name: `Asset ${index}`,
+        partNumber: `PN-${index}`,
+        managementArea: { id: "area-1", name: "Studio A" },
+        approvedCount,
+        rejectedCount,
+        activeUnitCount,
+        utilizationPercent,
+      }),
+    ),
   };
+}
+
+/** Both chart sections render an <ol> and a "list all/show N" toggle button
+ * with overlapping text, so tests that need one or the other scope to its
+ * landmark region rather than querying the whole page. */
+function approvedRegion() {
+  return screen.getByRole("region", { name: "Approved and rejected by asset" });
+}
+function utilizationRegion() {
+  return screen.getByRole("region", { name: "Utilization by asset" });
 }
 
 describe("StatisticPage", () => {
@@ -224,13 +259,72 @@ describe("StatisticPage", () => {
     render(<StatisticPage />);
 
     await waitFor(() =>
-      expect(screen.getAllByRole("listitem")).toHaveLength(1),
+      expect(within(approvedRegion()).getAllByRole("listitem")).toHaveLength(1),
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: /Show 2 assets with no decisions/ }),
+      within(approvedRegion()).getByRole("button", {
+        name: /Show 2 assets with no decisions/,
+      }),
     );
-    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(within(approvedRegion()).getAllByRole("listitem")).toHaveLength(3);
+  });
+
+  it("ranks assets by utilization percent, not by approved/rejected order", async () => {
+    reservationsByAsset.mockResolvedValue(
+      response("2026-07-26T00:00:00.000Z", "2026-08-25T00:00:00.000Z", [
+        [5, 0, 1, 20],
+        [1, 0, 1, 90],
+      ]),
+    );
+    render(<StatisticPage />);
+
+    // Asset 0 leads approved/rejected but Asset 1 has the higher
+    // utilization, so the two sections must not share one sort order.
+    await waitFor(() => {
+      const rows = within(utilizationRegion()).getAllByRole("listitem");
+      expect(rows[0]!.textContent).toContain("Asset 1");
+      expect(rows[1]!.textContent).toContain("Asset 0");
+    });
+  });
+
+  it("folds assets with no active units behind their own toggle", async () => {
+    reservationsByAsset.mockResolvedValue(
+      response("2026-07-26T00:00:00.000Z", "2026-08-25T00:00:00.000Z", [
+        [0, 0, 1, 40],
+        [0, 0, 0, null],
+      ]),
+    );
+    render(<StatisticPage />);
+
+    await waitFor(() =>
+      expect(within(utilizationRegion()).getAllByRole("listitem")).toHaveLength(
+        1,
+      ),
+    );
+
+    fireEvent.click(
+      within(utilizationRegion()).getByRole("button", {
+        name: /Show 1 assets? with no active units/,
+      }),
+    );
+    expect(within(utilizationRegion()).getAllByRole("listitem")).toHaveLength(
+      2,
+    );
+  });
+
+  it("shows the average utilization across measured assets in the section header", async () => {
+    reservationsByAsset.mockResolvedValue(
+      response("2026-07-26T00:00:00.000Z", "2026-08-25T00:00:00.000Z", [
+        [0, 0, 1, 20],
+        [0, 0, 1, 40],
+      ]),
+    );
+    render(<StatisticPage />);
+
+    expect(
+      await within(utilizationRegion()).findByText(/Avg 30%/),
+    ).toBeTruthy();
   });
 
   it("recovers from a failed request without losing the date fields", async () => {
@@ -258,6 +352,8 @@ describe("StatisticPage", () => {
       .getAllByText("VERY-LONG-PART-NUMBER-THAT-WOULD-CLIP-ON-AXIS")
       .find((node) => node.tagName === "TD");
     expect(cell).toBeTruthy();
-    expect(screen.getByText("Studio A")).toBeTruthy();
+    // Both sections switch to a table together, so the asset's area name
+    // legitimately appears twice -- once per table.
+    expect(screen.getAllByText("Studio A").length).toBeGreaterThan(0);
   });
 });

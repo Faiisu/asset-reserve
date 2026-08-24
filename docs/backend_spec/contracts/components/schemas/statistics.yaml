@@ -7,6 +7,8 @@ AssetReservationCount:
     - managementArea
     - approvedCount
     - rejectedCount
+    - activeUnitCount
+    - utilizationPercent
   properties:
     assetId:
       type: string
@@ -36,6 +38,28 @@ AssetReservationCount:
         Count of this asset's reservation items whose ReservationItemApproval.status is REJECTED,
         under the same booked-window rule as approvedCount. A PENDING approval counts toward
         neither field.
+    activeUnitCount:
+      type: integer
+      minimum: 0
+      description: >-
+        Count of this asset's AssetUnit rows that are not INACTIVE and existed before the window
+        ended -- the capacity utilizationPercent is measured against. A retired unit stops
+        counting from the moment it is retired onward, the same way AssetSummary.unitCounts.total
+        already excludes INACTIVE units.
+    utilizationPercent:
+      type:
+        - number
+        - "null"
+      minimum: 0
+      maximum: 100
+      description: >-
+        What fraction of this asset's own capacity was actually checked out during [start, end]:
+        (hours its active units spent checked out in the window) / (activeUnitCount * window
+        hours), as a percentage rounded to one decimal. A unit still checked out (no returnedAt
+        yet) counts as occupied through the window's end. null when activeUnitCount is 0 -- there
+        is no capacity to divide by. Two assets can show the same approvedCount and a different
+        utilizationPercent: one might be a single unit in constant use, the other ten units that
+        are mostly idle.
 ReservationsByAssetResponse:
   type: object
   required:

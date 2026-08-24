@@ -1,8 +1,15 @@
 import { BarChart3, Table2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { api, isAbortError } from "../api";
 import { useAuth } from "../auth";
 import { AssetReservationChart } from "../components/AssetReservationChart";
+import { AssetUtilizationChart } from "../components/AssetUtilizationChart";
 import {
   Button,
   EmptyState,
@@ -68,10 +75,20 @@ export function StatisticPage() {
     // head of the list -- but only once it actually has a decision.
     const top = result.data[0];
     const topTotal = top ? top.approvedCount + top.rejectedCount : 0;
+    const measured = result.data.filter((a) => a.utilizationPercent !== null);
+    const avgUtilization =
+      measured.length > 0
+        ? Math.round(
+            (measured.reduce((sum, a) => sum + a.utilizationPercent!, 0) /
+              measured.length) *
+              10,
+          ) / 10
+        : null;
     return {
       approvedTotal,
       rejectedTotal,
       mostRequested: topTotal > 0 ? { asset: top!, total: topTotal } : null,
+      avgUtilization,
     };
   }, [result]);
 
@@ -81,6 +98,29 @@ export function StatisticPage() {
   const windowLabel = result
     ? formatRangeLabel(result.periodStart, result.periodEnd)
     : null;
+
+  // Both chart sections share this exact loading/error/empty branching, so
+  // it lives once and takes the chart to render as its last case.
+  function renderBody(chart: ReactNode) {
+    if (loading && !result) return <LoadingState label="Loading statistics" />;
+    if (error)
+      return <ErrorState error={error} onRetry={() => load(start, end)} />;
+    if (!result || result.data.length === 0) {
+      return (
+        <EmptyState
+          title="No assets yet"
+          description="No assets are visible to your account, so there is nothing to measure."
+        />
+      );
+    }
+    return (
+      // Hold the previous render at reduced opacity while a new range
+      // loads, rather than flashing a skeleton and jumping the layout.
+      <div className={cx("stat-chart-body", loading && "is-refetching")}>
+        {chart}
+      </div>
+    );
+  }
 
   if (!canView) {
     return (
@@ -182,7 +222,10 @@ export function StatisticPage() {
         </section>
       )}
 
-      <section className="detail-card">
+      <section
+        className="detail-card"
+        aria-label="Approved and rejected by asset"
+      >
         <header>
           <div>
             <p className="eyebrow">Approved vs. rejected, by asset</p>
@@ -190,21 +233,33 @@ export function StatisticPage() {
           </div>
         </header>
 
-        {loading && !result ? (
-          <LoadingState label="Loading statistics" />
-        ) : error ? (
-          <ErrorState error={error} onRetry={() => load(start, end)} />
-        ) : !result || result.data.length === 0 ? (
-          <EmptyState
-            title="No assets yet"
-            description="No assets are visible to your account, so there is nothing to measure."
-          />
-        ) : (
-          // Hold the previous render at reduced opacity while a new range
-          // loads, rather than flashing a skeleton and jumping the layout.
-          <div className={cx("stat-chart-body", loading && "is-refetching")}>
+        {renderBody(
+          result && (
             <AssetReservationChart data={result.data} showTable={showTable} />
+          ),
+        )}
+      </section>
+
+      <section className="detail-card" aria-label="Utilization by asset">
+        <header>
+          <div>
+            <p className="eyebrow">Capacity actually used, by asset</p>
+            <h2>
+              {windowLabel ? `Utilization ${windowLabel}` : "Utilization"}
+            </h2>
           </div>
+          {summary?.avgUtilization !== null &&
+            summary?.avgUtilization !== undefined && (
+              <span className="stat-kpi__hint">
+                Avg {summary.avgUtilization}% across measured assets
+              </span>
+            )}
+        </header>
+
+        {renderBody(
+          result && (
+            <AssetUtilizationChart data={result.data} showTable={showTable} />
+          ),
         )}
       </section>
     </div>

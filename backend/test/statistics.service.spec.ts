@@ -33,8 +33,17 @@ function prismaWith(
     partNumber: string | null;
     managementArea: { id: string; name: string };
   }>,
-  approvals: Array<{ status: "APPROVED" | "REJECTED"; assetId: string }> = [],
+  options: {
+    approvals?: Array<{ status: "APPROVED" | "REJECTED"; assetId: string }>;
+    unitCounts?: Array<{ assetId: string; count: number }>;
+    assignments?: Array<{
+      assetId: string;
+      checkedOutAt: Date;
+      returnedAt: Date | null;
+    }>;
+  } = {},
 ) {
+  const { approvals = [], unitCounts = [], assignments = [] } = options;
   return {
     asset: { findMany: vi.fn().mockResolvedValue(assets) },
     reservationItemApproval: {
@@ -42,6 +51,23 @@ function prismaWith(
         approvals.map((approval) => ({
           status: approval.status,
           reservationItem: { assetId: approval.assetId },
+        })),
+      ),
+    },
+    assetUnit: {
+      groupBy: vi.fn().mockResolvedValue(
+        unitCounts.map((row) => ({
+          assetId: row.assetId,
+          _count: { _all: row.count },
+        })),
+      ),
+    },
+    reservationItemUnit: {
+      findMany: vi.fn().mockResolvedValue(
+        assignments.map((assignment) => ({
+          checkedOutAt: assignment.checkedOutAt,
+          returnedAt: assignment.returnedAt,
+          reservationItem: { assetId: assignment.assetId },
         })),
       ),
     },
@@ -69,11 +95,13 @@ describe("StatisticsService.reservationsByAsset", () => {
       { id: assetA, name: "Camera", partNumber: "CAM-1", managementArea: { id: areaId, name: "Studio A" } },
       { id: assetB, name: "Tripod", partNumber: "TRI-1", managementArea: { id: areaId, name: "Studio A" } },
     ];
-    const prisma = prismaWith(assets, [
-      { status: "APPROVED", assetId: assetA },
-      { status: "APPROVED", assetId: assetA },
-      { status: "REJECTED", assetId: assetA },
-    ]);
+    const prisma = prismaWith(assets, {
+      approvals: [
+        { status: "APPROVED", assetId: assetA },
+        { status: "APPROVED", assetId: assetA },
+        { status: "REJECTED", assetId: assetA },
+      ],
+    });
     const service = new StatisticsService(prisma);
 
     const result = await service.reservationsByAsset(actor, {
@@ -116,11 +144,13 @@ describe("StatisticsService.reservationsByAsset", () => {
       { id: assetA, name: "Camera", partNumber: "CAM-1", managementArea: { id: areaId, name: "Studio A" } },
       { id: assetB, name: "Tripod", partNumber: "TRI-1", managementArea: { id: areaId, name: "Studio A" } },
     ];
-    const prisma = prismaWith(assets, [
-      { status: "REJECTED", assetId: assetA },
-      { status: "REJECTED", assetId: assetA },
-      { status: "APPROVED", assetId: assetB },
-    ]);
+    const prisma = prismaWith(assets, {
+      approvals: [
+        { status: "REJECTED", assetId: assetA },
+        { status: "REJECTED", assetId: assetA },
+        { status: "APPROVED", assetId: assetB },
+      ],
+    });
     const service = new StatisticsService(prisma);
 
     const result = await service.reservationsByAsset(actor, {
@@ -231,5 +261,153 @@ describe("StatisticsService.reservationsByAsset", () => {
     ).mock.calls[0]![0].where.reservationItem;
     expect(reservation.startAt.lt.toISOString()).toBe("2026-09-01T00:00:00.000Z");
     expect(reservation.endAt.gt.toISOString()).toBe("2026-08-01T00:00:00.000Z");
+  });
+});
+
+describe("StatisticsService.reservationsByAsset -- utilizationPercent", () => {
+  const assets = [
+    { id: assetA, name: "Camera", partNumber: "CAM-1", managementArea: { id: areaId, name: "Studio A" } },
+  ];
+
+  it("is null when the asset has no active units", async () => {
+    const prisma = prismaWith(assets, { unitCounts: [] });
+    const service = new StatisticsService(prisma);
+
+    const result = await service.reservationsByAsset(actor, {
+      start: "2026-08-01",
+      end: "2026-08-02",
+    });
+
+    expect(result.data[0]).toMatchObject({
+      activeUnitCount: 0,
+      utilizationPercent: null,
+    });
+  });
+
+  it("computes checked-out hours as a fraction of unit-hours in the window", async () => {
+    // One unit, a 2-day window (48h), checked out for exactly 12h -> 25%.
+    const prisma = prismaWith(assets, {
+      unitCounts: [{ assetId: assetA, count: 1 }],
+      assignments: [
+        {
+          assetId: assetA,
+          checkedOutAt: new Date("2026-08-01T00:00:00.000Z"),
+          returnedAt: new Date("2026-08-01T12:00:00.000Z"),
+        },
+      ],
+    });
+    const service = new StatisticsService(prisma);
+
+    const result = await service.reservationsByAsset(actor, {
+      start: "2026-08-01",
+      end: "2026-08-02",
+    });
+
+    expect(result.data[0]).toMatchObject({
+      activeUnitCount: 1,
+      utilizationPercent: 25,
+    });
+  });
+
+  it("clips an assignment that starts before the window to the window start", async () => {
+    // Checked out the day before the window opens, returned 12h into it --
+    // only those 12h of a 24h single-unit window should count (50%), not
+    // the hours before the window. start === end names one calendar day,
+    // which resolveRange turns into exactly a 24h [start, start+1day) window.
+    const prisma = prismaWith(assets, {
+      unitCounts: [{ assetId: assetA, count: 1 }],
+      assignments: [
+        {
+          assetId: assetA,
+          checkedOutAt: new Date("2026-07-31T00:00:00.000Z"),
+          returnedAt: new Date("2026-08-01T12:00:00.000Z"),
+        },
+      ],
+    });
+    const service = new StatisticsService(prisma);
+
+    const result = await service.reservationsByAsset(actor, {
+      start: "2026-08-01",
+      end: "2026-08-01",
+    });
+
+    expect(result.data[0]!.utilizationPercent).toBe(50);
+  });
+
+  it("treats a still-checked-out unit (no returnedAt) as occupied through the window end", async () => {
+    const prisma = prismaWith(assets, {
+      unitCounts: [{ assetId: assetA, count: 1 }],
+      assignments: [
+        {
+          assetId: assetA,
+          checkedOutAt: new Date("2026-08-01T12:00:00.000Z"),
+          returnedAt: null,
+        },
+      ],
+    });
+    const service = new StatisticsService(prisma);
+
+    const result = await service.reservationsByAsset(actor, {
+      start: "2026-08-01",
+      end: "2026-08-01",
+    });
+
+    // Occupied from noon through the window's end (2026-08-02 00:00) = 12h
+    // of a 24h single-unit window = 50%.
+    expect(result.data[0]!.utilizationPercent).toBe(50);
+  });
+
+  it("divides used hours across every active unit, not just the busiest one", async () => {
+    // Two units, each checked out for the full 24h window -> 48h used of
+    // 48h capacity = 100%, not 200%.
+    const prisma = prismaWith(assets, {
+      unitCounts: [{ assetId: assetA, count: 2 }],
+      assignments: [
+        {
+          assetId: assetA,
+          checkedOutAt: new Date("2026-08-01T00:00:00.000Z"),
+          returnedAt: new Date("2026-08-02T00:00:00.000Z"),
+        },
+        {
+          assetId: assetA,
+          checkedOutAt: new Date("2026-08-01T00:00:00.000Z"),
+          returnedAt: new Date("2026-08-02T00:00:00.000Z"),
+        },
+      ],
+    });
+    const service = new StatisticsService(prisma);
+
+    const result = await service.reservationsByAsset(actor, {
+      start: "2026-08-01",
+      end: "2026-08-01",
+    });
+
+    expect(result.data[0]!.utilizationPercent).toBe(100);
+  });
+
+  it("excludes retired units from both the query and the denominator", async () => {
+    const prisma = prismaWith(assets, {
+      unitCounts: [{ assetId: assetA, count: 1 }],
+      assignments: [
+        {
+          assetId: assetA,
+          checkedOutAt: new Date("2026-08-01T00:00:00.000Z"),
+          returnedAt: new Date("2026-08-01T06:00:00.000Z"),
+        },
+      ],
+    });
+    const service = new StatisticsService(prisma);
+
+    await service.reservationsByAsset(actor, { start: "2026-08-01", end: "2026-08-02" });
+
+    const unitWhere = (prisma.assetUnit.groupBy as ReturnType<typeof vi.fn>).mock
+      .calls[0]![0].where;
+    expect(unitWhere.status).toEqual({ not: "INACTIVE" });
+    const assignmentWhere = (
+      prisma.reservationItemUnit.findMany as ReturnType<typeof vi.fn>
+    ).mock.calls[0]![0].where;
+    expect(assignmentWhere.assetUnit).toEqual(
+      expect.objectContaining({ status: { not: "INACTIVE" } }),
+    );
   });
 });
