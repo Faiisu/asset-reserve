@@ -124,6 +124,77 @@ describe("AssetFormPage", () => {
     expect(await screen.findByText("Asset Detail Page")).toBeInTheDocument();
   });
 
+  it("caps a CSV import at 100 assets, the backend batch limit", async () => {
+    const header = "S/N,P/N,Description";
+    const dataRows = Array.from(
+      { length: 150 },
+      (_, i) => `SN-${i},PN-${i},Widget ${i}`,
+    );
+    const csv = new File([[header, ...dataRows].join("\n")], "manifest.csv", {
+      type: "text/csv",
+    });
+
+    const { container } = render(
+      <MemoryRouter initialEntries={["/assets/new"]}>
+        <Routes>
+          <Route path="/assets/new" element={<AssetFormPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const batchTab = await screen.findByRole("tab", { name: /Multiple assets/i });
+    fireEvent.click(batchTab);
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(fileInput, "files", { value: [csv] });
+    fireEvent.change(fileInput);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Imported 100 asset\(s\) from CSV/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Only the first 100 assets were imported/i)).toBeInTheDocument();
+    expect(screen.getByText(/50 left out/i)).toBeInTheDocument();
+
+    const submitBtn = screen.getByRole("button", { name: /Add 100 assets/i });
+    expect(submitBtn).toBeInTheDocument();
+  });
+
+  it("blocks submit when an imported P/N is too long to use as the asset name", async () => {
+    const longPartNumber = "PN-" + "X".repeat(60); // > 40-char name limit, still < 100-char P/N limit
+    const csv = new File(
+      [`S/N,P/N,Description\nSN-1,${longPartNumber},Widget`],
+      "manifest.csv",
+      { type: "text/csv" },
+    );
+    const createAssets = vi.spyOn(api, "createAssets");
+
+    const { container } = render(
+      <MemoryRouter initialEntries={["/assets/new"]}>
+        <Routes>
+          <Route path="/assets/new" element={<AssetFormPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const batchTab = await screen.findByRole("tab", { name: /Multiple assets/i });
+    fireEvent.click(batchTab);
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(fileInput, "files", { value: [csv] });
+    fireEvent.change(fileInput);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Imported 1 asset\(s\) from CSV/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Add 1 asset/i }));
+
+    expect(
+      await screen.findByText(/Row 1's asset name is longer than 40 characters/i),
+    ).toBeInTheDocument();
+    expect(createAssets).not.toHaveBeenCalled();
+  });
+
   it("opens camera capture modal when Take photo button is clicked", async () => {
     render(
       <MemoryRouter initialEntries={["/assets/new"]}>

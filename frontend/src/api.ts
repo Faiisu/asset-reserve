@@ -21,6 +21,8 @@ import type {
   ReservationDetail,
   ReservationsByAssetResponse,
   ReservationSummary,
+  ReputationEvent,
+  ReputationSummary,
   ReturnDecisionInput,
   ReturnDetail,
   SessionContext,
@@ -184,6 +186,35 @@ export const api = {
       { signal },
     ),
   user: (userId: string) => request<UserDetail>(`/users/${userId}`),
+
+  myReputation: () => request<ReputationSummary>("/reputation/me"),
+  myReputationEvents: (
+    filters: { cursor?: string; limit?: number } = {},
+    signal?: AbortSignal,
+  ) =>
+    request<ListResponse<ReputationEvent>>(
+      `/reputation/me/events${queryString(filters)}`,
+      { signal },
+    ),
+  reputationUsers: (
+    filters: { search?: string; cursor?: string; limit?: number },
+    signal?: AbortSignal,
+  ) =>
+    request<ListResponse<ReputationSummary>>(
+      `/reputation${queryString(filters)}`,
+      { signal },
+    ),
+  reputationUser: (userId: string) =>
+    request<ReputationSummary>(`/reputation/${userId}`),
+  reputationUserEvents: (
+    userId: string,
+    filters: { cursor?: string; limit?: number } = {},
+    signal?: AbortSignal,
+  ) =>
+    request<ListResponse<ReputationEvent>>(
+      `/reputation/${userId}/events${queryString(filters)}`,
+      { signal },
+    ),
   createUser: (input: { username: string; password: string }) =>
     request<UserDetail>("/users", { method: "POST", body: json(input) }),
   updateUserStatus: (

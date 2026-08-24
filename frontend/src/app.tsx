@@ -19,6 +19,8 @@ import { ReservationDetailPage } from "./pages/ReservationDetailPage";
 import { ReservationsPage } from "./pages/ReservationsPage";
 import { ManagementAreasPage } from "./pages/ManagementAreasPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { ReputationHistoryPage } from "./pages/ReputationHistoryPage";
+import { ReputationPage } from "./pages/ReputationPage";
 import { StatisticPage } from "./pages/StatisticPage";
 import { UsersPage } from "./pages/UsersPage";
 
@@ -112,6 +114,11 @@ export function App() {
         <Route path="admin/users" element={<UsersPage />} />
         <Route path="admin/areas" element={<ManagementAreasPage />} />
         <Route path="admin/notifications" element={<NotificationsPage />} />
+        <Route path="admin/reputation" element={<ReputationPage />} />
+        <Route
+          path="admin/reputation/:userId"
+          element={<ReputationHistoryPage />}
+        />
         <Route
           path="admin/templates"
           element={<Navigate to="/admin/areas" replace />}

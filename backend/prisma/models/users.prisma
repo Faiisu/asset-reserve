@@ -10,6 +10,10 @@ model User {
   email        String? @unique @db.VarChar(255)
   passwordHash String? @map("password_hash")
   isActive     Boolean @default(true) @map("is_active")
+  /// Behavior score, 0-100, starts at 100. Moved only by
+  /// ReputationService.recordReturnOutcome (see reputation.prisma) when a
+  /// return is approved -- late/on-time and broken/lost asset penalties.
+  reputation   Int     @default(100)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
@@ -31,6 +35,7 @@ model User {
   activityLogs                 ActivityLog[]             @relation("UserActivityLogs")
   updatedNotificationSettings  NotificationSettings[]
   updatedEmailTemplates        EmailTemplate[]
+  reputationEvents             ReputationEvent[]
 
   @@map("users")
 }

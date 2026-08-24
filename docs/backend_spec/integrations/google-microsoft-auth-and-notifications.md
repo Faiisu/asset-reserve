@@ -22,7 +22,7 @@
 
 - Model `UserAuthIdentity` (`prisma/models/users.prisma`) เก็บ `[provider, providerUserId]` แบบ composite unique — provider-agnostic
 - `google-auth` และ `microsoft-auth` module ต่างมี route รูปแบบเดียวกัน: `GET /login` (public, ใช้สำหรับ sign-in ปกติถ้าเคย link แล้ว), `GET /connect` (authenticated, บังคับ consent ใหม่เพื่อให้ได้ refresh token), `GET /callback` (public, แยก flow ด้วย signed state token ที่มี `purpose: "login" | "connect"`)
-- Callback flow `"login"`: verify token → ถ้ามี `UserAuthIdentity` อยู่แล้ว log in ทันที ถ้ายังไม่มี ให้ lookup `User` ด้วย email (เทียบ lowercase) — พบ → link แล้ว log in, ไม่พบ → redirect พร้อม error `no_account` (**ไม่สร้าง user ใหม่เด็ดขาด**) บัญชีที่ inactive → error `inactive`
+- Callback flow `"login"`: verify token → lookup `UserAuthIdentity` ด้วย `[provider, providerUserId]` เท่านั้น — พบ → log in ทันที ไม่พบ → redirect พร้อม error `not_linked` (**ไม่มี fallback lookup ด้วย email และไม่สร้าง user ใหม่เด็ดขาด** — เป็น invite-only, ป้องกัน account takeover ผ่าน email ที่ยังไม่ผ่านการ verify ตอน login) บัญชีที่ inactive → error `inactive`
 - **Mandatory-link gate:** `AccountLinkGuard` บังคับผู้ใช้ทุกคนไป `/connect-account` จนกว่าจะ link provider ใดก็ได้อย่างน้อยหนึ่งตัว การเปิด/ปิด gate ควบคุมด้วย `REQUIRE_ACCOUNT_LINK` — รายละเอียดที่ [OAuth setup §1](oauth-setup.md#1-how-the-mode-toggle-works)
 - **Optional-link mode:** เมื่อ gate ปิด (`REQUIRE_ACCOUNT_LINK=false`) ผู้ใช้จัดการ notification email/name/password เองผ่านหน้า self-service `/account` โดยไม่ต้อง link อะไรเลย — Google/Microsoft ยังเสนอเป็นทางเลือกเสริม
 - Microsoft ไม่มี profile picture ใน ID token (ต่างจาก Google) — field profile picture ของผู้ใช้ที่ link ผ่าน Microsoft จะไม่ถูกตั้งค่า

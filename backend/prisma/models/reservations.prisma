@@ -12,11 +12,12 @@ model Reservation {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  requester    User                     @relation("ReservationRequester", fields: [requesterId], references: [id])
-  items        ReservationItem[]
-  participants ReservationParticipant[]
-  returns      Return[]
-  activityLogs ActivityLog[]            @relation("ReservationActivityLogs")
+  requester        User                     @relation("ReservationRequester", fields: [requesterId], references: [id])
+  items            ReservationItem[]
+  participants     ReservationParticipant[]
+  returns          Return[]
+  activityLogs     ActivityLog[]            @relation("ReservationActivityLogs")
+  reputationEvents ReputationEvent[]
 
   // Database CHECK required by the source specification: end_at > start_at.
   @@index([requesterId, createdAt])

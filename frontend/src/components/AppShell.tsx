@@ -1,4 +1,5 @@
 import {
+  Award,
   Bell,
   Boxes,
   BarChart3,
@@ -33,6 +34,7 @@ const titles: Array<[string, string]> = [
   ["/admin/users", "Users"],
   ["/admin/areas", "Management areas"],
   ["/admin/notifications", "Notification"],
+  ["/admin/reputation", "Reputation"],
 ];
 
 export function AppShell() {
@@ -118,6 +120,12 @@ export function AppShell() {
       to: "/admin/notifications",
       label: "Notification",
       icon: Bell,
+      show: isGlobalAdmin,
+    },
+    {
+      to: "/admin/reputation",
+      label: "Reputation",
+      icon: Award,
       show: isGlobalAdmin,
     },
   ].filter((item) => item.show);

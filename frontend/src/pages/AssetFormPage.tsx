@@ -28,6 +28,7 @@ import {
   Textarea,
 } from "../components/ui";
 import { parseAssetImportCsv } from "../lib/csv";
+import { parseAssetImportXlsx } from "../lib/xlsx";
 import { recognitionApi, type RecognitionPhoto } from "../recognitionApi";
 import type { AssetDetail, ManagementArea } from "../types";
 import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
@@ -686,6 +687,14 @@ export function AssetFormPage() {
   );
 }
 
+// Mirrors BatchCreateAssetsDto's @ArrayMaxSize(100) on the backend
+// (backend/src/assets/assets.dto.ts) -- a CSV/XLSX import has no natural
+// upper bound (unlike clicking "Add row" by hand), so without this a large
+// manifest parses and previews fine, only to fail as one opaque validation
+// error from POST /assets/batch after the user has already reviewed/edited
+// every row.
+const MAX_BATCH_SIZE = 100;
+
 type BatchRow = {
   key: number;
   name: string;
@@ -791,25 +800,31 @@ function BatchAssetForm({
     );
   }
 
-  // Reads a CSV (fixed column order: S/N, P/N, description; header row
-  // skipped) and replaces the manifest wholesale with the grouped result --
-  // see parseAssetImportCsv for the S/N-per-P/N grouping rule. Only file
-  // reading needs to be async; the input's value is cleared afterward so
-  // re-selecting the same file (e.g. after fixing it) still fires onChange.
-  async function importFromCsv(file: File) {
+  // Reads a CSV or XLSX file (fixed column order: S/N, P/N, description;
+  // header row skipped) and replaces the manifest wholesale with the
+  // grouped result -- see parseAssetImportCsv / parseAssetImportXlsx for the
+  // S/N-per-P/N grouping rule shared by both formats. The input's value is
+  // cleared afterward so re-selecting the same file (e.g. after fixing it)
+  // still fires onChange.
+  async function importManifestFile(file: File) {
     setError("");
     setImportNotice("");
+    const isXlsx = /\.xlsx$/i.test(file.name);
+    const formatLabel = isXlsx ? "Excel" : "CSV";
     try {
-      const text = await file.text();
-      const { rows: imported, skippedRows } = parseAssetImportCsv(text);
+      const { rows: imported, skippedRows } = isXlsx
+        ? await parseAssetImportXlsx(file)
+        : parseAssetImportCsv(await file.text());
       if (imported.length === 0) {
         setError(
-          "No valid rows found in that CSV -- check it has a header row and a P/N in each data row.",
+          `No valid rows found in that ${formatLabel} file -- check it has a header row and a P/N in each data row.`,
         );
         return;
       }
+      const overflow = Math.max(0, imported.length - MAX_BATCH_SIZE);
+      const kept = overflow > 0 ? imported.slice(0, MAX_BATCH_SIZE) : imported;
       setRows(
-        imported.map((row, i) => ({
+        kept.map((row, i) => ({
           ...newBatchRow(Date.now() + i),
           name: row.name,
           partNumber: row.partNumber,
@@ -817,13 +832,17 @@ function BatchAssetForm({
           serialNumbers: row.serialNumbers,
         })),
       );
+      const notes = [
+        skippedRows > 0 ? `Skipped ${skippedRows} row(s) with no P/N.` : null,
+        overflow > 0
+          ? `Only the first ${MAX_BATCH_SIZE} assets were imported (${overflow} left out) -- a batch can't exceed ${MAX_BATCH_SIZE}. Split the rest into another import.`
+          : null,
+      ].filter(Boolean);
       setImportNotice(
-        skippedRows > 0
-          ? `Imported ${imported.length} asset(s) from CSV. Skipped ${skippedRows} row(s) with no P/N.`
-          : `Imported ${imported.length} asset(s) from CSV.`,
+        `Imported ${kept.length} asset(s) from ${formatLabel}.${notes.length > 0 ? ` ${notes.join(" ")}` : ""}`,
       );
     } catch {
-      setError("Could not read that CSV file.");
+      setError(`Could not read that ${formatLabel} file.`);
     }
   }
 
@@ -833,9 +852,24 @@ function BatchAssetForm({
       setError("Please select a management area.");
       return;
     }
+    if (rows.length > MAX_BATCH_SIZE) {
+      setError(`A batch can't exceed ${MAX_BATCH_SIZE} assets -- remove ${rows.length - MAX_BATCH_SIZE} row(s).`);
+      return;
+    }
     const emptyNameIndex = rows.findIndex((row) => !row.name.trim());
     if (emptyNameIndex !== -1) {
       setError(`Row ${emptyNameIndex + 1} requires an asset name.`);
+      return;
+    }
+    // Imported rows set name = P/N, and P/N is allowed up to 100 chars
+    // (CreateAssetDto.partNumber) while name is capped at 40
+    // (CreateAssetDto.name) -- the <Input maxLength={40}> only stops manual
+    // typing, not a longer value arriving from parseAssetImportCsv/Xlsx.
+    const overlongIndex = rows.findIndex((row) => row.name.trim().length > 40);
+    if (overlongIndex !== -1) {
+      setError(
+        `Row ${overlongIndex + 1}'s asset name is longer than 40 characters -- shorten it (imported P/N values can run longer than the name limit).`,
+      );
       return;
     }
 
@@ -1007,8 +1041,9 @@ function BatchAssetForm({
                 <p>
                   One row per asset -- add its name, part number, photos, and
                   any serial units to register right away. Or import a CSV
-                  (S/N, P/N, description) to fill this out automatically --
-                  rows sharing a P/N become one asset with multiple S/Ns.
+                  or Excel file (S/N, P/N, description) to fill this out
+                  automatically -- rows sharing a P/N become one asset with
+                  multiple S/Ns.
                 </p>
               </div>
               <div className="batch-manifest-actions">
@@ -1019,17 +1054,17 @@ function BatchAssetForm({
                   onClick={() => csvInputRef.current?.click()}
                 >
                   <FileUp size={15} />
-                  Import CSV
+                  Import CSV / Excel
                 </Button>
                 <input
                   ref={csvInputRef}
                   type="file"
-                  accept=".csv,text/csv"
+                  accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   style={{ display: "none" }}
                   onChange={(event) => {
                     const file = event.target.files?.[0] ?? null;
                     event.target.value = "";
-                    if (file) void importFromCsv(file);
+                    if (file) void importManifestFile(file);
                   }}
                 />
                 <Button

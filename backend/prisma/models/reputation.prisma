@@ -1,0 +1,22 @@
+model ReputationEvent {
+  id            String   @id @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  reservationId String?  @map("reservation_id") @db.Uuid
+  returnId      String?  @map("return_id") @db.Uuid
+  /// Supported values: RETURN_ON_TIME, RETURN_LATE, ASSET_BROKEN, ASSET_LOST.
+  /// One row per individual effect -- e.g. a return with 2 broken units and
+  /// 3 affected people (requester + participants) produces 3x the
+  /// late/on-time row plus 3x2 broken rows. See ReputationService.recordReturnOutcome.
+  type          String   @db.VarChar(20)
+  delta         Int
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user        User         @relation(fields: [userId], references: [id])
+  reservation Reservation? @relation(fields: [reservationId], references: [id])
+  return      Return?      @relation(fields: [returnId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([returnId])
+  @@map("reputation_events")
+}

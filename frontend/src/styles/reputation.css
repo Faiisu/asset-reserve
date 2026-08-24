@@ -1,0 +1,66 @@
+.reputation-score {
+  font-size: 40px;
+  font-weight: 700;
+  font-family: var(--mono);
+}
+.reputation-score--good {
+  color: var(--green);
+}
+.reputation-score--bad {
+  color: var(--red);
+}
+.reputation-delta-badge {
+  flex-shrink: 0;
+  min-width: 40px;
+  padding: 3px 8px;
+  border-radius: 7px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+.reputation-delta-badge--positive {
+  color: var(--green);
+  background: var(--green-soft);
+}
+.reputation-delta-badge--negative {
+  color: var(--red);
+  background: var(--red-soft);
+}
+.reputation-event-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.reputation-event-list__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.reputation-event-list__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.reputation-event-list__date {
+  flex-shrink: 0;
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-family: var(--mono);
+}
+.reputation-event-list__empty {
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+.reputation-users-table td.reputation-score-cell {
+  font-family: var(--mono);
+  font-weight: 700;
+}

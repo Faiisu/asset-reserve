@@ -13,6 +13,7 @@ import { MicrosoftAuthModule } from "./microsoft-auth/microsoft-auth.module.js";
 import { NotificationSettingsModule } from "./notification-settings/notification-settings.module.js";
 import { EmailTemplatesModule } from "./email-templates/email-templates.module.js";
 import { RecognitionModule } from "./recognition/recognition.module.js";
+import { ReputationModule } from "./reputation/reputation.module.js";
 import { ReservationsModule } from "./reservations/reservations.module.js";
 import { ReturnsModule } from "./returns/returns.module.js";
 import { StatisticsModule } from "./statistics/statistics.module.js";
@@ -36,6 +37,7 @@ import { UsersModule } from "./users/users.module.js";
     StatisticsModule,
     UploadsModule,
     RecognitionModule,
+    ReputationModule,
     EmailModule,
     NotificationSettingsModule,
     EmailTemplatesModule,
