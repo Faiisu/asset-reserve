@@ -89,14 +89,12 @@ export function AssetReservationChart({
             <li
               key={asset.assetId}
               className="stat-bars__row"
-              aria-label={`${asset.partNumber || asset.name}, ${asset.reservedCount} reservations`}
+              aria-label={`${asset.name}, ${asset.reservedCount} reservations`}
             >
               <div className="stat-bars__label">
-                <span className="stat-bars__pn mono">
-                  {asset.partNumber || asset.name}
-                </span>
+                <span className="stat-bars__name">{asset.name}</span>
                 <span className="stat-bars__meta">
-                  {asset.name}
+                  <span className="mono">{asset.partNumber || "No P/N"}</span>
                   <i aria-hidden> · </i>
                   {asset.managementArea.name}
                 </span>

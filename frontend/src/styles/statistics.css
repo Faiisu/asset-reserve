@@ -113,7 +113,7 @@
   flex-direction: column;
   gap: 2px;
 }
-.stat-bars__pn {
+.stat-bars__name {
   color: var(--ink);
   font-size: 12px;
   font-weight: 600;
