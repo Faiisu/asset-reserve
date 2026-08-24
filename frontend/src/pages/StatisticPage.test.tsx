@@ -189,6 +189,51 @@ describe("StatisticPage", () => {
     expect(within(utilizationRegion()).getByRole("table")).toBeTruthy();
   });
 
+  it("keeps idle assets hidden in table view until the same toggle is used", async () => {
+    reservationsByAsset.mockResolvedValue(
+      response("2026-07-26T00:00:00.000Z", "2026-08-25T00:00:00.000Z", [
+        [4, 0],
+        [0, 0],
+      ]),
+    );
+    render(<StatisticPage />);
+    await waitFor(() => expect(approvedRegion()).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /^Table$/ }));
+
+    // The idle asset (Asset 1) must not silently reappear just because the
+    // view switched to a table -- same rows, same toggle, in both modes.
+    expect(within(approvedRegion()).getAllByRole("row")).toHaveLength(2); // header + the one decided asset
+    expect(within(approvedRegion()).queryByText("Asset 1")).toBeNull();
+
+    fireEvent.click(
+      within(approvedRegion()).getByRole("button", {
+        name: /Show 1 assets? with no decisions/,
+      }),
+    );
+
+    expect(within(approvedRegion()).getAllByRole("row")).toHaveLength(3);
+    expect(within(approvedRegion()).getByText("Asset 1")).toBeTruthy();
+  });
+
+  it("keeps the utilization table sorted by utilization, not the API's approved/rejected order", async () => {
+    reservationsByAsset.mockResolvedValue(
+      // Asset 0 leads approved/rejected (the order the API returns), but
+      // Asset 1 has the higher utilization.
+      response("2026-07-26T00:00:00.000Z", "2026-08-25T00:00:00.000Z", [
+        [5, 0, 1, 20],
+        [1, 0, 1, 90],
+      ]),
+    );
+    render(<StatisticPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Utilization" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Table$/ }));
+
+    const rows = within(utilizationRegion()).getAllByRole("row").slice(1);
+    expect(rows[0]!.textContent).toContain("Asset 1");
+    expect(rows[1]!.textContent).toContain("Asset 0");
+  });
+
   it("refetches from the server when the start date changes", async () => {
     reservationsByAsset.mockResolvedValue(
       response("2026-07-26T00:00:00.000Z", "2026-08-25T00:00:00.000Z", [
@@ -394,7 +439,7 @@ describe("StatisticPage", () => {
     expect(screen.getByLabelText("Report end date")).toBeTruthy();
   });
 
-  it("exposes every value in a table view, including long part numbers", async () => {
+  it("keeps every value reachable in table view, including a long part number", async () => {
     const data = response(
       "2026-08-01T00:00:00.000Z",
       "2026-08-31T00:00:00.000Z",
@@ -406,12 +451,13 @@ describe("StatisticPage", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /^Table$/ }));
 
-    const cell = screen
-      .getAllByText("VERY-LONG-PART-NUMBER-THAT-WOULD-CLIP-ON-AXIS")
-      .find((node) => node.tagName === "TD");
-    expect(cell).toBeTruthy();
-    // Both sections switch to a table together, so the asset's area name
-    // legitimately appears twice -- once per table.
-    expect(screen.getAllByText("Studio A").length).toBeGreaterThan(0);
+    // P/N and management area share one "meta" line under the asset name --
+    // both must be present in full, not clipped.
+    const meta = screen.getByText(
+      (content) =>
+        content.includes("VERY-LONG-PART-NUMBER-THAT-WOULD-CLIP-ON-AXIS") &&
+        content.includes("Studio A"),
+    );
+    expect(meta.tagName).toBe("SMALL");
   });
 });

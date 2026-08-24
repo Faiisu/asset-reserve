@@ -26,7 +26,13 @@ const SERIES = [
  * tracks per asset so a reader can compare either series across assets and
  * compare the two series against each other within one asset, at the same
  * time. Green/red rather than an arbitrary categorical pair: this genuinely
- * is a good/bad outcome, which is what status color is for. */
+ * is a good/bad outcome, which is what status color is for.
+ *
+ * The table view is the same ranked `rows`, the same idle-hiding toggle, and
+ * the same empty state as the chart -- it used to be a second, disconnected
+ * code path built straight off `data`, so switching Chart -> Table silently
+ * un-hid every idle asset and (for the utilization table) re-sorted rows
+ * into an order that had nothing to do with what the table was showing. */
 export function AssetReservationChart({
   data,
   showTable,
@@ -49,40 +55,7 @@ export function AssetReservationChart({
     1,
   );
 
-  if (showTable) {
-    return (
-      <div className="data-table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>P/N</th>
-              <th>Asset</th>
-              <th>Management area</th>
-              <th className="stat-table__number">Approved</th>
-              <th className="stat-table__number">Rejected</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((asset) => (
-              <tr key={asset.assetId}>
-                <td className="mono">{asset.partNumber || "—"}</td>
-                <td className="table-primary">{asset.name}</td>
-                <td className="table-secondary">{asset.managementArea.name}</td>
-                <td className="mono stat-table__number">
-                  {asset.approvedCount}
-                </td>
-                <td className="mono stat-table__number">
-                  {asset.rejectedCount}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-
-  if (decided.length === 0 && !showEmpty) {
+  if (rows.length === 0) {
     return (
       <>
         <EmptyState
@@ -104,51 +77,88 @@ export function AssetReservationChart({
 
   return (
     <>
-      <div className="stat-bars__legend">
-        {SERIES.map((series) => (
-          <span key={series.key}>
-            <i className={series.className} aria-hidden />
-            {series.label}
-          </span>
-        ))}
-      </div>
-
-      <ol className="stat-bars">
-        {rows.map((asset) => (
-          <li
-            key={asset.assetId}
-            className="stat-bars__row"
-            aria-label={`${asset.name}, ${asset.approvedCount} approved, ${asset.rejectedCount} rejected`}
-          >
-            <div className="stat-bars__label">
-              <span className="stat-bars__name">{asset.name}</span>
-              <span className="stat-bars__meta">
-                <span className="mono">{asset.partNumber || "No P/N"}</span>
-                <i aria-hidden> · </i>
-                {asset.managementArea.name}
+      {showTable ? (
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th className="stat-table__number">Approved</th>
+                <th className="stat-table__number">Rejected</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((asset) => (
+                <tr key={asset.assetId}>
+                  <td>
+                    <strong className="table-primary">{asset.name}</strong>
+                    <small className="table-secondary">
+                      {asset.partNumber || "No P/N"} ·{" "}
+                      {asset.managementArea.name}
+                    </small>
+                  </td>
+                  {SERIES.map((series) => (
+                    <td key={series.key} className="stat-table__number">
+                      <span className="stat-table__swatch">
+                        <i className={series.className} aria-hidden />
+                        <b className="mono">{asset[series.key]}</b>
+                      </span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <>
+          <div className="stat-bars__legend">
+            {SERIES.map((series) => (
+              <span key={series.key}>
+                <i className={series.className} aria-hidden />
+                {series.label}
               </span>
-            </div>
-            <div className="stat-bars__group">
-              {SERIES.map((series) => {
-                const value = asset[series.key];
-                const percent =
-                  value > 0 ? Math.max((value / max) * 100, 2) : 0;
-                return (
-                  <div className="stat-bars__series" key={series.key}>
-                    <div className="stat-bars__track">
-                      <div
-                        className={`stat-bars__fill ${series.className}`}
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-                    <b className="stat-bars__value mono">{value}</b>
-                  </div>
-                );
-              })}
-            </div>
-          </li>
-        ))}
-      </ol>
+            ))}
+          </div>
+
+          <ol className="stat-bars">
+            {rows.map((asset) => (
+              <li
+                key={asset.assetId}
+                className="stat-bars__row"
+                aria-label={`${asset.name}, ${asset.approvedCount} approved, ${asset.rejectedCount} rejected`}
+              >
+                <div className="stat-bars__label">
+                  <span className="stat-bars__name">{asset.name}</span>
+                  <span className="stat-bars__meta">
+                    <span className="mono">{asset.partNumber || "No P/N"}</span>
+                    <i aria-hidden> · </i>
+                    {asset.managementArea.name}
+                  </span>
+                </div>
+                <div className="stat-bars__group">
+                  {SERIES.map((series) => {
+                    const value = asset[series.key];
+                    const percent =
+                      value > 0 ? Math.max((value / max) * 100, 2) : 0;
+                    return (
+                      <div className="stat-bars__series" key={series.key}>
+                        <div className="stat-bars__track">
+                          <div
+                            className={`stat-bars__fill ${series.className}`}
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                        <b className="stat-bars__value mono">{value}</b>
+                      </div>
+                    );
+                  })}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
 
       {idleCount > 0 && (
         <button

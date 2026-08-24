@@ -293,6 +293,21 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+/* Carries the same series identity into the table that the bars and legend
+   already use -- a colored swatch beside the value, never the digits
+   themselves in color (a colored number reads as a status, not a count). */
+.stat-table__swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+.stat-table__swatch i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
 
 .is-refetching {
   opacity: 0.55;
