@@ -100,8 +100,18 @@ export class AssetUnitsService {
       conditions.push({ asset: { managementAreaId: { in: allowedAreaIds } } });
     }
     if (query.search) {
+      const term = query.search;
       conditions.push({
-        serialNumber: { contains: query.search, mode: "insensitive" },
+        OR: [
+          { serialNumber: { contains: term, mode: "insensitive" } },
+          { asset: { name: { contains: term, mode: "insensitive" } } },
+          { asset: { partNumber: { contains: term, mode: "insensitive" } } },
+          {
+            asset: {
+              managementArea: { name: { contains: term, mode: "insensitive" } },
+            },
+          },
+        ],
       });
     }
     if (cursor) {
@@ -116,7 +126,14 @@ export class AssetUnitsService {
     const rows = await this.prisma.assetUnit.findMany({
       where: conditions.length ? { AND: conditions } : {},
       include: {
-        asset: { select: { id: true, name: true, partNumber: true } },
+        asset: {
+          select: {
+            id: true,
+            name: true,
+            partNumber: true,
+            managementArea: { select: { id: true, name: true } },
+          },
+        },
         reservationItemUnits: {
           where: { status: { in: ACTIVE_ASSIGNMENT_STATUSES } },
           select: { id: true },
@@ -130,7 +147,12 @@ export class AssetUnitsService {
     return {
       data: page.data.map((unit) => ({
         ...this.unitDto(unit),
-        asset: unit.asset,
+        asset: {
+          id: unit.asset.id,
+          name: unit.asset.name,
+          partNumber: unit.asset.partNumber,
+          managementArea: unit.asset.managementArea,
+        },
       })),
       pageInfo: page.pageInfo,
     };

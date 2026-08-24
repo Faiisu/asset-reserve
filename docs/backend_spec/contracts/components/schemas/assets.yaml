@@ -320,6 +320,7 @@ AssetRef:
     - id
     - name
     - partNumber
+    - managementArea
   properties:
     id:
       type: string
@@ -332,6 +333,8 @@ AssetRef:
         - string
         - "null"
       maxLength: 100
+    managementArea:
+      $ref: "#/components/schemas/ManagementAreaRef"
 AssetUnitWithAssetRef:
   allOf:
     - $ref: "#/components/schemas/AssetUnit"

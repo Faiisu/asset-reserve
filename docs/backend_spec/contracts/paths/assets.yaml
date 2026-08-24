@@ -333,7 +333,9 @@
     summary: Search asset units by serial number across all assets the caller can view
     description: >-
       Requires asset:view; results are scoped to the caller's permitted management areas the same
-      way GET /assets is. Used to look up a unit by serial number without knowing its asset first.
+      way GET /assets is. `search` matches the unit's serial number OR its owning asset's name,
+      part number, or management area name (any one match qualifies) -- selection is still by
+      serial number, this just widens how a unit can be found.
     operationId: searchAssetUnits
     parameters:
       - $ref: "#/components/parameters/Search"
@@ -341,7 +343,7 @@
       - $ref: "#/components/parameters/Limit"
     responses:
       "200":
-        description: Paginated units matching the search, each with its owning asset's name and part number.
+        description: Paginated units matching the search, each with its owning asset's name, part number, and management area.
         content:
           application/json:
             schema:

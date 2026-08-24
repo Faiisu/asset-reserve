@@ -256,7 +256,12 @@ export type AssetUnit = {
 };
 
 export type AssetUnitSearchResult = AssetUnit & {
-  asset: { id: string; name: string; partNumber: string | null };
+  asset: {
+    id: string;
+    name: string;
+    partNumber: string | null;
+    managementArea: { id: string; name: string };
+  };
 };
 
 export type AssetUnitHistoryEvent = Omit<

@@ -94,7 +94,7 @@ export function AssetUnitHistoryPage() {
       <section className="detail-card">
         <header>
           <div>
-            <p className="eyebrow">Serial lookup</p>
+            <p className="eyebrow">Unit lookup</p>
             <h2>Asset unit history</h2>
           </div>
         </header>
@@ -103,16 +103,16 @@ export function AssetUnitHistoryPage() {
           <input
             value={draftSearch}
             onChange={(event) => setDraftSearch(event.target.value)}
-            placeholder="Search by serial number"
-            aria-label="Search asset units by serial number"
+            placeholder="Search by serial number, asset name, P/N, or management area"
+            aria-label="Search asset units by serial number, asset name, part number, or management area"
           />
           <button type="submit">Search</button>
         </form>
 
         {!search ? (
           <EmptyState
-            title="Search for a serial number"
-            description="Enter a full or partial serial number to find a unit and view its history."
+            title="Search for a unit"
+            description="Search by serial number, asset name, part number, or management area, then pick the exact serial number to view its history."
           />
         ) : resultsLoading ? (
           <LoadingState label="Searching units" />
@@ -121,7 +121,7 @@ export function AssetUnitHistoryPage() {
         ) : results.length === 0 ? (
           <EmptyState
             title="No matching units"
-            description="No asset unit serial number matches this search."
+            description="No asset unit matches this search."
           />
         ) : (
           <div className="data-table-wrap">
@@ -130,6 +130,7 @@ export function AssetUnitHistoryPage() {
                 <tr>
                   <th>Serial number</th>
                   <th>Asset</th>
+                  <th>Management area</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -151,6 +152,9 @@ export function AssetUnitHistoryPage() {
                       <small className="table-secondary">
                         {unit.asset.partNumber || "No part number"}
                       </small>
+                    </td>
+                    <td className="table-secondary">
+                      {unit.asset.managementArea.name}
                     </td>
                     <td>
                       <AssetUnitStatusBadge status={unit.status} />

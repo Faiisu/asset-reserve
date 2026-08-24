@@ -213,7 +213,12 @@ describe("cross-asset unit search", () => {
         note: null,
         createdAt: new Date("2026-08-15T00:00:00.000Z"),
         updatedAt: new Date("2026-08-15T00:00:00.000Z"),
-        asset: { id: assetId, name: "Camera", partNumber: "CAM-1" },
+        asset: {
+          id: assetId,
+          name: "Camera",
+          partNumber: "CAM-1",
+          managementArea: { id: areaId, name: "Studio A" },
+        },
         reservationItemUnits: [],
       },
     ]);
@@ -227,15 +232,49 @@ describe("cross-asset unit search", () => {
         where: {
           AND: expect.arrayContaining([
             { asset: { managementAreaId: { in: [areaId] } } },
-            { serialNumber: { contains: "SN-001", mode: "insensitive" } },
           ]),
         },
       }),
     );
     expect(result.data[0]).toMatchObject({
       serialNumber: "SN-001",
-      asset: { id: assetId, name: "Camera" },
+      asset: { id: assetId, name: "Camera", managementArea: { name: "Studio A" } },
     });
+  });
+
+  it("matches serial number, asset name, part number, or management area name", async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const prisma = { assetUnit: { findMany } } as unknown as PrismaService;
+    const service = new AssetUnitsService(prisma);
+
+    await service.search(actor, { search: "Studio", limit: 20 });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: expect.arrayContaining([
+            {
+              OR: [
+                { serialNumber: { contains: "Studio", mode: "insensitive" } },
+                { asset: { name: { contains: "Studio", mode: "insensitive" } } },
+                {
+                  asset: {
+                    partNumber: { contains: "Studio", mode: "insensitive" },
+                  },
+                },
+                {
+                  asset: {
+                    managementArea: {
+                      name: { contains: "Studio", mode: "insensitive" },
+                    },
+                  },
+                },
+              ],
+            },
+          ]),
+        },
+      }),
+    );
   });
 
   it("rejects a search when the actor has no viewable management areas", async () => {
