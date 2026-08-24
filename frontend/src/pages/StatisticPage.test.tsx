@@ -80,9 +80,41 @@ describe("StatisticPage", () => {
     reservationsByAsset.mockResolvedValue(response("day", []));
     render(<StatisticPage />);
 
-    expect(await screen.findByText("No assets to chart")).toBeTruthy();
+    expect(await screen.findByText("No assets yet")).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Month" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Day" })).toBeTruthy();
+  });
+
+  it("separates 'no assets at all' from 'assets exist but none booked'", async () => {
+    // Every asset at zero is the normal shape of a quiet day, and must not
+    // read as "there is no data here" -- it should point at a wider period.
+    reservationsByAsset.mockResolvedValue(response("day", [0, 0, 0]));
+    render(<StatisticPage />);
+
+    expect(
+      await screen.findByText("No reservations in this period"),
+    ).toBeTruthy();
+    // The idle assets stay reachable rather than being silently dropped.
+    expect(
+      screen.getByRole("button", { name: /List all 3 assets/ }),
+    ).toBeTruthy();
+  });
+
+  it("hides zero-count assets from the ranking but keeps them one click away", async () => {
+    reservationsByAsset.mockResolvedValue(response("month", [4, 0, 0]));
+    render(<StatisticPage />);
+
+    // Only the booked asset is ranked; the two idle ones are folded away.
+    await waitFor(() =>
+      expect(screen.getAllByRole("listitem")).toHaveLength(1),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Show 2 assets with no reservations/,
+      }),
+    );
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
   });
 
   it("keeps the period switch usable when the request fails", async () => {
@@ -99,10 +131,14 @@ describe("StatisticPage", () => {
     reservationsByAsset.mockResolvedValue(data);
     render(<StatisticPage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /Table view/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Table$/ }));
 
-    expect(
-      screen.getByText("VERY-LONG-PART-NUMBER-THAT-WOULD-CLIP-ON-AXIS"),
-    ).toBeTruthy();
+    // Untruncated in the table cell -- the ranked view may ellipsize it, but
+    // the full value always stays reachable here.
+    const cell = screen
+      .getAllByText("VERY-LONG-PART-NUMBER-THAT-WOULD-CLIP-ON-AXIS")
+      .find((node) => node.tagName === "TD");
+    expect(cell).toBeTruthy();
+    expect(screen.getByText("Studio A")).toBeTruthy();
   });
 });

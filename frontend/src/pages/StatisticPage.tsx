@@ -1,5 +1,5 @@
-import { Table2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { BarChart3, CalendarRange, Table2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, isAbortError } from "../api";
 import { useAuth } from "../auth";
 import { AssetReservationChart } from "../components/AssetReservationChart";
@@ -19,6 +19,13 @@ const PERIODS: Array<{ value: StatisticsPeriod; label: string }> = [
   { value: "month", label: "Month" },
   { value: "year", label: "Year" },
 ];
+
+const PERIOD_NOUN: Record<StatisticsPeriod, string> = {
+  day: "today",
+  week: "this week",
+  month: "this month",
+  year: "this year",
+};
 
 export function StatisticPage() {
   const { hasPermission } = useAuth();
@@ -57,6 +64,20 @@ export function StatisticPage() {
     return () => controller.abort();
   }, [period, load, canView]);
 
+  const summary = useMemo(() => {
+    if (!result) return null;
+    const total = result.data.reduce((sum, a) => sum + a.reservedCount, 0);
+    const reserved = result.data.filter((a) => a.reservedCount > 0);
+    // The API already returns the list ranked, so the leader is the head.
+    const top = reserved[0] ?? null;
+    return {
+      total,
+      reservedCount: reserved.length,
+      assets: result.data.length,
+      top,
+    };
+  }, [result]);
+
   if (!canView) {
     return (
       <EmptyState
@@ -66,62 +87,98 @@ export function StatisticPage() {
     );
   }
 
-  const total =
-    result?.data.reduce((sum, asset) => sum + asset.reservedCount, 0) ?? 0;
-
   return (
     <div className="page-stack">
+      {/* One filter row above everything it scopes, so the period is never
+          hidden behind a loading, empty, or error state. */}
+      <section className="stat-toolbar" aria-label="Statistics filters">
+        <div
+          className="segmented"
+          role="tablist"
+          aria-label="Statistics period"
+        >
+          {PERIODS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="tab"
+              aria-selected={period === option.value}
+              className={cx(period === option.value && "segmented--active")}
+              onClick={() => setPeriod(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        {result && (
+          <span className="stat-toolbar__window">
+            <CalendarRange size={14} aria-hidden />
+            {formatDate(result.periodStart)} – {formatDate(result.periodEnd)}
+          </span>
+        )}
+        <Button
+          className="stat-toolbar__view"
+          variant="quiet"
+          size="sm"
+          disabled={!result || result.data.length === 0}
+          onClick={() => setShowTable((current) => !current)}
+          aria-pressed={showTable}
+        >
+          {showTable ? <BarChart3 size={14} /> : <Table2 size={14} />}
+          {showTable ? "Chart" : "Table"}
+        </Button>
+      </section>
+
+      {summary && (
+        <section
+          className={cx("stat-kpis", loading && "is-refetching")}
+          aria-label="Summary"
+        >
+          <article className="stat-kpi stat-kpi--lead">
+            <p className="stat-kpi__label">
+              Reservations {PERIOD_NOUN[period]}
+            </p>
+            <strong className="stat-kpi__value">
+              {summary.total.toLocaleString()}
+            </strong>
+          </article>
+          <article className="stat-kpi">
+            <p className="stat-kpi__label">Assets reserved</p>
+            <strong className="stat-kpi__value">
+              {summary.reservedCount}
+              <span className="stat-kpi__of">/ {summary.assets}</span>
+            </strong>
+          </article>
+          <article className="stat-kpi">
+            <p className="stat-kpi__label">Most reserved</p>
+            {summary.top ? (
+              <>
+                <strong className="stat-kpi__value stat-kpi__value--text">
+                  {summary.top.partNumber || summary.top.name}
+                </strong>
+                <span className="stat-kpi__hint">
+                  {summary.top.reservedCount}{" "}
+                  {summary.top.reservedCount === 1
+                    ? "reservation"
+                    : "reservations"}
+                </span>
+              </>
+            ) : (
+              <strong className="stat-kpi__value stat-kpi__value--muted">
+                —
+              </strong>
+            )}
+          </article>
+        </section>
+      )}
+
       <section className="detail-card">
         <header>
           <div>
-            <p className="eyebrow">Analytics</p>
-            <h2>Reservations by asset</h2>
+            <p className="eyebrow">Ranked by reservations</p>
+            <h2>Every asset, booked {PERIOD_NOUN[period]}</h2>
           </div>
         </header>
-
-        {/* The period switch stays mounted across loading, empty, and error
-            states -- when it lived inside the chart, an empty period (a
-            legitimate result for "day") removed the only control that could
-            get the reader back to a period with data. */}
-        <div className="activity-chart__toolbar">
-          <div
-            className="segmented"
-            role="tablist"
-            aria-label="Statistics period"
-          >
-            {PERIODS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                role="tab"
-                aria-selected={period === option.value}
-                className={cx(period === option.value && "segmented--active")}
-                onClick={() => setPeriod(option.value)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          {result && result.data.length > 0 && (
-            <Button
-              variant="quiet"
-              size="sm"
-              onClick={() => setShowTable((current) => !current)}
-              aria-pressed={showTable}
-            >
-              <Table2 size={14} />
-              {showTable ? "Chart view" : "Table view"}
-            </Button>
-          )}
-        </div>
-
-        {result && (
-          <p className="statistic-window" aria-live="polite">
-            <strong>{total.toLocaleString()}</strong>{" "}
-            {total === 1 ? "reservation" : "reservations"} booked between{" "}
-            {formatDate(result.periodStart)} and {formatDate(result.periodEnd)}
-          </p>
-        )}
 
         {loading && !result ? (
           <LoadingState label="Loading statistics" />
@@ -129,13 +186,13 @@ export function StatisticPage() {
           <ErrorState error={error} onRetry={() => load(period)} />
         ) : !result || result.data.length === 0 ? (
           <EmptyState
-            title="No assets to chart"
-            description="No assets are visible to your account yet."
+            title="No assets yet"
+            description="No assets are visible to your account, so there is nothing to measure."
           />
         ) : (
           // Hold the previous render at reduced opacity while a new period
           // loads, rather than flashing a skeleton and jumping the layout.
-          <div className={cx(loading && "is-refetching")}>
+          <div className={cx("stat-chart-body", loading && "is-refetching")}>
             <AssetReservationChart data={result.data} showTable={showTable} />
           </div>
         )}

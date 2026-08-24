@@ -623,38 +623,6 @@
   border-radius: 3px;
   flex: none;
 }
-/* The tooltip is a child of this wrapper rather than of the scrolling box
-   below it: an overflow-x:auto element also clips vertically, which cropped
-   the upward-opening tooltip on every tall bar. */
-.asset-reservation-chart {
-  position: relative;
-}
-.asset-reservation-chart__scroll {
-  overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--card-radius-sm);
-}
-.statistic-window {
-  margin: 14px 0 0;
-  color: var(--ink-faint);
-  font-size: 11px;
-}
-.statistic-window strong {
-  color: var(--ink);
-  font-family: var(--mono);
-}
-.is-refetching {
-  opacity: 0.55;
-  transition: opacity 0.15s ease;
-}
-.asset-reservation-chart__svg {
-  display: block;
-}
-.asset-reservation-chart__axis-label {
-  font-family: var(--mono);
-  font-size: 9px;
-  fill: var(--ink-faint);
-}
 .floating-back {
   width: fit-content;
   display: flex;
