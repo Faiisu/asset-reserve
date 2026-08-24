@@ -590,7 +590,18 @@ flowchart LR
 
 รับ `multipart/form-data` field `file` หนึ่งไฟล์ Fastify จำกัด 10 MiB ตรวจ MIME เป็น image, stream ไป `uploads/assets/{timestamp}-{uuid}.{ext}` และคืน public URL ใต้ `/uploads/assets/` ไฟล์ static ไม่ใช้ `/api/v1`
 
-## 10. Response data ที่ควรรู้
+## 10. Statistics API
+
+### 10.1 `GET /statistics/reservations-by-asset`
+
+ต้องมี `asset:view`; ผลลัพธ์ถูกจำกัดตาม management area ที่ผู้เรียกมีสิทธิ์แบบเดียวกับ `GET /assets` (permission scope ว่างสำหรับทุก area ที่ไม่ได้รับสิทธิ์ → 403 หากไม่มี area ใดเลย) คืนค่าทุก asset ที่มองเห็นได้ (แม้ยังไม่มีการตัดสินใดในช่วงที่เลือก) พร้อมจำนวน `approvedCount` และ `rejectedCount` แยกกัน
+
+- Query params `start`, `end` (ทั้งคู่ required, `YYYY-MM-DD` หรือ ISO-8601 timestamp เต็ม — ใช้เฉพาะ UTC calendar date) ระบุช่วงวันแบบ inclusive ทั้งสองด้าน service แปลงเป็นช่วง half-open `[start, end+1วัน)` บน UTC เพื่อให้ทั้งวันสุดท้ายของ `end` ถูกนับครบ (`end=2026-08-31` ครอบคลุมถึง `2026-09-01T00:00:00Z`) ถ้า parse วันที่ไม่ได้ หรือ `end` มาก่อน `start` → 422 `VALIDATION_ERROR`
+- นับจาก `ReservationItemApproval.status` เป็น `APPROVED` หรือ `REJECTED` เท่านั้น (`PENDING` ไม่นับทั้งสองฝั่ง) โดยดูว่าช่วงเวลาที่ "จอง" ของ reservation (`startAt`/`endAt`) overlap กับ `[start, end)` หรือไม่ — **ไม่ใช่** เวลาที่ตัดสินใจอนุมัติ/ปฏิเสธ (`decidedAt`/`createdAt`) เพราะ approval มักถูกประมวลผลเป็นชุดในเวลาใกล้กัน ซึ่งจะทำให้ทุกช่วงวันที่คืนตัวเลขเท่ากันหมด ใช้ overlap rule เดียวกับที่ใช้เช็ค unit availability ใน §6.7
+- `ReservationItemApproval` ไม่มี `assetId` ของตัวเอง (อยู่ผ่าน `ReservationItem`) จึงดึงแถวที่ตัดสินแล้วมาแล้วรวมนับด้วยโค้ด ไม่ใช่ Prisma `groupBy` เดียว
+- ผลลัพธ์เรียงตาม `approvedCount + rejectedCount` มากไปน้อย (เสมอกันเรียงชื่อ asset a-z) และตัดที่ 200 รายการแรก (`MAX_ASSETS`)
+
+## 11. Response data ที่ควรรู้
 
 Response shape เต็มของทุก endpoint กำหนดโดย [`contracts/components/schemas/`](contracts/components/schemas/) — ส่วนนี้เป็นเพียง type ที่คำนวณ derived (ไม่ตรงกับ Prisma model โดยตรง) เพื่อประกอบความเข้าใจ algorithm ด้านบน
 

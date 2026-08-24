@@ -206,7 +206,7 @@ describe("StatisticPage", () => {
     render(<StatisticPage />);
 
     expect(
-      await screen.findByText("No approvals or rejections in this period"),
+      await screen.findByText("No approvals or rejections in this range"),
     ).toBeTruthy();
     expect(
       screen.getByRole("button", { name: /List all 3 assets/ }),

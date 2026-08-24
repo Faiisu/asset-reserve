@@ -86,8 +86,8 @@ export function AssetReservationChart({
     return (
       <>
         <EmptyState
-          title="No approvals or rejections in this period"
-          description="None of these assets had a decision inside the selected window. Try a wider period, such as month or year."
+          title="No approvals or rejections in this range"
+          description="None of these assets had a decision inside the selected dates. Try a wider date range."
         />
         {idleCount > 0 && (
           <button
