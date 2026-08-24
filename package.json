@@ -10,8 +10,8 @@
     "dev:backend": "node scripts/run-backend.mjs",
     "dev:frontend": "node scripts/run-frontend.mjs",
     "db:up": "node scripts/run-database.mjs",
-    "db:down": "docker compose -f database/docker-compose.yml down",
-    "db:logs": "docker compose -f database/docker-compose.yml logs -f postgres",
+    "db:down": "docker compose -f deploy/prod/database/docker-compose.yml down",
+    "db:logs": "docker compose -f deploy/prod/database/docker-compose.yml logs -f postgres",
     "db:migrate": "npm --prefix backend run db:deploy",
     "db:seed": "npm --prefix backend run seed",
     "db:reset": "npm --prefix backend run reset:admin",
@@ -20,11 +20,15 @@
     "build:all": "npm --prefix backend run build && npm --prefix frontend run build",
     "check:contract": "node scripts/check-contract-drift.mjs",
     "test:all": "npm --prefix backend run openapi:bundle && npm run check:contract && npm --prefix backend test && npm --prefix frontend test",
-    "deploy": "node scripts/deploy-all.mjs",
-    "deploy:up": "docker compose up -d --build",
-    "deploy:down": "docker compose down",
-    "deploy:logs": "docker compose logs -f",
-    "deploy:ps": "docker compose ps",
-    "deploy:clean": "docker compose down -v"
+    "deploy:dev:up": "docker compose -f deploy/dev/docker-compose.yml up -d --build",
+    "deploy:dev:down": "docker compose -f deploy/dev/docker-compose.yml down",
+    "deploy:dev:clean": "docker compose -f deploy/dev/docker-compose.yml down -v",
+    "deploy:dev:seed": "docker compose -f deploy/dev/docker-compose.yml --profile tools run --rm seed",
+    "deploy:dev:reset": "docker compose -f deploy/dev/docker-compose.yml --profile tools run --rm reset",
+    "deploy:dev:logs": "docker compose -f deploy/dev/docker-compose.yml logs -f",
+    "deploy:dev:ps": "docker compose -f deploy/dev/docker-compose.yml ps",
+    "deploy:prod:up": "docker compose -f deploy/prod/database/docker-compose.yml up -d --build && docker compose -f deploy/prod/backend/docker-compose.yml up -d --build && docker compose -f deploy/prod/frontend/docker-compose.yml up -d --build",
+    "deploy:prod:down": "docker compose -f deploy/prod/frontend/docker-compose.yml down && docker compose -f deploy/prod/backend/docker-compose.yml down && docker compose -f deploy/prod/database/docker-compose.yml down",
+    "deploy:prod:ps": "docker compose -f deploy/prod/database/docker-compose.yml ps && docker compose -f deploy/prod/backend/docker-compose.yml ps && docker compose -f deploy/prod/frontend/docker-compose.yml ps"
   }
 }

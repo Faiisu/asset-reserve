@@ -20,15 +20,19 @@ Frontend/browser performance techniques (debounce, code splitting, query caching
 ## On-premise deployment
 
 ```text
-Docker Compose
-├── nginx
-│   ├── serves frontend/dist
-│   └── proxies /api to backend:3000
-├── backend
-│   └── one NestJS/Fastify process
-└── postgres
-    └── persistent SSD-backed volume
+deploy/
+├── dev/    docker-compose.yml   -- single stack, rebuilds from source every deploy, db:seed/db:reset via --profile tools
+└── prod/   database/, backend/, frontend/  -- three independent Compose stacks, each redeployable without touching the others' data
+    ├── nginx (frontend stack)
+    │   ├── serves frontend/dist
+    │   └── proxies /api to backend:3000
+    ├── backend
+    │   └── one NestJS/Fastify process
+    └── postgres
+        └── persistent SSD-backed volume, survives `down`/redeploy (only `down -v` wipes it)
 ```
+
+ดู [`deploy/dev/README.md`](../../deploy/dev/README.md) และ [`deploy/prod/README.md`](../../deploy/prod/README.md) สำหรับคำสั่ง deploy ที่ใช้จริง
 
 Requirements:
 

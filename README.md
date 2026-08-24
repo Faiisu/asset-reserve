@@ -4,39 +4,43 @@ Modern asset reservation and management system with React frontend, NestJS/Fasti
 
 ---
 
-## 🚀 Production Deployment (Docker Compose)
+## 🚀 Docker Deploy
 
-Deploy the entire stack (**PostgreSQL 17 Database** + **Prisma Migration & Seeding** + **Fastify Backend API** + **Nginx React Frontend**) in fully containerized production mode:
+Two separate Docker Compose setups live under [`deploy/`](deploy/) — pick the one that matches what you're doing:
 
-### Deploy All Services
+| | [`deploy/dev/`](deploy/dev/README.md) | [`deploy/prod/`](deploy/prod/README.md) |
+| --- | --- | --- |
+| Purpose | Rebuild and run the current code in containers | Real, standing deployment |
+| Shape | One Compose stack (db + backend + frontend) | Three independent Compose stacks (database, backend, frontend) |
+| Redeploy | `up -d --build` always rebuilds from source | Redeploy backend/frontend independently; database untouched |
+| Data | Disposable — `db:seed`/`db:reset` reset it freely | Persistent — `down` keeps the volumes, only `down -v` wipes them |
+
+### Dev deploy
 ```bash
-# Using npm
-npm run deploy
+cp deploy/dev/.env.example deploy/dev/.env   # first time only
 
-# Or using bash (macOS / Linux / WSL)
-./scripts/deploy-all.sh
-
-# Or using Windows PowerShell
-.\scripts\deploy-all.ps1
-
-# Or direct Docker Compose
-docker compose up -d --build
+npm run deploy:dev:up      # build + start db, backend, frontend
+npm run deploy:dev:seed    # re-run the demo-data seed (idempotent)
+npm run deploy:dev:reset   # DESTRUCTIVE: wipe everything, keep only the admin user
+npm run deploy:dev:logs
+npm run deploy:dev:down    # stop, volumes kept
+npm run deploy:dev:clean   # stop, volumes wiped
 ```
 
-### Deployment Management Commands
+### Real (prod) deploy
 ```bash
-# View live container logs
-npm run deploy:logs
+# First time: fill in deploy/prod/{database,backend,frontend}/.env from their .env.example
+npm run deploy:prod:up     # starts database, then backend, then frontend
 
-# Check running container status
-npm run deploy:ps
+# Redeploy backend/frontend after a code change -- database and its data untouched
+docker compose -f deploy/prod/backend/docker-compose.yml up -d --build
+docker compose -f deploy/prod/frontend/docker-compose.yml up -d --build
 
-# Stop all deployed containers
-npm run deploy:down
-
-# Stop and wipe database volumes
-npm run deploy:clean
+npm run deploy:prod:ps
+npm run deploy:prod:down   # stop, volumes kept
 ```
+
+See [`deploy/prod/README.md`](deploy/prod/README.md) for first-deploy ordering, required env vars, and the difference between `down` and `down -v`.
 
 ---
 
@@ -148,9 +152,9 @@ asset-reserve/
 │   ├── src/                  # UI components and pages
 │   ├── .env.example          # Frontend environment template
 │   └── package.json
-├── database/                 # Docker Compose PostgreSQL config
-│   ├── docker-compose.yml    # Postgres service definition
-│   └── .env.example          # Database container environment
+├── deploy/                   # 🐳 Docker deploy configuration
+│   ├── dev/                  # Single rebuild-from-source stack (see deploy/dev/README.md)
+│   └── prod/                 # database/, backend/, frontend/ -- 3 independent, data-persistent stacks (see deploy/prod/README.md)
 ├── docs/                     # OpenAPI specifications and documentation
 ├── recognition-service/      # Python visual asset recognition service
 ├── scripts/                  # 📁 Centralized Run & Automation Directory

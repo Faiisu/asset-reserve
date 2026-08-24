@@ -3,8 +3,9 @@ name: asset-reservation-frontend
 services:
   frontend:
     build:
-      context: ..
+      context: ../../..
       dockerfile: frontend/Dockerfile
+      target: runtime
     ports:
       - "${FRONTEND_HOST_PORT:-8080}:80"
     healthcheck:

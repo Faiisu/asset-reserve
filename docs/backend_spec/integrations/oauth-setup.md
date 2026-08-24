@@ -35,7 +35,7 @@ pkill -f "node --watch dist/src/main.js"   # or however you're running it
 nohup node --watch dist/src/main.js > /tmp/backend-node.log 2>&1 &
 ```
 
-If you're running the full stack via `docker-compose.yml` instead, the same vars are passed
+If you're running the full stack via `deploy/dev/docker-compose.yml` instead, the same vars are passed
 through as `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URI`,
 `MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET`/`MICROSOFT_REDIRECT_URI`/`MICROSOFT_TENANT_ID`,
 and `REQUIRE_ACCOUNT_LINK` — `docker compose up -d --force-recreate backend` after editing `.env`.

@@ -118,7 +118,13 @@ asset-reservation/
 │   ├── prisma.config.ts
 │   └── package.json
 ├── docs/
-├── docker-compose.yml
+├── deploy/
+│   ├── dev/
+│   │   └── docker-compose.yml
+│   └── prod/
+│       ├── database/docker-compose.yml
+│       ├── backend/docker-compose.yml
+│       └── frontend/docker-compose.yml
 └── package.json
 ```
 
