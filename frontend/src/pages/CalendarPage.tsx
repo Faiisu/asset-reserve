@@ -34,6 +34,7 @@ import { Link } from "react-router-dom";
 import { api, isAbortError } from "../api";
 import { useAuth } from "../auth";
 import { CancelReservationDialog } from "../components/CancelReservationDialog";
+import { CONTRACT_LIMITS, cap } from "../constants/contract-limits";
 import {
   AssetPicture,
   Button,
@@ -112,6 +113,11 @@ type EventMenu = {
   left: number;
 } | null;
 
+type CalendarSelectedAsset = { asset: AssetSummary; quantity: number };
+const MAX_RESERVATION_ITEM_QUANTITY = cap(
+  CONTRACT_LIMITS.reservation.itemQuantityMax,
+);
+
 export function CalendarPage() {
   const { hasPermission, hasAreaPermission } = useAuth();
   const canCreate = hasPermission("reservation:create");
@@ -128,12 +134,14 @@ export function CalendarPage() {
   const [reservations, setReservations] = useState<ReservationSummary[]>([]);
   const [assets, setAssets] = useState<AssetSummary[]>([]);
   const [assetSearch, setAssetSearch] = useState("");
-  const [selectedAssets, setSelectedAssets] = useState<AssetSummary[]>([]);
+  const [selectedAssets, setSelectedAssets] = useState<
+    CalendarSelectedAsset[]
+  >([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
   const [assetError, setAssetError] = useState<unknown>(null);
   const [assetBrowserOpen, setAssetBrowserOpen] = useState(false);
   const [assetBrowserView, setAssetBrowserView] = useState<"list" | "grid">(
-    "grid",
+    "list",
   );
   const [eventMenu, setEventMenu] = useState<EventMenu>(null);
   const [cancelTarget, setCancelTarget] = useState<ReservationSummary | null>(
@@ -312,12 +320,18 @@ export function CalendarPage() {
             filteredAssets.map((asset) => [asset.id, asset] as const),
           );
           setSelectedAssets((current) =>
-            current.flatMap((asset) => {
-              const updated = byId.get(asset.id);
-              if (!updated) return [asset];
-              return !hasSelectedSchedule || updated.availableQuantity > 0
-                ? [updated]
-                : [];
+            current.flatMap((item) => {
+              const updated = byId.get(item.asset.id);
+              if (!updated) return [item];
+              if (hasSelectedSchedule && updated.availableQuantity <= 0) {
+                return [];
+              }
+              return [
+                {
+                  asset: updated,
+                  quantity: item.quantity,
+                },
+              ];
             }),
           );
         } catch (caught) {
@@ -425,7 +439,16 @@ export function CalendarPage() {
     };
   }, []);
 
-  const selectedAssetIds = new Set(selectedAssets.map((asset) => asset.id));
+  const selectedAssetIds = new Set(
+    selectedAssets.map((item) => item.asset.id),
+  );
+  const selectedQuantityById = new Map(
+    selectedAssets.map((item) => [item.asset.id, item.quantity] as const),
+  );
+  const selectedUnitCount = selectedAssets.reduce(
+    (sum, item) => sum + item.quantity,
+    0,
+  );
   const reservableAssets = assets
     .filter((asset) =>
       hasAreaPermission("reservation:create", asset.managementArea.id),
@@ -442,12 +465,18 @@ export function CalendarPage() {
     ? selectedSchedule.startAt.getTime() < now.getTime() ||
       selectedSchedule.endAt.getTime() < now.getTime()
     : false;
-  const canProceedToReserve = Boolean(selectedRange) && !isPastSelection;
+  const hasInvalidAssetQuantity = selectedAssets.some(
+    (item) =>
+      item.quantity >
+      assetQuantityLimit(item.asset, Boolean(selectedRange)),
+  );
+  const canProceedToReserve =
+    Boolean(selectedRange) && !isPastSelection && !hasInvalidAssetQuantity;
   const createUrl = selectedRange
     ? reservationCreateUrl(
         selectedRange.start,
         selectedRange.end,
-        selectedAssets.map((asset) => asset.id),
+        selectedAssets,
       )
     : "/reservations/new";
   const totalFilterCount = selectedAreaIds.length + selectedStatuses.length;
@@ -775,10 +804,29 @@ export function CalendarPage() {
   function toggleAsset(asset: AssetSummary) {
     if (selectedRange && asset.availableQuantity <= 0) return;
     setSelectedAssets((current) =>
-      current.some((item) => item.id === asset.id)
-        ? current.filter((item) => item.id !== asset.id)
-        : [...current, asset],
+      current.some((item) => item.asset.id === asset.id)
+        ? current.filter((item) => item.asset.id !== asset.id)
+        : [...current, { asset, quantity: 1 }],
     );
+  }
+
+  function updateAssetQuantity(asset: AssetSummary, quantity: number) {
+    const nextQuantity = Math.max(Math.trunc(quantity) || 0, 0);
+    setSelectedAssets((current) => {
+      const exists = current.some((item) => item.asset.id === asset.id);
+      if (nextQuantity === 0) {
+        return exists
+          ? current.filter((item) => item.asset.id !== asset.id)
+          : current;
+      }
+      return exists
+        ? current.map((item) =>
+            item.asset.id === asset.id
+              ? { asset, quantity: nextQuantity }
+              : item,
+          )
+        : [...current, { asset, quantity: nextQuantity }];
+    });
   }
 
   return (
@@ -1208,8 +1256,11 @@ export function CalendarPage() {
                     key={asset.id}
                     asset={asset}
                     selected={selectedAssetIds.has(asset.id)}
+                    quantity={selectedQuantityById.get(asset.id) ?? 0}
                     scheduleSelected={Boolean(selectedRange)}
+                    view="list"
                     onToggle={toggleAsset}
+                    onQuantityChange={updateAssetQuantity}
                   />
                 ))
               )}
@@ -1218,7 +1269,8 @@ export function CalendarPage() {
             <footer className="calendar-reserve-panel__footer">
               <div>
                 <span>
-                  <strong>{selectedAssets.length}</strong> asset types selected
+                  <strong>{selectedAssets.length}</strong> asset types ·{" "}
+                  <strong>{selectedUnitCount}</strong> units
                 </span>
                 <small>
                   {selectedRange
@@ -1239,8 +1291,8 @@ export function CalendarPage() {
                   if (!canProceedToReserve) event.preventDefault();
                 }}
               >
-                {selectedAssets.length
-                  ? `Reserve ${selectedAssets.length} asset${selectedAssets.length === 1 ? "" : "s"}`
+                {selectedUnitCount
+                  ? `Reserve ${selectedUnitCount} unit${selectedUnitCount === 1 ? "" : "s"}`
                   : "Create event"}
                 <ChevronRight size={16} />
               </Link>
@@ -1350,8 +1402,11 @@ export function CalendarPage() {
                   key={asset.id}
                   asset={asset}
                   selected={selectedAssetIds.has(asset.id)}
+                  quantity={selectedQuantityById.get(asset.id) ?? 0}
                   scheduleSelected={Boolean(selectedRange)}
+                  view={assetBrowserView}
                   onToggle={toggleAsset}
+                  onQuantityChange={updateAssetQuantity}
                 />
               ))
             )}
@@ -1514,61 +1569,152 @@ function ReservationBar({
 function CalendarAssetOption({
   asset,
   selected,
+  quantity,
   scheduleSelected,
+  view,
   onToggle,
+  onQuantityChange,
 }: {
   asset: AssetSummary;
   selected: boolean;
+  quantity: number;
   scheduleSelected: boolean;
+  view: "list" | "grid";
   onToggle: (asset: AssetSummary) => void;
+  onQuantityChange: (asset: AssetSummary, quantity: number) => void;
 }) {
   const fullyBooked = scheduleSelected && asset.availableQuantity <= 0;
+  const maximumQuantity = assetQuantityLimit(asset, scheduleSelected);
   const isFull =
     scheduleSelected && asset.availableQuantity >= asset.totalQuantity;
   const isPartial =
     scheduleSelected &&
     asset.availableQuantity > 0 &&
     asset.availableQuantity < asset.totalQuantity;
+  const [quantityDraft, setQuantityDraft] = useState(String(quantity));
+  const quantityEditing = useRef(false);
+
+  useEffect(() => {
+    if (!quantityEditing.current || fullyBooked) {
+      setQuantityDraft(String(quantity));
+    }
+  }, [fullyBooked, quantity]);
+  const quantityOverLimit =
+    quantityDraft !== "" && Number(quantityDraft) > maximumQuantity;
 
   return (
-    <button
-      type="button"
+    <div
       className={cx(
         "calendar-asset-option",
+        `calendar-asset-option--${view}`,
         selected && "calendar-asset-option--selected",
         fullyBooked && "calendar-asset-option--unavailable",
       )}
-      aria-pressed={selected}
-      disabled={fullyBooked}
-      onClick={() => onToggle(asset)}
     >
-      <AssetPicture src={asset.pictureUrl} name={asset.name} />
-      <span className="calendar-asset-option__content">
-        <strong title={asset.name}>{asset.name}</strong>
-        <span className="calendar-asset-option__meta">
-          <span
+      {view === "grid" && (
+        <AssetPicture src={asset.pictureUrl} name={asset.name} />
+      )}
+      <button
+        type="button"
+        className="calendar-asset-option__body"
+        aria-pressed={selected}
+        disabled={fullyBooked}
+        onClick={() => onToggle(asset)}
+      >
+        <span className="calendar-asset-option__field">
+          <strong
+            className="calendar-asset-option__title"
+            title={asset.name}
+          >
+            {asset.name}
+          </strong>
+        </span>
+        <span className="calendar-asset-option__field">
+          <small
+            className="calendar-asset-option__code"
+            title={
+              asset.partNumber ? `P/N ${asset.partNumber}` : "No part number"
+            }
+          >
+            P/N: {asset.partNumber ?? "—"}
+          </small>
+        </span>
+        <span className="calendar-asset-option__field">
+          {/* <small>Management area</small> */}
+          <small
             className="calendar-asset-option__area"
             title={asset.managementArea.name}
           >
-            {asset.managementArea.name}
-          </span>
-          <em
-            className={cx(
-              isFull && "calendar-asset-option__availability--full",
-              isPartial && "calendar-asset-option__availability--partial",
-              fullyBooked && "calendar-asset-option__availability--none",
-            )}
-          >
-            {!scheduleSelected
-              ? `${asset.totalQuantity} total`
-              : fullyBooked
-                ? "Fully booked"
-                : `${asset.availableQuantity} of ${asset.totalQuantity}`}
-          </em>
+            Management area: {asset.managementArea.name}
+          </small>
         </span>
-      </span>
-      <i aria-hidden>{selected ? <Check size={14} /> : null}</i>
-    </button>
+      </button>
+      {view === "grid" && (
+        <em
+          className={cx(
+            "calendar-asset-option__status",
+            isFull && "calendar-asset-option__status--full",
+            isPartial && "calendar-asset-option__status--partial",
+            fullyBooked && "calendar-asset-option__status--none",
+          )}
+        >
+          {!scheduleSelected
+            ? `${asset.totalQuantity} total`
+            : fullyBooked
+              ? "Fully booked"
+              : `${asset.availableQuantity} of ${asset.totalQuantity} available`}
+        </em>
+      )}
+      <label
+        className={cx(
+          "calendar-asset-option__quantity",
+          quantityOverLimit &&
+            "calendar-asset-option__quantity--over-limit",
+        )}
+        title={
+          fullyBooked
+            ? "No units are available for this schedule"
+            : `Up to ${maximumQuantity} units available`
+        }
+      >
+        <span>Quantity</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={quantityDraft}
+          disabled={fullyBooked}
+          aria-label={`Quantity for ${asset.name}`}
+          aria-invalid={quantityOverLimit}
+          onFocus={() => {
+            quantityEditing.current = true;
+          }}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            if (!/^\d*$/.test(nextValue)) return;
+            if (nextValue === "") {
+              setQuantityDraft("");
+              return;
+            }
+            const normalized = Number(nextValue);
+            setQuantityDraft(String(normalized));
+            onQuantityChange(asset, normalized);
+          }}
+          onBlur={() => {
+            quantityEditing.current = false;
+            if (quantityDraft === "") {
+              setQuantityDraft("0");
+              onQuantityChange(asset, 0);
+              return;
+            }
+            const normalized = Number(quantityDraft);
+            setQuantityDraft(String(normalized));
+            onQuantityChange(asset, normalized);
+          }}
+        />
+        <small>Max available: {maximumQuantity}</small>
+      </label>
+    </div>
   );
 }
 
@@ -1869,15 +2015,25 @@ function orderedSelection(selection: DateSelection) {
 function reservationCreateUrl(
   startDay: Date,
   endDay: Date,
-  assetIds: string[] = [],
+  selectedAssets: CalendarSelectedAsset[] = [],
 ) {
   const { startAt, endAt } = reservationSchedule(startDay, endDay);
   const query = new URLSearchParams({
     startAt: startAt.toISOString(),
     endAt: endAt.toISOString(),
   });
-  assetIds.forEach((assetId) => query.append("assetId", assetId));
+  selectedAssets.forEach(({ asset, quantity }) => {
+    query.append("assetId", asset.id);
+    query.append("quantity", String(quantity));
+  });
   return `/reservations/new?${query.toString()}`;
+}
+
+function assetQuantityLimit(asset: AssetSummary, scheduleSelected: boolean) {
+  return Math.min(
+    scheduleSelected ? asset.availableQuantity : asset.totalQuantity,
+    MAX_RESERVATION_ITEM_QUANTITY,
+  );
 }
 
 function reservationSchedule(startDay: Date, endDay: Date) {

@@ -260,14 +260,22 @@ describe("CalendarPage", () => {
       name: "All reservation assets",
     });
     expect(
+      screen.getByRole("button", { name: "Show assets as a list" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByLabelText("No image for Stage camera")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show assets as a grid" }),
+    );
+    expect(
       screen.getByRole("button", { name: "Show assets as a grid" }),
     ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByLabelText("No image for Stage camera"),
+    ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Show assets as a list" }),
     );
-    expect(
-      screen.getByRole("button", { name: "Show assets as a list" }),
-    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByLabelText("No image for Stage camera")).toBeNull();
 
     fireEvent.change(
       screen.getByRole("textbox", { name: "Search all reservation assets" }),
@@ -311,10 +319,29 @@ describe("CalendarPage", () => {
       name: /Stage camera/i,
     });
     expect(assetOption).toBeEnabled();
-    expect(screen.getByText(/3 of 4/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("No image for Stage camera")).toBeNull();
+    const quantityInput = await screen.findByLabelText(
+      "Quantity for Stage camera",
+    );
+    expect(quantityInput).toHaveValue("0");
     fireEvent.click(assetOption);
+    expect(quantityInput).toHaveValue("1");
+    fireEvent.change(quantityInput, { target: { value: "" } });
+    expect(quantityInput).toHaveValue("");
+    fireEvent.change(quantityInput, { target: { value: "not-a-number" } });
+    expect(quantityInput).toHaveValue("");
+    fireEvent.change(quantityInput, { target: { value: "4" } });
+    expect(quantityInput).toHaveValue("4");
+    expect(quantityInput).toHaveAttribute("aria-invalid", "true");
     expect(
-      screen.getByRole("link", { name: /Reserve 1 asset/i }),
+      (await screen.findByText("Max available: 3")).closest("label"),
+    ).toHaveClass("calendar-asset-option__quantity--over-limit");
+    expect(
+      screen.getByRole("link", { name: /Reserve 4 units/i }),
+    ).toHaveAttribute("aria-disabled", "true");
+    fireEvent.change(quantityInput, { target: { value: "3" } });
+    expect(
+      screen.getByRole("link", { name: /Reserve 3 units/i }),
     ).not.toHaveAttribute("aria-disabled", "true");
 
     const day = screen.getByRole("button", {
@@ -333,7 +360,8 @@ describe("CalendarPage", () => {
       ),
     );
     expect(assetOption).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("link", { name: /Reserve 1 asset/i }));
+    expect(quantityInput).toHaveValue("3");
+    fireEvent.click(screen.getByRole("link", { name: /Reserve 3 units/i }));
 
     const target = new URL(
       screen.getByTestId("location").textContent ?? "",
@@ -346,6 +374,7 @@ describe("CalendarPage", () => {
     expect(end.getHours()).toBe(17);
     expect(end.getTime()).toBeGreaterThan(start.getTime());
     expect(target.searchParams.getAll("assetId")).toEqual([asset.id]);
+    expect(target.searchParams.getAll("quantity")).toEqual(["3"]);
   });
 
   it("disables an asset when approved reservations use every unit in the selected time", async () => {
@@ -389,7 +418,8 @@ describe("CalendarPage", () => {
       name: /Stage camera/i,
     });
     expect(assetOption).toBeEnabled();
-    expect(screen.getAllByText(/3 of 4/)).toHaveLength(2);
+    const quantityInput = screen.getByLabelText("Quantity for Stage camera");
+    expect(quantityInput).toBeEnabled();
 
     const day = screen.getByRole("button", {
       name: /Tuesday, August 18, 2026, select reservation date/i,
@@ -402,8 +432,7 @@ describe("CalendarPage", () => {
       name: /Backup microphone|Stage camera/i,
     });
     expect(orderedOptions[0]).toHaveAccessibleName(/Backup microphone/i);
-    expect(assetOption.querySelector("i svg")).toBeNull();
-    expect(screen.getByText("Fully booked")).toBeInTheDocument();
+    expect(quantityInput).toBeDisabled();
     expect(screen.getByRole("link", { name: /Create event/i })).toHaveAttribute(
       "aria-disabled",
       "false",
