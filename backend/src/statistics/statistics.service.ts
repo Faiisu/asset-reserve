@@ -85,7 +85,8 @@ export class StatisticsService {
         reservedCount: countByAsset.get(asset.id) ?? 0,
       }))
       .sort(
-        (a, b) => b.reservedCount - a.reservedCount || a.name.localeCompare(b.name),
+        (a, b) =>
+          b.reservedCount - a.reservedCount || a.name.localeCompare(b.name),
       )
       .slice(0, MAX_ASSETS);
 
@@ -98,9 +99,7 @@ export class StatisticsService {
   }
 
   /** The UTC day / ISO-week (Monday) / month / year containing `anchor` as a
-   * half-open [start, end) range -- same calendar-boundary convention the
-   * frontend's activityBuckets.ts uses for the per-unit history chart, kept
-   * consistent across both statistics. The range is bounded on both ends so
+   * half-open [start, end) range. The range is bounded on both ends so
    * "August" excludes reservations booked for later periods. `anchor` may be
    * any instant inside the wanted period; without one it is right now. */
   private periodRange(
@@ -125,7 +124,8 @@ export class StatisticsService {
       return { start, end: new Date(Date.UTC(year, month, date + 1)) };
     }
     if (period === "week") {
-      const diffToMonday = (new Date(Date.UTC(year, month, date)).getUTCDay() + 6) % 7;
+      const diffToMonday =
+        (new Date(Date.UTC(year, month, date)).getUTCDay() + 6) % 7;
       const start = new Date(Date.UTC(year, month, date - diffToMonday));
       return {
         start,

@@ -185,8 +185,6 @@ export class AssetUnitListQueryDto extends SearchPaginationQueryDto {
   to?: string;
 }
 
-export class AssetUnitSearchQueryDto extends SearchPaginationQueryDto {}
-
 export class RegisterAssetUnitsDto {
   @IsArray()
   @ArrayMinSize(1)

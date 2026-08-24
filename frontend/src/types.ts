@@ -255,31 +255,6 @@ export type AssetUnit = {
   updatedAt: string;
 };
 
-export type AssetUnitSearchResult = AssetUnit & {
-  asset: {
-    id: string;
-    name: string;
-    partNumber: string | null;
-    managementArea: { id: string; name: string };
-  };
-};
-
-export type AssetUnitHistoryEvent = Omit<
-  AssetUnitLedgerEntry,
-  "assetUnitId" | "serialNumber"
->;
-
-export type AssetUnitHistory = {
-  unit: AssetUnitSearchResult;
-  stats: {
-    total: number;
-    byEventType: Record<string, number>;
-    registeredAt: string | null;
-    lastEventAt: string | null;
-  };
-  events: AssetUnitHistoryEvent[];
-};
-
 export type StatisticsPeriod = "day" | "week" | "month" | "year";
 
 export type AssetReservationCount = {

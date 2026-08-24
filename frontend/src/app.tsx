@@ -9,7 +9,6 @@ import { ApprovalRequestsPage } from "./pages/ApprovalRequestsPage";
 import { AssetDetailPage } from "./pages/AssetDetailPage";
 import { AssetFormPage } from "./pages/AssetFormPage";
 import { AssetsPage } from "./pages/AssetsPage";
-import { AssetUnitHistoryPage } from "./pages/AssetUnitHistoryPage";
 import { CalendarPage } from "./pages/CalendarPage";
 import { ConnectAccountCallbackPage } from "./pages/ConnectAccountCallbackPage";
 import { ConnectAccountPage } from "./pages/ConnectAccountPage";
@@ -55,7 +54,10 @@ function ProtectedApp() {
   // of the app once REQUIRE_ACCOUNT_LINK is on (see
   // appConfig.requireAccountLink() and AccountLinkGuard on the backend --
   // this is the UX for that gate, not the enforcement of it).
-  if (session.user.accountLinkRequired && session.user.linkedProviders.length === 0) {
+  if (
+    session.user.accountLinkRequired &&
+    session.user.linkedProviders.length === 0
+  ) {
     return <Navigate to="/connect-account" replace />;
   }
   return <AppShell />;
@@ -92,10 +94,12 @@ export function App() {
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="assets" element={<AssetsPage />} />
         <Route path="assets/new" element={<AssetFormPage />} />
-        <Route path="asset/new" element={<Navigate to="/assets/new" replace />} />
+        <Route
+          path="asset/new"
+          element={<Navigate to="/assets/new" replace />}
+        />
         <Route path="assets/:assetId" element={<AssetDetailPage />} />
         <Route path="assets/:assetId/edit" element={<AssetFormPage />} />
-        <Route path="asset-units" element={<AssetUnitHistoryPage />} />
         <Route path="statistic" element={<StatisticPage />} />
         <Route path="reservations" element={<ReservationsPage />} />
         <Route path="approvals" element={<ApprovalRequestsPage />} />
@@ -108,7 +112,10 @@ export function App() {
         <Route path="admin/users" element={<UsersPage />} />
         <Route path="admin/areas" element={<ManagementAreasPage />} />
         <Route path="admin/notifications" element={<NotificationsPage />} />
-        <Route path="admin/templates" element={<Navigate to="/admin/areas" replace />} />
+        <Route
+          path="admin/templates"
+          element={<Navigate to="/admin/areas" replace />}
+        />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

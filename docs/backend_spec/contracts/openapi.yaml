@@ -97,10 +97,6 @@ paths:
     $ref: ./paths/assets.yaml#/~1assets~1{assetId}~1status
   /assets/{assetId}/units:
     $ref: ./paths/assets.yaml#/~1assets~1{assetId}~1units
-  /assets/units:
-    $ref: ./paths/assets.yaml#/~1assets~1units
-  /assets/units/{assetUnitId}/events:
-    $ref: ./paths/assets.yaml#/~1assets~1units~1{assetUnitId}~1events
   /assets/units/batch-retire:
     $ref: ./paths/assets.yaml#/~1assets~1units~1batch-retire
   /assets/units/{assetUnitId}/status:
@@ -301,18 +297,6 @@ components:
       $ref: ./components/schemas/assets.yaml#/AssetUnit
     AssetUnitEventLedgerItem:
       $ref: ./components/schemas/assets.yaml#/AssetUnitEventLedgerItem
-    AssetRef:
-      $ref: ./components/schemas/assets.yaml#/AssetRef
-    AssetUnitWithAssetRef:
-      $ref: ./components/schemas/assets.yaml#/AssetUnitWithAssetRef
-    AssetUnitSearchResponse:
-      $ref: ./components/schemas/assets.yaml#/AssetUnitSearchResponse
-    AssetUnitHistoryEventItem:
-      $ref: ./components/schemas/assets.yaml#/AssetUnitHistoryEventItem
-    AssetUnitHistoryStats:
-      $ref: ./components/schemas/assets.yaml#/AssetUnitHistoryStats
-    AssetUnitHistoryResponse:
-      $ref: ./components/schemas/assets.yaml#/AssetUnitHistoryResponse
     AssetEditPolicy:
       $ref: ./components/schemas/assets.yaml#/AssetEditPolicy
     AssetDetail:

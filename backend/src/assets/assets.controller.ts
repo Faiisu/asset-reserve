@@ -15,7 +15,6 @@ import { AssetUnitsService } from "./asset-units.service.js";
 import {
   AssetListQueryDto,
   AssetUnitListQueryDto,
-  AssetUnitSearchQueryDto,
   BatchCreateAssetsDto,
   BatchRemoveAssetsDto,
   CreateAssetDto,
@@ -64,22 +63,6 @@ export class AssetsController {
     @Body() input: BatchRemoveAssetsDto,
   ) {
     return this.assets.deactivateBatch(actor, input);
-  }
-
-  @Get("units")
-  searchUnits(
-    @CurrentActor() actor: AuthenticatedActor,
-    @Query() query: AssetUnitSearchQueryDto,
-  ) {
-    return this.assetUnits.search(actor, query);
-  }
-
-  @Get("units/:assetUnitId/events")
-  unitHistory(
-    @CurrentActor() actor: AuthenticatedActor,
-    @Param("assetUnitId", new ParseUUIDPipe()) assetUnitId: string,
-  ) {
-    return this.assetUnits.getHistory(actor, assetUnitId);
   }
 
   @Post("units/batch-retire")

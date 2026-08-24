@@ -4,8 +4,6 @@ import type {
   AssetInput,
   AssetSummary,
   AssetUnit,
-  AssetUnitHistory,
-  AssetUnitSearchResult,
   ConfirmDeliveryInput,
   CreateReservationInput,
   CreateReturnInput,
@@ -357,18 +355,6 @@ export const api = {
       `/assets/${assetId}/units${queryString(filters)}`,
       { signal },
     ),
-  searchAssetUnits: (
-    filters: { search?: string; cursor?: string; limit?: number },
-    signal?: AbortSignal,
-  ) =>
-    request<ListResponse<AssetUnitSearchResult>>(
-      `/assets/units${queryString(filters)}`,
-      { signal },
-    ),
-  assetUnitHistory: (assetUnitId: string, signal?: AbortSignal) =>
-    request<AssetUnitHistory>(`/assets/units/${assetUnitId}/events`, {
-      signal,
-    }),
   reservationsByAsset: (
     period: "day" | "week" | "month" | "year",
     anchor?: string,
