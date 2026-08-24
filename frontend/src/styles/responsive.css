@@ -38,6 +38,9 @@
   .reservation-compose {
     grid-template-columns: minmax(0, 1fr) 290px;
   }
+  .new-reservation-workbench {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
   .reservation-list-toolbar {
     align-items: stretch;
     flex-direction: column;
@@ -229,6 +232,12 @@
   .res-detail-columns,
   .reservation-review-landing {
     grid-template-columns: 1fr;
+  }
+  .new-reservation-workbench {
+    grid-template-columns: 1fr;
+  }
+  .new-reservation-review {
+    position: static;
   }
   .review-lane-banner small {
     display: none;
@@ -541,6 +550,65 @@
   .reservation-submit .button {
     width: 100%;
   }
+  .new-reservation-hero {
+    border-left-width: 4px;
+    border-radius: 15px;
+  }
+  .new-reservation-hero__topline {
+    padding: 0 16px;
+  }
+  .new-reservation-hero__copy {
+    padding: 18px;
+  }
+  .new-reservation-hero__copy h1 {
+    font-size: 32px;
+  }
+  .new-reservation-route {
+    grid-template-columns: 1fr;
+  }
+  .new-reservation-route__stop {
+    min-height: 54px;
+    padding: 9px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .new-reservation-route__stop:last-child {
+    border-bottom: 0;
+  }
+  .new-reservation-card__header {
+    padding: 13px 15px;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .new-reservation-card__hint,
+  .new-reservation-card__count {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .new-reservation-card__body {
+    padding: 16px;
+  }
+  .new-reservation-time-grid,
+  .new-reservation-picker__list,
+  .new-reservation-people {
+    grid-template-columns: 1fr;
+  }
+  .new-reservation-manifest__row {
+    grid-template-columns: 26px minmax(0, 1fr) 36px;
+    gap: 9px;
+  }
+  .new-reservation-manifest__quantity-control {
+    grid-column: 2 / 4;
+  }
+  .new-reservation-manifest__row > .icon-button {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .new-reservation-picker__item {
+    min-height: 78px;
+  }
+  .new-reservation-review {
+    padding: 18px;
+  }
   .reservation-reference-form {
     grid-template-columns: 1fr;
   }
@@ -617,6 +685,19 @@
   }
   .calendar-asset-browser__results--grid {
     grid-template-columns: 1fr;
+  }
+  .calendar-asset-option--list {
+    min-height: 114px;
+    padding: 0 12px;
+    grid-template-columns: minmax(0, 1fr) 108px;
+    gap: 10px;
+  }
+  .calendar-asset-option--list .calendar-asset-option__body {
+    padding: 12px 0;
+    gap: 8px;
+  }
+  .calendar-asset-option--list .calendar-asset-option__quantity {
+    padding-left: 10px;
   }
 }
 

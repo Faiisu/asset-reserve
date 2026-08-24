@@ -1,15 +1,19 @@
 import {
+  ArrowLeft,
   ArrowRight,
+  CalendarDays,
   Check,
+  PackageSearch,
   Plus,
   Save,
   Search,
   Send,
   Trash2,
   UserPlus,
+  Users,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiClientError, isAbortError } from "../api";
 import { useAuth } from "../auth";
@@ -42,7 +46,10 @@ export function ReservationCreatePage() {
   const { hasPermission, hasAreaPermission } = useAuth();
   const requestedStartAt = searchParams.get("startAt");
   const requestedEndAt = searchParams.get("endAt");
-  const requestedAssetKey = searchParams.getAll("assetId").join(",");
+  const requestedAssetValues = searchParams.getAll("assetId");
+  const requestedQuantityValues = searchParams.getAll("quantity");
+  const requestedAssetKey = requestedAssetValues.join(",");
+  const requestedQuantityKey = requestedQuantityValues.join(",");
   const requestedAssetIds = useMemo(
     () =>
       Array.from(
@@ -54,6 +61,20 @@ export function ReservationCreatePage() {
       ).slice(0, 100),
     [requestedAssetKey],
   );
+  const requestedAssetQuantities = useMemo(() => {
+    const quantities = new Map<string, number>();
+    requestedAssetValues.forEach((assetId, index) => {
+      if (!UUID_PATTERN.test(assetId)) return;
+      const value = Number(requestedQuantityValues[index]);
+      quantities.set(
+        assetId,
+        Number.isInteger(value) && value > 0
+          ? Math.min(value, MAX_RESERVATION_ITEM_QUANTITY)
+          : 1,
+      );
+    });
+    return quantities;
+  }, [requestedAssetKey, requestedQuantityKey]);
   const defaults = useMemo(() => {
     const fallback = defaultReservationWindow();
     if (!requestedStartAt || !requestedEndAt) return fallback;
@@ -167,11 +188,7 @@ export function ReservationCreatePage() {
         return [
           {
             asset: updated,
-            quantity: Math.min(
-              item.quantity,
-              updated.availableQuantity,
-              MAX_RESERVATION_ITEM_QUANTITY,
-            ),
+            quantity: item.quantity,
           },
         ];
       }),
@@ -220,16 +237,33 @@ export function ReservationCreatePage() {
           ...current,
           ...imported
             .filter((asset) => !currentIds.has(asset.id))
-            .map((asset) => ({ asset, quantity: 1 })),
+            .map((asset) => ({
+              asset,
+              quantity: Math.min(
+                requestedAssetQuantities.get(asset.id) ?? 1,
+                asset.availableQuantity,
+                MAX_RESERVATION_ITEM_QUANTITY,
+              ),
+            })),
         ];
       });
     });
     return () => {
       active = false;
     };
-  }, [assets, loadingAssets, requestedAssetKey]);
+  }, [
+    assets,
+    loadingAssets,
+    requestedAssetKey,
+    requestedQuantityKey,
+    requestedAssetQuantities,
+  ]);
 
   const selectedIds = new Set(selected.map((item) => item.asset.id));
+  const selectedUnitCount = selected.reduce(
+    (total, item) => total + item.quantity,
+    0,
+  );
   const reservableAssets = assets
     .filter((asset) =>
       hasAreaPermission("reservation:create", asset.managementArea.id),
@@ -393,13 +427,74 @@ export function ReservationCreatePage() {
   }
 
   return (
-    <div className="page-stack page-stack--form reservation-page">
+    <div className="new-reservation-page">
       <form
-        className="reservation-compose"
+        className="new-reservation-form"
         onSubmit={(event) => void submit(event, "PENDING_APPROVAL")}
         noValidate
       >
-        <div className="reservation-compose__main">
+        <header className="new-reservation-hero">
+          <div className="new-reservation-hero__topline">
+            <Link to="/reservations" className="new-reservation-backlink">
+              <ArrowLeft size={15} /> Reservations
+            </Link>
+            <span>New request</span>
+          </div>
+          <div className="new-reservation-hero__copy">
+            <h1>Reservation Request</h1>
+          </div>
+          <div className="new-reservation-route" aria-label="Request progress">
+            <div
+              className={cx(
+                "new-reservation-route__stop",
+                eventName.trim() && availabilityWindow &&
+                  "new-reservation-route__stop--ready",
+              )}
+            >
+              <i aria-hidden>1</i>
+              <span>
+                <small>Schedule</small>
+                <strong>
+                  {eventName.trim() && availabilityWindow ? "Ready" : "Set up"}
+                </strong>
+              </span>
+            </div>
+            <div
+              className={cx(
+                "new-reservation-route__stop",
+                selected.length > 0 && "new-reservation-route__stop--ready",
+              )}
+            >
+              <i aria-hidden>2</i>
+              <span>
+                <small>Equipment</small>
+                <strong>
+                  {selected.length || "No"} type
+                  {selected.length === 1 ? "" : "s"}
+                </strong>
+              </span>
+            </div>
+            <div
+              className={cx(
+                "new-reservation-route__stop",
+                participants.length > 0 &&
+                  "new-reservation-route__stop--ready",
+              )}
+            >
+              <i aria-hidden>3</i>
+              <span>
+                <small>People</small>
+                <strong>
+                  {participants.length || "No"} teammate
+                  {participants.length === 1 ? "" : "s"}
+                </strong>
+              </span>
+            </div>
+          </div>
+        </header>
+
+        <div className="new-reservation-workbench">
+          <main className="new-reservation-workbench__main">
           {Boolean(error) && (
             <div className="form-alert" role="alert">
               {error instanceof ApiClientError
@@ -408,311 +503,465 @@ export function ReservationCreatePage() {
             </div>
           )}
 
-          <section className="reservation-panel">
-            <div className="reservation-panel__heading">
-              <span className="reservation-step">01</span>
+          <section className="new-reservation-card">
+            <header className="new-reservation-card__header">
+              <span className="new-reservation-card__icon" aria-hidden>
+                <CalendarDays size={19} />
+              </span>
               <div>
-                <h2>Event and schedule</h2>
-                <p>The time window is checked against approved reservations.</p>
+                <p>Schedule</p>
+                <h2>When and why</h2>
               </div>
-            </div>
-            <Field label="Event name" required error={fields.eventName}>
-              <Input
-                value={eventName}
-                onChange={(event) => setEventName(event.target.value)}
-                placeholder="Quarterly town hall"
-                maxLength={cap(CONTRACT_LIMITS.reservation.eventNameMax)}
-                autoFocus
-                required
-              />
-            </Field>
-            <div className="form-grid form-grid--2">
-              <Field label="Starts" required error={fields.startAt}>
+              <span className="new-reservation-card__hint">
+                Availability follows this window
+              </span>
+            </header>
+            <div className="new-reservation-card__body new-reservation-brief">
+              <Field label="Event name" required error={fields.eventName}>
                 <Input
-                  type="datetime-local"
-                  value={startAt}
-                  min={toLocalDateTime(new Date().toISOString())}
-                  onChange={(event) => setStartAt(event.target.value)}
+                  value={eventName}
+                  onChange={(event) => setEventName(event.target.value)}
+                  placeholder="Quarterly town hall"
+                  maxLength={cap(CONTRACT_LIMITS.reservation.eventNameMax)}
+                  autoFocus
                   required
                 />
               </Field>
-              <Field label="Ends" required error={fields.endAt}>
-                <Input
-                  type="datetime-local"
-                  value={endAt}
-                  min={startAt || toLocalDateTime(new Date().toISOString())}
-                  onChange={(event) => setEndAt(event.target.value)}
-                  required
+              <div className="new-reservation-time-grid">
+                <Field label="Starts" required error={fields.startAt}>
+                  <Input
+                    type="datetime-local"
+                    value={startAt}
+                    min={toLocalDateTime(new Date().toISOString())}
+                    onChange={(event) => setStartAt(event.target.value)}
+                    required
+                  />
+                </Field>
+                <Field label="Ends" required error={fields.endAt}>
+                  <Input
+                    type="datetime-local"
+                    value={endAt}
+                    min={startAt || toLocalDateTime(new Date().toISOString())}
+                    onChange={(event) => setEndAt(event.target.value)}
+                    required
+                  />
+                </Field>
+              </div>
+              <Field label="Event notes" error={fields.description}>
+                <Textarea
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Venue, setup notes, and anything approvers need to know"
+                  maxLength={cap(CONTRACT_LIMITS.reservation.descriptionMax)}
+                  rows={4}
                 />
               </Field>
             </div>
-            <Field label="Event notes" error={fields.description}>
-              <Textarea
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="Venue, setup notes, and anything approvers need to know"
-                maxLength={cap(CONTRACT_LIMITS.reservation.descriptionMax)}
-                rows={4}
-              />
-            </Field>
           </section>
 
-          <section className="reservation-panel">
-            <div className="reservation-panel__heading">
-              <span className="reservation-step">02</span>
+          <section className="new-reservation-card">
+            <header className="new-reservation-card__header">
+              <span className="new-reservation-card__icon" aria-hidden>
+                <PackageSearch size={19} />
+              </span>
               <div>
-                <h2>Asset manifest</h2>
-                <p>
-                  Choose quantities for each asset. Availability is rechecked
-                  when an approver acts.
-                </p>
+                <p>Equipment</p>
+                <h2>Build the checkout list</h2>
               </div>
-              <span className="manifest-count">{selected.length} selected</span>
-            </div>
+              <span className="new-reservation-card__count">
+                {selected.length} selected
+              </span>
+            </header>
 
-            {fields.items && (
-              <div className="inline-field-error" role="alert">
-                {fields.items}
-              </div>
-            )}
-            {selected.length > 0 && (
-              <div className="reservation-manifest">
-                {selected.map(({ asset, quantity }, index) => {
-                  const maximumQuantity = Math.min(
-                    asset.availableQuantity,
-                    MAX_RESERVATION_ITEM_QUANTITY,
-                  );
-                  const quantityInvalid =
-                    !Number.isInteger(quantity) ||
-                    quantity < 1 ||
-                    quantity > maximumQuantity;
-                  return (
-                    <div className="manifest-row" key={asset.id}>
-                      <span className="manifest-row__number">
-                        {String(index + 1).padStart(2, "0")}
-                      </span>
-                      <AssetPicture src={asset.pictureUrl} name={asset.name} />
-                      <div className="manifest-row__asset">
-                        <strong>{asset.name}</strong>
-                        <span>
-                          {asset.managementArea.name} ·{" "}
-                          {asset.availableQuantity} available for this time
-                        </span>
-                      </div>
-                      <Field
-                        label="Quantity"
-                        error={
-                          quantityInvalid
-                            ? `Enter a whole number from 1 to ${maximumQuantity}`
-                            : undefined
-                        }
-                      >
-                        <Input
-                          className="manifest-row__quantity"
-                          type="number"
-                          min={1}
-                          max={maximumQuantity}
-                          value={quantity}
-                          onChange={(event) =>
-                            updateQuantity(asset.id, Number(event.target.value))
-                          }
-                          required
-                        />
-                      </Field>
-                      <button
-                        className="icon-button icon-button--danger"
-                        type="button"
-                        aria-label={`Remove ${asset.name}`}
-                        onClick={() =>
-                          setSelected((current) =>
-                            current.filter(
-                              (item) => item.asset.id !== asset.id,
-                            ),
-                          )
-                        }
-                      >
-                        <Trash2 size={17} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <div className="new-reservation-card__body">
+              {fields.items && (
+                <div className="inline-field-error" role="alert">
+                  {fields.items}
+                </div>
+              )}
 
-            <div className="asset-picker">
-              <div className="asset-picker__search">
-                <Search size={17} />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search active assets"
-                  aria-label="Search active assets"
-                />
-              </div>
-              <div className="asset-picker__list" aria-live="polite">
-                {loadingAssets ? (
-                  <p className="asset-picker__message">Loading assets…</p>
-                ) : reservableAssets.length === 0 ? (
-                  <p className="asset-picker__message">
-                    No reservable assets match this search.
-                  </p>
-                ) : (
-                  reservableAssets.map((asset) => {
-                    const selected = selectedIds.has(asset.id);
-                    const fullyBooked = asset.availableQuantity <= 0;
+              {selected.length === 0 ? (
+                <div className="new-reservation-empty-manifest">
+                  <PackageSearch size={20} />
+                  <span>
+                    <strong>No equipment added yet</strong>
+                    <small>Choose from the available inventory below.</small>
+                  </span>
+                </div>
+              ) : (
+                <div className="new-reservation-manifest">
+                  {selected.map(({ asset, quantity }, index) => {
                     return (
-                      <button
-                        type="button"
-                        className={cx(
-                          "asset-picker__item",
-                          fullyBooked && "asset-picker__item--unavailable",
-                        )}
-                        key={asset.id}
-                        disabled={selected || fullyBooked}
-                        onClick={() => addAsset(asset)}
-                      >
-                        <AssetPicture
-                          src={asset.pictureUrl}
-                          name={asset.name}
-                        />
-                        <span>
-                          <strong>{asset.name}</strong>
-                          <small>
-                            {asset.managementArea.name} ·{" "}
-                            {fullyBooked
-                              ? "Fully booked for this time"
-                              : `${asset.availableQuantity} of ${asset.totalQuantity} available for this time`}
-                          </small>
+                      <div className="new-reservation-manifest__row" key={asset.id}>
+                        <span className="new-reservation-manifest__index">
+                          {String(index + 1).padStart(2, "0")}
                         </span>
-                        {selected ? (
-                          <Check size={17} />
-                        ) : fullyBooked ? (
-                          <X size={16} />
-                        ) : (
-                          <Plus size={17} />
-                        )}
-                      </button>
+                        <div className="new-reservation-manifest__asset">
+                          <strong>{asset.name}</strong>
+                          <span>
+                            {asset.managementArea.name} ·{" "}
+                            {asset.availableQuantity} available for this time
+                          </span>
+                        </div>
+                        <ReservationAssetQuantity
+                          asset={asset}
+                          quantity={quantity}
+                          onChange={(nextQuantity) =>
+                            updateQuantity(asset.id, nextQuantity)
+                          }
+                        />
+                        <button
+                          className="icon-button icon-button--danger"
+                          type="button"
+                          aria-label={`Remove ${asset.name}`}
+                          onClick={() =>
+                            setSelected((current) =>
+                              current.filter(
+                                (item) => item.asset.id !== asset.id,
+                              ),
+                            )
+                          }
+                        >
+                          <Trash2 size={17} />
+                        </button>
+                      </div>
                     );
-                  })
-                )}
+                  })}
+                </div>
+              )}
+
+              <div className="new-reservation-picker">
+                <label className="new-reservation-picker__search">
+                  <Search size={17} />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search active assets"
+                    aria-label="Search active assets"
+                  />
+                  <small>{reservableAssets.length} found</small>
+                </label>
+                <div className="new-reservation-picker__list" aria-live="polite">
+                  {loadingAssets ? (
+                    <p className="new-reservation-picker__message">
+                      Loading assets…
+                    </p>
+                  ) : reservableAssets.length === 0 ? (
+                    <p className="new-reservation-picker__message">
+                      No reservable assets match this search.
+                    </p>
+                  ) : (
+                    reservableAssets.map((asset) => {
+                      const selectedAsset = selectedIds.has(asset.id);
+                      const fullyBooked = asset.availableQuantity <= 0;
+                      return (
+                        <button
+                          type="button"
+                          className={cx(
+                            "new-reservation-picker__item",
+                            fullyBooked &&
+                              "new-reservation-picker__item--unavailable",
+                          )}
+                          key={asset.id}
+                          disabled={selectedAsset || fullyBooked}
+                          onClick={() => addAsset(asset)}
+                        >
+                          <AssetPicture src={asset.pictureUrl} name={asset.name} />
+                          <span>
+                            <strong>{asset.name}</strong>
+                            <small>{asset.managementArea.name}</small>
+                            <em>
+                              {fullyBooked
+                                ? "Fully booked for this time"
+                                : `${asset.availableQuantity} of ${asset.totalQuantity} available for this time`}
+                            </em>
+                          </span>
+                          <i aria-hidden>
+                            {selectedAsset ? (
+                              <Check size={16} />
+                            ) : fullyBooked ? (
+                              <X size={15} />
+                            ) : (
+                              <Plus size={16} />
+                            )}
+                          </i>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
           </section>
 
-          <section className="reservation-panel">
-            <div className="reservation-panel__heading">
-              <span className="reservation-step">03</span>
+          <section className="new-reservation-card">
+            <header className="new-reservation-card__header">
+              <span className="new-reservation-card__icon" aria-hidden>
+                <Users size={19} />
+              </span>
               <div>
-                <h2>Event team</h2>
-                <p>
-                  Participants can see this reservation and return its
-                  equipment. The requester is always included.
-                </p>
+                <p>People</p>
+                <h2>Share responsibility</h2>
               </div>
-              <span className="manifest-count">
+              <span className="new-reservation-card__count">
                 {participants.length} added
               </span>
-            </div>
+            </header>
 
-            {fields.participantIds && (
-              <div className="inline-field-error" role="alert">
-                {fields.participantIds}
-              </div>
-            )}
-            {participants.length > 0 && (
-              <ul className="participant-chips">
-                {participants.map((person) => (
-                  <li className="participant-chip" key={person.id}>
-                    <Avatar name={participantLabel(person)} />
-                    <span>
-                      <strong>{participantLabel(person)}</strong>
-                      {person.email && person.name && (
-                        <small>{person.email}</small>
-                      )}
-                    </span>
-                    <button
-                      type="button"
-                      className="icon-button icon-button--danger"
-                      aria-label={`Remove ${participantLabel(person)}`}
-                      onClick={() => toggleParticipant(person)}
-                    >
-                      <X size={15} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <div className="asset-picker">
-              <div className="asset-picker__search">
-                <Search size={17} />
-                <input
-                  value={participantSearch}
-                  onChange={(event) => setParticipantSearch(event.target.value)}
-                  placeholder="Search people by name or email"
-                  aria-label="Search people by name or email"
-                />
-              </div>
-              <div className="asset-picker__list" aria-live="polite">
-                {loadingDirectory ? (
-                  <p className="asset-picker__message">Loading people…</p>
-                ) : directoryError ? (
-                  <p className="asset-picker__message">
-                    Couldn't load the people directory.
-                  </p>
-                ) : directory.length === 0 ? (
-                  <p className="asset-picker__message">
-                    No active users match this search.
-                  </p>
-                ) : (
-                  directory.map((person) => {
-                    const added = participantIds.has(person.id);
-                    const atCap =
-                      !added && participants.length >= MAX_PARTICIPANTS;
-                    return (
+            <div className="new-reservation-card__body">
+              <p className="new-reservation-card__intro">
+                Participants can view this request and help return equipment.
+                You are included automatically.
+              </p>
+              {fields.participantIds && (
+                <div className="inline-field-error" role="alert">
+                  {fields.participantIds}
+                </div>
+              )}
+              {participants.length > 0 && (
+                <ul className="new-reservation-people">
+                  {participants.map((person) => (
+                    <li className="new-reservation-person" key={person.id}>
+                      <Avatar name={participantLabel(person)} />
+                      <span>
+                        <strong>{participantLabel(person)}</strong>
+                        {person.email && person.name && (
+                          <small>{person.email}</small>
+                        )}
+                      </span>
                       <button
                         type="button"
-                        className="asset-picker__item"
-                        key={person.id}
-                        disabled={atCap}
-                        title={
-                          atCap
-                            ? `A reservation can have at most ${MAX_PARTICIPANTS} participants`
-                            : undefined
-                        }
+                        className="icon-button icon-button--danger"
+                        aria-label={`Remove ${participantLabel(person)}`}
                         onClick={() => toggleParticipant(person)}
                       >
-                        <Avatar name={participantLabel(person)} />
-                        <span>
-                          <strong>{participantLabel(person)}</strong>
-                          <small>{person.email ?? "No email linked yet"}</small>
-                        </span>
-                        {added ? <Check size={17} /> : <UserPlus size={17} />}
+                        <X size={15} />
                       </button>
-                    );
-                  })
-                )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="new-reservation-picker new-reservation-picker--people">
+                <label className="new-reservation-picker__search">
+                  <Search size={17} />
+                  <input
+                    value={participantSearch}
+                    onChange={(event) =>
+                      setParticipantSearch(event.target.value)
+                    }
+                    placeholder="Search people by name or email"
+                    aria-label="Search people by name or email"
+                  />
+                </label>
+                <div className="new-reservation-picker__list" aria-live="polite">
+                  {loadingDirectory ? (
+                    <p className="new-reservation-picker__message">
+                      Loading people…
+                    </p>
+                  ) : directoryError ? (
+                    <p className="new-reservation-picker__message">
+                      Couldn't load the people directory.
+                    </p>
+                  ) : directory.length === 0 ? (
+                    <p className="new-reservation-picker__message">
+                      No active users match this search.
+                    </p>
+                  ) : (
+                    directory.map((person) => {
+                      const added = participantIds.has(person.id);
+                      const atCap =
+                        !added && participants.length >= MAX_PARTICIPANTS;
+                      return (
+                        <button
+                          type="button"
+                          className="new-reservation-picker__item"
+                          key={person.id}
+                          disabled={atCap}
+                          title={
+                            atCap
+                              ? `A reservation can have at most ${MAX_PARTICIPANTS} participants`
+                              : undefined
+                          }
+                          onClick={() => toggleParticipant(person)}
+                        >
+                          <Avatar name={participantLabel(person)} />
+                          <span>
+                            <strong>{participantLabel(person)}</strong>
+                            <small>{person.email ?? "No email linked yet"}</small>
+                          </span>
+                          <i aria-hidden>
+                            {added ? (
+                              <Check size={16} />
+                            ) : (
+                              <UserPlus size={16} />
+                            )}
+                          </i>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
           </section>
+          </main>
 
-          <div className="reservation-submit">
-            <Button
-              type="button"
-              variant="secondary"
-              loading={submitting === "DRAFT"}
-              onClick={(event) => void submit(event, "DRAFT")}
-            >
-              <Save size={17} />
-              Save draft
-            </Button>
-            <Button type="submit" loading={submitting === "PENDING_APPROVAL"}>
-              <Send size={17} />
-              Send for approval
-            </Button>
-          </div>
+          <aside className="new-reservation-review" aria-label="Request summary">
+            <div className="new-reservation-review__label">
+              <span>Live review</span>
+              <i aria-hidden />
+            </div>
+            <h2>Request summary</h2>
+            <dl className="new-reservation-review__facts">
+              <div>
+                <dt>Schedule</dt>
+                <dd>{formatReservationWindowSummary(startAt, endAt)}</dd>
+              </div>
+              <div>
+                <dt>Equipment</dt>
+                <dd>
+                  {selected.length} type{selected.length === 1 ? "" : "s"} ·{" "}
+                  {selectedUnitCount} unit{selectedUnitCount === 1 ? "" : "s"}
+                </dd>
+              </div>
+              <div>
+                <dt>People</dt>
+                <dd>
+                  You + {participants.length} participant
+                  {participants.length === 1 ? "" : "s"}
+                </dd>
+              </div>
+            </dl>
+            <div className="new-reservation-review__note">
+              <Check size={15} />
+              <span>
+                Availability is checked now and confirmed again during approval.
+              </span>
+            </div>
+            <div className="new-reservation-review__actions">
+              <Button
+                type="submit"
+                loading={submitting === "PENDING_APPROVAL"}
+              >
+                <Send size={17} />
+                Send for approval
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                loading={submitting === "DRAFT"}
+                onClick={(event) => void submit(event, "DRAFT")}
+              >
+                <Save size={17} />
+                Save draft
+              </Button>
+            </div>
+            <Link to="/reservations" className="new-reservation-review__cancel">
+              Cancel and return
+            </Link>
+          </aside>
         </div>
       </form>
     </div>
   );
+}
+
+function ReservationAssetQuantity({
+  asset,
+  quantity,
+  onChange,
+}: {
+  asset: AssetSummary;
+  quantity: number;
+  onChange: (quantity: number) => void;
+}) {
+  const maximumQuantity = Math.min(
+    asset.availableQuantity,
+    MAX_RESERVATION_ITEM_QUANTITY,
+  );
+  const [quantityDraft, setQuantityDraft] = useState(String(quantity));
+  const quantityEditing = useRef(false);
+
+  useEffect(() => {
+    if (!quantityEditing.current) setQuantityDraft(String(quantity));
+  }, [quantity]);
+
+  const quantityOverLimit =
+    quantityDraft !== "" && Number(quantityDraft) > maximumQuantity;
+
+  return (
+    <label
+      className={cx(
+        "new-reservation-manifest__quantity-control",
+        quantityOverLimit &&
+          "new-reservation-manifest__quantity-control--over-limit",
+      )}
+    >
+      <span>Quantity</span>
+      <input
+        className="new-reservation-manifest__quantity"
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={quantityDraft}
+        aria-label={`Quantity for ${asset.name}`}
+        aria-invalid={quantityOverLimit}
+        onFocus={() => {
+          quantityEditing.current = true;
+        }}
+        onChange={(event) => {
+          const nextValue = event.target.value;
+          if (!/^\d*$/.test(nextValue)) return;
+          if (nextValue === "") {
+            setQuantityDraft("");
+            return;
+          }
+          const normalized = Number(nextValue);
+          setQuantityDraft(String(normalized));
+          onChange(normalized);
+        }}
+        onBlur={() => {
+          quantityEditing.current = false;
+          if (quantityDraft === "") {
+            setQuantityDraft("0");
+            onChange(0);
+            return;
+          }
+          const normalized = Number(quantityDraft);
+          setQuantityDraft(String(normalized));
+          onChange(normalized);
+        }}
+      />
+      <small>Max available: {maximumQuantity}</small>
+    </label>
+  );
+}
+
+function formatReservationWindowSummary(startAt: string, endAt: string) {
+  const start = new Date(startAt);
+  const end = new Date(endAt);
+  if (
+    !startAt ||
+    !endAt ||
+    Number.isNaN(start.getTime()) ||
+    Number.isNaN(end.getTime()) ||
+    end <= start
+  ) {
+    return "Set a valid time window";
+  }
+
+  const date = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  const time = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const sameDay = start.toDateString() === end.toDateString();
+  return sameDay
+    ? `${date.format(start)} · ${time.format(start)}–${time.format(end)}`
+    : `${date.format(start)}, ${time.format(start)} → ${date.format(end)}, ${time.format(end)}`;
 }

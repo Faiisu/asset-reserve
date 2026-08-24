@@ -129,6 +129,44 @@ describe("ReservationCreatePage", () => {
     expect(createSpy).not.toHaveBeenCalled();
   });
 
+  it("uses the calendar quantity input behavior in the checkout list", async () => {
+    vi.spyOn(api, "assets").mockResolvedValue({
+      data: [asset],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+
+    render(
+      <MemoryRouter>
+        <ReservationCreatePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /stage camera/i }),
+    );
+    const quantity = screen.getByLabelText("Quantity for Stage camera");
+    const limit = screen.getByText("Max available: 3");
+
+    expect(quantity).toHaveValue("1");
+    fireEvent.change(quantity, { target: { value: "" } });
+    expect(quantity).toHaveValue("");
+    fireEvent.change(quantity, { target: { value: "not a number" } });
+    expect(quantity).toHaveValue("");
+    fireEvent.blur(quantity);
+    expect(quantity).toHaveValue("0");
+
+    fireEvent.focus(quantity);
+    fireEvent.change(quantity, { target: { value: "4" } });
+    expect(quantity).toHaveValue("4");
+    expect(quantity).toHaveAttribute("aria-invalid", "true");
+    expect(limit.closest("label")).toHaveClass(
+      "new-reservation-manifest__quantity-control--over-limit",
+    );
+
+    fireEvent.change(quantity, { target: { value: "3" } });
+    expect(quantity).toHaveAttribute("aria-invalid", "false");
+  });
+
   it("uses the calendar schedule and assets as the initial manifest", async () => {
     vi.spyOn(api, "assets").mockResolvedValue({
       data: [],
@@ -141,7 +179,7 @@ describe("ReservationCreatePage", () => {
     render(
       <MemoryRouter
         initialEntries={[
-          `/reservations/new?startAt=${encodeURIComponent(startAt)}&endAt=${encodeURIComponent(endAt)}&assetId=${asset.id}`,
+          `/reservations/new?startAt=${encodeURIComponent(startAt)}&endAt=${encodeURIComponent(endAt)}&assetId=${asset.id}&quantity=3`,
         ]}
       >
         <StrictMode>
@@ -158,6 +196,7 @@ describe("ReservationCreatePage", () => {
     expect(
       screen.getByRole("button", { name: /Remove Stage camera/i }),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText("Quantity for Stage camera")).toHaveValue("3");
     expect(assetSpy).toHaveBeenCalledWith(asset.id);
   });
 
