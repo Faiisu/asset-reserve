@@ -233,7 +233,6 @@
   /* A track one step off the surface, so a zero-count row still reads as a
      row rather than as missing content. */
   background: var(--surface-raised);
-  box-shadow: inset 0 0 0 1px var(--line);
   overflow: hidden;
 }
 .stat-bars__fill {
@@ -261,10 +260,6 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.stat-bars__row:hover .stat-bars__track {
-  box-shadow: inset 0 0 0 1px var(--line-strong);
-}
-
 .stat-bars__toggle {
   margin-top: 14px;
   padding: 0;
