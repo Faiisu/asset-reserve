@@ -623,6 +623,20 @@
   border-radius: 3px;
   flex: none;
 }
+.asset-reservation-chart__scroll {
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--card-radius-sm);
+}
+.asset-reservation-chart__svg {
+  display: block;
+}
+.asset-reservation-chart__axis-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  fill: var(--ink-faint);
+}
 .floating-back {
   width: fit-content;
   display: flex;

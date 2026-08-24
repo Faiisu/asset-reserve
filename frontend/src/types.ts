@@ -280,6 +280,22 @@ export type AssetUnitHistory = {
   events: AssetUnitHistoryEvent[];
 };
 
+export type StatisticsPeriod = "day" | "week" | "month" | "year";
+
+export type AssetReservationCount = {
+  assetId: string;
+  name: string;
+  partNumber: string | null;
+  managementArea: ManagementAreaRef;
+  reservedCount: number;
+};
+
+export type ReservationsByAssetResponse = {
+  period: StatisticsPeriod;
+  periodStart: string;
+  data: AssetReservationCount[];
+};
+
 export type AssetInput = {
   name: string;
   managementAreaId: string;

@@ -1,0 +1,52 @@
+StatisticsPeriod:
+  type: string
+  description: The aggregation window for statistics endpoints, anchored to the current UTC calendar boundary (see each endpoint's description for the exact start).
+  enum:
+    - day
+    - week
+    - month
+    - year
+AssetReservationCount:
+  type: object
+  required:
+    - assetId
+    - name
+    - partNumber
+    - managementArea
+    - reservedCount
+  properties:
+    assetId:
+      type: string
+      format: uuid
+    name:
+      type: string
+      maxLength: 40
+    partNumber:
+      type:
+        - string
+        - "null"
+      maxLength: 100
+    managementArea:
+      $ref: "#/components/schemas/ManagementAreaRef"
+    reservedCount:
+      type: integer
+      minimum: 0
+      description: Count of ReservationItem rows created for this asset since the period start, regardless of reservation/item status.
+ReservationsByAssetResponse:
+  type: object
+  required:
+    - period
+    - periodStart
+    - data
+  properties:
+    period:
+      $ref: "#/components/schemas/StatisticsPeriod"
+    periodStart:
+      type: string
+      format: date-time
+      description: The resolved start-of-period boundary used for the count, in UTC.
+    data:
+      type: array
+      maxItems: 200
+      items:
+        $ref: "#/components/schemas/AssetReservationCount"

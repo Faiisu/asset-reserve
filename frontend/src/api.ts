@@ -21,6 +21,7 @@ import type {
   PermissionKey,
   Role,
   ReservationDetail,
+  ReservationsByAssetResponse,
   ReservationSummary,
   ReturnDecisionInput,
   ReturnDetail,
@@ -368,6 +369,13 @@ export const api = {
     request<AssetUnitHistory>(`/assets/units/${assetUnitId}/events`, {
       signal,
     }),
+  reservationsByAsset: (
+    period: "day" | "week" | "month" | "year",
+    signal?: AbortSignal,
+  ) => {
+    const path = `/statistics/reservations-by-asset${queryString({ period })}`;
+    return request<ReservationsByAssetResponse>(path, { signal });
+  },
   createReservation: (input: CreateReservationInput) =>
     request<ReservationDetail>("/reservations", {
       method: "POST",

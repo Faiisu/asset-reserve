@@ -1,0 +1,33 @@
+/statistics/reservations-by-asset:
+  get:
+    tags:
+      - Statistics
+    summary: Reservation-request counts per asset for the current period
+    description: >-
+      Requires asset:view; results are scoped to the caller's permitted management areas the same
+      way GET /assets is. Returns every permitted asset (even with zero reservations), each with
+      the count of ReservationItem rows created since the start of the current period --
+      regardless of reservation/item status (draft, pending, approved, rejected all count).
+      `period` selects the window: day = since today 00:00 UTC, week = since this ISO week's
+      Monday 00:00 UTC, month = since the 1st of this month 00:00 UTC, year = since Jan 1 this
+      year 00:00 UTC. Capped at the 200 assets with the highest reservedCount.
+    operationId: getReservationsByAsset
+    parameters:
+      - name: period
+        in: query
+        required: true
+        schema:
+          $ref: "#/components/schemas/StatisticsPeriod"
+    responses:
+      "200":
+        description: Reservation-request counts per asset for the selected period.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationsByAssetResponse"
+      "401":
+        $ref: "#/components/responses/Unauthorized"
+      "403":
+        $ref: "#/components/responses/Forbidden"
+      "422":
+        $ref: "#/components/responses/ValidationError"
