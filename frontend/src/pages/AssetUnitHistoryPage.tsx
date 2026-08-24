@@ -11,6 +11,7 @@ import {
   cx,
   formatDate,
 } from "../components/ui";
+import { UnitActivityChart } from "../components/UnitActivityChart";
 import type { AssetUnitHistory, AssetUnitSearchResult } from "../types";
 
 export function AssetUnitHistoryPage() {
@@ -169,7 +170,10 @@ export function AssetUnitHistoryPage() {
               <p className="eyebrow">{selected.asset.name}</p>
               <h2 className="mono">{selected.serialNumber}</h2>
             </div>
-            <Link to={`/assets/${selected.asset.id}`} className="button button--secondary button--sm">
+            <Link
+              to={`/assets/${selected.asset.id}`}
+              className="button button--secondary button--sm"
+            >
               View asset
             </Link>
           </header>
@@ -227,52 +231,56 @@ export function AssetUnitHistoryPage() {
                   description="This unit has no recorded events."
                 />
               ) : (
-                <div className="data-table-wrap">
-                  <table className="data-table ledger-table">
-                    <thead>
-                      <tr>
-                        <th>Time</th>
-                        <th>Event</th>
-                        <th>Status change</th>
-                        <th>Reason</th>
-                        <th>Performed by</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history.events.map((event) => (
-                        <tr key={event.id}>
-                          <td className="mono table-date">
-                            {formatDate(event.createdAt, true)}
-                          </td>
-                          <td>
-                            <span className="transaction">
-                              {event.eventType}
-                            </span>
-                          </td>
-                          <td>
-                            {event.fromStatus ?? "—"} → {event.toStatus ?? "—"}
-                          </td>
-                          <td>
-                            <strong className="table-primary">
-                              {event.reason || "—"}
-                            </strong>
-                            <small className="table-secondary">
-                              {event.batchDescription}
-                            </small>
-                          </td>
-                          <td>
-                            <span className="performer">
-                              <UserRound size={15} />
-                              {event.performedBy.name ??
-                                event.performedBy.email ??
-                                "Unnamed user"}
-                            </span>
-                          </td>
+                <>
+                  <UnitActivityChart events={history.events} />
+                  <div className="data-table-wrap">
+                    <table className="data-table ledger-table">
+                      <thead>
+                        <tr>
+                          <th>Time</th>
+                          <th>Event</th>
+                          <th>Status change</th>
+                          <th>Reason</th>
+                          <th>Performed by</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {history.events.map((event) => (
+                          <tr key={event.id}>
+                            <td className="mono table-date">
+                              {formatDate(event.createdAt, true)}
+                            </td>
+                            <td>
+                              <span className="transaction">
+                                {event.eventType}
+                              </span>
+                            </td>
+                            <td>
+                              {event.fromStatus ?? "—"} →{" "}
+                              {event.toStatus ?? "—"}
+                            </td>
+                            <td>
+                              <strong className="table-primary">
+                                {event.reason || "—"}
+                              </strong>
+                              <small className="table-secondary">
+                                {event.batchDescription}
+                              </small>
+                            </td>
+                            <td>
+                              <span className="performer">
+                                <UserRound size={15} />
+                                {event.performedBy.name ??
+                                  event.performedBy.email ??
+                                  "Unnamed user"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </>
           ) : null}
