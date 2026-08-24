@@ -91,6 +91,15 @@
 .stat-kpi--rejected .stat-kpi__value {
   color: var(--red);
 }
+/* Matches the utilization bars' own accent, so the KPI and the chart under
+   it read as the same metric rather than an unrelated blue tile. */
+.stat-kpi--utilization {
+  background: var(--blue-soft);
+  border-color: color-mix(in srgb, var(--blue) 22%, transparent);
+}
+.stat-kpi--utilization .stat-kpi__value {
+  color: var(--blue);
+}
 .stat-kpi__label {
   margin: 0;
   color: var(--ink-faint);

@@ -18,7 +18,17 @@ import {
   cx,
 } from "../components/ui";
 import { formatRangeLabel, subtractDays, todayIsoDate } from "../lib/dateRange";
-import type { ReservationsByAssetResponse } from "../types";
+import type {
+  AssetReservationCount,
+  ReservationsByAssetResponse,
+} from "../types";
+
+type StatType = "decisions" | "utilization";
+
+const STAT_TYPES: Array<{ value: StatType; label: string }> = [
+  { value: "decisions", label: "Approved / Rejected" },
+  { value: "utilization", label: "Utilization" },
+];
 
 export function StatisticPage() {
   const { hasPermission } = useAuth();
@@ -27,6 +37,7 @@ export function StatisticPage() {
   // be any two dates.
   const [start, setStart] = useState(() => subtractDays(todayIsoDate(), 29));
   const [end, setEnd] = useState(() => todayIsoDate());
+  const [statType, setStatType] = useState<StatType>("decisions");
   const [showTable, setShowTable] = useState(false);
   const [result, setResult] = useState<ReservationsByAssetResponse | null>(
     null,
@@ -75,6 +86,7 @@ export function StatisticPage() {
     // head of the list -- but only once it actually has a decision.
     const top = result.data[0];
     const topTotal = top ? top.approvedCount + top.rejectedCount : 0;
+
     const measured = result.data.filter((a) => a.utilizationPercent !== null);
     const avgUtilization =
       measured.length > 0
@@ -84,11 +96,17 @@ export function StatisticPage() {
               10,
           ) / 10
         : null;
+    const byUtilization = [...measured].sort(
+      (a, b) => b.utilizationPercent! - a.utilizationPercent!,
+    );
+
     return {
       approvedTotal,
       rejectedTotal,
       mostRequested: topTotal > 0 ? { asset: top!, total: topTotal } : null,
       avgUtilization,
+      mostUtilized: byUtilization[0] ?? null,
+      leastUtilized: byUtilization[byUtilization.length - 1] ?? null,
     };
   }, [result]);
 
@@ -99,8 +117,6 @@ export function StatisticPage() {
     ? formatRangeLabel(result.periodStart, result.periodEnd)
     : null;
 
-  // Both chart sections share this exact loading/error/empty branching, so
-  // it lives once and takes the chart to render as its last case.
   function renderBody(chart: ReactNode) {
     if (loading && !result) return <LoadingState label="Loading statistics" />;
     if (error)
@@ -119,6 +135,15 @@ export function StatisticPage() {
       <div className={cx("stat-chart-body", loading && "is-refetching")}>
         {chart}
       </div>
+    );
+  }
+
+  function utilizationBadge(asset: AssetReservationCount) {
+    return (
+      <span className="stat-kpi__badge">
+        <b className="mono">{asset.partNumber || asset.name}</b>
+        <span>{asset.utilizationPercent}%</span>
+      </span>
     );
   }
 
@@ -184,7 +209,22 @@ export function StatisticPage() {
         </Button>
       </section>
 
-      {summary && (
+      <div className="segmented" role="tablist" aria-label="Statistic type">
+        {STAT_TYPES.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="tab"
+            aria-selected={statType === option.value}
+            className={cx(statType === option.value && "segmented--active")}
+            onClick={() => setStatType(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      {summary && statType === "decisions" && (
         <section
           className={cx("stat-kpis", loading && "is-refetching")}
           aria-label="Summary"
@@ -222,46 +262,79 @@ export function StatisticPage() {
         </section>
       )}
 
-      <section
-        className="detail-card"
-        aria-label="Approved and rejected by asset"
-      >
-        <header>
-          <div>
-            <p className="eyebrow">Approved vs. rejected, by asset</p>
-            <h2>{windowLabel ? `Decided ${windowLabel}` : "Decided"}</h2>
-          </div>
-        </header>
-
-        {renderBody(
-          result && (
-            <AssetReservationChart data={result.data} showTable={showTable} />
-          ),
-        )}
-      </section>
-
-      <section className="detail-card" aria-label="Utilization by asset">
-        <header>
-          <div>
-            <p className="eyebrow">Capacity actually used, by asset</p>
-            <h2>
-              {windowLabel ? `Utilization ${windowLabel}` : "Utilization"}
-            </h2>
-          </div>
-          {summary?.avgUtilization !== null &&
-            summary?.avgUtilization !== undefined && (
-              <span className="stat-kpi__hint">
-                Avg {summary.avgUtilization}% across measured assets
-              </span>
+      {summary && statType === "utilization" && (
+        <section
+          className={cx("stat-kpis", loading && "is-refetching")}
+          aria-label="Summary"
+        >
+          <article className="stat-kpi stat-kpi--utilization">
+            <p className="stat-kpi__label">Avg utilization</p>
+            <strong className="stat-kpi__value">
+              {summary.avgUtilization === null
+                ? "—"
+                : `${summary.avgUtilization}%`}
+            </strong>
+            <span className="stat-kpi__hint">{windowLabel}</span>
+          </article>
+          <article className="stat-kpi">
+            <p className="stat-kpi__label">Most utilized</p>
+            {summary.mostUtilized ? (
+              utilizationBadge(summary.mostUtilized)
+            ) : (
+              <strong className="stat-kpi__value stat-kpi__value--muted">
+                —
+              </strong>
             )}
-        </header>
+          </article>
+          <article className="stat-kpi">
+            <p className="stat-kpi__label">Least utilized</p>
+            {summary.leastUtilized ? (
+              utilizationBadge(summary.leastUtilized)
+            ) : (
+              <strong className="stat-kpi__value stat-kpi__value--muted">
+                —
+              </strong>
+            )}
+          </article>
+        </section>
+      )}
 
-        {renderBody(
-          result && (
-            <AssetUtilizationChart data={result.data} showTable={showTable} />
-          ),
-        )}
-      </section>
+      {statType === "decisions" ? (
+        <section
+          className="detail-card"
+          aria-label="Approved and rejected by asset"
+        >
+          <header>
+            <div>
+              <p className="eyebrow">Approved vs. rejected, by asset</p>
+              <h2>{windowLabel ? `Decided ${windowLabel}` : "Decided"}</h2>
+            </div>
+          </header>
+
+          {renderBody(
+            result && (
+              <AssetReservationChart data={result.data} showTable={showTable} />
+            ),
+          )}
+        </section>
+      ) : (
+        <section className="detail-card" aria-label="Utilization by asset">
+          <header>
+            <div>
+              <p className="eyebrow">Capacity actually used, by asset</p>
+              <h2>
+                {windowLabel ? `Utilization ${windowLabel}` : "Utilization"}
+              </h2>
+            </div>
+          </header>
+
+          {renderBody(
+            result && (
+              <AssetUtilizationChart data={result.data} showTable={showTable} />
+            ),
+          )}
+        </section>
+      )}
     </div>
   );
 }

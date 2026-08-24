@@ -144,6 +144,51 @@ describe("StatisticPage", () => {
     expect(screen.getByText("4 requests")).toBeTruthy();
   });
 
+  it("shows only the Approved/Rejected section until the Utilization tab is picked", async () => {
+    reservationsByAsset.mockResolvedValue(
+      response("2026-07-26T00:00:00.000Z", "2026-08-25T00:00:00.000Z", [
+        [1, 0],
+      ]),
+    );
+    render(<StatisticPage />);
+
+    await waitFor(() => expect(approvedRegion()).toBeTruthy());
+    expect(
+      screen.queryByRole("region", { name: "Utilization by asset" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("tab", { name: "Approved / Rejected" }),
+    ).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Utilization" }));
+
+    expect(
+      screen.queryByRole("region", { name: "Approved and rejected by asset" }),
+    ).toBeNull();
+    expect(utilizationRegion()).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Utilization" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("keeps the Chart/Table choice when switching statistic type", async () => {
+    reservationsByAsset.mockResolvedValue(
+      response("2026-07-26T00:00:00.000Z", "2026-08-25T00:00:00.000Z", [
+        [1, 0, 1, 50],
+      ]),
+    );
+    render(<StatisticPage />);
+    await waitFor(() => expect(approvedRegion()).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /^Table$/ }));
+    expect(within(approvedRegion()).getByRole("table")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Utilization" }));
+
+    expect(within(utilizationRegion()).getByRole("table")).toBeTruthy();
+  });
+
   it("refetches from the server when the start date changes", async () => {
     reservationsByAsset.mockResolvedValue(
       response("2026-07-26T00:00:00.000Z", "2026-08-25T00:00:00.000Z", [
@@ -278,6 +323,7 @@ describe("StatisticPage", () => {
       ]),
     );
     render(<StatisticPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Utilization" }));
 
     // Asset 0 leads approved/rejected but Asset 1 has the higher
     // utilization, so the two sections must not share one sort order.
@@ -296,6 +342,7 @@ describe("StatisticPage", () => {
       ]),
     );
     render(<StatisticPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Utilization" }));
 
     await waitFor(() =>
       expect(within(utilizationRegion()).getAllByRole("listitem")).toHaveLength(
@@ -313,7 +360,7 @@ describe("StatisticPage", () => {
     );
   });
 
-  it("shows the average utilization across measured assets in the section header", async () => {
+  it("shows the average, most-, and least-utilized assets in the Utilization tab's KPIs", async () => {
     reservationsByAsset.mockResolvedValue(
       response("2026-07-26T00:00:00.000Z", "2026-08-25T00:00:00.000Z", [
         [0, 0, 1, 20],
@@ -321,10 +368,21 @@ describe("StatisticPage", () => {
       ]),
     );
     render(<StatisticPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Utilization" }));
 
+    expect(screen.queryByText("Approved")).toBeNull();
+    expect(await screen.findByText("Avg utilization")).toBeTruthy();
     expect(
-      await within(utilizationRegion()).findByText(/Avg 30%/),
+      screen.getByText("30%", { selector: ".stat-kpi__value" }),
     ).toBeTruthy();
+    expect(screen.getByText("Most utilized")).toBeTruthy();
+    expect(screen.getByText("Least utilized")).toBeTruthy();
+    // Asset 1 (40%) is the most utilized, Asset 0 (20%) the least -- scoped
+    // to the KPI badges since the same P/N also appears in the ranked rows.
+    const badges = screen.getAllByText(/^PN-/, {
+      selector: ".stat-kpi__badge b",
+    });
+    expect(badges.map((node) => node.textContent)).toEqual(["PN-1", "PN-0"]);
   });
 
   it("recovers from a failed request without losing the date fields", async () => {
