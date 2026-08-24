@@ -860,6 +860,17 @@ function BatchAssetForm({
       setError(`Row ${emptyNameIndex + 1} requires an asset name.`);
       return;
     }
+    // Imported rows set name = P/N, and P/N is allowed up to 100 chars
+    // (CreateAssetDto.partNumber) while name is capped at 40
+    // (CreateAssetDto.name) -- the <Input maxLength={40}> only stops manual
+    // typing, not a longer value arriving from parseAssetImportCsv/Xlsx.
+    const overlongIndex = rows.findIndex((row) => row.name.trim().length > 40);
+    if (overlongIndex !== -1) {
+      setError(
+        `Row ${overlongIndex + 1}'s asset name is longer than 40 characters -- shorten it (imported P/N values can run longer than the name limit).`,
+      );
+      return;
+    }
 
     const names = rows.map((row) => row.name.trim().toLowerCase());
     const duplicateIndex = names.findIndex((name, i) => names.indexOf(name) !== i);
