@@ -322,6 +322,11 @@
 .detail-card .empty-state {
   margin-top: 14px;
 }
+.detail-card__note {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
 .detail-card__header-actions {
   flex: 0 0 auto;
   display: flex;

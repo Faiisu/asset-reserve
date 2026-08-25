@@ -325,6 +325,10 @@ export function StatisticPage() {
               <h2>
                 {windowLabel ? `Utilization ${windowLabel}` : "Utilization"}
               </h2>
+              <p className="detail-card__note">
+                % of time each asset&rsquo;s active units were checked out
+                during this window.
+              </p>
             </div>
           </header>
 
