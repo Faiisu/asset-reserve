@@ -1,6 +1,7 @@
 import {
   BarChart3,
   ChevronDown,
+  FileSpreadsheet,
   Filter,
   Search,
   Table2,
@@ -27,6 +28,7 @@ import {
   cx,
 } from "../components/ui";
 import { formatRangeLabel, subtractDays, todayIsoDate } from "../lib/dateRange";
+import { exportStatisticsWorkbook } from "../lib/statisticsExport";
 import type {
   AssetReservationCount,
   ReservationsByAssetResponse,
@@ -58,6 +60,10 @@ export function StatisticPage() {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+  const [exporting, setExporting] = useState(false);
+  // Kept separate from `error`: a failed export must not replace the charts
+  // with a full-panel error state, since the data on screen is still good.
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const canView = hasPermission("asset:view");
 
@@ -224,6 +230,27 @@ export function StatisticPage() {
 
   const hasFilters = search.trim().length > 0 || liveAreaIds.length > 0;
 
+  /** Exports every statistic topic at once -- the workbook's three sheets
+   * are the three segmented-control tabs, so the reader gets what the whole
+   * page measures rather than only the tab they happen to be looking at.
+   * Scoped to `visible`, so the file matches the filters on screen. */
+  async function handleExport() {
+    if (!result || visible.length === 0 || exporting) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      await exportStatisticsWorkbook(
+        visible,
+        result.periodStart,
+        result.periodEnd,
+      );
+    } catch {
+      setExportError("Could not create the Excel file. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function clearFilters() {
     setSearch("");
     setAreaIds([]);
@@ -315,6 +342,25 @@ export function StatisticPage() {
       {/* One filter row above everything it scopes, so the range is never
           hidden behind a loading, empty, or error state. */}
       <section className="stat-toolbar" aria-label="Statistics filters">
+        <div className="search-box stat-toolbar__search">
+          <Search size={17} />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search name, P/N, or area"
+            aria-label="Search assets"
+          />
+          {search && (
+            <button
+              type="button"
+              className="stat-toolbar__search-clear"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+            >
+              <X size={15} />
+            </button>
+          )}
+        </div>
         <div className="stat-anchor">
           <label className="stat-anchor__field">
             <span>Start</span>
@@ -353,25 +399,6 @@ export function StatisticPage() {
         {/* No submit button: every asset being searched is already in
             memory, so matches appear as the reader types. A Search button
             would imply a round trip that never happens. */}
-        <div className="search-box stat-toolbar__search">
-          <Search size={17} />
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search name, P/N, or area"
-            aria-label="Search assets"
-          />
-          {search && (
-            <button
-              type="button"
-              className="stat-toolbar__search-clear"
-              onClick={() => setSearch("")}
-              aria-label="Clear search"
-            >
-              <X size={15} />
-            </button>
-          )}
-        </div>
 
         {/* Management area, the one dimension free-text search handles
             badly: you can type one area's name, but not combine two, and
@@ -465,7 +492,29 @@ export function StatisticPage() {
             </div>
           )}
         </div>
+
+        {/* Exports all three topics, not just the visible one, so it belongs
+            beside the filters that scope them rather than in any one panel's
+            header. */}
+        <Button
+          variant="secondary"
+          size="sm"
+          className="stat-toolbar__export"
+          onClick={() => void handleExport()}
+          loading={exporting}
+          disabled={!result || visible.length === 0}
+          title="Download one sheet per statistic topic"
+        >
+          {!exporting && <FileSpreadsheet size={15} />}
+          {exporting ? "Preparing…" : "Export Excel"}
+        </Button>
       </section>
+
+      {exportError && (
+        <p className="stat-toolbar__export-error" role="alert">
+          {exportError}
+        </p>
+      )}
 
       <div className="segmented" role="tablist" aria-label="Statistic type">
         {STAT_TYPES.map((option) => (

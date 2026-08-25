@@ -25,6 +25,14 @@ vi.mock("../auth", () => ({
   useAuth: () => ({ hasPermission: (key: string) => hasPermission(key) }),
 }));
 
+// The writer itself is covered by lib/statisticsExport.test.ts; here only
+// the wiring matters -- who gets exported, for which window.
+const exportStatisticsWorkbook = vi.fn();
+vi.mock("../lib/statisticsExport", () => ({
+  exportStatisticsWorkbook: (...args: unknown[]) =>
+    exportStatisticsWorkbook(...args),
+}));
+
 function response(
   periodStart: string,
   periodEnd: string,
@@ -90,6 +98,8 @@ describe("StatisticPage", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-08-24T12:00:00.000Z"));
     reservationsByAsset.mockReset();
+    exportStatisticsWorkbook.mockReset();
+    exportStatisticsWorkbook.mockResolvedValue(undefined);
     hasPermission.mockReset();
     hasPermission.mockReturnValue(true);
   });
@@ -802,5 +812,56 @@ describe("StatisticPage", () => {
         content.includes("Studio A"),
     );
     expect(meta.tagName).toBe("SMALL");
+  });
+
+  it("exports the filtered assets and the window the server resolved", async () => {
+    const data = response(
+      "2026-08-01T00:00:00.000Z",
+      "2026-08-31T00:00:00.000Z",
+      [
+        [5, 2],
+        [1, 0],
+      ],
+    );
+    data.data[1]!.name = "Excluded";
+    reservationsByAsset.mockResolvedValue(data);
+    render(<StatisticPage />);
+
+    const exportButton = await screen.findByRole("button", {
+      name: /Export Excel/,
+    });
+    // A search narrows the export the same way it narrows the charts -- the
+    // file must not quietly contain rows the reader filtered away.
+    fireEvent.change(screen.getByLabelText("Search assets"), {
+      target: { value: "Asset 0" },
+    });
+    fireEvent.click(exportButton);
+
+    await waitFor(() => expect(exportStatisticsWorkbook).toHaveBeenCalled());
+    const [assets, periodStart, periodEnd] =
+      exportStatisticsWorkbook.mock.calls[0]!;
+    expect((assets as Array<{ name: string }>).map((a) => a.name)).toEqual([
+      "Asset 0",
+    ]);
+    expect(periodStart).toBe("2026-08-01T00:00:00.000Z");
+    expect(periodEnd).toBe("2026-08-31T00:00:00.000Z");
+  });
+
+  it("reports a failed export without hiding the statistics", async () => {
+    reservationsByAsset.mockResolvedValue(
+      response("2026-08-01T00:00:00.000Z", "2026-08-31T00:00:00.000Z", [
+        [5, 2],
+      ]),
+    );
+    exportStatisticsWorkbook.mockRejectedValue(new Error("no disk"));
+    render(<StatisticPage />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Export Excel/ }),
+    );
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    // The charts are still on screen: the numbers never became invalid.
+    expect(within(approvedRegion()).getByText("Asset 0")).toBeTruthy();
   });
 });
