@@ -41,9 +41,18 @@ function prismaWith(
       checkedOutAt: Date;
       returnedAt: Date | null;
     }>;
+    dispositions?: Array<{
+      assetId: string;
+      status: "RETURNED_BROKEN" | "RETURNED_LOST";
+    }>;
   } = {},
 ) {
-  const { approvals = [], unitCounts = [], assignments = [] } = options;
+  const {
+    approvals = [],
+    unitCounts = [],
+    assignments = [],
+    dispositions = [],
+  } = options;
   return {
     asset: { findMany: vi.fn().mockResolvedValue(assets) },
     reservationItemApproval: {
@@ -63,13 +72,30 @@ function prismaWith(
       ),
     },
     reservationItemUnit: {
-      findMany: vi.fn().mockResolvedValue(
-        assignments.map((assignment) => ({
-          checkedOutAt: assignment.checkedOutAt,
-          returnedAt: assignment.returnedAt,
-          reservationItem: { assetId: assignment.assetId },
-        })),
-      ),
+      // utilization() and damage() both read this table for different
+      // things, so the mock dispatches on which one is asking rather than
+      // handing utilization's checked-out rows to the damage tally (where a
+      // row with no `status` would silently count as lost).
+      findMany: vi.fn().mockImplementation((args: { where?: unknown }) => {
+        const where = (args?.where ?? {}) as {
+          status?: { in?: string[] };
+        };
+        if (where.status?.in?.includes("RETURNED_BROKEN")) {
+          return Promise.resolve(
+            dispositions.map((disposition) => ({
+              status: disposition.status,
+              reservationItem: { assetId: disposition.assetId },
+            })),
+          );
+        }
+        return Promise.resolve(
+          assignments.map((assignment) => ({
+            checkedOutAt: assignment.checkedOutAt,
+            returnedAt: assignment.returnedAt,
+            reservationItem: { assetId: assignment.assetId },
+          })),
+        );
+      }),
     },
   } as unknown as PrismaService;
 }
@@ -92,8 +118,18 @@ describe("StatisticsService.reservationsByAsset", () => {
 
   it("includes every permitted asset, defaulting to zero approved/rejected", async () => {
     const assets = [
-      { id: assetA, name: "Camera", partNumber: "CAM-1", managementArea: { id: areaId, name: "Studio A" } },
-      { id: assetB, name: "Tripod", partNumber: "TRI-1", managementArea: { id: areaId, name: "Studio A" } },
+      {
+        id: assetA,
+        name: "Camera",
+        partNumber: "CAM-1",
+        managementArea: { id: areaId, name: "Studio A" },
+      },
+      {
+        id: assetB,
+        name: "Tripod",
+        partNumber: "TRI-1",
+        managementArea: { id: areaId, name: "Studio A" },
+      },
     ];
     const prisma = prismaWith(assets, {
       approvals: [
@@ -114,8 +150,9 @@ describe("StatisticsService.reservationsByAsset", () => {
         where: { managementAreaId: { in: [areaId] } },
       }),
     );
-    const where = (prisma.reservationItemApproval.findMany as ReturnType<typeof vi.fn>)
-      .mock.calls[0]![0].where;
+    const where = (
+      prisma.reservationItemApproval.findMany as ReturnType<typeof vi.fn>
+    ).mock.calls[0]![0].where;
     expect(where.status).toEqual({ in: ["APPROVED", "REJECTED"] });
     expect(where.reservationItem).toEqual(
       expect.objectContaining({ assetId: { in: [assetA, assetB] } }),
@@ -141,8 +178,18 @@ describe("StatisticsService.reservationsByAsset", () => {
 
   it("keeps approved and rejected counts separate per asset", async () => {
     const assets = [
-      { id: assetA, name: "Camera", partNumber: "CAM-1", managementArea: { id: areaId, name: "Studio A" } },
-      { id: assetB, name: "Tripod", partNumber: "TRI-1", managementArea: { id: areaId, name: "Studio A" } },
+      {
+        id: assetA,
+        name: "Camera",
+        partNumber: "CAM-1",
+        managementArea: { id: areaId, name: "Studio A" },
+      },
+      {
+        id: assetB,
+        name: "Tripod",
+        partNumber: "TRI-1",
+        managementArea: { id: areaId, name: "Studio A" },
+      },
     ];
     const prisma = prismaWith(assets, {
       approvals: [
@@ -177,7 +224,12 @@ describe("StatisticsService.reservationsByAsset", () => {
     // Only APPROVED/REJECTED should ever be requested from the database --
     // a PENDING row belongs in neither bar.
     const assets = [
-      { id: assetA, name: "Camera", partNumber: "CAM-1", managementArea: { id: areaId, name: "Studio A" } },
+      {
+        id: assetA,
+        name: "Camera",
+        partNumber: "CAM-1",
+        managementArea: { id: areaId, name: "Studio A" },
+      },
     ];
     const prisma = prismaWith(assets);
     const service = new StatisticsService(prisma);
@@ -187,8 +239,9 @@ describe("StatisticsService.reservationsByAsset", () => {
       end: "2026-08-31",
     });
 
-    const where = (prisma.reservationItemApproval.findMany as ReturnType<typeof vi.fn>)
-      .mock.calls[0]![0].where;
+    const where = (
+      prisma.reservationItemApproval.findMany as ReturnType<typeof vi.fn>
+    ).mock.calls[0]![0].where;
     expect(where.status).toEqual({ in: ["APPROVED", "REJECTED"] });
   });
 
@@ -244,29 +297,47 @@ describe("StatisticsService.reservationsByAsset", () => {
     const service = new StatisticsService(prismaWith([]));
 
     await expect(
-      service.reservationsByAsset(actor, { start: "not-a-date", end: "2026-08-01" }),
+      service.reservationsByAsset(actor, {
+        start: "not-a-date",
+        end: "2026-08-01",
+      }),
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
   });
 
   it("bounds the window on both ends so bookings outside the range are excluded", async () => {
     const prisma = prismaWith([
-      { id: assetA, name: "Camera", partNumber: "CAM-1", managementArea: { id: areaId, name: "Studio A" } },
+      {
+        id: assetA,
+        name: "Camera",
+        partNumber: "CAM-1",
+        managementArea: { id: areaId, name: "Studio A" },
+      },
     ]);
     const service = new StatisticsService(prisma);
 
-    await service.reservationsByAsset(actor, { start: "2026-08-01", end: "2026-08-31" });
+    await service.reservationsByAsset(actor, {
+      start: "2026-08-01",
+      end: "2026-08-31",
+    });
 
     const { reservation } = (
       prisma.reservationItemApproval.findMany as ReturnType<typeof vi.fn>
     ).mock.calls[0]![0].where.reservationItem;
-    expect(reservation.startAt.lt.toISOString()).toBe("2026-09-01T00:00:00.000Z");
+    expect(reservation.startAt.lt.toISOString()).toBe(
+      "2026-09-01T00:00:00.000Z",
+    );
     expect(reservation.endAt.gt.toISOString()).toBe("2026-08-01T00:00:00.000Z");
   });
 });
 
 describe("StatisticsService.reservationsByAsset -- utilizationPercent", () => {
   const assets = [
-    { id: assetA, name: "Camera", partNumber: "CAM-1", managementArea: { id: areaId, name: "Studio A" } },
+    {
+      id: assetA,
+      name: "Camera",
+      partNumber: "CAM-1",
+      managementArea: { id: areaId, name: "Studio A" },
+    },
   ];
 
   it("is null when the asset has no active units", async () => {
@@ -398,10 +469,13 @@ describe("StatisticsService.reservationsByAsset -- utilizationPercent", () => {
     });
     const service = new StatisticsService(prisma);
 
-    await service.reservationsByAsset(actor, { start: "2026-08-01", end: "2026-08-02" });
+    await service.reservationsByAsset(actor, {
+      start: "2026-08-01",
+      end: "2026-08-02",
+    });
 
-    const unitWhere = (prisma.assetUnit.groupBy as ReturnType<typeof vi.fn>).mock
-      .calls[0]![0].where;
+    const unitWhere = (prisma.assetUnit.groupBy as ReturnType<typeof vi.fn>)
+      .mock.calls[0]![0].where;
     expect(unitWhere.status).toEqual({ not: "INACTIVE" });
     const assignmentWhere = (
       prisma.reservationItemUnit.findMany as ReturnType<typeof vi.fn>
@@ -409,5 +483,106 @@ describe("StatisticsService.reservationsByAsset -- utilizationPercent", () => {
     expect(assignmentWhere.assetUnit).toEqual(
       expect.objectContaining({ status: { not: "INACTIVE" } }),
     );
+  });
+});
+
+describe("StatisticsService.reservationsByAsset -- broken/lost", () => {
+  const assets = [
+    {
+      id: assetA,
+      name: "Camera",
+      partNumber: "CAM-1",
+      managementArea: { id: areaId, name: "Studio A" },
+    },
+    {
+      id: assetB,
+      name: "Tripod",
+      partNumber: "TRI-1",
+      managementArea: { id: areaId, name: "Studio A" },
+    },
+  ];
+
+  it("defaults both counts to zero for an asset with no dispositions", async () => {
+    const service = new StatisticsService(prismaWith(assets));
+
+    const result = await service.reservationsByAsset(actor, {
+      start: "2026-08-01",
+      end: "2026-08-31",
+    });
+
+    expect(result.data.map((row) => [row.brokenCount, row.lostCount])).toEqual([
+      [0, 0],
+      [0, 0],
+    ]);
+  });
+
+  it("tallies broken and lost separately per asset", async () => {
+    const prisma = prismaWith(assets, {
+      dispositions: [
+        { assetId: assetA, status: "RETURNED_BROKEN" },
+        { assetId: assetA, status: "RETURNED_BROKEN" },
+        { assetId: assetA, status: "RETURNED_LOST" },
+        { assetId: assetB, status: "RETURNED_LOST" },
+      ],
+    });
+    const service = new StatisticsService(prisma);
+
+    const result = await service.reservationsByAsset(actor, {
+      start: "2026-08-01",
+      end: "2026-08-31",
+    });
+
+    const byId = new Map(result.data.map((row) => [row.assetId, row]));
+    expect(byId.get(assetA)).toMatchObject({ brokenCount: 2, lostCount: 1 });
+    expect(byId.get(assetB)).toMatchObject({ brokenCount: 0, lostCount: 1 });
+  });
+
+  it("scopes dispositions by returnedAt over the resolved half-open window", async () => {
+    const prisma = prismaWith(assets, {
+      dispositions: [{ assetId: assetA, status: "RETURNED_BROKEN" }],
+    });
+    const service = new StatisticsService(prisma);
+
+    await service.reservationsByAsset(actor, {
+      start: "2026-08-01",
+      end: "2026-08-31",
+    });
+
+    const damageCall = (
+      prisma.reservationItemUnit.findMany as ReturnType<typeof vi.fn>
+    ).mock.calls.find((call) =>
+      call[0]?.where?.status?.in?.includes("RETURNED_BROKEN"),
+    );
+    expect(damageCall).toBeDefined();
+    // Counted when the inspection recorded the condition, not by the
+    // reservation's booked window the way approvedCount is -- and `end`
+    // is advanced to the start of the next day so 2026-08-31 counts whole.
+    expect(damageCall![0].where.returnedAt).toEqual({
+      gte: new Date("2026-08-01T00:00:00.000Z"),
+      lt: new Date("2026-09-01T00:00:00.000Z"),
+    });
+    expect(damageCall![0].where.status).toEqual({
+      in: ["RETURNED_BROKEN", "RETURNED_LOST"],
+    });
+  });
+
+  it("does not let damage counts affect the approved+rejected ranking", async () => {
+    const prisma = prismaWith(assets, {
+      approvals: [{ status: "APPROVED", assetId: assetB }],
+      dispositions: [
+        { assetId: assetA, status: "RETURNED_LOST" },
+        { assetId: assetA, status: "RETURNED_LOST" },
+      ],
+    });
+    const service = new StatisticsService(prisma);
+
+    const result = await service.reservationsByAsset(actor, {
+      start: "2026-08-01",
+      end: "2026-08-31",
+    });
+
+    // Tripod leads on decisions despite Camera being the damaged one; the
+    // frontend re-ranks for its own damage chart rather than relying on this.
+    expect(result.data[0]!.assetId).toBe(assetB);
   });
 });

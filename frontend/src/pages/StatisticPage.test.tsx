@@ -34,6 +34,8 @@ function response(
       rejected: number,
       activeUnitCount?: number,
       utilizationPercent?: number | null,
+      brokenCount?: number,
+      lostCount?: number,
     ]
   >,
 ): ReservationsByAssetResponse {
@@ -47,6 +49,8 @@ function response(
           rejectedCount,
           activeUnitCount = 1,
           utilizationPercent = 0,
+          brokenCount = 0,
+          lostCount = 0,
         ],
         index,
       ) => ({
@@ -58,6 +62,8 @@ function response(
         rejectedCount,
         activeUnitCount,
         utilizationPercent,
+        brokenCount,
+        lostCount,
       }),
     ),
   };
@@ -71,6 +77,9 @@ function approvedRegion() {
 }
 function utilizationRegion() {
   return screen.getByRole("region", { name: "Utilization by asset" });
+}
+function damageRegion() {
+  return screen.getByRole("region", { name: "Broken and lost by asset" });
 }
 
 describe("StatisticPage", () => {
@@ -428,6 +437,81 @@ describe("StatisticPage", () => {
       selector: ".stat-kpi__badge b",
     });
     expect(badges.map((node) => node.textContent)).toEqual(["PN-1", "PN-0"]);
+  });
+
+  it("totals broken and lost separately and names the worst-hit part number", async () => {
+    reservationsByAsset.mockResolvedValue(
+      response("2026-08-01T00:00:00.000Z", "2026-08-31T00:00:00.000Z", [
+        // [approved, rejected, units, util, broken, lost]
+        [9, 0, 1, 10, 1, 0],
+        [1, 0, 1, 10, 2, 3],
+      ]),
+    );
+    render(<StatisticPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Broken / Lost" }));
+
+    expect(screen.queryByText("Avg utilization")).toBeNull();
+    // Broken: 1 + 2 = 3. Lost: 0 + 3 = 3.
+    expect(
+      await screen.findByText("3", {
+        selector: ".stat-kpi--broken .stat-kpi__value",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("3", { selector: ".stat-kpi--lost .stat-kpi__value" }),
+    ).toBeTruthy();
+    // Asset 1 is down 5 units vs Asset 0's 1, even though Asset 0 has far
+    // more approvals -- damage ranking must not inherit the API's order.
+    expect(
+      screen.getByText("PN-1", { selector: ".stat-kpi__badge b" }),
+    ).toBeTruthy();
+    expect(screen.getByText("5 units")).toBeTruthy();
+  });
+
+  it("hides undamaged assets behind a toggle and ranks the damaged ones first", async () => {
+    reservationsByAsset.mockResolvedValue(
+      response("2026-08-01T00:00:00.000Z", "2026-08-31T00:00:00.000Z", [
+        [5, 0, 1, 10, 0, 0],
+        [1, 0, 1, 10, 0, 2],
+        [1, 0, 1, 10, 1, 0],
+      ]),
+    );
+    render(<StatisticPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Broken / Lost" }));
+
+    const region = await screen.findByRole("region", {
+      name: "Broken and lost by asset",
+    });
+    const names = () =>
+      Array.from(region.querySelectorAll(".stat-bars__name")).map(
+        (node) => node.textContent,
+      );
+    // Only the two damaged assets, worst first (Asset 1 lost 2, Asset 2
+    // broke 1) -- the clean Asset 0 stays out of the way.
+    expect(names()).toEqual(["Asset 1", "Asset 2"]);
+
+    fireEvent.click(
+      within(region).getByRole("button", {
+        name: "Show 1 assets with nothing broken or lost",
+      }),
+    );
+    expect(names()).toEqual(["Asset 1", "Asset 2", "Asset 0"]);
+  });
+
+  it("says nothing was broken or lost when the window is clean", async () => {
+    reservationsByAsset.mockResolvedValue(
+      response("2026-08-01T00:00:00.000Z", "2026-08-31T00:00:00.000Z", [
+        [4, 1],
+      ]),
+    );
+    render(<StatisticPage />);
+    fireEvent.click(screen.getByRole("tab", { name: "Broken / Lost" }));
+
+    expect(
+      await within(damageRegion()).findByText(
+        "Nothing broken or lost in this range",
+      ),
+    ).toBeTruthy();
   });
 
   it("recovers from a failed request without losing the date fields", async () => {

@@ -100,6 +100,22 @@
 .stat-kpi--utilization .stat-kpi__value {
   color: var(--blue);
 }
+/* Amber for broken, red for lost -- the same pairing AssetUnit status uses
+   in software_spec §7: broken waits for repair, lost is gone for good. */
+.stat-kpi--broken {
+  background: var(--amber-soft);
+  border-color: color-mix(in srgb, var(--amber) 22%, transparent);
+}
+.stat-kpi--broken .stat-kpi__value {
+  color: var(--amber);
+}
+.stat-kpi--lost {
+  background: var(--red-soft);
+  border-color: color-mix(in srgb, var(--red) 22%, transparent);
+}
+.stat-kpi--lost .stat-kpi__value {
+  color: var(--red);
+}
 .stat-kpi__label {
   margin: 0;
   color: var(--ink-faint);
@@ -264,6 +280,16 @@
    an identity or an outcome, so it gets one plain accent hue and no legend. */
 .stat-bars__fill--utilization {
   background: var(--chart-checked-out);
+}
+/* Severity, not an arbitrary categorical pair: amber is recoverable, red is
+   not -- matching the AssetUnit status colors used elsewhere in the app. */
+.stat-bars__fill--broken,
+.stat-bars__legend i.stat-bars__fill--broken {
+  background: var(--amber);
+}
+.stat-bars__fill--lost,
+.stat-bars__legend i.stat-bars__fill--lost {
+  background: var(--red);
 }
 .stat-bars__value {
   width: 1.6rem;

@@ -8,6 +8,7 @@ import {
 } from "react";
 import { api, isAbortError } from "../api";
 import { useAuth } from "../auth";
+import { AssetDamageChart } from "../components/AssetDamageChart";
 import { AssetReservationChart } from "../components/AssetReservationChart";
 import { AssetUtilizationChart } from "../components/AssetUtilizationChart";
 import {
@@ -23,11 +24,12 @@ import type {
   ReservationsByAssetResponse,
 } from "../types";
 
-type StatType = "decisions" | "utilization";
+type StatType = "decisions" | "utilization" | "damage";
 
 const STAT_TYPES: Array<{ value: StatType; label: string }> = [
   { value: "decisions", label: "Approved / Rejected" },
   { value: "utilization", label: "Utilization" },
+  { value: "damage", label: "Broken / Lost" },
 ];
 
 export function StatisticPage() {
@@ -100,6 +102,20 @@ export function StatisticPage() {
       (a, b) => b.utilizationPercent! - a.utilizationPercent!,
     );
 
+    const brokenTotal = result.data.reduce((sum, a) => sum + a.brokenCount, 0);
+    const lostTotal = result.data.reduce((sum, a) => sum + a.lostCount, 0);
+    // The asset that lost the most units, broken and lost together -- the
+    // one whose part number a manager would chase first. Ranked here rather
+    // than reusing `data`'s approved+rejected order, which says nothing
+    // about damage.
+    const worstDamaged = result.data
+      .filter((a) => a.brokenCount + a.lostCount > 0)
+      .sort(
+        (a, b) =>
+          b.brokenCount + b.lostCount - (a.brokenCount + a.lostCount) ||
+          b.lostCount - a.lostCount,
+      )[0];
+
     return {
       approvedTotal,
       rejectedTotal,
@@ -107,6 +123,14 @@ export function StatisticPage() {
       avgUtilization,
       mostUtilized: byUtilization[0] ?? null,
       leastUtilized: byUtilization[byUtilization.length - 1] ?? null,
+      brokenTotal,
+      lostTotal,
+      worstDamaged: worstDamaged
+        ? {
+            asset: worstDamaged,
+            total: worstDamaged.brokenCount + worstDamaged.lostCount,
+          }
+        : null,
     };
   }, [result]);
 
@@ -299,6 +323,44 @@ export function StatisticPage() {
         </section>
       )}
 
+      {summary && statType === "damage" && (
+        <section
+          className={cx("stat-kpis", loading && "is-refetching")}
+          aria-label="Summary"
+        >
+          <article className="stat-kpi stat-kpi--broken">
+            <p className="stat-kpi__label">Broken</p>
+            <strong className="stat-kpi__value">
+              {summary.brokenTotal.toLocaleString()}
+            </strong>
+            <span className="stat-kpi__hint">{windowLabel}</span>
+          </article>
+          <article className="stat-kpi stat-kpi--lost">
+            <p className="stat-kpi__label">Lost</p>
+            <strong className="stat-kpi__value">
+              {summary.lostTotal.toLocaleString()}
+            </strong>
+            <span className="stat-kpi__hint">{windowLabel}</span>
+          </article>
+          <article className="stat-kpi">
+            <p className="stat-kpi__label">Most affected</p>
+            {summary.worstDamaged ? (
+              <span className="stat-kpi__badge">
+                <b className="mono">
+                  {summary.worstDamaged.asset.partNumber ||
+                    summary.worstDamaged.asset.name}
+                </b>
+                <span>{summary.worstDamaged.total} units</span>
+              </span>
+            ) : (
+              <strong className="stat-kpi__value stat-kpi__value--muted">
+                —
+              </strong>
+            )}
+          </article>
+        </section>
+      )}
+
       {statType === "decisions" ? (
         <section
           className="detail-card"
@@ -317,7 +379,7 @@ export function StatisticPage() {
             ),
           )}
         </section>
-      ) : (
+      ) : statType === "utilization" ? (
         <section className="detail-card" aria-label="Utilization by asset">
           <header>
             <div>
@@ -335,6 +397,27 @@ export function StatisticPage() {
           {renderBody(
             result && (
               <AssetUtilizationChart data={result.data} showTable={showTable} />
+            ),
+          )}
+        </section>
+      ) : (
+        <section className="detail-card" aria-label="Broken and lost by asset">
+          <header>
+            <div>
+              <p className="eyebrow">Units not returned in good condition</p>
+              <h2>
+                {windowLabel ? `Broken / Lost ${windowLabel}` : "Broken / Lost"}
+              </h2>
+              <p className="detail-card__note">
+                Units a return inspection marked broken or lost in this window,
+                counted when the inspection happened.
+              </p>
+            </div>
+          </header>
+
+          {renderBody(
+            result && (
+              <AssetDamageChart data={result.data} showTable={showTable} />
             ),
           )}
         </section>
