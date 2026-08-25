@@ -17,6 +17,22 @@
 .stat-toolbar__filter {
   margin-left: auto;
 }
+/* Sits after the area filter, which carries the margin-left:auto that
+   pushes both to the trailing edge of the row. Matched to the filter
+   button's height so the two read as one trailing pair rather than two
+   controls of different sizes. */
+.stat-toolbar__export {
+  min-height: 42px;
+  white-space: nowrap;
+}
+/* Outside the toolbar card: an export failure leaves every number on the
+   page still valid, so it is a line of text under the controls rather than
+   an error state that replaces anything. */
+.stat-toolbar__export-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--red);
+}
 /* Shares the app-wide .search-box shell but overrides its 320px floor:
    this one sits beside the date pills in a wrapping row, and a 320px
    minimum forced a line break at widths where it still fit comfortably. */
