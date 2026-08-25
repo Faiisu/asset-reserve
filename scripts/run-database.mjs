@@ -83,7 +83,10 @@ if (isReady) {
   console.log("📌 Port: 5432");
   console.log("📌 Database: asset_reservation");
   console.log("📌 User: asset_reservation");
-  console.log("📌 Connection string: postgresql://asset_reservation:change-this-database-password@localhost:5432/asset_reservation?schema=public\n");
+  // The password is whatever deploy/prod/database/.env holds, which can be
+  // rotated independently of this script -- don't print a stale literal.
+  console.log("📌 Password: see POSTGRES_PASSWORD in deploy/prod/database/.env");
+  console.log("📌 Connection string: postgresql://asset_reservation:<POSTGRES_PASSWORD>@localhost:5432/asset_reservation?schema=public\n");
 } else {
   console.warn("\n⚠️ Database container started, but healthcheck is still in progress.");
   console.log("It will be ready in a few seconds.\n");
