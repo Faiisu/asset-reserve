@@ -514,6 +514,147 @@ describe("StatisticPage", () => {
     ).toBeTruthy();
   });
 
+  it("filters the ranked rows by name, part number, or management area", async () => {
+    const data = response(
+      "2026-08-01T00:00:00.000Z",
+      "2026-08-31T00:00:00.000Z",
+      [
+        [5, 0],
+        [3, 0],
+        [1, 0],
+      ],
+    );
+    data.data[0]!.name = "Camera body";
+    data.data[0]!.partNumber = "CAM-1";
+    data.data[1]!.name = "Tripod";
+    data.data[1]!.partNumber = "TRI-9";
+    data.data[2]!.name = "Lens";
+    data.data[2]!.partNumber = "LEN-4";
+    data.data[2]!.managementArea = { id: "area-2", name: "Warehouse" };
+    reservationsByAsset.mockResolvedValue(data);
+    render(<StatisticPage />);
+    await waitFor(() => expect(approvedRegion()).toBeTruthy());
+
+    const names = () =>
+      Array.from(approvedRegion().querySelectorAll(".stat-bars__name")).map(
+        (node) => node.textContent,
+      );
+    const box = screen.getByLabelText("Search assets");
+
+    // By name, case-insensitively.
+    fireEvent.change(box, { target: { value: "camera" } });
+    expect(names()).toEqual(["Camera body"]);
+
+    // By part number -- the ranked row shows it, so it must be searchable.
+    fireEvent.change(box, { target: { value: "TRI-9" } });
+    expect(names()).toEqual(["Tripod"]);
+
+    // By management area, likewise shown on the row.
+    fireEvent.change(box, { target: { value: "warehouse" } });
+    expect(names()).toEqual(["Lens"]);
+
+    // No refetch: filtering is local to the already-loaded response.
+    expect(reservationsByAsset).toHaveBeenCalledTimes(1);
+  });
+
+  it("recomputes the KPI totals over the filtered assets", async () => {
+    const data = response(
+      "2026-08-01T00:00:00.000Z",
+      "2026-08-31T00:00:00.000Z",
+      [
+        [5, 2],
+        [3, 1],
+      ],
+    );
+    data.data[0]!.name = "Camera body";
+    data.data[1]!.name = "Tripod";
+    reservationsByAsset.mockResolvedValue(data);
+    render(<StatisticPage />);
+
+    // Unfiltered: approved 5 + 3 = 8, rejected 2 + 1 = 3.
+    expect(
+      await screen.findByText("8", {
+        selector: ".stat-kpi--approved .stat-kpi__value",
+      }),
+    ).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Search assets"), {
+      target: { value: "tripod" },
+    });
+
+    // A headline total that still said 8 would contradict the single bar
+    // drawn underneath it.
+    expect(
+      screen.getByText("3", {
+        selector: ".stat-kpi--approved .stat-kpi__value",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("1", {
+        selector: ".stat-kpi--rejected .stat-kpi__value",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByText("4 requests")).toBeTruthy();
+  });
+
+  it("distinguishes an unmatched search from an account with no assets", async () => {
+    reservationsByAsset.mockResolvedValue(
+      response("2026-08-01T00:00:00.000Z", "2026-08-31T00:00:00.000Z", [
+        [5, 0],
+      ]),
+    );
+    render(<StatisticPage />);
+    await waitFor(() => expect(approvedRegion()).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText("Search assets"), {
+      target: { value: "nothing-matches-this" },
+    });
+
+    expect(screen.queryByText("No assets yet")).toBeNull();
+    expect(
+      screen.getByText('No asset matches "nothing-matches-this"'),
+    ).toBeTruthy();
+
+    // Two controls clear the search -- the inline X in the toolbar and this
+    // empty-state CTA -- so scope to the one being exercised here.
+    fireEvent.click(
+      within(approvedRegion()).getByRole("button", { name: "Clear search" }),
+    );
+    expect(approvedRegion().querySelectorAll(".stat-bars__name")).toHaveLength(
+      1,
+    );
+  });
+
+  it("keeps the search applied when switching statistic type", async () => {
+    const data = response(
+      "2026-08-01T00:00:00.000Z",
+      "2026-08-31T00:00:00.000Z",
+      [
+        [5, 0, 1, 80, 2, 0],
+        [3, 0, 1, 20, 1, 1],
+      ],
+    );
+    data.data[0]!.name = "Camera body";
+    data.data[1]!.name = "Tripod";
+    reservationsByAsset.mockResolvedValue(data);
+    render(<StatisticPage />);
+    await waitFor(() => expect(approvedRegion()).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText("Search assets"), {
+      target: { value: "tripod" },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "Broken / Lost" }));
+
+    // The filter belongs to the page, not to one chart -- it must survive a
+    // segment change rather than silently resetting the reader's context.
+    expect(
+      Array.from(damageRegion().querySelectorAll(".stat-bars__name")).map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(["Tripod"]);
+    expect(screen.getByLabelText("Search assets")).toHaveValue("tripod");
+  });
+
   it("recovers from a failed request without losing the date fields", async () => {
     reservationsByAsset.mockRejectedValue(new Error("boom"));
     render(<StatisticPage />);

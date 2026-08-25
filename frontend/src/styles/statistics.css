@@ -14,6 +14,30 @@
 .stat-toolbar__view {
   margin-left: auto;
 }
+/* Shares the app-wide .search-box shell but overrides its 320px floor:
+   this one sits beside the date pills in a wrapping row, and a 320px
+   minimum forced a line break at widths where it still fit comfortably. */
+.stat-toolbar__search {
+  min-width: 200px;
+  height: 43px;
+  padding-right: 4px;
+}
+.stat-toolbar__search-clear {
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+/* The shell is already --surface-raised, so the hover tint has to come from
+   the ink side to be visible at all. */
+.stat-toolbar__search-clear:hover {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--ink);
+}
 
 /* Two native date pickers, Start and End, sharing one bordered pill. */
 .stat-anchor {

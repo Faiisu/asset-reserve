@@ -1,4 +1,4 @@
-import { BarChart3, Table2 } from "lucide-react";
+import { BarChart3, Search, Table2, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -41,6 +41,7 @@ export function StatisticPage() {
   const [end, setEnd] = useState(() => todayIsoDate());
   const [statType, setStatType] = useState<StatType>("decisions");
   const [showTable, setShowTable] = useState(false);
+  const [search, setSearch] = useState("");
   const [result, setResult] = useState<ReservationsByAssetResponse | null>(
     null,
   );
@@ -74,22 +75,39 @@ export function StatisticPage() {
     return () => controller.abort();
   }, [start, end, load, canView]);
 
+  // Filtered here rather than server-side: the response is already capped at
+  // 200 assets and sitting in memory, so matching locally is instant and
+  // costs no extra request. The trade-off to know about is that search can
+  // only reach what that cap returned -- an asset ranked below it is not in
+  // `result.data` to be found. Matched against P/N and area as well as name
+  // because the ranked rows label themselves with all three, so anything a
+  // reader can see is something they can type.
+  const visible = useMemo(() => {
+    if (!result) return [];
+    const needle = search.trim().toLowerCase();
+    if (!needle) return result.data;
+    return result.data.filter((asset) =>
+      [asset.name, asset.partNumber ?? "", asset.managementArea.name].some(
+        (field) => field.toLowerCase().includes(needle),
+      ),
+    );
+  }, [result, search]);
+
+  // Every summary number is derived from `visible`, not the full response:
+  // with a filter active the KPI tiles must describe the same assets the
+  // chart under them is drawing, or the headline totals quietly contradict
+  // the bars.
   const summary = useMemo(() => {
     if (!result) return null;
-    const approvedTotal = result.data.reduce(
-      (sum, a) => sum + a.approvedCount,
-      0,
-    );
-    const rejectedTotal = result.data.reduce(
-      (sum, a) => sum + a.rejectedCount,
-      0,
-    );
-    // The API already ranks by approved+rejected desc, so the leader is the
-    // head of the list -- but only once it actually has a decision.
-    const top = result.data[0];
+    const approvedTotal = visible.reduce((sum, a) => sum + a.approvedCount, 0);
+    const rejectedTotal = visible.reduce((sum, a) => sum + a.rejectedCount, 0);
+    // `visible` preserves the API's approved+rejected desc order, so the
+    // leader is still the head of the list -- but only once it actually has
+    // a decision.
+    const top = visible[0];
     const topTotal = top ? top.approvedCount + top.rejectedCount : 0;
 
-    const measured = result.data.filter((a) => a.utilizationPercent !== null);
+    const measured = visible.filter((a) => a.utilizationPercent !== null);
     const avgUtilization =
       measured.length > 0
         ? Math.round(
@@ -102,13 +120,13 @@ export function StatisticPage() {
       (a, b) => b.utilizationPercent! - a.utilizationPercent!,
     );
 
-    const brokenTotal = result.data.reduce((sum, a) => sum + a.brokenCount, 0);
-    const lostTotal = result.data.reduce((sum, a) => sum + a.lostCount, 0);
+    const brokenTotal = visible.reduce((sum, a) => sum + a.brokenCount, 0);
+    const lostTotal = visible.reduce((sum, a) => sum + a.lostCount, 0);
     // The asset that lost the most units, broken and lost together -- the
     // one whose part number a manager would chase first. Ranked here rather
     // than reusing `data`'s approved+rejected order, which says nothing
     // about damage.
-    const worstDamaged = result.data
+    const worstDamaged = visible
       .filter((a) => a.brokenCount + a.lostCount > 0)
       .sort(
         (a, b) =>
@@ -132,7 +150,7 @@ export function StatisticPage() {
           }
         : null,
     };
-  }, [result]);
+  }, [result, visible]);
 
   // Derived from the resolved window the server echoed back, not from the
   // local start/end state, so the heading can never disagree with the
@@ -150,6 +168,22 @@ export function StatisticPage() {
         <EmptyState
           title="No assets yet"
           description="No assets are visible to your account, so there is nothing to measure."
+        />
+      );
+    }
+    // Kept distinct from "No assets yet": a search that matches nothing is a
+    // fixable mistake, and telling the reader their account sees no assets
+    // would send them to an administrator over a typo.
+    if (visible.length === 0) {
+      return (
+        <EmptyState
+          title={`No asset matches "${search.trim()}"`}
+          description="Search covers asset name, part number, and management area within the selected dates."
+          action={
+            <Button variant="quiet" size="sm" onClick={() => setSearch("")}>
+              Clear search
+            </Button>
+          }
         />
       );
     }
@@ -218,6 +252,29 @@ export function StatisticPage() {
               }}
             />
           </label>
+        </div>
+
+        {/* No submit button: every asset being searched is already in
+            memory, so matches appear as the reader types. A Search button
+            would imply a round trip that never happens. */}
+        <div className="search-box stat-toolbar__search">
+          <Search size={17} />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search name, P/N, or area"
+            aria-label="Search assets"
+          />
+          {search && (
+            <button
+              type="button"
+              className="stat-toolbar__search-clear"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
 
         <Button
@@ -375,7 +432,7 @@ export function StatisticPage() {
 
           {renderBody(
             result && (
-              <AssetReservationChart data={result.data} showTable={showTable} />
+              <AssetReservationChart data={visible} showTable={showTable} />
             ),
           )}
         </section>
@@ -396,7 +453,7 @@ export function StatisticPage() {
 
           {renderBody(
             result && (
-              <AssetUtilizationChart data={result.data} showTable={showTable} />
+              <AssetUtilizationChart data={visible} showTable={showTable} />
             ),
           )}
         </section>
@@ -416,9 +473,7 @@ export function StatisticPage() {
           </header>
 
           {renderBody(
-            result && (
-              <AssetDamageChart data={result.data} showTable={showTable} />
-            ),
+            result && <AssetDamageChart data={visible} showTable={showTable} />,
           )}
         </section>
       )}
