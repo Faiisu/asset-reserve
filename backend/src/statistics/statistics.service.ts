@@ -85,12 +85,14 @@ export class StatisticsService {
       byAsset.set(assetId, (byAsset.get(assetId) ?? 0) + 1);
     }
 
+    const assetIds = assets.map((asset) => asset.id);
     const { activeUnitCountByAsset, utilizationPercentByAsset } =
-      await this.utilization(
-        assets.map((asset) => asset.id),
-        start,
-        end,
-      );
+      await this.utilization(assetIds, start, end);
+    const { brokenByAsset, lostByAsset } = await this.damage(
+      assetIds,
+      start,
+      end,
+    );
 
     const data = assets
       .map((asset) => ({
@@ -102,6 +104,8 @@ export class StatisticsService {
         rejectedCount: rejectedByAsset.get(asset.id) ?? 0,
         activeUnitCount: activeUnitCountByAsset.get(asset.id) ?? 0,
         utilizationPercent: utilizationPercentByAsset.get(asset.id) ?? null,
+        brokenCount: brokenByAsset.get(asset.id) ?? 0,
+        lostCount: lostByAsset.get(asset.id) ?? 0,
       }))
       .sort((a, b) => {
         const totalDelta =
@@ -117,6 +121,55 @@ export class StatisticsService {
       periodEnd: end.toISOString(),
       data,
     };
+  }
+
+  /** How many of an asset's units came back damaged or never came back at
+   * all, counted per asset over the window.
+   *
+   * Scoped by `returnedAt` -- when the return inspection actually recorded
+   * the condition -- rather than by the reservation's booked window the way
+   * approvedCount/rejectedCount are. Those two count a *decision about a
+   * booking*, so the booking's dates are the honest axis; these count a
+   * *physical event discovered at inspection*, and an inspection is what
+   * creates the fact. A unit booked in January and found broken when it was
+   * finally inspected in March belongs to March here: that is when the
+   * breakage entered the record, and it is the month whose report should
+   * show a loss to explain. returns.service sets `returnedAt` in the same
+   * write that sets `RETURNED_BROKEN`/`RETURNED_LOST`, so the two can never
+   * disagree about when a disposition happened. */
+  private async damage(
+    assetIds: string[],
+    start: Date,
+    end: Date,
+  ): Promise<{
+    brokenByAsset: Map<string, number>;
+    lostByAsset: Map<string, number>;
+  }> {
+    // Same shape as the approvals reduce above and for the same reason:
+    // ReservationItemUnit has no assetId of its own, it hangs off
+    // ReservationItem, so a single Prisma groupBy can't reach the asset.
+    const dispositions = await this.prisma.reservationItemUnit.findMany({
+      where: {
+        status: { in: ["RETURNED_BROKEN", "RETURNED_LOST"] },
+        returnedAt: { gte: start, lt: end },
+        reservationItem: { assetId: { in: assetIds } },
+      },
+      select: {
+        status: true,
+        reservationItem: { select: { assetId: true } },
+      },
+    });
+
+    const brokenByAsset = new Map<string, number>();
+    const lostByAsset = new Map<string, number>();
+    for (const disposition of dispositions) {
+      const byAsset =
+        disposition.status === "RETURNED_BROKEN" ? brokenByAsset : lostByAsset;
+      const assetId = disposition.reservationItem.assetId;
+      byAsset.set(assetId, (byAsset.get(assetId) ?? 0) + 1);
+    }
+
+    return { brokenByAsset, lostByAsset };
   }
 
   /** What fraction of an asset's own capacity actually got used: for each

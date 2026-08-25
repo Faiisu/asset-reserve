@@ -2,7 +2,7 @@
   get:
     tags:
       - Statistics
-    summary: Approval and utilization statistics per asset for a date range
+    summary: Approval, utilization, and damage statistics per asset for a date range
     description: >-
       Requires asset:view; results are scoped to the caller's permitted management areas the same
       way GET /assets is. Returns every permitted asset (even with zero decisions or zero
@@ -14,9 +14,12 @@
       dates on the UTC clock -- the whole named end day is included, so `end=2026-08-31` covers
       bookings up to 2026-09-01T00:00:00Z. A reservation counts toward approvedCount/rejectedCount
       when it starts before the window ends and ends after the window begins -- the same overlap
-      convention used for unit availability elsewhere in this API. Capped at the 200 assets with
-      the highest approvedCount + rejectedCount (utilizationPercent does not affect ranking or the
-      cap).
+      convention used for unit availability elsewhere in this API. Also returns brokenCount and
+      lostCount -- units a return inspection marked RETURNED_BROKEN or RETURNED_LOST -- scoped by
+      returnedAt (when the inspection recorded the condition) rather than by the booked window,
+      since an inspection is what creates the fact being counted. Capped at the 200 assets with
+      the highest approvedCount + rejectedCount (utilizationPercent, brokenCount, and lostCount do
+      not affect ranking or the cap).
     operationId: getReservationsByAsset
     parameters:
       - name: start

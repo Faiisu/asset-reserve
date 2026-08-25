@@ -9,6 +9,8 @@ AssetReservationCount:
     - rejectedCount
     - activeUnitCount
     - utilizationPercent
+    - brokenCount
+    - lostCount
   properties:
     assetId:
       type: string
@@ -60,6 +62,23 @@ AssetReservationCount:
         is no capacity to divide by. Two assets can show the same approvedCount and a different
         utilizationPercent: one might be a single unit in constant use, the other ten units that
         are mostly idle.
+    brokenCount:
+      type: integer
+      minimum: 0
+      description: >-
+        Count of this asset's ReservationItemUnit rows whose status is RETURNED_BROKEN and whose
+        returnedAt falls inside [start, end). Scoped by returnedAt -- when the return inspection
+        recorded the condition -- rather than by the reservation's booked window used for
+        approvedCount/rejectedCount: those count a decision about a booking, this counts a
+        physical event that the inspection itself creates. A unit booked in January but not
+        inspected until March counts toward March.
+    lostCount:
+      type: integer
+      minimum: 0
+      description: >-
+        Count of this asset's ReservationItemUnit rows whose status is RETURNED_LOST, under the
+        same returnedAt rule as brokenCount. A unit still checked out and overdue is not counted
+        here -- nothing is lost until an inspection says so.
 ReservationsByAssetResponse:
   type: object
   required:

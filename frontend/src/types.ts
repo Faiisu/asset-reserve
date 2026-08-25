@@ -105,10 +105,7 @@ export type UserListItem = {
 
 /// Supported values: RETURN_ON_TIME, RETURN_LATE, ASSET_BROKEN, ASSET_LOST.
 export type ReputationEventType =
-  | "RETURN_ON_TIME"
-  | "RETURN_LATE"
-  | "ASSET_BROKEN"
-  | "ASSET_LOST";
+  "RETURN_ON_TIME" | "RETURN_LATE" | "ASSET_BROKEN" | "ASSET_LOST";
 
 export type ReputationSummary = {
   userId: string;
@@ -290,6 +287,8 @@ export type AssetReservationCount = {
   rejectedCount: number;
   activeUnitCount: number;
   utilizationPercent: number | null;
+  brokenCount: number;
+  lostCount: number;
 };
 
 export type ReservationsByAssetResponse = {

@@ -11,8 +11,35 @@
   border-radius: var(--card-radius-lg);
   background: var(--surface);
 }
-.stat-toolbar__view {
+/* The Chart/Table switch moved into each panel's own header (it picks a
+   rendering, not a scope), leaving the area filter as the trailing control
+   in this row. */
+.stat-toolbar__filter {
   margin-left: auto;
+}
+/* Shares the app-wide .search-box shell but overrides its 320px floor:
+   this one sits beside the date pills in a wrapping row, and a 320px
+   minimum forced a line break at widths where it still fit comfortably. */
+.stat-toolbar__search {
+  min-width: 200px;
+  height: 43px;
+  padding-right: 4px;
+}
+.stat-toolbar__search-clear {
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+/* The shell is already --surface-raised, so the hover tint has to come from
+   the ink side to be visible at all. */
+.stat-toolbar__search-clear:hover {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--ink);
 }
 
 /* Two native date pickers, Start and End, sharing one bordered pill. */
@@ -99,6 +126,22 @@
 }
 .stat-kpi--utilization .stat-kpi__value {
   color: var(--blue);
+}
+/* Amber for broken, red for lost -- the same pairing AssetUnit status uses
+   in software_spec §7: broken waits for repair, lost is gone for good. */
+.stat-kpi--broken {
+  background: var(--amber-soft);
+  border-color: color-mix(in srgb, var(--amber) 22%, transparent);
+}
+.stat-kpi--broken .stat-kpi__value {
+  color: var(--amber);
+}
+.stat-kpi--lost {
+  background: var(--red-soft);
+  border-color: color-mix(in srgb, var(--red) 22%, transparent);
+}
+.stat-kpi--lost .stat-kpi__value {
+  color: var(--red);
 }
 .stat-kpi__label {
   margin: 0;
@@ -264,6 +307,16 @@
    an identity or an outcome, so it gets one plain accent hue and no legend. */
 .stat-bars__fill--utilization {
   background: var(--chart-checked-out);
+}
+/* Severity, not an arbitrary categorical pair: amber is recoverable, red is
+   not -- matching the AssetUnit status colors used elsewhere in the app. */
+.stat-bars__fill--broken,
+.stat-bars__legend i.stat-bars__fill--broken {
+  background: var(--amber);
+}
+.stat-bars__fill--lost,
+.stat-bars__legend i.stat-bars__fill--lost {
+  background: var(--red);
 }
 .stat-bars__value {
   width: 1.6rem;
