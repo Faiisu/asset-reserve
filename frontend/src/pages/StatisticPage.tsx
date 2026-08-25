@@ -342,6 +342,25 @@ export function StatisticPage() {
       {/* One filter row above everything it scopes, so the range is never
           hidden behind a loading, empty, or error state. */}
       <section className="stat-toolbar" aria-label="Statistics filters">
+        <div className="search-box stat-toolbar__search">
+          <Search size={17} />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search name, P/N, or area"
+            aria-label="Search assets"
+          />
+          {search && (
+            <button
+              type="button"
+              className="stat-toolbar__search-clear"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+            >
+              <X size={15} />
+            </button>
+          )}
+        </div>
         <div className="stat-anchor">
           <label className="stat-anchor__field">
             <span>Start</span>
@@ -380,25 +399,6 @@ export function StatisticPage() {
         {/* No submit button: every asset being searched is already in
             memory, so matches appear as the reader types. A Search button
             would imply a round trip that never happens. */}
-        <div className="search-box stat-toolbar__search">
-          <Search size={17} />
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search name, P/N, or area"
-            aria-label="Search assets"
-          />
-          {search && (
-            <button
-              type="button"
-              className="stat-toolbar__search-clear"
-              onClick={() => setSearch("")}
-              aria-label="Clear search"
-            >
-              <X size={15} />
-            </button>
-          )}
-        </div>
 
         {/* Management area, the one dimension free-text search handles
             badly: you can type one area's name, but not combine two, and
