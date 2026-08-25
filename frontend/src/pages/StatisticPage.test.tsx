@@ -615,10 +615,10 @@ describe("StatisticPage", () => {
       screen.getByText('No asset matches "nothing-matches-this"'),
     ).toBeTruthy();
 
-    // Two controls clear the search -- the inline X in the toolbar and this
-    // empty-state CTA -- so scope to the one being exercised here.
+    // The empty-state CTA clears search and area selection together, so it
+    // is "Clear filters" -- distinct from the search box's inline X.
     fireEvent.click(
-      within(approvedRegion()).getByRole("button", { name: "Clear search" }),
+      within(approvedRegion()).getByRole("button", { name: "Clear filters" }),
     );
     expect(approvedRegion().querySelectorAll(".stat-bars__name")).toHaveLength(
       1,
@@ -653,6 +653,124 @@ describe("StatisticPage", () => {
       ),
     ).toEqual(["Tripod"]);
     expect(screen.getByLabelText("Search assets")).toHaveValue("tripod");
+  });
+
+  it("puts the Chart/Table switch in the panel header, not the filter toolbar", async () => {
+    reservationsByAsset.mockResolvedValue(
+      response("2026-08-01T00:00:00.000Z", "2026-08-31T00:00:00.000Z", [
+        [5, 1],
+      ]),
+    );
+    render(<StatisticPage />);
+    await waitFor(() => expect(approvedRegion()).toBeTruthy());
+
+    // It scopes how one panel draws, so it belongs to that panel -- the
+    // toolbar above is for what gets measured.
+    const toolbar = screen.getByRole("region", { name: "Statistics filters" });
+    expect(
+      within(toolbar).queryByRole("button", { name: /^Table$/ }),
+    ).toBeNull();
+    expect(
+      within(approvedRegion()).getByRole("button", { name: /^Table$/ }),
+    ).toBeTruthy();
+
+    fireEvent.click(
+      within(approvedRegion()).getByRole("button", { name: /^Table$/ }),
+    );
+    expect(within(approvedRegion()).getByRole("table")).toBeTruthy();
+  });
+
+  it("filters by management area and combines with the search box", async () => {
+    const data = response(
+      "2026-08-01T00:00:00.000Z",
+      "2026-08-31T00:00:00.000Z",
+      [
+        [5, 0],
+        [4, 0],
+        [3, 0],
+      ],
+    );
+    data.data[0]!.name = "Camera";
+    data.data[1]!.name = "Tripod";
+    data.data[1]!.managementArea = { id: "area-2", name: "Warehouse" };
+    data.data[2]!.name = "Camera bag";
+    data.data[2]!.managementArea = { id: "area-2", name: "Warehouse" };
+    reservationsByAsset.mockResolvedValue(data);
+    render(<StatisticPage />);
+    await waitFor(() => expect(approvedRegion()).toBeTruthy());
+
+    const names = () =>
+      Array.from(approvedRegion().querySelectorAll(".stat-bars__name")).map(
+        (node) => node.textContent,
+      );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Filter assets by management area",
+      }),
+    );
+    fireEvent.click(screen.getByLabelText("Warehouse"));
+
+    expect(names()).toEqual(["Tripod", "Camera bag"]);
+
+    // Both filters narrow together rather than one replacing the other.
+    fireEvent.change(screen.getByLabelText("Search assets"), {
+      target: { value: "camera" },
+    });
+    expect(names()).toEqual(["Camera bag"]);
+
+    // Areas are derived from the response, so only areas with an asset in
+    // the window are offered -- and the count badge reflects the selection.
+    expect(
+      screen.getByText("1", { selector: ".calendar-filter-btn__badge" }),
+    ).toBeTruthy();
+  });
+
+  it("drops an area selection the next response no longer offers", async () => {
+    const withWarehouse = response(
+      "2026-08-01T00:00:00.000Z",
+      "2026-08-31T00:00:00.000Z",
+      [
+        [5, 0],
+        [4, 0],
+      ],
+    );
+    withWarehouse.data[1]!.managementArea = { id: "area-2", name: "Warehouse" };
+    reservationsByAsset.mockResolvedValue(withWarehouse);
+    render(<StatisticPage />);
+    await waitFor(() => expect(approvedRegion()).toBeTruthy());
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Filter assets by management area",
+      }),
+    );
+    fireEvent.click(screen.getByLabelText("Warehouse"));
+    expect(approvedRegion().querySelectorAll(".stat-bars__name")).toHaveLength(
+      1,
+    );
+
+    // A new range whose assets are all in Studio A: leaving "Warehouse"
+    // selected would blank the page with no visible cause.
+    reservationsByAsset.mockResolvedValue(
+      response("2026-07-01T00:00:00.000Z", "2026-07-31T00:00:00.000Z", [
+        [2, 0],
+      ]),
+    );
+    fireEvent.change(screen.getByLabelText("Report start date"), {
+      target: { value: "2026-07-01" },
+    });
+
+    // Covers the settled outcome only. The reason the reconciliation is
+    // derived during render rather than done in an effect is the frame
+    // *before* this settles, which waitFor polls straight past -- that part
+    // is not what this assertion is proving.
+    await waitFor(() =>
+      expect(within(approvedRegion()).getByText("Asset 0")).toBeTruthy(),
+    );
+    expect(screen.queryByText("No asset in the selected areas")).toBeNull();
+    // The badge counts the reconciled selection, so it clears with it.
+    expect(document.querySelector(".calendar-filter-btn__badge")).toBeNull();
   });
 
   it("recovers from a failed request without losing the date fields", async () => {

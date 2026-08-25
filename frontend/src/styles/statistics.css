@@ -11,7 +11,10 @@
   border-radius: var(--card-radius-lg);
   background: var(--surface);
 }
-.stat-toolbar__view {
+/* The Chart/Table switch moved into each panel's own header (it picks a
+   rendering, not a scope), leaving the area filter as the trailing control
+   in this row. */
+.stat-toolbar__filter {
   margin-left: auto;
 }
 /* Shares the app-wide .search-box shell but overrides its 320px floor:
