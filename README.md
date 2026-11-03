@@ -17,6 +17,9 @@ Two separate Docker Compose setups live under [`deploy/`](deploy/) — pick the 
 
 ### Dev deploy
 ```bash
+./scripts/deploy-dev.sh    # creates .env if missing, builds, starts, waits for health
+
+# Or use the existing npm shortcuts:
 cp deploy/dev/.env.example deploy/dev/.env   # first time only
 
 npm run deploy:dev:up      # build + start db, backend, frontend
@@ -30,6 +33,9 @@ npm run deploy:dev:clean   # stop, volumes wiped
 ### Real (prod) deploy
 ```bash
 # First time: fill in deploy/prod/{database,backend,frontend}/.env from their .env.example
+./scripts/deploy-prod.sh   # validates config, builds, starts in order, waits for health
+
+# Or use the existing npm shortcut:
 npm run deploy:prod:up     # starts database, then backend, then frontend
 
 # Redeploy backend/frontend after a code change -- database and its data untouched
@@ -41,6 +47,34 @@ npm run deploy:prod:down   # stop, volumes kept
 ```
 
 See [`deploy/prod/README.md`](deploy/prod/README.md) for first-deploy ordering, required env vars, and the difference between `down` and `down -v`.
+
+### Run dev and production on the same host
+
+The Docker deployments use separate ports, PostgreSQL containers, networks,
+and data volumes by default:
+
+| Service | Dev | Production |
+| --- | --- | --- |
+| Frontend | http://localhost:18080 | http://localhost:8080 |
+| Backend API | http://localhost:13000 | http://localhost:3000 |
+| PostgreSQL host port | 15432 | 5432 |
+| Database name | `asset_reservation_dev` | `asset_reservation` |
+
+Configure the production `.env` files first, then run both deployments:
+
+```bash
+./scripts/deploy-dev.sh
+./scripts/deploy-prod.sh
+```
+
+Both environments stay running together. Dev migrations and resets operate
+on the dev database; production uses its own database and uploads volume.
+Keep the default separate network and volume names when customizing `.env`.
+If you already have `deploy/dev/.env`, update `POSTGRES_PORT=15432`,
+`BACKEND_PORT=13000`, `FRONTEND_PORT=18080`, and the frontend/CORS/OAuth URLs
+to match `deploy/dev/.env.example`; existing `.env` files are not overwritten.
+For an existing dev database, keep its current `POSTGRES_DB` value: changing
+that variable does not rename a database in an initialized PostgreSQL volume.
 
 ---
 

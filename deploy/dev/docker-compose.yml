@@ -6,7 +6,7 @@ name: asset-reservation-dev
 # profile services below) to (re)populate it.
 
 x-db-env: &db-env
-  DATABASE_URL: postgresql://${POSTGRES_USER:-asset_reservation}:${POSTGRES_PASSWORD:-dev-password}@postgres:5432/${POSTGRES_DB:-asset_reservation}?schema=public
+  DATABASE_URL: postgresql://${POSTGRES_USER:-asset_reservation}:${POSTGRES_PASSWORD:-dev-password}@postgres:5432/${POSTGRES_DB:-asset_reservation_dev}?schema=public
   DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
   DATABASE_CONNECTION_TIMEOUT_MS: ${DATABASE_CONNECTION_TIMEOUT_MS:-5000}
 
@@ -15,13 +15,13 @@ services:
     image: postgres:17-alpine
     container_name: asset-reservation-dev-postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-asset_reservation}
+      POSTGRES_DB: ${POSTGRES_DB:-asset_reservation_dev}
       POSTGRES_USER: ${POSTGRES_USER:-asset_reservation}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-15432}:5432"
     healthcheck:
       test:
         [
@@ -120,7 +120,7 @@ services:
       PORT: 3000
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-key-must-be-at-least-32-characters-long}
       JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-28800}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:3000,http://127.0.0.1:8080,http://127.0.0.1:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:18080,http://localhost:13000,http://127.0.0.1:18080,http://127.0.0.1:13000}
       TRUST_PROXY: ${TRUST_PROXY:-true}
       RECOGNITION_SERVICE_URL: ${RECOGNITION_SERVICE_URL:-http://host.docker.internal:8000}
       SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
@@ -137,7 +137,7 @@ services:
       MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
       MICROSOFT_REDIRECT_URI: ${MICROSOFT_REDIRECT_URI:-}
       MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-}
-      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:8080}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:18080}
       REQUIRE_ACCOUNT_LINK: ${REQUIRE_ACCOUNT_LINK:-false}
     depends_on:
       postgres:
@@ -145,7 +145,7 @@ services:
       schema:
         condition: service_completed_successfully
     ports:
-      - "${BACKEND_PORT:-3000}:3000"
+      - "${BACKEND_PORT:-13000}:3000"
     volumes:
       - uploads-data:/app/uploads
     healthcheck:
@@ -172,7 +172,7 @@ services:
       target: runtime
     container_name: asset-reservation-dev-frontend
     ports:
-      - "${FRONTEND_PORT:-8080}:80"
+      - "${FRONTEND_PORT:-18080}:80"
     depends_on:
       backend:
         condition: service_healthy

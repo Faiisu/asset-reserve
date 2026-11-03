@@ -4,6 +4,19 @@ Three independent Compose stacks -- `database`, `backend`, `frontend` -- each
 with its own `docker-compose.yml` and `.env`. Deploy and redeploy them
 separately; none of them touch each other's data.
 
+After configuring all three `.env` files below, run
+`./scripts/deploy-prod.sh` from the repository root to build and deploy all
+three stacks. It validates every configuration before starting services and
+waits for each stack to become healthy before starting the next. Requires
+Docker with Compose v2 supporting `up --wait --wait-timeout`. The script can
+also be invoked by absolute path from any directory. It stops on failure;
+already started stacks remain running for inspection with `docker compose logs`.
+
+Production keeps host ports 8080 (frontend), 3000 (backend), and 5432
+(PostgreSQL). Dev uses 18080/13000/15432 and separate containers, networks,
+and volumes, so both deployments can run on the same host. Keep their
+network and volume names distinct when overriding the defaults.
+
 Data persistence: each stack's state lives in a named Docker volume
 (`asset-reservation-postgres-data`, `asset-reservation-uploads-data`).
 `docker compose down` on any of them stops the containers but keeps the
