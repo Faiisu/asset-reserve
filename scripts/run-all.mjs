@@ -1,3 +1,4 @@
+import "./check-node-version.mjs";
 import { existsSync, copyFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { execSync, spawn } from "node:child_process";

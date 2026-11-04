@@ -31,7 +31,7 @@ cp deploy/prod/database/.env.example deploy/prod/database/.env   # edit POSTGRES
 docker compose -f deploy/prod/database/docker-compose.yml up -d
 
 # 2. Backend -- joins that network, runs migrations + (idempotent) seed, then starts the API
-cp deploy/prod/backend/.env.example deploy/prod/backend/.env     # edit JWT_SECRET, BOOTSTRAP_ADMIN_PASSWORD, etc.
+cp deploy/prod/backend/.env.example deploy/prod/backend/.env     # edit JWT_SECRET, database connection, etc.
 docker compose -f deploy/prod/backend/docker-compose.yml up -d
 
 # 3. Frontend -- joins the same network, proxies /api to the backend
@@ -42,6 +42,15 @@ docker compose -f deploy/prod/frontend/docker-compose.yml up -d
 `DOCKER_NETWORK_NAME` must be identical across all three `.env` files (default
 `asset-reservation-network`). `DOCKER_DATABASE_URL` in `backend/.env` must use
 the same Postgres credentials as `database/.env`.
+
+On the first deploy with a fresh database, sign in with username `admin`
+and password `00000000`. The seed derives the username from the local part
+of `BOOTSTRAP_ADMIN_EMAIL` (default `admin@example.com`); the email is not
+the password-login username. Set `BOOTSTRAP_ADMIN_PASSWORD` in
+`deploy/prod/backend/.env` to override the initial password.
+
+The seed preserves existing accounts and password hashes on redeploy.
+Changing `BOOTSTRAP_ADMIN_PASSWORD` does not reset an existing admin's password.
 
 ## Redeploy (picking up new code, keeping data)
 

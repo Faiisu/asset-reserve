@@ -80,6 +80,19 @@ that variable does not rename a database in an initialized PostgreSQL volume.
 
 ## ⚡ Quick Start (Development)
 
+Local development requires **Node.js 22.12.0 or newer** and npm. Node 20
+causes `EBADENGINE` warnings because backend dependencies require Node 22.
+With nvm, switch versions from the repository root before starting:
+
+```bash
+nvm install
+nvm use
+npm run dev
+```
+
+The repository's `.nvmrc` selects Node 22. The run scripts check the runtime
+before installing dependencies or changing environment files.
+
 All run and deployment scripts are centralized inside the [`scripts/`](scripts/) directory.
 
 You can start all services (**Database Docker** + **Backend npm dev** + **Frontend npm dev**) with any of the following:
@@ -166,6 +179,7 @@ npm run db:reset
 ```
 
 ### Default Credentials
+- **Admin Username:** `admin`
 - **Admin Email:** `admin@example.com`
 - **Admin Password:** `00000000`
 - **Database Connection:** `postgresql://asset_reservation:change-this-database-password@localhost:5432/asset_reservation?schema=public`
